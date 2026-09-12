@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Errors;
 using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.Api.RateLimiting;
@@ -28,15 +30,25 @@ internal static class AuthRateLimitExtensions
                         ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
                 }
 
-                context.HttpContext.Response.ContentType = "application/problem+json";
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+                var problemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests,
+                    Title = "Too Many Requests",
+                    Detail = "Too many attempts. Please try again later."
+                };
+
+                ApiProblemDetailsEnricher.Enrich(
+                    context.HttpContext,
+                    problemDetails,
+                    ApiErrorCodes.TooManyRequests);
+
                 await context.HttpContext.Response.WriteAsJsonAsync(
-                    new
-                    {
-                        status = StatusCodes.Status429TooManyRequests,
-                        title = "Too many requests.",
-                        detail = "Too many attempts. Please try again later."
-                    },
-                    cancellationToken);
+                    problemDetails,
+                    options: null,
+                    contentType: "application/problem+json",
+                    cancellationToken: cancellationToken);
             };
 
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Login, httpContext =>

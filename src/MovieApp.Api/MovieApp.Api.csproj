@@ -22,4 +22,8 @@
       <TargetFramework>net10.0</TargetFramework>
       <UserSecretsId>MovieApp.Api</UserSecretsId>
     </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MovieApp.UnitTests" />
+  </ItemGroup>
 </Project>

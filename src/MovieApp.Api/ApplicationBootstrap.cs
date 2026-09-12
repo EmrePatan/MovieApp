@@ -26,6 +26,8 @@ public static class ApplicationBootstrap
 
     public static void ConfigurePipeline(WebApplication app)
     {
+        app.UseExceptionHandler();
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();

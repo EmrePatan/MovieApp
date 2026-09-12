@@ -60,6 +60,17 @@ Configuration is loaded from `appsettings.json` and environment-specific files.
 
 Never commit secrets. Provide credentials using environment variables, user secrets, or a secure secret store.
 
+### API error responses
+
+API failures return RFC 9457-style `application/problem+json` payloads enriched with:
+
+- `type` — stable error URI (`urn:movieapp:error:<code>` or `{App:PublicBaseUrl}/errors/<code>` when configured)
+- `title`, `status`, `detail`
+- `code` — machine-readable error code (for example `VALIDATION_FAILED`, `NOT_FOUND`, `INTERNAL_ERROR`)
+- `traceId` — correlates client responses with server logs
+
+Unhandled exceptions return a generic `500` response in all environments. Stack traces, exception types, and secrets are never returned to clients.
+
 ### PostgreSQL
 
 Development settings in `appsettings.Development.json`:

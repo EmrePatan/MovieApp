@@ -1,5 +1,6 @@
 using MovieApp.Api.Authentication;
 using MovieApp.Api.Cors;
+using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Api.Identity;
 using MovieApp.Api.RateLimiting;
@@ -16,6 +17,7 @@ public static class DependencyInjection
     {
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+        services.AddApiExceptionHandling();
         services.AddControllers();
         services.AddEndpointsApiExplorer();
         services.AddSwaggerWithBearerAuth();
