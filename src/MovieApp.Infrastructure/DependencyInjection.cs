@@ -182,7 +182,13 @@ public static class DependencyInjection
 
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConfigurationOptions!));
 
-            services.AddSingleton<ISearchRefreshLockService, RedisSearchRefreshLockService>();
+            services.AddSingleton<LocalSearchRefreshSingleFlightGate>();
+            services.AddSingleton<LocalSearchRefreshCompletionRegistry>();
+            services.AddSingleton<SearchRefreshLockDiagnostics>();
+            services.AddSingleton<ISearchRefreshLockDiagnostics>(provider =>
+                provider.GetRequiredService<SearchRefreshLockDiagnostics>());
+            services.AddSingleton<ISearchRefreshLockService, SearchRefreshLockService>();
+            services.AddSingleton<ISearchRefreshCompletionSignal, SearchRefreshCompletionSignal>();
 
             services.AddSingleton<ICacheService, RedisCacheService>();
 
@@ -194,7 +200,13 @@ public static class DependencyInjection
 
             services.AddDistributedMemoryCache();
 
-            services.AddSingleton<ISearchRefreshLockService, RedisSearchRefreshLockService>();
+            services.AddSingleton<LocalSearchRefreshSingleFlightGate>();
+            services.AddSingleton<LocalSearchRefreshCompletionRegistry>();
+            services.AddSingleton<SearchRefreshLockDiagnostics>();
+            services.AddSingleton<ISearchRefreshLockDiagnostics>(provider =>
+                provider.GetRequiredService<SearchRefreshLockDiagnostics>());
+            services.AddSingleton<ISearchRefreshLockService, SearchRefreshLockService>();
+            services.AddSingleton<ISearchRefreshCompletionSignal, SearchRefreshCompletionSignal>();
 
             services.AddSingleton<ICacheService, RedisCacheService>();
 

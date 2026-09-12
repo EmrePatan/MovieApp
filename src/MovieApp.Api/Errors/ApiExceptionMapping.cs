@@ -54,6 +54,14 @@ internal static class ApiExceptionMappings
                     ApiErrorCodes.Conflict,
                     LogAsError: false);
                 return true;
+            case MovieApp.Application.Exceptions.SearchProviderUnavailableException:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Search provider unavailable.",
+                    "Search provider is temporarily unavailable.",
+                    ApiErrorCodes.SearchProviderUnavailable,
+                    LogAsError: false);
+                return true;
             default:
                 return false;
         }
@@ -97,6 +105,12 @@ internal static class ApiExceptionMappings
                 "Too Many Requests",
                 "Too many attempts. Please try again later.",
                 ApiErrorCodes.TooManyRequests,
+                LogAsError: false),
+            StatusCodes.Status503ServiceUnavailable => new(
+                StatusCodes.Status503ServiceUnavailable,
+                "Service Unavailable",
+                "Search provider is temporarily unavailable.",
+                ApiErrorCodes.SearchProviderUnavailable,
                 LogAsError: false),
             _ => InternalServerError
         };

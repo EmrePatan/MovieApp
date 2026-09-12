@@ -44,6 +44,7 @@ internal static class ApiProblemDetailsEnricher
             StatusCodes.Status404NotFound => ApiErrorCodes.NotFound,
             StatusCodes.Status409Conflict => ApiErrorCodes.Conflict,
             StatusCodes.Status429TooManyRequests => ApiErrorCodes.TooManyRequests,
+            StatusCodes.Status503ServiceUnavailable => ApiErrorCodes.SearchProviderUnavailable,
             StatusCodes.Status500InternalServerError => ApiErrorCodes.InternalError,
             _ => ApiErrorCodes.BadRequest
         };

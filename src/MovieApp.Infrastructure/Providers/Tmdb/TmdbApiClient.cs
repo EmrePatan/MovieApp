@@ -43,27 +43,41 @@ public sealed class TmdbApiClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var request = CreateRequest(requestUri);
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            HttpResponseMessage response;
 
-            if (response.IsSuccessStatusCode)
+            try
             {
-                return await response.Content.ReadFromJsonAsync<TResponse>(SerializerOptions, cancellationToken);
+                using var request = CreateRequest(requestUri);
+                response = await _httpClient.SendAsync(request, cancellationToken);
+            }
+            catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw CreateTransientAvailabilityException("TMDB request timed out.", exception);
+            }
+            catch (HttpRequestException exception)
+            {
+                throw CreateTransientAvailabilityException("TMDB service is temporarily unavailable.", exception);
             }
 
-            if (ShouldRetry(response.StatusCode) && attempt < RetryDelays.Length)
+            using (response)
             {
-                var delay = GetRetryDelay(response, attempt);
-                await Task.Delay(delay, cancellationToken);
-                continue;
-            }
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadFromJsonAsync<TResponse>(SerializerOptions, cancellationToken);
+                }
 
-            throw CreateApiException(response.StatusCode, requestUri);
+                if (ShouldRetry(response.StatusCode) && attempt < RetryDelays.Length)
+                {
+                    var delay = GetRetryDelay(response, attempt);
+                    await Task.Delay(delay, cancellationToken);
+                    continue;
+                }
+
+                throw CreateApiException(response.StatusCode);
+            }
         }
 
-        throw new TmdbApiException(
-            HttpStatusCode.ServiceUnavailable,
-            "TMDB request failed after retries.");
+        throw CreateTransientAvailabilityException("TMDB request failed after retries.");
     }
 
     private HttpRequestMessage CreateRequest(string requestUri)
@@ -106,7 +120,7 @@ public sealed class TmdbApiClient
         return RetryDelays[attempt];
     }
 
-    private static TmdbApiException CreateApiException(HttpStatusCode statusCode, string requestUri)
+    private static TmdbApiException CreateApiException(HttpStatusCode statusCode)
     {
         var message = statusCode switch
         {
@@ -115,15 +129,20 @@ public sealed class TmdbApiClient
             HttpStatusCode.Forbidden =>
                 "TMDB denied the request. Verify that the configured account has access for this operation.",
             HttpStatusCode.NotFound =>
-                $"TMDB resource was not found for request '{requestUri}'.",
+                "TMDB resource was not found.",
             HttpStatusCode.TooManyRequests =>
                 "TMDB rate limit exceeded.",
             _ when (int)statusCode >= 500 =>
                 "TMDB service is temporarily unavailable.",
             _ =>
-                $"TMDB request failed with status code {(int)statusCode}."
+                "TMDB request failed."
         };
 
         return new TmdbApiException(statusCode, message);
     }
+
+    private static TmdbApiException CreateTransientAvailabilityException(
+        string message,
+        Exception? innerException = null) =>
+        new(HttpStatusCode.ServiceUnavailable, message, innerException);
 }

@@ -9,6 +9,49 @@ namespace MovieApp.UnitTests.Search;
 public sealed class UnifiedSearchProviderPolicyTests
 {
     [Fact]
+    public void DoesNotNeedProviderRefreshWhenCatalogIsEmptyButFreshnessIsCurrent()
+    {
+        var criteria = CreateCriteria("missing-title");
+        var result = EmptyResult(criteria);
+        var lastRefreshed = DateTime.UtcNow.AddHours(-1);
+
+        Assert.False(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
+            criteria,
+            result,
+            lastRefreshed,
+            DateTime.UtcNow,
+            TimeSpan.FromHours(24)));
+    }
+
+    [Fact]
+    public void NeedsProviderRefreshWhenCatalogIsEmptyAndFreshnessIsStale()
+    {
+        var criteria = CreateCriteria("missing-title");
+        var result = EmptyResult(criteria);
+        var lastRefreshed = DateTime.UtcNow.AddHours(-25);
+
+        Assert.True(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
+            criteria,
+            result,
+            lastRefreshed,
+            DateTime.UtcNow,
+            TimeSpan.FromHours(24)));
+    }
+
+    [Fact]
+    public void ShouldCacheSuccessfulEmptyProviderRefresh()
+    {
+        var criteria = CreateCriteria("missing-title");
+        var result = EmptyResult(criteria);
+
+        Assert.True(UnifiedSearchProviderPolicy.ShouldCacheAfterSearch(
+            result,
+            criteria,
+            providerRefreshFullySucceeded: true,
+            providerRefreshFailedOrPartial: false));
+    }
+
+    [Fact]
     public void NeedsProviderRefreshWhenCatalogIsEmpty()
     {
         var criteria = CreateCriteria("friends");

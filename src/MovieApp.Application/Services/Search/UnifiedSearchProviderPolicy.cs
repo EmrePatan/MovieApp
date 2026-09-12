@@ -65,6 +65,12 @@ internal static class UnifiedSearchProviderPolicy
             return !CanSatisfyRequestedPage(result, criteria);
         }
 
+        if (lastRefreshedAtUtc is not null &&
+            !IsProviderRefreshStale(lastRefreshedAtUtc, utcNow, refreshInterval))
+        {
+            return false;
+        }
+
         if (!CanSatisfyRequestedPage(result, criteria))
         {
             return true;
@@ -81,11 +87,6 @@ internal static class UnifiedSearchProviderPolicy
         bool providerRefreshFullySucceeded,
         bool providerRefreshFailedOrPartial)
     {
-        if (!ShouldCache(result))
-        {
-            return false;
-        }
-
         if (providerRefreshFailedOrPartial)
         {
             return false;
@@ -94,6 +95,11 @@ internal static class UnifiedSearchProviderPolicy
         if (providerRefreshFullySucceeded)
         {
             return true;
+        }
+
+        if (!ShouldCache(result))
+        {
+            return false;
         }
 
         return CanSatisfyRequestedPage(result, criteria);

@@ -1,9 +1,13 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using MovieApp.Infrastructure.Caching;
+using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.UnitTests.Search;
 
@@ -22,6 +26,13 @@ internal static class SearchTestDoubles
 
     internal static IOptions<SearchOptions> CreateOptionsMonitor(SearchOptions? options = null) =>
         Options.Create(options ?? CreateOptions());
+
+    internal static ISearchRefreshCompletionSignal CreateCompletionSignal() =>
+        new SearchRefreshCompletionSignal(
+            connectionMultiplexer: null,
+            Options.Create(new RedisOptions { ConnectionString = string.Empty }),
+            new LocalSearchRefreshCompletionRegistry(),
+            NullLogger<SearchRefreshCompletionSignal>.Instance);
 
     internal sealed class FakeSearchProviderRefreshRepository : ISearchProviderRefreshRepository
     {
@@ -56,7 +67,7 @@ internal static class SearchTestDoubles
 
     internal sealed class InMemorySearchRefreshLockService : ISearchRefreshLockService
     {
-        private readonly LockState _state = new();
+        private readonly LocalSearchRefreshSingleFlightGate _localGate = new();
 
         public int AcquireAttempts { get; private set; }
 
@@ -71,80 +82,72 @@ internal static class SearchTestDoubles
             TimeSpan lockDuration,
             CancellationToken cancellationToken = default)
         {
-            lock (_state.Sync)
+            AcquireAttempts++;
+
+            if (ForceDenyAcquire)
             {
-                AcquireAttempts++;
-
-                if (ForceDenyAcquire)
-                {
-                    return Task.FromResult<SearchRefreshLockHandle?>(null);
-                }
-
-                if (_state.Locks.TryGetValue(lockKey, out var existing) &&
-                    existing.ExpiresAtUtc > DateTime.UtcNow)
-                {
-                    return Task.FromResult<SearchRefreshLockHandle?>(null);
-                }
-
-                var token = Guid.NewGuid().ToString("N");
-                _state.Locks[lockKey] = new LockEntry(token, DateTime.UtcNow.Add(lockDuration));
-                SuccessfulAcquires++;
-                return Task.FromResult<SearchRefreshLockHandle?>(new SearchRefreshLockHandle(lockKey, token));
+                return Task.FromResult<SearchRefreshLockHandle?>(null);
             }
+
+            if (_localGate.TryAcquire(lockKey, out var lockToken))
+            {
+                SuccessfulAcquires++;
+                return Task.FromResult<SearchRefreshLockHandle?>(
+                    new SearchRefreshLockHandle(lockKey, lockToken, SearchRefreshLockBackend.LocalSingleFlight));
+            }
+
+            return Task.FromResult<SearchRefreshLockHandle?>(null);
         }
 
         public Task ReleaseAsync(
             string lockKey,
             string lockToken,
+            SearchRefreshLockBackend backend,
             CancellationToken cancellationToken = default)
         {
-            lock (_state.Sync)
-            {
-                ReleaseCount++;
-
-                if (_state.Locks.TryGetValue(lockKey, out var existing) &&
-                    existing.Token == lockToken)
-                {
-                    _state.Locks.Remove(lockKey);
-                }
-            }
-
+            ReleaseCount++;
+            _localGate.Release(lockKey, lockToken);
             return Task.CompletedTask;
         }
+    }
 
-        public void ExpireLock(string lockKey)
+    internal sealed class LocalSearchRefreshSingleFlightGate
+    {
+        private readonly Dictionary<string, bool> _held = new(StringComparer.Ordinal);
+
+        public bool TryAcquire(string lockKey, out string lockToken)
         {
-            lock (_state.Sync)
+            lock (_held)
             {
-                if (_state.Locks.TryGetValue(lockKey, out var existing))
+                if (_held.TryGetValue(lockKey, out var held) && held)
                 {
-                    _state.Locks[lockKey] = existing with { ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1) };
+                    lockToken = string.Empty;
+                    return false;
+                }
+
+                _held[lockKey] = true;
+                lockToken = Guid.NewGuid().ToString("N");
+                return true;
+            }
+        }
+
+        public void Release(string lockKey, string lockToken)
+        {
+            lock (_held)
+            {
+                if (_held.ContainsKey(lockKey))
+                {
+                    _held[lockKey] = false;
                 }
             }
         }
-
-        public bool IsLocked(string lockKey)
-        {
-            lock (_state.Sync)
-            {
-                return _state.Locks.TryGetValue(lockKey, out var existing) &&
-                       existing.ExpiresAtUtc > DateTime.UtcNow;
-            }
-        }
-
-        private sealed class LockState
-        {
-            public object Sync { get; } = new();
-
-            public Dictionary<string, LockEntry> Locks { get; } = new(StringComparer.Ordinal);
-        }
-
-        private sealed record LockEntry(string Token, DateTime ExpiresAtUtc);
     }
 
     internal sealed class FakeProviderIngestionService : IUnifiedSearchProviderIngestionService
     {
-        public int IngestCount { get; private set; }
+        private int _ingestCount;
+
+        public int IngestCount => _ingestCount;
 
         public SearchCriteria? LastCriteria { get; private set; }
 
@@ -154,12 +157,19 @@ internal static class SearchTestDoubles
 
         public bool ThrowBeforeResult { get; set; }
 
-        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
+        public int ArtificialDelayMilliseconds { get; set; }
+
+        public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(
             SearchCriteria criteria,
             CancellationToken cancellationToken = default)
         {
-            IngestCount++;
+            Interlocked.Increment(ref _ingestCount);
             LastCriteria = criteria;
+
+            if (ArtificialDelayMilliseconds > 0)
+            {
+                await Task.Delay(ArtificialDelayMilliseconds, cancellationToken);
+            }
 
             if (ThrowBeforeResult)
             {
@@ -169,34 +179,46 @@ internal static class SearchTestDoubles
             var movieRequired = criteria.Type is SearchContentType.Movie or SearchContentType.All;
             var tvRequired = criteria.Type is SearchContentType.Tv or SearchContentType.All;
 
-            return Task.FromResult(new UnifiedSearchProviderIngestionResult(
+            return new UnifiedSearchProviderIngestionResult(
                 movieRequired,
                 tvRequired,
                 movieRequired,
                 tvRequired,
                 movieRequired && MovieSucceeds,
-                tvRequired && TvSucceeds));
+                tvRequired && TvSucceeds);
         }
     }
 
-    internal sealed class FailOpenSearchRefreshLockService : ISearchRefreshLockService
+    internal sealed class CountingProviderIngestionService : IUnifiedSearchProviderIngestionService
     {
-        public int AcquireCount { get; private set; }
+        private int _ingestCount;
 
-        public Task<SearchRefreshLockHandle?> TryAcquireAsync(
-            string lockKey,
-            TimeSpan lockDuration,
+        public int IngestCount => _ingestCount;
+
+        public int ArtificialDelayMilliseconds { get; set; }
+
+        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
+            SearchCriteria criteria,
             CancellationToken cancellationToken = default)
         {
-            AcquireCount++;
-            return Task.FromResult<SearchRefreshLockHandle?>(
-                new SearchRefreshLockHandle(lockKey, Guid.NewGuid().ToString("N")));
-        }
+            Interlocked.Increment(ref _ingestCount);
 
-        public Task ReleaseAsync(
-            string lockKey,
-            string lockToken,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+            if (ArtificialDelayMilliseconds > 0)
+            {
+                return Task.Run(async () =>
+                {
+                    await Task.Delay(ArtificialDelayMilliseconds, cancellationToken);
+                    return UnifiedSearchProviderIngestionResult.NotRequired();
+                }, cancellationToken);
+            }
+
+            return Task.FromResult(new UnifiedSearchProviderIngestionResult(
+                true,
+                true,
+                true,
+                true,
+                true,
+                true));
+        }
     }
 }

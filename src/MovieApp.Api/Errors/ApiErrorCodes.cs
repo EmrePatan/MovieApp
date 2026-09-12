@@ -9,5 +9,6 @@ internal static class ApiErrorCodes
     internal const string NotFound = "NOT_FOUND";
     internal const string Conflict = "CONFLICT";
     internal const string TooManyRequests = "TOO_MANY_REQUESTS";
+    internal const string SearchProviderUnavailable = "SEARCH_PROVIDER_UNAVAILABLE";
     internal const string InternalError = "INTERNAL_ERROR";
 }

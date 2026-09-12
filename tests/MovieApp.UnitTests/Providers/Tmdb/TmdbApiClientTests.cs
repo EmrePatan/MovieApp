@@ -118,6 +118,36 @@ public sealed class TmdbApiClientTests
     }
 
     [Fact]
+    public async Task GetAsyncMapsConnectionFailuresToServiceUnavailable()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueException(new HttpRequestException("connection refused"));
+
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<TmdbApiException>(() =>
+            client.GetAsync<TestResponse>("movie/1"));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, exception.StatusCode);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetAsyncMapsTimeoutToServiceUnavailable()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueException(new TaskCanceledException("timed out"));
+
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<TmdbApiException>(() =>
+            client.GetAsync<TestResponse>("movie/1"));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, exception.StatusCode);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
     public async Task GetAsyncHonorsCancellationToken()
     {
         var handler = new MockHttpMessageHandler();

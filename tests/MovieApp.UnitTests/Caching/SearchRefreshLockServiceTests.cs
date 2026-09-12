@@ -1,37 +1,64 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Infrastructure.Caching;
 using MovieApp.Infrastructure.Configuration;
 using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Caching;
 
-public sealed class RedisSearchRefreshLockServiceTests
+public sealed class SearchRefreshLockServiceTests
 {
     [Fact]
-    public async Task TryAcquireFailsOpenWhenRedisIsNotConfigured()
+    public async Task LocalSingleFlightAllowsOnlyOneConcurrentOwnerPerKey()
     {
-        var service = new RedisSearchRefreshLockService(
-            connectionMultiplexer: null,
-            Options.Create(new RedisOptions { ConnectionString = string.Empty }),
-            NullLogger<RedisSearchRefreshLockService>.Instance);
+        var lockService = CreateLocalOnlyLockService();
 
-        var handle = await service.TryAcquireAsync("search-refresh-lock:friends:All:1", TimeSpan.FromSeconds(30));
+        var first = await lockService.TryAcquireAsync("search-refresh-lock:batman:All:1", TimeSpan.FromSeconds(30));
+        var second = await lockService.TryAcquireAsync("search-refresh-lock:batman:All:1", TimeSpan.FromSeconds(30));
 
-        Assert.NotNull(handle);
-        Assert.False(string.IsNullOrWhiteSpace(handle!.LockToken));
+        Assert.NotNull(first);
+        Assert.Null(second);
+        Assert.Equal(SearchRefreshLockBackend.LocalSingleFlight, first!.Backend);
+
+        await lockService.ReleaseAsync(first.LockKey, first.LockToken, first.Backend);
+
+        var third = await lockService.TryAcquireAsync("search-refresh-lock:batman:All:1", TimeSpan.FromSeconds(30));
+        Assert.NotNull(third);
     }
 
     [Fact]
-    public async Task ReleaseDoesNotThrowWhenRedisIsNotConfigured()
+    public async Task LocalSingleFlightDoesNotSerializeDifferentQueries()
     {
-        var service = new RedisSearchRefreshLockService(
+        var lockService = CreateLocalOnlyLockService();
+
+        var batman = await lockService.TryAcquireAsync("search-refresh-lock:batman:All:1", TimeSpan.FromSeconds(30));
+        var matrix = await lockService.TryAcquireAsync("search-refresh-lock:matrix:All:1", TimeSpan.FromSeconds(30));
+
+        Assert.NotNull(batman);
+        Assert.NotNull(matrix);
+    }
+
+    [Fact]
+    public void ReleaseOnlyDeletesMatchingOwnershipToken()
+    {
+        var gate = new LocalSearchRefreshSingleFlightGate();
+
+        Assert.True(gate.TryAcquire("search-refresh-lock:friends:All:1", out var token));
+        Assert.False(gate.Release("search-refresh-lock:friends:All:1", "wrong-token"));
+        Assert.False(gate.TryAcquire("search-refresh-lock:friends:All:1", out _));
+
+        Assert.True(gate.Release("search-refresh-lock:friends:All:1", token));
+        Assert.True(gate.TryAcquire("search-refresh-lock:friends:All:1", out _));
+    }
+
+    private static SearchRefreshLockService CreateLocalOnlyLockService() =>
+        new(
             connectionMultiplexer: null,
             Options.Create(new RedisOptions { ConnectionString = string.Empty }),
-            NullLogger<RedisSearchRefreshLockService>.Instance);
-
-        await service.ReleaseAsync("search-refresh-lock:friends:All:1", Guid.NewGuid().ToString("N"));
-    }
+            new LocalSearchRefreshSingleFlightGate(),
+            new SearchRefreshLockDiagnostics(),
+            NullLogger<SearchRefreshLockService>.Instance);
 }
 
 public sealed class InMemorySearchRefreshLockServiceTests
@@ -43,24 +70,10 @@ public sealed class InMemorySearchRefreshLockServiceTests
         var handle = await lockService.TryAcquireAsync("search-refresh-lock:friends:All:1", TimeSpan.FromSeconds(30));
 
         Assert.NotNull(handle);
-        await lockService.ReleaseAsync(handle!.LockKey, "wrong-token");
-        Assert.True(lockService.IsLocked(handle.LockKey));
+        await lockService.ReleaseAsync(handle!.LockKey, "wrong-token", handle.Backend);
+        await lockService.ReleaseAsync(handle.LockKey, handle.LockToken, handle.Backend);
 
-        await lockService.ReleaseAsync(handle.LockKey, handle.LockToken);
-        Assert.False(lockService.IsLocked(handle.LockKey));
-    }
-
-    [Fact]
-    public async Task ExpiredLockCanBeAcquiredByAnotherRequest()
-    {
-        var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
-        var first = await lockService.TryAcquireAsync("search-refresh-lock:batman:All:1", TimeSpan.FromSeconds(30));
-        Assert.NotNull(first);
-
-        lockService.ExpireLock(first!.LockKey);
-
-        var second = await lockService.TryAcquireAsync("search-refresh-lock:batman:All:1", TimeSpan.FromSeconds(30));
+        var second = await lockService.TryAcquireAsync("search-refresh-lock:friends:All:1", TimeSpan.FromSeconds(30));
         Assert.NotNull(second);
-        Assert.NotEqual(first.LockToken, second!.LockToken);
     }
 }

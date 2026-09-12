@@ -179,16 +179,164 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsyncDoesNotCacheEmptyResultsAfterProviderFallback()
+    public async Task SearchAsyncCachesEmptyResultsAfterSuccessfulProviderRefresh()
     {
         var cache = new FakeCacheService(null);
         var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
-        var service = CreateService(repository, cache, providerIngestion);
+        var service = CreateService(repository, cache, providerIngestion, refreshRepository);
 
         var result = await service.SearchAsync(CreateCriteria("missing-title"));
 
         Assert.Empty(result.Items);
+        Assert.Equal(1, refreshRepository.SetCount);
+        Assert.Equal(1, cache.SetCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncDoesNotCallProviderAgainForFreshEmptyResult()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
+        refreshRepository.Seed("missing-title", SearchContentType.All, 1, DateTime.UtcNow.AddHours(-1));
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
+        var service = CreateService(repository, cache, providerIngestion, refreshRepository);
+
+        await service.SearchAsync(CreateCriteria("missing-title"));
+
+        Assert.Equal(0, providerIngestion.IngestCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncCallsProviderAgainWhenEmptyResultFreshnessExpires()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
+        refreshRepository.Seed("missing-title", SearchContentType.All, 1, DateTime.UtcNow.AddHours(-25));
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
+        var service = CreateService(repository, cache, providerIngestion, refreshRepository);
+
+        await service.SearchAsync(CreateCriteria("missing-title"));
+
+        Assert.Equal(1, providerIngestion.IngestCount);
+        Assert.Equal(1, refreshRepository.SetCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncWaiterReturnsShortlyAfterSuccessfulRefresh()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0);
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            ArtificialDelayMilliseconds = 500
+        };
+        var service = CreateService(repository, cache, providerIngestion);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var tasks = Enumerable.Range(0, 10)
+            .Select(_ => service.SearchAsync(CreateCriteria("friends")))
+            .ToArray();
+        await Task.WhenAll(tasks);
+        stopwatch.Stop();
+
+        Assert.Equal(1, providerIngestion.IngestCount);
+        Assert.True(stopwatch.ElapsedMilliseconds < 5_000);
+    }
+
+    [Fact]
+    public async Task SearchAsyncWaiterReturnsShortlyAfterFailedRefresh()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            MovieSucceeds = false,
+            TvSucceeds = false,
+            ArtificialDelayMilliseconds = 500
+        };
+        var service = CreateService(repository, cache, providerIngestion);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var tasks = Enumerable.Range(0, 10)
+            .Select(_ => RecordOutcomeAsync(service))
+            .ToArray();
+        var outcomes = await Task.WhenAll(tasks);
+        stopwatch.Stop();
+
+        Assert.All(outcomes, outcome => Assert.IsType<SearchProviderUnavailableException>(outcome.Error));
+        Assert.Equal(1, providerIngestion.IngestCount);
+        Assert.True(stopwatch.ElapsedMilliseconds < 5_000);
+    }
+
+    private static async Task<(bool Succeeded, Exception? Error)> RecordOutcomeAsync(SearchService service)
+    {
+        try
+        {
+            await service.SearchAsync(CreateCriteria("friends"));
+            return (true, null);
+        }
+        catch (Exception exception)
+        {
+            return (false, exception);
+        }
+    }
+
+    [Fact]
+    public async Task SearchAsyncConcurrentEmptySuccessfulRefreshCallsProviderOnce()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            ArtificialDelayMilliseconds = 500
+        };
+        var service = CreateService(repository, cache, providerIngestion, refreshRepository);
+
+        var tasks = Enumerable.Range(0, 10)
+            .Select(_ => service.SearchAsync(CreateCriteria("missing-title")))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+
+        Assert.Equal(1, providerIngestion.IngestCount);
+        Assert.Equal(1, refreshRepository.SetCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncAdvancesFreshnessWhenTypeAllProvidersBothReturnEmpty()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
+        var service = CreateService(repository, cache, providerIngestion, refreshRepository);
+
+        await service.SearchAsync(CreateCriteria("missing-title", SearchContentType.All));
+
+        Assert.Equal(1, refreshRepository.SetCount);
+        Assert.Equal(1, cache.SetCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncDoesNotCacheEmptyResultsAfterProviderFallback()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0, alwaysEmptyAfterIngest: true);
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            MovieSucceeds = false,
+            TvSucceeds = false
+        };
+        var service = CreateService(repository, cache, providerIngestion);
+
+        await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
+            service.SearchAsync(CreateCriteria("missing-title")));
+
         Assert.Equal(0, cache.SetCount);
     }
 
@@ -288,7 +436,7 @@ public sealed class SearchServiceTests
         };
         var service = CreateService(repository, cache, providerIngestion);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
             service.SearchAsync(CreateCriteria("friends")));
     }
 
@@ -323,7 +471,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
         var options = SearchTestDoubles.CreateOptions(lockDuration: TimeSpan.FromSeconds(30));
-        var service = CreateService(repository, cache, providerIngestion, refreshRepository, lockService, options);
+        var service = CreateService(repository, cache, providerIngestion, refreshRepository, lockService, options: options);
 
         var lockHandle = await lockService.TryAcquireAsync(
             SearchRefreshLockKeys.Create(CreateCriteria("friends")),
@@ -333,7 +481,7 @@ public sealed class SearchServiceTests
 
         var waitingTask = service.SearchAsync(CreateCriteria("friends"));
         refreshRepository.Seed("friends", SearchContentType.All, 1, DateTime.UtcNow);
-        await lockService.ReleaseAsync(lockHandle!.LockKey, lockHandle.LockToken);
+        await lockService.ReleaseAsync(lockHandle!.LockKey, lockHandle.LockToken, lockHandle.Backend);
 
         await waitingTask;
 
@@ -341,18 +489,25 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsyncWorksWhenRedisLockFailsOpen()
+    public async Task SearchAsyncUsesLocalSingleFlightWhenDistributedLockContends()
     {
         var cache = new FakeCacheService(null);
         var repository = new FakeSearchRepository([], totalCount: 0);
-        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
-        var lockService = new SearchTestDoubles.FailOpenSearchRefreshLockService();
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            ArtificialDelayMilliseconds = 500
+        };
+        var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
         var service = CreateService(repository, cache, providerIngestion, lockService: lockService);
 
-        var result = await service.SearchAsync(CreateCriteria("friends"));
+        var tasks = Enumerable.Range(0, 10)
+            .Select(_ => service.SearchAsync(CreateCriteria("friends")))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
 
         Assert.Equal(1, providerIngestion.IngestCount);
-        Assert.NotEmpty(result.Items);
+        Assert.Equal(1, lockService.SuccessfulAcquires);
     }
 
     [Fact]
@@ -393,6 +548,7 @@ public sealed class SearchServiceTests
         SearchTestDoubles.FakeProviderIngestionService providerIngestion,
         SearchTestDoubles.FakeSearchProviderRefreshRepository? refreshRepository = null,
         ISearchRefreshLockService? lockService = null,
+        ISearchRefreshCompletionSignal? completionSignal = null,
         SearchOptions? options = null) =>
         new(
             repository,
@@ -402,6 +558,7 @@ public sealed class SearchServiceTests
             cache,
             providerIngestion,
             lockService ?? new SearchTestDoubles.InMemorySearchRefreshLockService(),
+            completionSignal ?? SearchTestDoubles.CreateCompletionSignal(),
             SearchTestDoubles.CreateOptionsMonitor(options));
 
     private static SearchCriteria CreateCriteria(
