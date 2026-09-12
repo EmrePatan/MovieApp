@@ -58,9 +58,12 @@ jobs:
           PROJECT_DIR="$RUNNER_TEMP/pg-connectivity-diag"
           PROJECT_FILE="$PROJECT_DIR/PgConnectivityDiag.csproj"
           PROGRAM_FILE="$PROJECT_DIR/Program.cs"
+          NPgsql_CONNECTION_FILE="$RUNNER_TEMP/npgsql-connection.txt"
 
           rm -rf "$PROJECT_DIR"
+          rm -f "$NPgsql_CONNECTION_FILE"
           mkdir -p "$PROJECT_DIR"
+          export NPgsql_CONNECTION_FILE
 
           cat > "$PROJECT_FILE" << 'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
@@ -79,12 +82,20 @@ jobs:
           cat > "$PROGRAM_FILE" << 'EOF'
           using System.Net;
           using System.Net.Sockets;
+          using System.Text.RegularExpressions;
           using Npgsql;
 
           var rawConnectionString = Environment.GetEnvironmentVariable("MOVIEAPP_STAGING_POSTGRES_CONNECTION");
+          var outputConnectionFile = Environment.GetEnvironmentVariable("NPgsql_CONNECTION_FILE");
           if (string.IsNullOrWhiteSpace(rawConnectionString))
           {
               Console.Error.WriteLine("::error::Missing MOVIEAPP_STAGING_POSTGRES_CONNECTION.");
+              return 1;
+          }
+
+          if (string.IsNullOrWhiteSpace(outputConnectionFile))
+          {
+              Console.Error.WriteLine("::error::Missing NPgsql_CONNECTION_FILE.");
               return 1;
           }
 
@@ -94,24 +105,22 @@ jobs:
               Console.WriteLine("Warning: connection string contained leading or trailing whitespace and was trimmed.");
           }
 
-          var trimmedStart = trimmedConnectionString.TrimStart();
-          if (trimmedStart.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
-              trimmedStart.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
-          {
-              Console.Error.WriteLine("::error::Connection string appears to be a PostgreSQL URI. Use Npgsql key/value format instead (Host=...;Port=...;Database=...;Username=...;Password=...;Ssl Mode=Require).");
-              return 1;
-          }
+          var isPostgresUri = IsPostgresUri(trimmedConnectionString);
 
           NpgsqlConnectionStringBuilder builder;
           try
           {
-              builder = new NpgsqlConnectionStringBuilder(trimmedConnectionString);
+              builder = isPostgresUri
+                  ? ParsePostgresUri(trimmedConnectionString)
+                  : new NpgsqlConnectionStringBuilder(trimmedConnectionString);
           }
           catch (Exception ex)
           {
               Console.Error.WriteLine($"::error::Connection string could not be parsed: {Sanitize(ex.Message, rawConnectionString, trimmedConnectionString)}");
               return 1;
           }
+
+          ApplyRenderExternalSslDefaults(builder);
 
           var host = builder.Host ?? string.Empty;
           if (string.IsNullOrWhiteSpace(host))
@@ -132,7 +141,10 @@ jobs:
               return 1;
           }
 
+          var secrets = BuildSecrets(rawConnectionString, trimmedConnectionString, builder);
+
           Console.WriteLine("=== PostgreSQL connection diagnostics (sanitized) ===");
+          Console.WriteLine($"Input format: {(isPostgresUri ? "PostgreSQL URI (Render external URL)" : "Npgsql key/value")}");
           Console.WriteLine($"Host: {host}");
           Console.WriteLine($"Port: {builder.Port}");
           Console.WriteLine($"Database: {(string.IsNullOrWhiteSpace(builder.Database) ? "(not set)" : builder.Database)}");
@@ -140,7 +152,6 @@ jobs:
           Console.WriteLine($"SslMode: {builder.SslMode}");
           Console.WriteLine($"Timeout: {builder.Timeout}s");
           Console.WriteLine($"CommandTimeout: {builder.CommandTimeout}s");
-          Console.WriteLine($"TrustServerCertificate: {builder.TrustServerCertificate}");
 
           try
           {
@@ -155,7 +166,7 @@ jobs:
           }
           catch (Exception ex)
           {
-              Console.Error.WriteLine($"::error::DNS lookup failed for host '{host}': {Sanitize(ex.Message, rawConnectionString, trimmedConnectionString, builder.Password, builder.Username)}");
+              Console.Error.WriteLine($"::error::DNS lookup failed for host '{host}': {Sanitize(ex.Message, secrets)}");
               return 1;
           }
 
@@ -175,7 +186,7 @@ jobs:
           }
           catch (Exception ex)
           {
-              Console.Error.WriteLine($"::error::TCP connection to {host}:{builder.Port} failed: {Sanitize(ex.Message, rawConnectionString, trimmedConnectionString, builder.Password, builder.Username)}");
+              Console.Error.WriteLine($"::error::TCP connection to {host}:{builder.Port} failed: {Sanitize(ex.Message, secrets)}");
               return 1;
           }
 
@@ -191,7 +202,15 @@ jobs:
               var result = await command.ExecuteScalarAsync();
               if (result is not null && Convert.ToInt32(result) == 1)
               {
+                  var outputDirectory = Path.GetDirectoryName(outputConnectionFile);
+                  if (!string.IsNullOrWhiteSpace(outputDirectory))
+                  {
+                      Directory.CreateDirectory(outputDirectory);
+                  }
+
+                  await File.WriteAllTextAsync(outputConnectionFile, builder.ConnectionString);
                   Console.WriteLine("PostgreSQL authentication test: SUCCESS (SELECT 1).");
+                  Console.WriteLine("Npgsql connection string prepared for EF migration (not printed).");
                   return 0;
               }
 
@@ -201,8 +220,100 @@ jobs:
           catch (Exception ex)
           {
               Console.Error.WriteLine("PostgreSQL authentication test: FAILED");
-              WriteSanitizedException(ex, rawConnectionString, trimmedConnectionString, builder.Password, builder.Username);
+              WriteSanitizedException(ex, secrets);
               return 1;
+          }
+
+          static bool IsPostgresUri(string value)
+          {
+              var start = value.TrimStart();
+              return start.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+                  || start.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase);
+          }
+
+          static NpgsqlConnectionStringBuilder ParsePostgresUri(string uriString)
+          {
+              if (!Uri.TryCreate(uriString, UriKind.Absolute, out var uri))
+              {
+                  throw new ArgumentException("PostgreSQL URI is not a valid absolute URI.");
+              }
+
+              var builder = new NpgsqlConnectionStringBuilder
+              {
+                  Host = uri.Host,
+                  Port = uri.Port > 0 ? uri.Port : 5432,
+              };
+
+              var database = uri.AbsolutePath.TrimStart('/');
+              if (!string.IsNullOrWhiteSpace(database))
+              {
+                  builder.Database = Uri.UnescapeDataString(database);
+              }
+
+              if (!string.IsNullOrEmpty(uri.UserInfo))
+              {
+                  var separatorIndex = uri.UserInfo.IndexOf(':');
+                  if (separatorIndex >= 0)
+                  {
+                      builder.Username = Uri.UnescapeDataString(uri.UserInfo[..separatorIndex]);
+                      builder.Password = Uri.UnescapeDataString(uri.UserInfo[(separatorIndex + 1)..]);
+                  }
+                  else
+                  {
+                      builder.Username = Uri.UnescapeDataString(uri.UserInfo);
+                  }
+              }
+
+              var query = uri.Query.TrimStart('?');
+              if (!string.IsNullOrEmpty(query))
+              {
+                  foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                  {
+                      var parts = pair.Split('=', 2);
+                      if (parts.Length != 2)
+                      {
+                          continue;
+                      }
+
+                      ApplyUriQueryParameter(
+                          builder,
+                          Uri.UnescapeDataString(parts[0]),
+                          Uri.UnescapeDataString(parts[1]));
+                  }
+              }
+
+              return builder;
+          }
+
+          static void ApplyUriQueryParameter(NpgsqlConnectionStringBuilder builder, string key, string value)
+          {
+              if (key.Equals("sslmode", StringComparison.OrdinalIgnoreCase))
+              {
+                  builder.SslMode = Enum.Parse<SslMode>(value, ignoreCase: true);
+              }
+          }
+
+          static void ApplyRenderExternalSslDefaults(NpgsqlConnectionStringBuilder builder)
+          {
+              if (builder.SslMode is SslMode.Disable or SslMode.Allow or SslMode.Prefer)
+              {
+                  builder.SslMode = SslMode.Require;
+              }
+          }
+
+          static string[] BuildSecrets(
+              string rawConnectionString,
+              string trimmedConnectionString,
+              NpgsqlConnectionStringBuilder builder)
+          {
+              return
+              [
+                  rawConnectionString,
+                  trimmedConnectionString,
+                  builder.ConnectionString,
+                  builder.Password ?? string.Empty,
+                  builder.Username ?? string.Empty
+              ];
           }
 
           static string MaskUsername(string? username)
@@ -233,6 +344,11 @@ jobs:
                   }
               }
 
+              sanitized = Regex.Replace(
+                  sanitized,
+                  @"postgres(?:ql)?://[^\s'""]+",
+                  "postgresql://***",
+                  RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
               return sanitized;
           }
 
@@ -270,14 +386,19 @@ jobs:
         run: dotnet build src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-restore
 
       - name: Apply EF Core migrations to staging database
-        env:
-          MOVIEAPP_STAGING_POSTGRES_CONNECTION: ${{ secrets.MOVIEAPP_STAGING_POSTGRES_CONNECTION }}
         run: |
+          NPgsql_CONNECTION_FILE="$RUNNER_TEMP/npgsql-connection.txt"
+          if [ ! -f "$NPgsql_CONNECTION_FILE" ]; then
+            echo "::error::Npgsql connection file was not created by the diagnostic step."
+            exit 1
+          fi
+
+          CONNECTION="$(cat "$NPgsql_CONNECTION_FILE")"
           dotnet ef database update \
             --project src/MovieApp.Infrastructure \
             --startup-project src/MovieApp.Api \
             --configuration Release \
-            --connection "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" \
+            --connection "$CONNECTION" \
             --no-build
 
       - name: Migration complete
