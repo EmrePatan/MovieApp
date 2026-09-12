@@ -30,11 +30,10 @@ public sealed class PostgreSqlOptions
 
     public string ResolveConnectionString()
     {
-        if (!string.IsNullOrWhiteSpace(ConnectionString))
-        {
-            return ConnectionString;
-        }
+        var connectionString = !string.IsNullOrWhiteSpace(ConnectionString)
+            ? ConnectionString
+            : $"Host={Host};Port={Port};Database={Database};Username={Username};Password={Password}";
 
-        return $"Host={Host};Port={Port};Database={Database};Username={Username};Password={Password}";
+        return PostgreSqlConnectionStringFactory.Normalize(connectionString);
     }
 }
