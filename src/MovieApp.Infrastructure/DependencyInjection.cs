@@ -154,20 +154,19 @@ public static class DependencyInjection
 
         services.AddSingleton<RedisCacheFailureLogger>();
 
+        ConfigurationOptions? redisConfigurationOptions = null;
+
         if (!string.IsNullOrWhiteSpace(redisOptions.ConnectionString))
 
         {
 
-            var configurationOptions = ConfigurationOptions.Parse(redisOptions.ConnectionString);
-            configurationOptions.ConnectTimeout = Math.Max(500, redisOptions.ConnectTimeoutMs);
-            configurationOptions.SyncTimeout = Math.Max(500, redisOptions.SyncTimeoutMs);
-            configurationOptions.AbortOnConnectFail = false;
+            redisConfigurationOptions = RedisConnectionOptionsFactory.Create(redisOptions);
 
             services.AddStackExchangeRedisCache(options =>
 
             {
 
-                options.ConfigurationOptions = configurationOptions;
+                options.ConfigurationOptions = redisConfigurationOptions;
 
                 options.InstanceName = redisOptions.InstanceName;
 
@@ -205,11 +204,11 @@ public static class DependencyInjection
 
 
 
-        if (!string.IsNullOrWhiteSpace(redisOptions.ConnectionString))
+        if (redisConfigurationOptions is not null)
 
         {
 
-            healthChecksBuilder.AddRedis(redisOptions.ConnectionString, name: "redis");
+            healthChecksBuilder.AddRedis(redisConfigurationOptions.ToString(), name: "redis");
 
         }
 
