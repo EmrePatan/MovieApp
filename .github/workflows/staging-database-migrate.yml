@@ -1,0 +1,73 @@
+name: Staging Database Migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "staging" to confirm migration against the staging database
+        required: true
+        type: string
+
+concurrency:
+  group: staging-database-migrate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-staging:
+    name: Apply EF migrations (staging)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate manual confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "staging" ]; then
+            echo "::error::Confirmation input must be exactly \"staging\"."
+            exit 1
+          fi
+
+      - name: Validate staging PostgreSQL secret
+        env:
+          MOVIEAPP_STAGING_POSTGRES_CONNECTION: ${{ secrets.MOVIEAPP_STAGING_POSTGRES_CONNECTION }}
+        run: |
+          if [ -z "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" ]; then
+            echo "::error::Missing required GitHub Actions secret MOVIEAPP_STAGING_POSTGRES_CONNECTION."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/Directory.Packages.props
+
+      - name: Install EF Core CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.12
+
+      - name: Restore dependencies
+        run: dotnet restore src/MovieApp.Api/MovieApp.Api.csproj
+
+      - name: Build startup project (Release)
+        run: dotnet build src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-restore
+
+      - name: Apply EF Core migrations to staging database
+        env:
+          MOVIEAPP_STAGING_POSTGRES_CONNECTION: ${{ secrets.MOVIEAPP_STAGING_POSTGRES_CONNECTION }}
+        run: |
+          dotnet ef database update \
+            --project src/MovieApp.Infrastructure \
+            --startup-project src/MovieApp.Api \
+            --configuration Release \
+            --connection "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" \
+            --no-build
+
+      - name: Migration complete
+        run: echo "Staging EF Core migrations applied successfully."
