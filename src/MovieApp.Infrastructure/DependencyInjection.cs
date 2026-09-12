@@ -1,39 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-
 using Microsoft.Extensions.DependencyInjection;
-
 using Microsoft.Extensions.Hosting;
-
 using Microsoft.Extensions.Options;
-
 using MovieApp.Application.Configuration;
-
 using MovieApp.Application.Abstractions.Caching;
-
 using MovieApp.Application.Abstractions.Persistence;
-
 using MovieApp.Application.Abstractions.Identity;
-
 using MovieApp.Infrastructure.Caching;
-
 using MovieApp.Infrastructure.Configuration;
-
 using MovieApp.Infrastructure.Email;
-
 using MovieApp.Infrastructure.Identity;
-
 using MovieApp.Infrastructure.Persistence;
-
 using MovieApp.Infrastructure.Persistence.Repositories;
-
 using MovieApp.Infrastructure.Providers;
-
-
+using StackExchange.Redis;
 
 namespace MovieApp.Infrastructure;
-
-
 
 public static class DependencyInjection
 
@@ -169,15 +152,22 @@ public static class DependencyInjection
 
 
 
+        services.AddSingleton<RedisCacheFailureLogger>();
+
         if (!string.IsNullOrWhiteSpace(redisOptions.ConnectionString))
 
         {
+
+            var configurationOptions = ConfigurationOptions.Parse(redisOptions.ConnectionString);
+            configurationOptions.ConnectTimeout = Math.Max(500, redisOptions.ConnectTimeoutMs);
+            configurationOptions.SyncTimeout = Math.Max(500, redisOptions.SyncTimeoutMs);
+            configurationOptions.AbortOnConnectFail = false;
 
             services.AddStackExchangeRedisCache(options =>
 
             {
 
-                options.Configuration = redisOptions.ConnectionString;
+                options.ConfigurationOptions = configurationOptions;
 
                 options.InstanceName = redisOptions.InstanceName;
 

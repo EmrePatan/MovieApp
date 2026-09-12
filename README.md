@@ -105,6 +105,15 @@ You can also supply a full connection string via `PostgreSql__ConnectionString`.
 }
 ```
 
+When `Redis:ConnectionString` is configured, optional cache operations degrade gracefully if Redis is temporarily unavailable:
+
+- cache **GET** failures behave like a cache miss
+- cache **SET/REMOVE** failures are logged and ignored after the primary operation succeeds
+- `/health/ready` still reports Redis as unhealthy while the dependency is down
+- bounded Redis command timeouts (`ConnectTimeoutMs`, `SyncTimeoutMs`) prevent cache calls from hanging requests
+
+When `Redis:ConnectionString` is empty (Development/Testing), the API uses in-memory distributed cache instead of Redis.
+
 ### External Movie Providers
 
 MovieApp is a commercial product. Do not assume TMDB's free API tier is permitted for production use. Configure a properly licensed TMDB account before enabling the TMDB provider in production.
