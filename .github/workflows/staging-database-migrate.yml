@@ -49,6 +49,203 @@ jobs:
             **/*.csproj
             **/Directory.Packages.props
 
+      - name: Diagnose PostgreSQL connectivity
+        env:
+          MOVIEAPP_STAGING_POSTGRES_CONNECTION: ${{ secrets.MOVIEAPP_STAGING_POSTGRES_CONNECTION }}
+        run: |
+          set -euo pipefail
+
+          DIAG_DIR="$RUNNER_TEMP/pg-connectivity-diag"
+          rm -rf "$DIAG_DIR"
+          mkdir -p "$DIAG_DIR"
+
+          cat > "$DIAG_DIR/PgConnectivityDiag.csproj" << 'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Npgsql" Version="10.0.0" />
+            </ItemGroup>
+          </Project>
+          EOF
+
+          cat > "$DIAG_DIR/Program.cs" << 'EOF'
+          using System.Net;
+          using System.Net.Sockets;
+          using Npgsql;
+
+          var rawConnectionString = Environment.GetEnvironmentVariable("MOVIEAPP_STAGING_POSTGRES_CONNECTION");
+          if (string.IsNullOrWhiteSpace(rawConnectionString))
+          {
+              Console.Error.WriteLine("::error::Missing MOVIEAPP_STAGING_POSTGRES_CONNECTION.");
+              return 1;
+          }
+
+          var trimmedConnectionString = rawConnectionString.Trim();
+          if (!string.Equals(rawConnectionString, trimmedConnectionString, StringComparison.Ordinal))
+          {
+              Console.WriteLine("Warning: connection string contained leading or trailing whitespace and was trimmed.");
+          }
+
+          var trimmedStart = trimmedConnectionString.TrimStart();
+          if (trimmedStart.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+              trimmedStart.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+          {
+              Console.Error.WriteLine("::error::Connection string appears to be a PostgreSQL URI. Use Npgsql key/value format instead (Host=...;Port=...;Database=...;Username=...;Password=...;Ssl Mode=Require).");
+              return 1;
+          }
+
+          NpgsqlConnectionStringBuilder builder;
+          try
+          {
+              builder = new NpgsqlConnectionStringBuilder(trimmedConnectionString);
+          }
+          catch (Exception ex)
+          {
+              Console.Error.WriteLine($"::error::Connection string could not be parsed: {Sanitize(ex.Message, rawConnectionString, trimmedConnectionString)}");
+              return 1;
+          }
+
+          var host = builder.Host ?? string.Empty;
+          if (string.IsNullOrWhiteSpace(host))
+          {
+              Console.Error.WriteLine("::error::Connection string Host is missing or empty.");
+              return 1;
+          }
+
+          if (host.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+          {
+              Console.Error.WriteLine("::error::Host must not include the tcp:// scheme. Use the hostname only (for example: dpg-xxxxx-a.frankfurt-postgres.render.com).");
+              return 1;
+          }
+
+          if (host.Contains("://", StringComparison.Ordinal))
+          {
+              Console.Error.WriteLine("::error::Host must not include a URL scheme. Use the hostname only.");
+              return 1;
+          }
+
+          Console.WriteLine("=== PostgreSQL connection diagnostics (sanitized) ===");
+          Console.WriteLine($"Host: {host}");
+          Console.WriteLine($"Port: {builder.Port}");
+          Console.WriteLine($"Database: {(string.IsNullOrWhiteSpace(builder.Database) ? "(not set)" : builder.Database)}");
+          Console.WriteLine($"Username: {MaskUsername(builder.Username)}");
+          Console.WriteLine($"SslMode: {builder.SslMode}");
+          Console.WriteLine($"Timeout: {builder.Timeout}s");
+          Console.WriteLine($"CommandTimeout: {builder.CommandTimeout}s");
+          Console.WriteLine($"TrustServerCertificate: {builder.TrustServerCertificate}");
+
+          try
+          {
+              var addresses = await Dns.GetHostAddressesAsync(host);
+              if (addresses.Length == 0)
+              {
+                  Console.Error.WriteLine("::error::DNS lookup returned no addresses for the configured host.");
+                  return 1;
+              }
+
+              Console.WriteLine($"DNS: resolved {addresses.Length} address(es): {string.Join(", ", addresses.Select(static address => address.ToString()))}");
+          }
+          catch (Exception ex)
+          {
+              Console.Error.WriteLine($"::error::DNS lookup failed for host '{host}': {Sanitize(ex.Message, rawConnectionString, trimmedConnectionString, builder.Password, builder.Username)}");
+              return 1;
+          }
+
+          try
+          {
+              using var tcpClient = new TcpClient();
+              var connectTask = tcpClient.ConnectAsync(host, builder.Port);
+              var completed = await Task.WhenAny(connectTask, Task.Delay(TimeSpan.FromSeconds(15))) == connectTask;
+              if (!completed)
+              {
+                  Console.Error.WriteLine($"::error::TCP connection to {host}:{builder.Port} timed out after 15 seconds.");
+                  return 1;
+              }
+
+              await connectTask;
+              Console.WriteLine($"TCP: reachable on {host}:{builder.Port}");
+          }
+          catch (Exception ex)
+          {
+              Console.Error.WriteLine($"::error::TCP connection to {host}:{builder.Port} failed: {Sanitize(ex.Message, rawConnectionString, trimmedConnectionString, builder.Password, builder.Username)}");
+              return 1;
+          }
+
+          builder.Timeout = Math.Max(builder.Timeout, 15);
+          builder.CommandTimeout = Math.Max(builder.CommandTimeout, 30);
+
+          try
+          {
+              await using var connection = new NpgsqlConnection(builder.ConnectionString);
+              await connection.OpenAsync();
+
+              await using var command = new NpgsqlCommand("SELECT 1", connection);
+              var result = await command.ExecuteScalarAsync();
+              if (result is not null && Convert.ToInt32(result) == 1)
+              {
+                  Console.WriteLine("PostgreSQL authentication test: SUCCESS (SELECT 1).");
+                  return 0;
+              }
+
+              Console.Error.WriteLine("::error::PostgreSQL authentication test returned an unexpected result.");
+              return 1;
+          }
+          catch (Exception ex)
+          {
+              Console.Error.WriteLine("PostgreSQL authentication test: FAILED");
+              WriteSanitizedException(ex, rawConnectionString, trimmedConnectionString, builder.Password, builder.Username);
+              return 1;
+          }
+
+          static string MaskUsername(string? username)
+          {
+              if (string.IsNullOrWhiteSpace(username))
+              {
+                  return "(not set)";
+              }
+
+              if (username.Length <= 2)
+              {
+                  return new string('*', username.Length);
+              }
+
+              var visible = Math.Min(2, username.Length);
+              var maskedLength = Math.Min(username.Length - visible, 8);
+              return $"{username[..visible]}{new string('*', maskedLength)} (length: {username.Length})";
+          }
+
+          static string Sanitize(string message, params string?[] secrets)
+          {
+              var sanitized = message;
+              foreach (var secret in secrets)
+              {
+                  if (!string.IsNullOrEmpty(secret))
+                  {
+                      sanitized = sanitized.Replace(secret, "***", StringComparison.Ordinal);
+                  }
+              }
+
+              return sanitized;
+          }
+
+          static void WriteSanitizedException(Exception ex, params string?[] secrets)
+          {
+              for (var current = ex; current is not null; current = current.InnerException)
+              {
+                  Console.Error.WriteLine($"Exception type: {current.GetType().FullName}");
+                  Console.Error.WriteLine($"Message: {Sanitize(current.Message, secrets)}");
+              }
+          }
+          EOF
+
+          dotnet restore "$DIAG_DIR/PgConnectivityDiag.csproj --verbosity quiet"
+          dotnet run --project "$DIAG_DIR/PgConnectivityDiag.csproj" -c Release --no-restore
+
       - name: Install EF Core CLI
         run: dotnet tool install --global dotnet-ef --version 10.0.12
 
