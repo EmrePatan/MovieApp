@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -225,9 +226,7 @@ public sealed class HomeServiceTests
     {
         return new HomeService(
             new FakeCurrentUser(UserId),
-            recommendationService ?? new FakeRecommendationService([]),
-            discoveryService ?? new FakeDiscoveryService(),
-            watchHistoryService ?? new FakeWatchHistoryService([]),
+            CreateScopeFactory(recommendationService, discoveryService, watchHistoryService),
             cache ?? new FakeCacheService(),
             Options.Create(options ?? new HomeOptions
             {
@@ -235,6 +234,23 @@ public sealed class HomeServiceTests
                 MaximumSectionSize = 20,
                 GenreSections = ["Science Fiction"]
             }));
+    }
+
+    private static IServiceScopeFactory CreateScopeFactory(
+        IRecommendationService? recommendationService = null,
+        IDiscoveryService? discoveryService = null,
+        IWatchHistoryService? watchHistoryService = null)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ICurrentUser>(_ => new FakeCurrentUser(UserId));
+        services.AddScoped<IRecommendationService>(_ =>
+            recommendationService ?? new FakeRecommendationService([]));
+        services.AddScoped<IDiscoveryService>(_ =>
+            discoveryService ?? new FakeDiscoveryService());
+        services.AddScoped<IWatchHistoryService>(_ =>
+            watchHistoryService ?? new FakeWatchHistoryService([]));
+
+        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
     private static HomeItem CreateHomeItem(string type, int seed) =>

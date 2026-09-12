@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -18,9 +19,7 @@ namespace MovieApp.Application.Services.Home;
 
 public sealed class HomeService(
     ICurrentUser currentUser,
-    IRecommendationService recommendationService,
-    IDiscoveryService discoveryService,
-    IWatchHistoryService watchHistoryService,
+    IServiceScopeFactory scopeFactory,
     ICacheService cacheService,
     IOptions<HomeOptions> options) : IHomeService
 {
@@ -64,33 +63,55 @@ public sealed class HomeService(
         }
 
         var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
-        var recommendationSectionsTask = recommendationService.GetHomeRecommendationsForCurrentUserAsync(cancellationToken);
-        var continueWatchingTask = BuildContinueWatchingSectionAsync(criteria, cancellationToken);
-        var trendingTask = BuildDiscoverySectionAsync(
-            HomeSectionType.Trending,
-            "Trending",
-            discoveryService.GetTrendingAsync(discoveryCriteria, cancellationToken),
-            criteria,
+        var recommendationSectionsTask = RunScopedAsync(
+            (services, ct) => services
+                .GetRequiredService<IRecommendationService>()
+                .GetHomeRecommendationsForCurrentUserAsync(ct),
             cancellationToken);
-        var popularTask = BuildDiscoverySectionAsync(
-            HomeSectionType.Popular,
-            "Popular",
-            discoveryService.GetPopularAsync(discoveryCriteria, cancellationToken),
-            criteria,
+        var continueWatchingTask = RunScopedAsync(
+            (services, ct) => BuildContinueWatchingSectionAsync(
+                services.GetRequiredService<IWatchHistoryService>(),
+                criteria,
+                ct),
             cancellationToken);
-        var newReleasesTask = BuildDiscoverySectionAsync(
-            HomeSectionType.NewReleases,
-            "New Releases",
-            discoveryService.GetNewReleasesAsync(discoveryCriteria, cancellationToken),
-            criteria,
+        var trendingTask = RunScopedAsync(
+            (services, ct) => BuildDiscoverySectionAsync(
+                HomeSectionType.Trending,
+                "Trending",
+                services.GetRequiredService<IDiscoveryService>().GetTrendingAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
             cancellationToken);
-        var topRatedTask = BuildDiscoverySectionAsync(
-            HomeSectionType.TopRated,
-            "Top Rated",
-            discoveryService.GetTopRatedAsync(discoveryCriteria, cancellationToken),
-            criteria,
+        var popularTask = RunScopedAsync(
+            (services, ct) => BuildDiscoverySectionAsync(
+                HomeSectionType.Popular,
+                "Popular",
+                services.GetRequiredService<IDiscoveryService>().GetPopularAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
             cancellationToken);
-        var genreSectionsTask = BuildGenreSectionsAsync(criteria, cancellationToken);
+        var newReleasesTask = RunScopedAsync(
+            (services, ct) => BuildDiscoverySectionAsync(
+                HomeSectionType.NewReleases,
+                "New Releases",
+                services.GetRequiredService<IDiscoveryService>().GetNewReleasesAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
+            cancellationToken);
+        var topRatedTask = RunScopedAsync(
+            (services, ct) => BuildDiscoverySectionAsync(
+                HomeSectionType.TopRated,
+                "Top Rated",
+                services.GetRequiredService<IDiscoveryService>().GetTopRatedAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
+            cancellationToken);
+        var genreSectionsTask = RunScopedAsync(
+            (services, ct) => BuildGenreSectionsAsync(
+                services.GetRequiredService<IDiscoveryService>(),
+                criteria,
+                ct),
+            cancellationToken);
 
         await Task.WhenAll(
             recommendationSectionsTask,
@@ -133,7 +154,16 @@ public sealed class HomeService(
         return result;
     }
 
-    private async Task<HomeSection> BuildContinueWatchingSectionAsync(
+    private async Task<T> RunScopedAsync<T>(
+        Func<IServiceProvider, CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await operation(scope.ServiceProvider, cancellationToken);
+    }
+
+    private static async Task<HomeSection> BuildContinueWatchingSectionAsync(
+        IWatchHistoryService watchHistoryService,
         HomeCriteria criteria,
         CancellationToken cancellationToken)
     {
@@ -167,6 +197,7 @@ public sealed class HomeService(
     }
 
     private async Task<List<HomeSection>> BuildGenreSectionsAsync(
+        IDiscoveryService discoveryService,
         HomeCriteria criteria,
         CancellationToken cancellationToken)
     {
