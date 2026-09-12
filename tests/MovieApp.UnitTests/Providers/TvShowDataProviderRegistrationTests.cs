@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb;
@@ -12,6 +14,7 @@ public sealed class TvShowDataProviderRegistrationTests
     public void FakeProviderRegistrationResolvesFakeTvShowDataProvider()
     {
         var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment("Development"));
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -22,7 +25,10 @@ public sealed class TvShowDataProviderRegistrationTests
         services.AddMovieDataProviders(configuration);
         services.AddTvShowDataProviders(configuration);
 
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = false
+        });
 
         var tvShowDataProvider = provider.GetRequiredService<ITvShowDataProvider>();
         var externalIdResolver = provider.GetRequiredService<ITvShowExternalIdResolver>();
@@ -35,6 +41,7 @@ public sealed class TvShowDataProviderRegistrationTests
     public void TmdbProviderRegistrationResolvesTmdbTvShowDataProvider()
     {
         var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment("Development"));
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -47,12 +54,26 @@ public sealed class TvShowDataProviderRegistrationTests
         services.AddMovieDataProviders(configuration);
         services.AddTvShowDataProviders(configuration);
 
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = false
+        });
 
         var tvShowDataProvider = provider.GetRequiredService<ITvShowDataProvider>();
         var externalIdResolver = provider.GetRequiredService<ITvShowExternalIdResolver>();
 
         Assert.IsType<TmdbTvShowDataProvider>(tvShowDataProvider);
         Assert.IsType<TmdbTvExternalIdResolver>(externalIdResolver);
+    }
+
+    private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+
+        public string ApplicationName { get; set; } = "MovieApp.UnitTests";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

@@ -47,11 +47,23 @@ public static class DependencyInjection
 
     {
 
-        services.Configure<PostgreSqlOptions>(configuration.GetSection(PostgreSqlOptions.SectionName));
+        services.AddOptions<PostgreSqlOptions>()
+            .Bind(configuration.GetSection(PostgreSqlOptions.SectionName))
+            .ValidateOnStart();
 
-        services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
+        services.AddSingleton<IValidateOptions<PostgreSqlOptions>, PostgreSqlOptionsValidator>();
 
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.AddOptions<RedisOptions>()
+            .Bind(configuration.GetSection(RedisOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<RedisOptions>, RedisOptionsValidator>();
+
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
 
         services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
 

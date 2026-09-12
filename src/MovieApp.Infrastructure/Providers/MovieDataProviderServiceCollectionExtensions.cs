@@ -13,7 +13,12 @@ internal static class MovieDataProviderServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<MovieProvidersOptions>(configuration.GetSection(MovieProvidersOptions.SectionName));
+        services.AddOptions<MovieProvidersOptions>()
+            .Bind(configuration.GetSection(MovieProvidersOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<MovieProvidersOptions>, MovieProvidersOptionsValidator>();
+
         services.Configure<TmdbOptions>(configuration.GetSection($"{MovieProvidersOptions.SectionName}:Tmdb"));
 
         var movieProviders = configuration
