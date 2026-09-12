@@ -116,6 +116,12 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
             .Select(item => item.MovieId!.Value)
             .ToListAsync(cancellationToken));
 
+        excludedMovieIds.UnionWith(await dbContext.Ratings
+            .AsNoTracking()
+            .Where(item => item.UserId == userId && item.MovieId != null)
+            .Select(item => item.MovieId!.Value)
+            .ToListAsync(cancellationToken));
+
         excludedTvShowIds.UnionWith(await dbContext.Favorites
             .AsNoTracking()
             .Where(item => item.UserId == userId && item.TvShowId != null)
@@ -125,6 +131,12 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
         excludedTvShowIds.UnionWith(await dbContext.WatchlistItems
             .AsNoTracking()
             .Where(item => item.Watchlist.UserId == userId && item.TvShowId != null)
+            .Select(item => item.TvShowId!.Value)
+            .ToListAsync(cancellationToken));
+
+        excludedTvShowIds.UnionWith(await dbContext.Ratings
+            .AsNoTracking()
+            .Where(item => item.UserId == userId && item.TvShowId != null)
             .Select(item => item.TvShowId!.Value)
             .ToListAsync(cancellationToken));
 

@@ -8,7 +8,9 @@ public static class SearchRefreshLockKeys
 
     public static string Create(SearchCriteria criteria)
     {
-        var normalizedQuery = Common.QueryNormalizer.Normalize(criteria.Query!);
+        var normalizedQuery = string.IsNullOrWhiteSpace(criteria.Query)
+            ? "_"
+            : Common.QueryNormalizer.Normalize(criteria.Query);
 
         return string.Join(
             ':',

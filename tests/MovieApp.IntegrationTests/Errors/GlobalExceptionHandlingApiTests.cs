@@ -25,8 +25,6 @@ public sealed class ExceptionHandlingWebApplicationFactory : WebApplicationFacto
         Environment.SetEnvironmentVariable(
             "Authentication__Jwt__SigningKey",
             IntegrationTestJwtSettings.SigningKey);
-        Environment.SetEnvironmentVariable("Authentication__RateLimit__RegisterPermitLimit", "100");
-        Environment.SetEnvironmentVariable("Authentication__RateLimit__RegisterWindowMinutes", "10");
 
         builder.ConfigureServices(services =>
         {

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -54,7 +55,7 @@ public sealed class SearchRefreshLockServiceTests
 
     private static SearchRefreshLockService CreateLocalOnlyLockService() =>
         new(
-            connectionMultiplexer: null,
+            new ServiceCollection().BuildServiceProvider(),
             Options.Create(new RedisOptions { ConnectionString = string.Empty }),
             new LocalSearchRefreshSingleFlightGate(),
             new SearchRefreshLockDiagnostics(),

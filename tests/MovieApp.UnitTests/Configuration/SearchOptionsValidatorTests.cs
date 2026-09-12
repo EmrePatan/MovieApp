@@ -72,5 +72,8 @@ public sealed class SearchOptionsValidatorTests
         Assert.Equal(TimeSpan.FromHours(1), options.CacheDuration);
         Assert.Equal(TimeSpan.FromHours(24), options.ProviderRefreshInterval);
         Assert.Equal(TimeSpan.FromSeconds(30), options.ProviderRefreshLockDuration);
+        Assert.Equal(20, options.MaxProviderDetailFetchesPerContentType);
+        Assert.Equal(4, options.MaxConcurrentProviderHttpRequests);
+        Assert.Equal(TimeSpan.FromSeconds(10), options.ProviderRefreshLockRenewalInterval);
     }
 }

@@ -21,4 +21,13 @@ internal static partial class RedisSearchRefreshLockLogMessages
         ILogger logger,
         string lockKey,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 5103,
+        Level = LogLevel.Warning,
+        Message = "Search refresh lock renewal failed for key {LockKey}. Refresh owner should stop work.")]
+    public static partial void LogLockRenewFailed(
+        ILogger logger,
+        string lockKey,
+        Exception exception);
 }

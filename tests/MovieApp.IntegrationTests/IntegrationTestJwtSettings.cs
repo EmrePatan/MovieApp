@@ -10,6 +10,14 @@ internal static class IntegrationTestJwtSettings
             ["Authentication:Jwt:Issuer"] = "MovieApp",
             ["Authentication:Jwt:Audience"] = "MovieApp.Mobile",
             ["Authentication:Jwt:SigningKey"] = SigningKey,
-            ["Authentication:Jwt:AccessTokenMinutes"] = "60"
+            ["Authentication:Jwt:AccessTokenMinutes"] = "60",
+            ["Authentication:RateLimit:RegisterPermitLimit"] = "1000",
+            ["Authentication:RateLimit:RegisterWindowMinutes"] = "10",
+            ["Authentication:RateLimit:LoginPermitLimit"] = "1000",
+            ["Authentication:RateLimit:LoginWindowMinutes"] = "10",
+            ["Authentication:RateLimit:ForgotPasswordPermitLimit"] = "1000",
+            ["Authentication:RateLimit:ForgotPasswordWindowMinutes"] = "15",
+            ["Authentication:RateLimit:ResetPasswordPermitLimit"] = "1000",
+            ["Authentication:RateLimit:ResetPasswordWindowMinutes"] = "15"
         };
 }

@@ -31,6 +31,10 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             configuration["MovieProviders:Provider"] = "Fake";
             configuration["Authentication:PasswordReset:TokenLifetimeMinutes"] = "60";
             configuration["Authentication:PasswordReset:BaseUrl"] = "movieapp://reset-password";
+            configuration["Authentication:RateLimit:RegisterPermitLimit"] = "100";
+            configuration["Authentication:RateLimit:LoginPermitLimit"] = "100";
+            configuration["Authentication:RateLimit:ForgotPasswordPermitLimit"] = "100";
+            configuration["Authentication:RateLimit:ResetPasswordPermitLimit"] = "100";
             configurationBuilder.AddInMemoryCollection(configuration);
         });
     }

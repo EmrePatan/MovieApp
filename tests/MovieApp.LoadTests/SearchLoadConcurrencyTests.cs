@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -394,13 +395,13 @@ internal sealed class LoadTestEnvironment
         var lockDiagnostics = new SearchRefreshLockDiagnostics();
         var completionRegistry = new LocalSearchRefreshCompletionRegistry();
         var lockService = new SearchRefreshLockService(
-            connectionMultiplexer: null,
+            new ServiceCollection().BuildServiceProvider(),
             Options.Create(new MovieApp.Infrastructure.Configuration.RedisOptions { ConnectionString = string.Empty }),
             new LocalSearchRefreshSingleFlightGate(),
             lockDiagnostics,
             NullLogger<SearchRefreshLockService>.Instance);
         var completionSignal = new SearchRefreshCompletionSignal(
-            connectionMultiplexer: null,
+            new ServiceCollection().BuildServiceProvider(),
             Options.Create(new MovieApp.Infrastructure.Configuration.RedisOptions { ConnectionString = string.Empty }),
             completionRegistry,
             NullLogger<SearchRefreshCompletionSignal>.Instance);

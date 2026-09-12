@@ -8,6 +8,8 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class SearchProviderRefreshRepository(ApplicationDbContext dbContext) : ISearchProviderRefreshRepository
 {
+    private const int MaxUpsertAttempts = 3;
+
     public async Task<DateTime?> GetLastRefreshedAtUtcAsync(
         string normalizedQuery,
         SearchContentType contentType,
@@ -37,29 +39,43 @@ public sealed class SearchProviderRefreshRepository(ApplicationDbContext dbConte
     {
         var mappedContentType = MapContentType(contentType);
 
-        var refresh = await dbContext.SearchProviderRefreshes
-            .FirstOrDefaultAsync(
-                item =>
-                    item.NormalizedQuery == normalizedQuery &&
-                    item.ContentType == mappedContentType &&
-                    item.Page == page,
-                cancellationToken);
-
-        if (refresh is null)
+        for (var attempt = 1; attempt <= MaxUpsertAttempts; attempt++)
         {
-            refresh = new SearchProviderRefresh
-            {
-                Id = Guid.NewGuid(),
-                NormalizedQuery = normalizedQuery,
-                ContentType = mappedContentType,
-                Page = page
-            };
+            var refresh = await dbContext.SearchProviderRefreshes
+                .FirstOrDefaultAsync(
+                    item =>
+                        item.NormalizedQuery == normalizedQuery &&
+                        item.ContentType == mappedContentType &&
+                        item.Page == page,
+                    cancellationToken);
 
-            dbContext.SearchProviderRefreshes.Add(refresh);
+            if (refresh is null)
+            {
+                refresh = new SearchProviderRefresh
+                {
+                    Id = Guid.NewGuid(),
+                    NormalizedQuery = normalizedQuery,
+                    ContentType = mappedContentType,
+                    Page = page
+                };
+
+                dbContext.SearchProviderRefreshes.Add(refresh);
+            }
+
+            refresh.LastRefreshedAtUtc = refreshedAtUtc;
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateException) when (attempt < MaxUpsertAttempts)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
         }
 
-        refresh.LastRefreshedAtUtc = refreshedAtUtc;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        throw new InvalidOperationException("Failed to upsert search provider refresh metadata.");
     }
 
     private static SearchProviderContentType MapContentType(SearchContentType contentType) =>

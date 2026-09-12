@@ -23,10 +23,6 @@ public sealed class ExceptionHandlingRateLimitWebApplicationFactory : WebApplica
         Environment.SetEnvironmentVariable(
             "Authentication__Jwt__SigningKey",
             IntegrationTestJwtSettings.SigningKey);
-        Environment.SetEnvironmentVariable("Authentication__RateLimit__LoginPermitLimit", "2");
-        Environment.SetEnvironmentVariable("Authentication__RateLimit__LoginWindowMinutes", "1");
-        Environment.SetEnvironmentVariable("Authentication__RateLimit__RegisterPermitLimit", "2");
-        Environment.SetEnvironmentVariable("Authentication__RateLimit__RegisterWindowMinutes", "10");
 
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {

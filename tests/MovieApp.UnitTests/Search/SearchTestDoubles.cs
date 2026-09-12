@@ -4,6 +4,7 @@ using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Infrastructure.Caching;
@@ -29,7 +30,7 @@ internal static class SearchTestDoubles
 
     internal static ISearchRefreshCompletionSignal CreateCompletionSignal() =>
         new SearchRefreshCompletionSignal(
-            connectionMultiplexer: null,
+            new ServiceCollection().BuildServiceProvider(),
             Options.Create(new RedisOptions { ConnectionString = string.Empty }),
             new LocalSearchRefreshCompletionRegistry(),
             NullLogger<SearchRefreshCompletionSignal>.Instance);
@@ -109,6 +110,14 @@ internal static class SearchTestDoubles
             _localGate.Release(lockKey, lockToken);
             return Task.CompletedTask;
         }
+
+        public Task<bool> TryRenewAsync(
+            string lockKey,
+            string lockToken,
+            SearchRefreshLockBackend backend,
+            TimeSpan lockDuration,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_localGate.VerifyOwnership(lockKey, lockToken));
     }
 
     internal sealed class LocalSearchRefreshSingleFlightGate
@@ -139,6 +148,14 @@ internal static class SearchTestDoubles
                 {
                     _held[lockKey] = false;
                 }
+            }
+        }
+
+        public bool VerifyOwnership(string lockKey, string lockToken)
+        {
+            lock (_held)
+            {
+                return _held.TryGetValue(lockKey, out var held) && held;
             }
         }
     }

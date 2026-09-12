@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -17,8 +19,10 @@ public sealed class TvShowsController(
     IGetEpisodeService getEpisodeService) : ControllerBase
 {
     [HttpGet("search")]
+    [EnableRateLimiting(SearchRateLimitPolicies.TvSearch)]
     [ProducesResponseType(typeof(TvShowSearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<TvShowSearchResponse>> Search(
         [FromQuery(Name = "q")] string? query,
         [FromQuery] int? page,

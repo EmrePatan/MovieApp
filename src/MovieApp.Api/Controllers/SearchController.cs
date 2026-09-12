@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -16,8 +18,10 @@ public sealed class SearchController(
     IAutocompleteService autocompleteService) : ControllerBase
 {
     [HttpGet]
+    [EnableRateLimiting(SearchRateLimitPolicies.UnifiedSearch)]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SearchResponse>> Search(
         [FromQuery(Name = "q")] string? query,
         [FromQuery] int? page,

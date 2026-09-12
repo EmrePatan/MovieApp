@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Caching;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
@@ -51,11 +53,13 @@ public sealed class SearchMoviesServiceTests
     private static SearchMoviesService CreateService(
         IMovieDataProvider movieDataProvider,
         IMovieRepository movieRepository,
-        ICacheService cacheService) =>
+        ICacheService cacheService,
+        SearchOptions? searchOptions = null) =>
         new(
             movieDataProvider,
             movieRepository,
             cacheService,
+            Options.Create(searchOptions ?? new SearchOptions()),
             NullLogger<SearchMoviesService>.Instance);
 
     private static MovieProviderSummary CreateSummary(int tmdbId, string externalId) =>

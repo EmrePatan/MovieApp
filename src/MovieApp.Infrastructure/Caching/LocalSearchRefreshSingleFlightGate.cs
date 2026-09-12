@@ -48,6 +48,19 @@ public sealed class LocalSearchRefreshSingleFlightGate
         }
     }
 
+    public bool VerifyOwnership(string lockKey, string lockToken)
+    {
+        if (!_gates.TryGetValue(lockKey, out var entry))
+        {
+            return false;
+        }
+
+        lock (entry.Sync)
+        {
+            return entry.IsHeld && string.Equals(entry.Token, lockToken, StringComparison.Ordinal);
+        }
+    }
+
     private sealed class GateEntry
     {
         public object Sync { get; } = new();

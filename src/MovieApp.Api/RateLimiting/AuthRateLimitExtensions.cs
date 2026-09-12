@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using MovieApp.Api.Errors;
 using MovieApp.Infrastructure.Configuration;
 
@@ -13,67 +14,54 @@ internal static class AuthRateLimitExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var options = configuration
-            .GetSection(AuthRateLimitOptions.SectionName)
-            .Get<AuthRateLimitOptions>() ?? new AuthRateLimitOptions();
-
         services.Configure<AuthRateLimitOptions>(configuration.GetSection(AuthRateLimitOptions.SectionName));
 
         services.AddRateLimiter(rateLimiterOptions =>
         {
-            rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            rateLimiterOptions.OnRejected = async (context, cancellationToken) =>
-            {
-                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-                {
-                    context.HttpContext.Response.Headers.RetryAfter =
-                        ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
-                }
-
-                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-
-                var problemDetails = new ProblemDetails
-                {
-                    Status = StatusCodes.Status429TooManyRequests,
-                    Title = "Too Many Requests",
-                    Detail = "Too many attempts. Please try again later."
-                };
-
-                ApiProblemDetailsEnricher.Enrich(
-                    context.HttpContext,
-                    problemDetails,
-                    ApiErrorCodes.TooManyRequests);
-
-                await context.HttpContext.Response.WriteAsJsonAsync(
-                    problemDetails,
-                    options: null,
-                    contentType: "application/problem+json",
-                    cancellationToken: cancellationToken);
-            };
+            ConfigureRejectionResponse(rateLimiterOptions);
 
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Login, httpContext =>
-                CreateFixedWindowPolicy(httpContext, options.LoginPermitLimit, options.LoginWindowMinutes));
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
+                    httpContext,
+                    options.LoginPermitLimit,
+                    options.LoginWindowMinutes);
+            });
 
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Register, httpContext =>
-                CreateFixedWindowPolicy(httpContext, options.RegisterPermitLimit, options.RegisterWindowMinutes));
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
+                    httpContext,
+                    options.RegisterPermitLimit,
+                    options.RegisterWindowMinutes);
+            });
 
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.ForgotPassword, httpContext =>
-                CreateFixedWindowPolicy(
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
                     httpContext,
                     options.ForgotPasswordPermitLimit,
-                    options.ForgotPasswordWindowMinutes));
+                    options.ForgotPasswordWindowMinutes);
+            });
 
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.ResetPassword, httpContext =>
-                CreateFixedWindowPolicy(
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
                     httpContext,
                     options.ResetPasswordPermitLimit,
-                    options.ResetPasswordWindowMinutes));
+                    options.ResetPasswordWindowMinutes);
+            });
+
+            ProductionRateLimitPolicyRegistration.AddPolicies(rateLimiterOptions, configuration);
         });
 
         return services;
     }
-
-    private static RateLimitPartition<string> CreateFixedWindowPolicy(
+    private static RateLimitPartition<string> CreateInMemoryFixedWindowPolicy(
         HttpContext httpContext,
         int permitLimit,
         int windowMinutes)
@@ -91,5 +79,38 @@ internal static class AuthRateLimitExtensions
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             });
+    }
+
+    internal static void ConfigureRejectionResponse(RateLimiterOptions rateLimiterOptions)
+    {
+        rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        rateLimiterOptions.OnRejected = async (context, cancellationToken) =>
+        {
+            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            {
+                context.HttpContext.Response.Headers.RetryAfter =
+                    ((int)Math.Ceiling(((TimeSpan)retryAfter).TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+            }
+
+            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+            var problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status429TooManyRequests,
+                Title = "Too Many Requests",
+                Detail = "Too many attempts. Please try again later."
+            };
+
+            ApiProblemDetailsEnricher.Enrich(
+                context.HttpContext,
+                problemDetails,
+                ApiErrorCodes.TooManyRequests);
+
+            await context.HttpContext.Response.WriteAsJsonAsync(
+                problemDetails,
+                options: null,
+                contentType: "application/problem+json",
+                cancellationToken: cancellationToken);
+        };
     }
 }

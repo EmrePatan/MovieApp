@@ -13,7 +13,9 @@ using MovieApp.Infrastructure.Email;
 using MovieApp.Infrastructure.Identity;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
+using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.Providers;
+using MovieApp.Infrastructure.RateLimiting;
 using StackExchange.Redis;
 
 namespace MovieApp.Infrastructure;
@@ -146,6 +148,8 @@ public static class DependencyInjection
 
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 
+        services.AddSingleton<InMemoryRateLimitCounterStore>();
+
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
         services.AddScoped<ITokenService, JwtTokenService>();
@@ -192,6 +196,9 @@ public static class DependencyInjection
 
             services.AddSingleton<ICacheService, RedisCacheService>();
 
+            services.AddSingleton<RedisRateLimitCounterStore>();
+            services.AddSingleton<IRateLimitCounterStore, CompositeRateLimitCounterStore>();
+
         }
 
         else
@@ -209,6 +216,9 @@ public static class DependencyInjection
             services.AddSingleton<ISearchRefreshCompletionSignal, SearchRefreshCompletionSignal>();
 
             services.AddSingleton<ICacheService, RedisCacheService>();
+
+            services.AddSingleton<IRateLimitCounterStore>(provider =>
+                provider.GetRequiredService<InMemoryRateLimitCounterStore>());
 
         }
 

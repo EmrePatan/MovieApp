@@ -13,13 +13,15 @@ public sealed class RedisHealthCheckWebApplicationFactory : WebApplicationFactor
     {
         builder.UseEnvironment("Testing");
 
+        builder.UseSetting("Redis:ConnectionString", "127.0.0.1:6399");
+        builder.UseSetting("Redis:InstanceName", "MovieApp:");
+
         Environment.SetEnvironmentVariable(
             "PostgreSql__ConnectionString",
             RedisHealthCheckIntegrationDatabase.GetConnectionString());
         Environment.SetEnvironmentVariable(
             "Authentication__Jwt__SigningKey",
             IntegrationTestJwtSettings.SigningKey);
-        Environment.SetEnvironmentVariable("Redis__ConnectionString", "127.0.0.1:6399");
 
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {

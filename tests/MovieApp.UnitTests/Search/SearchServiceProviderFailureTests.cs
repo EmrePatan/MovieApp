@@ -148,6 +148,70 @@ public sealed class SearchServiceProviderFailureTests
         Assert.Equal(0, cache.SetCount);
     }
 
+    [Fact]
+    public async Task LockHolderPublishesFailedWhenUnexpectedExceptionOccursWithEmptyCatalog()
+    {
+        var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
+        var completionSignal = new CapturingCompletionSignal();
+        var provider = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            ThrowBeforeResult = true
+        };
+
+        var service = SearchServiceTestsHelper.CreateService(
+            new SearchServiceTestsHelper.FakeSearchRepository([], totalCount: 0),
+            new SearchServiceTestsHelper.FakeCacheService(null),
+            provider,
+            lockService: lockService,
+            completionSignal: completionSignal);
+
+        await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
+            service.SearchAsync(CreateCriteria("unexpected failure")));
+
+        Assert.Equal(SearchRefreshAttemptOutcome.Failed, completionSignal.LastPublishedOutcome);
+        Assert.Equal(1, lockService.ReleaseCount);
+    }
+
+    [Fact]
+    public async Task LockHolderPublishesFailedAndReturnsCatalogWhenUnexpectedExceptionOccursWithUsableCatalog()
+    {
+        var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
+        var completionSignal = new CapturingCompletionSignal();
+        var provider = new SearchTestDoubles.FakeProviderIngestionService();
+
+        var service = SearchServiceTestsHelper.CreateService(
+            new ThrowAfterRefreshSearchRepository(),
+            new SearchServiceTestsHelper.FakeCacheService(null),
+            provider,
+            lockService: lockService,
+            completionSignal: completionSignal);
+
+        var result = await service.SearchAsync(CreateCriteria("catalog fallback"));
+
+        Assert.Single(result.Items);
+        Assert.Equal(SearchRefreshAttemptOutcome.Failed, completionSignal.LastPublishedOutcome);
+    }
+
+    [Fact]
+    public async Task LockHolderPublishesSucceededOnSuccessfulRefresh()
+    {
+        var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
+        var completionSignal = new CapturingCompletionSignal();
+        var provider = new SearchTestDoubles.FakeProviderIngestionService();
+
+        var service = SearchServiceTestsHelper.CreateService(
+            new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 20),
+            new SearchServiceTestsHelper.FakeCacheService(null),
+            provider,
+            refreshRepository: CreateStaleRefreshRepository("success path"),
+            lockService: lockService,
+            completionSignal: completionSignal);
+
+        await service.SearchAsync(CreateCriteria("success path"));
+
+        Assert.Equal(SearchRefreshAttemptOutcome.Succeeded, completionSignal.LastPublishedOutcome);
+    }
+
     private static SearchTestDoubles.FakeSearchProviderRefreshRepository CreateStaleRefreshRepository(string query)
     {
         var repository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
@@ -157,6 +221,55 @@ public sealed class SearchServiceProviderFailureTests
 
     private static SearchCriteria CreateCriteria(string query, SearchContentType type = SearchContentType.All) =>
         new(query, type, null, null, null, null, SearchSortOption.Relevance, 1, 20);
+
+    private sealed class CapturingCompletionSignal : ISearchRefreshCompletionSignal
+    {
+        public SearchRefreshAttemptOutcome? LastPublishedOutcome { get; private set; }
+
+        public Task PublishAsync(
+            string lockKey,
+            SearchRefreshAttemptOutcome outcome,
+            TimeSpan ttl,
+            CancellationToken cancellationToken = default)
+        {
+            LastPublishedOutcome = outcome;
+            return Task.CompletedTask;
+        }
+
+        public Task<SearchRefreshAttemptOutcome?> TryGetOutcomeAsync(
+            string lockKey,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(LastPublishedOutcome);
+    }
+
+    private sealed class ThrowAfterRefreshSearchRepository : SearchServiceTestsHelper.FakeSearchRepository
+    {
+        private int _searchCount;
+
+        public ThrowAfterRefreshSearchRepository()
+            : base([], totalCount: 1)
+        {
+        }
+
+        public override Task<PaginatedResult<SearchItem>> SearchAsync(
+            SearchCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            _searchCount++;
+
+            if (_searchCount == 1)
+            {
+                return Task.FromResult(new PaginatedResult<SearchItem>(
+                    [MovieItem],
+                    criteria.Page,
+                    criteria.PageSize,
+                    1,
+                    1));
+            }
+
+            throw new InvalidOperationException("database failure after refresh");
+        }
+    }
 }
 
 internal static class SearchServiceTestsHelper
@@ -210,26 +323,38 @@ internal static class SearchServiceTestsHelper
             Task.CompletedTask;
     }
 
-    internal sealed class FakeSearchRepository : MovieApp.Application.Abstractions.Persistence.ISearchRepository
+    internal class FakeSearchRepository : MovieApp.Application.Abstractions.Persistence.ISearchRepository
     {
         private readonly IReadOnlyList<SearchItem> _items;
         private readonly int _totalCount;
+        protected readonly bool AlwaysEmptyAfterIngest;
 
-        public FakeSearchRepository(IReadOnlyList<SearchItem> items, int totalCount)
+        public FakeSearchRepository(
+            IReadOnlyList<SearchItem> items,
+            int totalCount,
+            bool alwaysEmptyAfterIngest = false)
         {
             _items = items;
             _totalCount = totalCount;
+            AlwaysEmptyAfterIngest = alwaysEmptyAfterIngest;
         }
 
-        public Task<PaginatedResult<SearchItem>> SearchAsync(
+        public virtual Task<PaginatedResult<SearchItem>> SearchAsync(
             SearchCriteria criteria,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PaginatedResult<SearchItem>(
+            CancellationToken cancellationToken = default)
+        {
+            if (AlwaysEmptyAfterIngest)
+            {
+                return Task.FromResult(new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 0, 0));
+            }
+
+            return Task.FromResult(new PaginatedResult<SearchItem>(
                 _items,
                 criteria.Page,
                 criteria.PageSize,
                 _totalCount,
                 Math.Max(1, (int)Math.Ceiling(_totalCount / (double)criteria.PageSize))));
+        }
 
         public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
             string query,

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Identity;
@@ -76,10 +78,12 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
     }
 
     [HttpPut("me/email")]
+    [EnableRateLimiting(AccountRateLimitPolicies.ChangeEmail)]
     [ProducesResponseType(typeof(UserProfileAuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<UserProfileAuthResponse>> ChangeEmail(
         [FromBody] ChangeEmailRequest request,
         CancellationToken cancellationToken)
@@ -124,9 +128,11 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
     }
 
     [HttpPut("me/password")]
+    [EnableRateLimiting(AccountRateLimitPolicies.ChangePassword)]
     [ProducesResponseType(typeof(UserProfileAuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<UserProfileAuthResponse>> ChangePassword(
         [FromBody] ChangePasswordRequest request,
         CancellationToken cancellationToken)
@@ -183,9 +189,11 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
     }
 
     [HttpDelete("me")]
+    [EnableRateLimiting(AccountRateLimitPolicies.DeleteAccount)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> DeleteAccount(
         [FromBody] DeleteAccountRequest request,
         CancellationToken cancellationToken)

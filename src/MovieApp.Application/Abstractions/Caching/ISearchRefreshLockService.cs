@@ -18,6 +18,13 @@ public interface ISearchRefreshLockService
         string lockToken,
         SearchRefreshLockBackend backend,
         CancellationToken cancellationToken = default);
+
+    Task<bool> TryRenewAsync(
+        string lockKey,
+        string lockToken,
+        SearchRefreshLockBackend backend,
+        TimeSpan lockDuration,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class SearchRefreshLockHandle(

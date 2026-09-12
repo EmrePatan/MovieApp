@@ -24,6 +24,9 @@ public static class DependencyInjection
         services.AddJwtAuthentication(configuration);
         services.AddConfiguredForwardedHeaders(configuration);
         services.AddConfiguredCors(configuration);
+        services.Configure<SearchRateLimitOptions>(configuration.GetSection(SearchRateLimitOptions.SectionName));
+        services.Configure<AccountRateLimitOptions>(configuration.GetSection(AccountRateLimitOptions.SectionName));
+
         services.AddAuthRateLimiting(configuration);
 
         services.AddOptions<AppOptions>()

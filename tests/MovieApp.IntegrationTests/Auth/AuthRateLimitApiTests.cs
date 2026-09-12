@@ -55,7 +55,7 @@ public sealed class AuthRateLimitApiFixture : IAsyncLifetime
         await context.Database.MigrateAsync();
     }
 
-    public Task ResetAsync() => Task.CompletedTask;
+    public static Task ResetAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()
     {

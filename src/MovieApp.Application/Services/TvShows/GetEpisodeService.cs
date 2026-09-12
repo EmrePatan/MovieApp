@@ -85,19 +85,28 @@ public sealed class GetEpisodeService(
                     $"Episode {episodeNumber} in season {seasonNumber} for TV show '{tvShowId}' was not found.");
             }
 
-            var providerEpisode = await tvShowDataProvider.GetEpisodeAsync(
+            var providerSeason = await tvShowDataProvider.GetSeasonAsync(
                 externalId,
                 seasonNumber,
-                episodeNumber,
                 cancellationToken);
 
-            if (providerEpisode is null)
+            if (providerSeason is null)
             {
                 throw new NotFoundException(
                     $"Episode {episodeNumber} in season {seasonNumber} for TV show '{tvShowId}' was not found.");
             }
 
-            episode = await episodeRepository.UpsertFromProviderAsync(season.Id, providerEpisode, cancellationToken);
+            season = await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
+            episode = await episodeRepository.GetBySeasonIdAndEpisodeNumberAsync(
+                season.Id,
+                episodeNumber,
+                cancellationToken);
+
+            if (episode is null)
+            {
+                throw new NotFoundException(
+                    $"Episode {episodeNumber} in season {seasonNumber} for TV show '{tvShowId}' was not found.");
+            }
         }
 
         var result = TvShowMapper.ToEpisodeResult(episode, tvShowId, seasonNumber);

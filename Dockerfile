@@ -32,4 +32,14 @@ RUN dotnet publish MovieApp.Api.csproj \
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+USER app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/health || exit 1
+
 ENTRYPOINT ["dotnet", "MovieApp.Api.dll"]

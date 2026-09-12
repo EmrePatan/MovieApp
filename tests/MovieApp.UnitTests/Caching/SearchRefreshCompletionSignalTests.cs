@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -13,7 +14,7 @@ public sealed class SearchRefreshCompletionSignalTests
     {
         var registry = new LocalSearchRefreshCompletionRegistry();
         var signal = new SearchRefreshCompletionSignal(
-            connectionMultiplexer: null,
+            new ServiceCollection().BuildServiceProvider(),
             Options.Create(new RedisOptions { ConnectionString = string.Empty }),
             registry,
             NullLogger<SearchRefreshCompletionSignal>.Instance);
@@ -48,7 +49,7 @@ public sealed class SearchRefreshCompletionSignalTests
 
     private static SearchRefreshCompletionSignal CreateLocalSignal() =>
         new(
-            connectionMultiplexer: null,
+            new ServiceCollection().BuildServiceProvider(),
             Options.Create(new RedisOptions { ConnectionString = string.Empty }),
             new LocalSearchRefreshCompletionRegistry(),
             NullLogger<SearchRefreshCompletionSignal>.Instance);

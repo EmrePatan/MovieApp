@@ -10,6 +10,12 @@ public sealed class SearchOptionsValidator : IValidateOptions<SearchOptions>
     private static readonly TimeSpan MaximumProviderRefreshInterval = TimeSpan.FromDays(7);
     private static readonly TimeSpan MinimumLockDuration = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan MaximumLockDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan MinimumLockRenewalInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MaximumLockRenewalInterval = TimeSpan.FromMinutes(1);
+    private const int MinimumProviderDetailFetches = 1;
+    private const int MaximumProviderDetailFetches = 100;
+    private const int MinimumConcurrentProviderRequests = 1;
+    private const int MaximumConcurrentProviderRequests = 16;
 
     public ValidateOptionsResult Validate(string? name, SearchOptions options)
     {
@@ -29,6 +35,27 @@ public sealed class SearchOptionsValidator : IValidateOptions<SearchOptions>
             MinimumLockDuration,
             MaximumLockDuration,
             failures);
+
+        ValidateDuration(
+            options.ProviderRefreshLockRenewalInterval,
+            "Search:ProviderRefreshLockRenewalInterval",
+            MinimumLockRenewalInterval,
+            MaximumLockRenewalInterval,
+            failures);
+
+        if (options.MaxProviderDetailFetchesPerContentType < MinimumProviderDetailFetches ||
+            options.MaxProviderDetailFetchesPerContentType > MaximumProviderDetailFetches)
+        {
+            failures.Add(
+                $"Search:MaxProviderDetailFetchesPerContentType must be between {MinimumProviderDetailFetches} and {MaximumProviderDetailFetches}.");
+        }
+
+        if (options.MaxConcurrentProviderHttpRequests < MinimumConcurrentProviderRequests ||
+            options.MaxConcurrentProviderHttpRequests > MaximumConcurrentProviderRequests)
+        {
+            failures.Add(
+                $"Search:MaxConcurrentProviderHttpRequests must be between {MinimumConcurrentProviderRequests} and {MaximumConcurrentProviderRequests}.");
+        }
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success

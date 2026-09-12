@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -7,12 +8,7 @@ using StackExchange.Redis;
 
 namespace MovieApp.Infrastructure.Caching;
 
-public sealed class SearchRefreshLockService(
-    IConnectionMultiplexer? connectionMultiplexer,
-    IOptions<RedisOptions> redisOptions,
-    LocalSearchRefreshSingleFlightGate localSingleFlightGate,
-    SearchRefreshLockDiagnostics diagnostics,
-    ILogger<SearchRefreshLockService> logger) : ISearchRefreshLockService
+public sealed class SearchRefreshLockService : ISearchRefreshLockService
 {
     private const string ReleaseScript = """
         if redis.call('get', KEYS[1]) == ARGV[1] then
@@ -21,7 +17,34 @@ public sealed class SearchRefreshLockService(
         return 0
         """;
 
-    private readonly bool _useRedisBackend = redisOptions.Value.IsConfigured() && connectionMultiplexer is not null;
+    private const string RenewScript = """
+        if redis.call('get', KEYS[1]) == ARGV[1] then
+          return redis.call('expire', KEYS[1], ARGV[2])
+        end
+        return 0
+        """;
+
+    private readonly IConnectionMultiplexer? _connectionMultiplexer;
+    private readonly IOptions<RedisOptions> _redisOptions;
+    private readonly LocalSearchRefreshSingleFlightGate _localSingleFlightGate;
+    private readonly SearchRefreshLockDiagnostics _diagnostics;
+    private readonly ILogger<SearchRefreshLockService> _logger;
+    private readonly bool _useRedisBackend;
+
+    public SearchRefreshLockService(
+        IServiceProvider serviceProvider,
+        IOptions<RedisOptions> redisOptions,
+        LocalSearchRefreshSingleFlightGate localSingleFlightGate,
+        SearchRefreshLockDiagnostics diagnostics,
+        ILogger<SearchRefreshLockService> logger)
+    {
+        _connectionMultiplexer = serviceProvider.GetService<IConnectionMultiplexer>();
+        _redisOptions = redisOptions;
+        _localSingleFlightGate = localSingleFlightGate;
+        _diagnostics = diagnostics;
+        _logger = logger;
+        _useRedisBackend = redisOptions.Value.IsConfigured() && _connectionMultiplexer is not null;
+    }
 
     public async Task<SearchRefreshLockHandle?> TryAcquireAsync(
         string lockKey,
@@ -33,7 +56,7 @@ public sealed class SearchRefreshLockService(
             var redisResult = await TryAcquireRedisAsync(lockKey, lockDuration, cancellationToken);
             if (redisResult.Acquired)
             {
-                diagnostics.RecordRedisAcquireSuccess();
+                _diagnostics.RecordRedisAcquireSuccess();
                 return new SearchRefreshLockHandle(
                     lockKey,
                     redisResult.Token!,
@@ -42,11 +65,11 @@ public sealed class SearchRefreshLockService(
 
             if (redisResult.Contended)
             {
-                diagnostics.RecordRedisAcquireContention();
+                _diagnostics.RecordRedisAcquireContention();
                 return null;
             }
 
-            diagnostics.RecordRedisUnavailableFallbackToLocal();
+            _diagnostics.RecordRedisUnavailableFallbackToLocal();
         }
 
         return TryAcquireLocal(lockKey);
@@ -60,7 +83,7 @@ public sealed class SearchRefreshLockService(
     {
         if (backend == SearchRefreshLockBackend.LocalSingleFlight)
         {
-            localSingleFlightGate.Release(lockKey, lockToken);
+            _localSingleFlightGate.Release(lockKey, lockToken);
             return;
         }
 
@@ -73,7 +96,7 @@ public sealed class SearchRefreshLockService(
 
         try
         {
-            var database = connectionMultiplexer!.GetDatabase();
+            var database = _connectionMultiplexer!.GetDatabase();
             await database.ScriptEvaluateAsync(
                 ReleaseScript,
                 [redisKey],
@@ -81,7 +104,44 @@ public sealed class SearchRefreshLockService(
         }
         catch (Exception exception) when (RedisCacheExceptionClassifier.IsRedisInfrastructureFailure(exception))
         {
-            RedisSearchRefreshLockLogMessages.LogLockReleaseFailed(logger, lockKey, exception);
+            RedisSearchRefreshLockLogMessages.LogLockReleaseFailed(_logger, lockKey, exception);
+        }
+    }
+
+    public async Task<bool> TryRenewAsync(
+        string lockKey,
+        string lockToken,
+        SearchRefreshLockBackend backend,
+        TimeSpan lockDuration,
+        CancellationToken cancellationToken = default)
+    {
+        if (backend == SearchRefreshLockBackend.LocalSingleFlight)
+        {
+            return _localSingleFlightGate.VerifyOwnership(lockKey, lockToken);
+        }
+
+        if (!_useRedisBackend || string.IsNullOrWhiteSpace(lockToken))
+        {
+            return false;
+        }
+
+        var redisKey = BuildRedisKey(lockKey);
+        var lockSeconds = Math.Max(1, (int)Math.Ceiling(lockDuration.TotalSeconds));
+
+        try
+        {
+            var database = _connectionMultiplexer!.GetDatabase();
+            var renewed = (int)await database.ScriptEvaluateAsync(
+                RenewScript,
+                [redisKey],
+                [lockToken, lockSeconds]);
+
+            return renewed == 1;
+        }
+        catch (Exception exception) when (RedisCacheExceptionClassifier.IsRedisInfrastructureFailure(exception))
+        {
+            RedisSearchRefreshLockLogMessages.LogLockRenewFailed(_logger, lockKey, exception);
+            return false;
         }
     }
 
@@ -95,7 +155,7 @@ public sealed class SearchRefreshLockService(
 
         try
         {
-            var database = connectionMultiplexer!.GetDatabase();
+            var database = _connectionMultiplexer!.GetDatabase();
             var acquired = await database.StringSetAsync(
                 redisKey,
                 token,
@@ -111,25 +171,25 @@ public sealed class SearchRefreshLockService(
         }
         catch (Exception exception) when (RedisCacheExceptionClassifier.IsRedisInfrastructureFailure(exception))
         {
-            RedisSearchRefreshLockLogMessages.LogLockAcquisitionFailed(logger, lockKey, exception);
+            RedisSearchRefreshLockLogMessages.LogLockAcquisitionFailed(_logger, lockKey, exception);
             return (false, false, null);
         }
     }
 
     private SearchRefreshLockHandle? TryAcquireLocal(string lockKey)
     {
-        if (localSingleFlightGate.TryAcquire(lockKey, out var lockToken))
+        if (_localSingleFlightGate.TryAcquire(lockKey, out var lockToken))
         {
-            diagnostics.RecordLocalAcquireSuccess();
+            _diagnostics.RecordLocalAcquireSuccess();
             return new SearchRefreshLockHandle(
                 lockKey,
                 lockToken,
                 SearchRefreshLockBackend.LocalSingleFlight);
         }
 
-        diagnostics.RecordLocalAcquireContention();
+        _diagnostics.RecordLocalAcquireContention();
         return null;
     }
 
-    private string BuildRedisKey(string lockKey) => $"{redisOptions.Value.InstanceName}{lockKey}";
+    private string BuildRedisKey(string lockKey) => $"{_redisOptions.Value.InstanceName}{lockKey}";
 }
