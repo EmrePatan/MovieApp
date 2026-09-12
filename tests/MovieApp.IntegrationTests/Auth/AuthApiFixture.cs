@@ -15,7 +15,7 @@ public sealed class AuthApiFixture : IAsyncLifetime
 
     public async Task ResetAsync()
     {
-        _ = Factory;
+        Factory.EmailSender.Clear();
 
         await using var context = CreateContext();
         context.Users.RemoveRange(context.Users);

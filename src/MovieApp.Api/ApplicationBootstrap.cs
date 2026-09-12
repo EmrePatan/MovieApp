@@ -1,3 +1,4 @@
+using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Application;
 using MovieApp.Infrastructure;
 using Serilog;
@@ -32,8 +33,10 @@ public static class ApplicationBootstrap
             });
         }
 
+        app.UseConfiguredForwardedHeaders();
         app.UseSerilogRequestLogging();
         app.UseHttpsRedirection();
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();

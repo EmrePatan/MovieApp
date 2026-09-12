@@ -357,8 +357,10 @@ Movie and TV catalog endpoints remain publicly accessible. Favorites and watchli
 
 | Endpoint | Auth | Success | Errors |
 |----------|------|---------|--------|
-| `POST /api/auth/register` | No | `201 Created` | `400` invalid input, `409` duplicate email |
-| `POST /api/auth/login` | No | `200 OK` | `400` invalid input, `401` invalid credentials |
+| `POST /api/auth/register` | No | `201 Created` | `400` invalid input, `409` duplicate email, `429` rate limit |
+| `POST /api/auth/login` | No | `200 OK` | `400` invalid input, `401` invalid credentials, `429` rate limit |
+| `POST /api/auth/forgot-password` | No | `200 OK` | `400` invalid input, `429` rate limit |
+| `POST /api/auth/reset-password` | No | `200 OK` | `400` invalid/expired token or password, `429` rate limit |
 | `GET /api/auth/me` | Bearer JWT | `200 OK` | `401` missing/invalid token |
 
 ### JWT configuration
@@ -370,6 +372,21 @@ Movie and TV catalog endpoints remain publicly accessible. Favorites and watchli
     "Audience": "MovieApp.Mobile",
     "SigningKey": "",
     "AccessTokenMinutes": 60
+  },
+    "PasswordReset": {
+      "TokenLifetimeMinutes": 60,
+      "EmailProvider": "Development",
+      "BaseUrl": "movieapp://reset-password"
+    },
+  "RateLimit": {
+    "LoginPermitLimit": 5,
+    "LoginWindowMinutes": 1,
+    "RegisterPermitLimit": 5,
+    "RegisterWindowMinutes": 10,
+    "ForgotPasswordPermitLimit": 3,
+    "ForgotPasswordWindowMinutes": 15,
+    "ResetPasswordPermitLimit": 5,
+    "ResetPasswordWindowMinutes": 15
   }
 }
 ```
@@ -405,6 +422,16 @@ curl -X POST http://localhost:5000/api/auth/login \
 # Current user
 curl http://localhost:5000/api/auth/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# Forgot password
+curl -X POST http://localhost:5000/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+
+# Reset password
+curl -X POST http://localhost:5000/api/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"token":"RESET_TOKEN_FROM_EMAIL","newPassword":"AnotherPassword123"}'
 ```
 
 ### Security notes
@@ -412,9 +439,55 @@ curl http://localhost:5000/api/auth/me \
 - Passwords are hashed with PBKDF2 (SHA-256, unique salt per password, 100,000 iterations)
 - Login failures return a generic `Invalid email or password.` message
 - Inactive users cannot log in
-- JWT validation enforces issuer, audience, signing key, and expiration
-- Refresh tokens, email verification, and password reset are not implemented yet
-- Rate limiting and brute-force protection are future infrastructure work
+- JWT validation enforces issuer, audience, signing key, expiration, and `SecurityStamp`
+- Password reset tokens are cryptographically random, short-lived (default 60 minutes), single-use, and stored only as SHA-256 digests
+- Forgot-password responses do not reveal whether an email is registered
+- Auth endpoints are rate limited (configurable via `Authentication:RateLimit`); exceeded limits return `429 Too Many Requests`
+- Email delivery uses `IEmailSender`:
+  - **Development:** `DevelopmentEmailSender` when `Authentication:PasswordReset:EmailProvider=Development`
+  - **Testing:** `CapturingEmailSender` (integration tests only)
+  - **Production:** requires `EmailProvider=Smtp` with configured `Authentication:Email:Smtp` settings; startup fails if SMTP is not configured (no silent no-op sender)
+- Reset token consumption is atomic (`ExecuteUpdate` with `UsedAtUtc IS NULL`) inside a database transaction with password change
+- Auth rate limiting uses fixed-window limits per client IP + request path (V1 trade-off: shared NAT may group users; enable forwarded headers only for trusted proxies)
+
+### Password reset
+
+1. `POST /api/auth/forgot-password` with email → generic success response
+2. If account exists, user receives reset link `{BaseUrl}?token={rawToken}`
+3. Mobile opens `movieapp://reset-password?token=...` (deep link) or user pastes token manually
+4. `POST /api/auth/reset-password` with token + new password
+5. Success rotates `SecurityStamp`, invalidating existing JWTs
+
+Generating a new reset token invalidates previous active tokens for the same user.
+
+### Production email configuration
+
+Production deployments must configure deliverable email before password reset can run:
+
+```json
+"Authentication": {
+  "PasswordReset": {
+    "EmailProvider": "Smtp",
+    "TokenLifetimeMinutes": 60,
+    "BaseUrl": "movieapp://reset-password"
+  },
+  "Email": {
+    "Smtp": {
+      "Host": "smtp.example.com",
+      "Port": 587,
+      "Username": "",
+      "Password": "",
+      "FromAddress": "noreply@example.com",
+      "FromName": "MovieApp",
+      "EnableSsl": true
+    }
+  }
+}
+```
+
+Provide SMTP credentials via user secrets or environment variables. The API validates this configuration at startup in non-development environments and will fail fast rather than silently accepting forgot-password requests without delivery.
+
+Forwarded client IP headers are trusted only when `ForwardedHeaders:Enabled` is true with explicitly configured known proxies/networks.
 
 ## User Profile & Account Management
 

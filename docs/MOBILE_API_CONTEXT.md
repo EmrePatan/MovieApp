@@ -160,6 +160,126 @@ There is no global exception middleware. Unhandled server errors may return the 
 |--------|-------|------|
 | `400` | Invalid login request. | Validation failure |
 | `401` | Authentication failed. | Invalid credentials (`"Invalid email or password."`) |
+| `429` | Too many requests. | Rate limit exceeded (`"Too many attempts. Please try again later."`) |
+
+---
+
+### `POST /api/auth/forgot-password`
+
+**Auth:** None
+
+**Request body** (`ForgotPasswordRequest`):
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response `200 OK`** (`MessageResponse`):
+
+```json
+{
+  "message": "If an account exists for this email, you will receive instructions to reset your password."
+}
+```
+
+The response is identical whether or not the email is registered. This prevents account enumeration.
+
+When a matching active account exists, the backend:
+
+1. Invalidates any previous active reset tokens for that user
+2. Generates a cryptographically random opaque token (32 bytes, base64url)
+3. Stores only a SHA-256 digest of the token in `password_reset_tokens`
+4. Sends a reset link via `IEmailSender` (production requires configured SMTP; startup fails if not configured)
+
+Reset link format (configurable base URL):
+
+```text
+{Authentication:PasswordReset:BaseUrl}?token={rawToken}
+```
+
+Default mobile deep link base URL: `movieapp://reset-password`
+
+**Production email:** set `Authentication:PasswordReset:EmailProvider` to `Smtp` and configure `Authentication:Email:Smtp`. Non-development environments fail startup if SMTP is not configured. Forgot-password responses remain generic and do not reveal provider configuration to clients.
+
+**Error responses:**
+
+| Status | Title | When |
+|--------|-------|------|
+| `400` | Invalid forgot password request. | Validation failure |
+| `429` | Too many requests. | Rate limit exceeded |
+
+**Mobile flow:**
+
+1. User opens **Forgot password** screen and submits email
+2. App shows the generic success message regardless of account existence
+3. User opens email/deep link (`movieapp://reset-password?token=...`) which routes to the reset screen with token prefilled
+
+---
+
+### `POST /api/auth/reset-password`
+
+**Auth:** None
+
+**Request body** (`ResetPasswordRequest`):
+
+```json
+{
+  "token": "opaque-reset-token-from-email",
+  "newPassword": "AnotherPassword123"
+}
+```
+
+**Validation:**
+
+| Field | Rules |
+|-------|-------|
+| `token` | Required |
+| `newPassword` | Required, 8–128 characters, must differ from current password |
+
+**Response `200 OK`** (`MessageResponse`):
+
+```json
+{
+  "message": "Your password has been reset. You can now sign in with your new password."
+}
+```
+
+On success:
+
+1. Password is re-hashed with the existing PBKDF2 hasher
+2. Reset token is atomically marked used via conditional database update (`UsedAtUtc IS NULL`) inside a transaction
+3. Other active reset tokens for the user are invalidated
+4. `SecurityStamp` rotates, invalidating previously issued JWTs
+
+Concurrent reset attempts with the same token result in at most one successful password change.
+
+**Error responses:**
+
+| Status | Title | When |
+|--------|-------|------|
+| `400` | Invalid reset password request. | Invalid/expired/used token, weak password, or same-as-current password (`"Invalid or expired reset token."` for token failures) |
+| `429` | Too many requests. | Rate limit exceeded |
+
+---
+
+### Auth rate limiting
+
+Sensitive auth endpoints use ASP.NET Core fixed-window rate limiting partitioned by **client IP + request path**:
+
+| Endpoint | Default limit |
+|----------|---------------|
+| `POST /api/auth/login` | 5 requests / 1 minute |
+| `POST /api/auth/register` | 5 requests / 10 minutes |
+| `POST /api/auth/forgot-password` | 3 requests / 15 minutes |
+| `POST /api/auth/reset-password` | 5 requests / 15 minutes |
+
+Configuration section: `Authentication:RateLimit`
+
+When exceeded, the API returns `429 Too Many Requests` with ProblemDetails and optional `Retry-After` header.
+
+**V1 decision:** IP + path partitioning is acceptable for launch. Shared NAT (corporate networks, mobile carriers) may cause unrelated clients to share a limit bucket. This is a deliberate V1 trade-off; account lockout and per-email throttling are not implemented to avoid enumeration. Do not enable forwarded headers unless trusted proxy networks are explicitly configured.
 
 ---
 
@@ -1881,6 +2001,8 @@ Kebab-case strings: `recommended-for-you`, `because-you-watched`, `similar-to-fa
 |--------|----------|------|---------|
 | POST | `/api/auth/register` | No | Register new user |
 | POST | `/api/auth/login` | No | Login |
+| POST | `/api/auth/forgot-password` | No | Request password reset email |
+| POST | `/api/auth/reset-password` | No | Reset password with token |
 | GET | `/api/auth/me` | JWT | Get current user |
 | GET | `/api/users/me` | JWT | Get current profile |
 | PUT | `/api/users/me/profile` | JWT | Update display name |

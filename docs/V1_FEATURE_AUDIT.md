@@ -17,9 +17,9 @@ MovieApp is a **movie and TV tracking application** with a mature feature set: a
 |----------|------------|
 | **Core tracking flows** | Largely complete on backend and mobile |
 | **Production catalog quality** | **Partially addressed (Step 29A):** TMDB TV provider implemented; production still requires `MovieProviders:Provider=Tmdb` + credentials |
-| **Account recovery** | **Blocker:** No forgot-password / email reset flow |
+| **Account recovery** | **Implemented:** Forgot-password + reset-password flow with mobile screens |
 | **Store / legal compliance** | **Blocker:** Privacy policy URL, support contact, store assets, production API URL not in repo |
-| **Operational readiness** | **Blocker:** No rate limiting, no crash/error monitoring, no production analytics baseline |
+| **Operational readiness** | **Partial:** Auth rate limiting implemented; crash/error monitoring and production analytics baseline still missing |
 | **Deferred roadmap items** | Mostly correctly deferrable (social, notifications, Elasticsearch, monetization, where-to-watch) |
 
 **Recommended V1 posture:** Ship a focused **authenticated tracking app** with real TMDB-backed catalog data (movies + TV), password recovery, basic operational monitoring, store compliance artifacts, and a small set of mobile UX gaps (favorites list, advanced search UI, continue-watching polish). Do **not** attempt to implement the full deferred roadmap before launch.
@@ -130,7 +130,7 @@ Features the app **should not go public without**.
 
 | Field | Detail |
 |-------|--------|
-| **Current status** | Completely missing; authenticated password change only |
+| **Current status** | ✅ **IMPLEMENTED** — `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, SHA-256 token storage, SecurityStamp invalidation, mobile screens |
 | **Classification** | 🟢 V1 REQUIRED |
 | **Why** | Standard consumer expectation; store reviewers and users expect account recovery |
 | **User/business value** | Account recovery without support tickets |
@@ -146,7 +146,7 @@ Features the app **should not go public without**.
 
 | Field | Detail |
 |-------|--------|
-| **Current status** | Documented as future work; no middleware |
+| **Current status** | ✅ **IMPLEMENTED** — ASP.NET Core fixed-window rate limiting on auth endpoints with configurable limits and `429` responses |
 | **Classification** | 🟢 V1 REQUIRED |
 | **Why** | Public login/register endpoints are abuse vectors without throttling |
 | **User/business value** | Protects service availability |
@@ -632,10 +632,10 @@ Elasticsearch, social features, notifications, where-to-watch, playback position
 | Feature | Status | Priority | Decision |
 |---------|--------|----------|----------|
 | Authentication (login/register) | ✅ Implemented | — | Ship as-is |
-| Password reset | ❌ Missing | 🟢 Required | **Implement before launch** |
+| Password reset | ✅ Implemented | 🟢 Required | Ship as-is |
 | Email verification | ❌ Missing | 🟡 Recommended | Implement if time; monitor abuse |
 | Refresh tokens | ❌ Missing | 🔵 V1.1 | Defer; improve session UX instead |
-| Rate limiting | ❌ Missing | 🟢 Required | **Implement before launch** |
+| Rate limiting | ✅ Implemented | 🟢 Required | Ship as-is |
 | Home feed | ✅ Implemented | — | Ship as-is |
 | Search (basic) | ✅ Implemented | — | Ship as-is |
 | Advanced search filters | ⚠️ Backend only | 🟡 Recommended | Mobile UI if time permits |

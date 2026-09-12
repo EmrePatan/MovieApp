@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<ILoginUserService, LoginUserService>();
         services.AddScoped<IGetCurrentUserService, GetCurrentUserService>();
         services.AddScoped<IUserProfileService, UserProfileService>();
+        services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
+        services.AddScoped<IResetPasswordService, ResetPasswordService>();
 
         services.AddScoped<IAddMovieFavoriteService, AddMovieFavoriteService>();
         services.AddScoped<IRemoveMovieFavoriteService, RemoveMovieFavoriteService>();

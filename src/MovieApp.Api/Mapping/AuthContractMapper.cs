@@ -24,4 +24,15 @@ public static class AuthContractMapper
             result.UserName,
             result.DisplayName,
             result.CreatedAt);
+
+    public static Application.Models.Identity.ForgotPasswordRequest ToForgotPasswordRequest(
+        Contracts.Auth.ForgotPasswordRequest request) =>
+        new(request.Email);
+
+    public static Application.Models.Identity.ResetPasswordRequest ToResetPasswordRequest(
+        Contracts.Auth.ResetPasswordRequest request) =>
+        new(request.Token, request.NewPassword);
+
+    public static MessageResponse ToMessageResponse(MessageResult result) =>
+        new(result.Message);
 }

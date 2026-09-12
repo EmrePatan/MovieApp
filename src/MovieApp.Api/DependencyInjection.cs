@@ -1,5 +1,7 @@
 using MovieApp.Api.Authentication;
+using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Api.Identity;
+using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Swagger;
 using MovieApp.Application.Abstractions.Identity;
 
@@ -15,6 +17,8 @@ public static class DependencyInjection
         services.AddEndpointsApiExplorer();
         services.AddSwaggerWithBearerAuth();
         services.AddJwtAuthentication(configuration);
+        services.AddConfiguredForwardedHeaders(configuration);
+        services.AddAuthRateLimiting(configuration);
 
         return services;
     }

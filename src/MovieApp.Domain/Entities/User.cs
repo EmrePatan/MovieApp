@@ -40,6 +40,8 @@ public sealed class User
 
     public ICollection<SearchHistory> SearchHistories { get; set; } = [];
 
+    public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = [];
+
     public static User Create(
         Guid id,
         string email,

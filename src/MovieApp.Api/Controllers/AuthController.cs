@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using MovieApp.Api.Mapping;
+using MovieApp.Api.RateLimiting;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Contracts.Auth;
@@ -12,12 +14,16 @@ namespace MovieApp.Api.Controllers;
 public sealed class AuthController(
     IRegisterUserService registerUserService,
     ILoginUserService loginUserService,
-    IGetCurrentUserService getCurrentUserService) : ControllerBase
+    IGetCurrentUserService getCurrentUserService,
+    IForgotPasswordService forgotPasswordService,
+    IResetPasswordService resetPasswordService) : ControllerBase
 {
     [HttpPost("register")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Register)]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> Register(
         [FromBody] RegisterRequest request,
         CancellationToken cancellationToken)
@@ -47,9 +53,11 @@ public sealed class AuthController(
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Login)]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
@@ -74,6 +82,58 @@ public sealed class AuthController(
             return Unauthorized(CreateProblemDetails(
                 StatusCodes.Status401Unauthorized,
                 "Authentication failed.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("forgot-password")]
+    [EnableRateLimiting(AuthRateLimitPolicies.ForgotPassword)]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<MessageResponse>> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await forgotPasswordService.ForgotPasswordAsync(
+                AuthContractMapper.ToForgotPasswordRequest(request),
+                cancellationToken);
+
+            return Ok(AuthContractMapper.ToMessageResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid forgot password request.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("reset-password")]
+    [EnableRateLimiting(AuthRateLimitPolicies.ResetPassword)]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<MessageResponse>> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await resetPasswordService.ResetPasswordAsync(
+                AuthContractMapper.ToResetPasswordRequest(request),
+                cancellationToken);
+
+            return Ok(AuthContractMapper.ToMessageResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid reset password request.",
                 exception.Message));
         }
     }
