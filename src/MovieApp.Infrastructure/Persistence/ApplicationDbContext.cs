@@ -45,6 +45,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SearchHistory> SearchHistories => Set<SearchHistory>();
 
+    public DbSet<SearchProviderRefresh> SearchProviderRefreshes => Set<SearchProviderRefresh>();
+
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

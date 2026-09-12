@@ -12,4 +12,24 @@ internal static partial class UnifiedSearchProviderIngestionLogMessages
         ILogger logger,
         string externalId,
         int? tmdbId);
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Warning,
+        Message = "Unified search movie provider ingestion failed for query {Query} page {Page}.")]
+    public static partial void LogMovieIngestionFailed(
+        ILogger logger,
+        string query,
+        int page,
+        Exception exception);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Warning,
+        Message = "Unified search TV provider ingestion failed for query {Query} page {Page}.")]
+    public static partial void LogTvIngestionFailed(
+        ILogger logger,
+        string query,
+        int page,
+        Exception exception);
 }

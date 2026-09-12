@@ -52,6 +52,12 @@ public static class DependencyInjection
 
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
 
+        services.AddOptions<SearchOptions>()
+            .Bind(configuration.GetSection(SearchOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<SearchOptions>, SearchOptionsValidator>();
+
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SectionName));
 
         services.AddOptions<PasswordResetOptions>()
@@ -134,6 +140,8 @@ public static class DependencyInjection
 
         services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 
+        services.AddScoped<ISearchProviderRefreshRepository, SearchProviderRefreshRepository>();
+
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
@@ -172,7 +180,9 @@ public static class DependencyInjection
 
             });
 
+            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConfigurationOptions!));
 
+            services.AddSingleton<ISearchRefreshLockService, RedisSearchRefreshLockService>();
 
             services.AddSingleton<ICacheService, RedisCacheService>();
 
@@ -183,6 +193,8 @@ public static class DependencyInjection
         {
 
             services.AddDistributedMemoryCache();
+
+            services.AddSingleton<ISearchRefreshLockService, RedisSearchRefreshLockService>();
 
             services.AddSingleton<ICacheService, RedisCacheService>();
 

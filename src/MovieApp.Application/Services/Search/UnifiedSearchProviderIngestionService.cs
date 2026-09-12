@@ -14,23 +14,78 @@ public sealed class UnifiedSearchProviderIngestionService(
     ITvShowRepository tvShowRepository,
     ILogger<UnifiedSearchProviderIngestionService> logger) : IUnifiedSearchProviderIngestionService
 {
-    public async Task IngestAsync(SearchCriteria criteria, CancellationToken cancellationToken = default)
+    public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(
+        SearchCriteria criteria,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(criteria.Query))
         {
-            return;
+            return UnifiedSearchProviderIngestionResult.NotRequired();
         }
 
         var query = QueryNormalizer.CollapseWhitespace(criteria.Query);
+        var movieRequired = criteria.Type is SearchContentType.Movie or SearchContentType.All;
+        var tvRequired = criteria.Type is SearchContentType.Tv or SearchContentType.All;
 
-        if (criteria.Type is SearchContentType.Movie or SearchContentType.All)
+        var movieAttempted = false;
+        var movieSucceeded = false;
+        var tvAttempted = false;
+        var tvSucceeded = false;
+
+        if (movieRequired)
         {
-            await IngestMoviesAsync(query, criteria.Page, criteria.PageSize, cancellationToken);
+            movieAttempted = true;
+            movieSucceeded = await TryIngestMoviesAsync(query, criteria.Page, criteria.PageSize, cancellationToken);
         }
 
-        if (criteria.Type is SearchContentType.Tv or SearchContentType.All)
+        if (tvRequired)
         {
-            await IngestTvShowsAsync(query, criteria.Page, criteria.PageSize, cancellationToken);
+            tvAttempted = true;
+            tvSucceeded = await TryIngestTvShowsAsync(query, criteria.Page, criteria.PageSize, cancellationToken);
+        }
+
+        return new UnifiedSearchProviderIngestionResult(
+            movieRequired,
+            tvRequired,
+            movieAttempted,
+            tvAttempted,
+            movieSucceeded,
+            tvSucceeded);
+    }
+
+    private async Task<bool> TryIngestMoviesAsync(
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await IngestMoviesAsync(query, page, pageSize, cancellationToken);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            UnifiedSearchProviderIngestionLogMessages.LogMovieIngestionFailed(logger, query, page, exception);
+            return false;
+        }
+    }
+
+    private async Task<bool> TryIngestTvShowsAsync(
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await IngestTvShowsAsync(query, page, pageSize, cancellationToken);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            UnifiedSearchProviderIngestionLogMessages.LogTvIngestionFailed(logger, query, page, exception);
+            return false;
         }
     }
 
