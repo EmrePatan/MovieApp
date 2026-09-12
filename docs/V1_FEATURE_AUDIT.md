@@ -16,7 +16,7 @@ MovieApp is a **movie and TV tracking application** with a mature feature set: a
 | Category | Assessment |
 |----------|------------|
 | **Core tracking flows** | Largely complete on backend and mobile |
-| **Production catalog quality** | **Blocker:** TV catalog uses a Fake provider only; movies can use TMDB |
+| **Production catalog quality** | **Partially addressed (Step 29A):** TMDB TV provider implemented; production still requires `MovieProviders:Provider=Tmdb` + credentials |
 | **Account recovery** | **Blocker:** No forgot-password / email reset flow |
 | **Store / legal compliance** | **Blocker:** Privacy policy URL, support contact, store assets, production API URL not in repo |
 | **Operational readiness** | **Blocker:** No rate limiting, no crash/error monitoring, no production analytics baseline |
@@ -37,7 +37,7 @@ MovieApp is a **movie and TV tracking application** with a mature feature set: a
 | Auth (register/login/me) | ✅ Implemented | JWT 60 min, PBKDF2 passwords, security stamp invalidation |
 | Profile & account deletion | ✅ Implemented | Email/password change, statistics, cascade delete |
 | Movies catalog | ✅ Implemented | TMDB on-demand ingestion + PostgreSQL persistence |
-| TV catalog | ⚠️ Partial | **Fake provider only** — no TMDB TV / TVDB |
+| TV catalog | ✅ Implemented (TMDB when `Provider=Tmdb`; Fake for dev/tests) | TMDB TV provider added in Step 29A; TVDB not implemented |
 | Search (unified) | ✅ Implemented | Genre, year, rating, sort filters in API |
 | Provider search | ✅ Implemented | `/api/movies/search`, `/api/tvshows/search` |
 | Search history | ✅ Implemented | Authenticated |
@@ -114,17 +114,17 @@ Features the app **should not go public without**.
 
 | Field | Detail |
 |-------|--------|
-| **Current status** | Backend-only Fake TV provider; movies can use TMDB |
+| **Current status** | ✅ **Implemented (Step 29A)** — `TmdbTvShowDataProvider` registered when `MovieProviders:Provider=Tmdb` |
 | **Classification** | 🟢 V1 REQUIRED |
 | **Why** | A public movie/TV app cannot ship with synthetic TV catalog data |
 | **User/business value** | Trust, discoverability, accurate metadata |
-| **Backend impact** | Implement TMDB TV provider (or TVDB); lazy upsert like movies |
-| **Mobile impact** | None if API contracts unchanged |
-| **Dependencies** | TMDB API key, provider abstraction already exists |
-| **Complexity** | High |
+| **Backend impact** | Complete — uses shared `TmdbApiClient`, lazy upsert, existing TV services unchanged |
+| **Mobile impact** | None (API contracts unchanged) |
+| **Dependencies** | TMDB API key / read access token in production configuration |
+| **Complexity** | High (completed) |
 | **Store importance** | Critical (product credibility) |
 | **Risks if postponed** | App Store / Play rejection risk; user churn |
-| **Recommendation** | Priority backend work before public launch |
+| **Recommendation** | Enable `Provider=Tmdb` with licensed TMDB credentials in production |
 
 ### 3.3 Password reset (forgot password)
 
@@ -396,7 +396,7 @@ Do not implement before V1 unless a concrete business or compliance reason emerg
 | # | Blocker | Owner | Notes |
 |---|---------|-------|-------|
 | 1 | Production HTTPS API deployed | Backend/DevOps | Set EAS `EXPO_PUBLIC_API_URL` |
-| 2 | TMDB TV catalog (replace Fake provider) | Backend | Fake data unacceptable publicly |
+| 2 | TMDB TV catalog (`Provider=Tmdb` + credentials) | Backend/DevOps | Implementation complete; configuration required |
 | 3 | Password reset flow | Backend + Mobile | Account recovery |
 | 4 | Auth rate limiting | Backend | Brute-force protection |
 | 5 | Privacy policy URL | Legal/Ops | Store mandatory |
@@ -475,7 +475,7 @@ Do not implement before V1 unless a concrete business or compliance reason emerg
 | **Redis** | ✅ Implemented with fallback | Production instance recommended | 🟡 Recommended |
 | **Elasticsearch** | Not implemented | Not needed | 🔴 Defer |
 | **TMDB movies** | ✅ On-demand | Production API key | 🟢 Required |
-| **TMDB TV** | ❌ Fake only | Implement provider | 🟢 Required |
+| **TMDB TV** | ✅ Implemented | Production config required | 🟢 Required |
 | **TVDB** | Config stub | Defer | 🔴 Defer |
 | **Background jobs** | None | Defer | 🔵 V1.1 |
 | **Caching** | Redis TTL | Adequate for V1 | ✅ OK |
@@ -641,7 +641,7 @@ Elasticsearch, social features, notifications, where-to-watch, playback position
 | Advanced search filters | ⚠️ Backend only | 🟡 Recommended | Mobile UI if time permits |
 | Movie/TV details | ✅ Implemented | — | Ship as-is |
 | TMDB movies | ✅ Implemented | — | Ship with production key |
-| TMDB TV catalog | ❌ Fake only | 🟢 Required | **Implement before launch** |
+| TMDB TV catalog | ✅ Implemented | 🟢 Required | **Configure `Provider=Tmdb` in production** |
 | Favorites toggle | ✅ Implemented | — | Ship as-is |
 | Favorites list | ❌ Missing UI | 🟢 Required | **Implement before launch** |
 | Watchlists | ✅ Implemented | — | Ship as-is |

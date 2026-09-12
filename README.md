@@ -113,7 +113,7 @@ MovieApp is a commercial product. Do not assume TMDB's free API tier is permitte
 }
 ```
 
-- `Provider`: `Fake` (default, local development and tests) or `Tmdb`
+- `Provider`: `Fake` (default, local development and tests) or `Tmdb` — controls **both** movie and TV catalog providers
 - `ReadAccessToken`: preferred TMDB authentication via bearer token
 - `ApiKey`: supported fallback authentication via query string when no bearer token is configured
 
@@ -269,11 +269,18 @@ Returns persisted movie details by internal `Guid`. Returns HTTP `404` when the 
 - **Fake** (default): deterministic local data for development and tests. Pagination honors the requested `page` and `pageSize`.
 - **TMDB**: uses TMDB movie search pagination. TMDB returns a fixed page size of 20 results per page and does not support arbitrary `pageSize` values. When TMDB is enabled, the API response `pageSize` reflects TMDB's actual page size (`20`), not the client-requested value.
 
-Configure the active provider via `MovieProviders:Provider` (`Fake` or `Tmdb`). See [External Movie Providers](#external-movie-providers) for credential configuration.
+Configure the active provider via `MovieProviders:Provider` (`Fake` or `Tmdb`). The same setting controls **both** movie and TV catalog providers. See [External Movie Providers](#external-movie-providers) for credential configuration.
 
 ## TV Catalog API
 
-TV show catalog infrastructure uses the same Clean Architecture patterns as movies. **TVDB integration is not implemented yet.** Only the deterministic `FakeTvShowDataProvider` is available in this step.
+TV show catalog infrastructure uses the same Clean Architecture patterns as movies. **TVDB integration is not implemented yet.**
+
+Provider selection follows `MovieProviders:Provider`:
+
+- **`Fake`** (default): deterministic local data for development and tests
+- **`Tmdb`**: real TMDB TV search, show, season, and episode hydration (requires configured TMDB credentials)
+
+When TMDB is enabled, TV search uses TMDB pagination (fixed page size of 20). The API response `pageSize` reflects TMDB's actual page size, not necessarily the client-requested value.
 
 ### Search TV shows
 
@@ -314,7 +321,23 @@ When `MovieProviders:Provider` is `Fake` (default), TV search returns determinis
 - 3 seasons with multiple episodes
 - Normalized image paths (no hardcoded CDN URLs)
 
-Future providers (TMDB TV, TVDB) can be registered through `ITvShowDataProvider` without changing Application services.
+### TMDB TV provider behavior
+
+When `MovieProviders:Provider` is `Tmdb`, TV catalog data is fetched from TMDB and persisted to PostgreSQL using the same lazy upsert pattern as movies:
+
+- Provider external IDs use the format `tmdb-{tmdbId}` (same as movies)
+- Public API `{id}` values remain internal MovieApp GUIDs assigned on first upsert
+- Search results are cached for 15 minutes (`tvshow-search:*` keys)
+- Season and episode details are hydrated on demand when not already persisted
+- TMDB season 0 ("Specials") is excluded from show season summaries
+- TMDB 404 responses map to HTTP `404` through the existing application services
+- TMDB rate limits are handled by the shared `TmdbApiClient` retry policy
+
+Configure TMDB credentials under `MovieProviders:Tmdb` (see [External Movie Providers](#external-movie-providers)). Do not commit API keys or access tokens.
+
+### Existing development data
+
+Switching from `Fake` to `Tmdb` does **not** delete existing TV catalog rows or user data. Previously persisted synthetic TV shows remain addressable by their internal GUIDs. Lazy provider hydration for legacy fake `TmdbId` values will not resolve against TMDB; re-search TV titles to ingest real catalog data in production environments.
 
 ## Authentication
 

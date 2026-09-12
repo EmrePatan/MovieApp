@@ -416,6 +416,15 @@ Provider-backed search (not the local catalog).
 
 ## 5. TV Shows
 
+Provider-backed TV catalog endpoints hydrate from the configured catalog provider (`MovieProviders:Provider`):
+
+- **`Fake`** (default in local/testing): deterministic development data
+- **`Tmdb`**: real TMDB TV search and lazy season/episode hydration
+
+Public API `{id}` values are always internal MovieApp GUIDs. TMDB IDs appear only in `externalIds.tmdbId` after persistence. Provider external IDs use the format `tmdb-{tmdbId}` internally and are never exposed directly to clients.
+
+When `Provider=Tmdb`, TV search uses TMDB pagination (fixed page size of 20). Search responses are cached for 15 minutes.
+
 ### `GET /api/tvshows/search`
 
 **Auth:** None
