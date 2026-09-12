@@ -852,25 +852,39 @@ EXPO_PUBLIC_IMAGE_BASE_URL=https://image.tmdb.org/t/p/w500
 
 ## 23. CI/CD
 
-**Classification: BLOCKER**
+**Classification: READY (CI foundation) / BLOCKER (CD + deployment)**
 
-### Current state
+### Current state (29E-8)
 
-**No CI/CD** — no `.github/workflows/`, Azure Pipelines, or similar.
+GitHub Actions CI is configured in `.github/workflows/ci.yml` for every push and pull request to `main`/`master`.
 
-### Minimum V1 pipeline
+**CI stages:**
+
+1. Restore (`dotnet restore MovieApp.sln`)
+2. Release build of backend projects via `MovieApp.UnitTests` project graph
+3. Release unit tests (`tests/MovieApp.UnitTests`)
+4. Release publish of `MovieApp.Api`
+5. Docker image build only (`docker build -f Dockerfile -t movieapp-api:ci .`)
+
+**CI does not:**
+
+- Deploy to any environment
+- Push images to Docker Hub/GHCR
+- Require PostgreSQL, Redis, TMDB, SMTP, or production JWT secrets
+- Run EF Core migrations
+- Modify local development behavior
+
+Production deployment, cloud hosting, image registry push, and CD remain intentional later steps. Production secrets remain outside Git. EF migrations remain manual/operator/CI-controlled outside API startup.
+
+### Integration test Release build note
+
+Full-solution `dotnet build -c Release` still fails on pre-existing `CA1822` in `tests/MovieApp.IntegrationTests/Auth/AuthRateLimitApiTests.cs` (`ResetAsync`). CI intentionally builds the unit-test project graph only so Release validation is not blocked by that unrelated integration-test analyzer issue. Integration tests should continue to run locally when PostgreSQL test infrastructure is available.
+
+### Minimum remaining V1 pipeline (post-CI)
 
 ```yaml
-# Conceptual stages
-build:
-  - dotnet restore
-  - dotnet build --configuration Release
-  - dotnet test tests/MovieApp.UnitTests
-
-# Optional: integration tests with ephemeral PostgreSQL service
-
+# Future CD (not part of 29E-8)
 docker:
-  - docker build -t movieapp-api .
   - docker push registry/movieapp-api:$GIT_SHA
 
 deploy:
@@ -879,18 +893,12 @@ deploy:
   - smoke test /health/ready
 ```
 
-### Known build issue
-
-**Release configuration fails** due to `TreatWarningsAsErrors` + analyzer warnings CA1848/CA1873 in email senders. Debug build succeeds.
-
-**Fix before CI uses Release builds** — implementation plan item.
-
 ### Mobile CI (separate repo)
 
 - `npm test`, `npm run lint`, `npx tsc --noEmit` (known pre-existing TS failure)
 - EAS Build for production profiles
 
-Recommend **GitHub Actions** if repo is on GitHub — simplest path, no existing pipeline to conflict with.
+Recommend **GitHub Actions** for backend CI — now in place for build/test/publish/Docker validation.
 
 ---
 
