@@ -18,9 +18,7 @@ public sealed class DevelopmentEmailSender(
             return Task.CompletedTask;
         }
 
-        logger.LogInformation(
-            "Password reset email queued for {Email}. Reset link path configured.",
-            toEmail);
+        EmailLogMessages.PasswordResetQueued(logger, toEmail);
 
         return Task.CompletedTask;
     }

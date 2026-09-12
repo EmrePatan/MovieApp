@@ -50,10 +50,7 @@ public sealed class SmtpEmailSender(
         }
         catch (Exception exception)
         {
-            logger.LogError(
-                exception,
-                "Failed to send password reset email to {Email}.",
-                toEmail);
+            EmailLogMessages.PasswordResetSendFailed(logger, exception, toEmail);
 
             throw;
         }

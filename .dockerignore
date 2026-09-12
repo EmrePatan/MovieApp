@@ -1,0 +1,51 @@
+# Git and IDE
+.git
+.gitignore
+.gitattributes
+.vs
+.vscode
+.idea
+**/*.user
+**/*.suo
+**/*.sln.docstates
+
+# Build outputs
+**/bin/
+**/obj/
+**/artifacts/
+**/TestResults/
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+**/secrets.json
+**/appsettings.*.local.json
+**/*.local.json
+
+# Tests (not required for API image build)
+tests/
+
+# Documentation and local artifacts
+docs/
+**/*.md
+!src/**/*.md
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+**/*.log
+
+# Node (if present at repo root)
+node_modules/
+
+# Docker build context helpers
+docker-compose*.yml
+Dockerfile*

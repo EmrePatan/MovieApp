@@ -1,0 +1,37 @@
+# Optional local API container for smoke-testing the production Docker image.
+# Requires the infrastructure stack from docker-compose.yml to be running first.
+#
+# Usage:
+#   docker compose up -d
+#   docker compose -f docker-compose.api.yml up --build
+#
+# The API listens on http://localhost:8080 inside the container-mapped host port.
+# Existing PostgreSQL/Redis volumes and containers are not modified.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: movieapp-api:local
+    container_name: movieapp-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      PostgreSql__Host: movieapp-postgres
+      PostgreSql__Port: "5432"
+      PostgreSql__Database: ${POSTGRES_DB:-movieapp}
+      PostgreSql__Username: ${POSTGRES_USER:-movieapp}
+      PostgreSql__Password: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a local .env file}
+      Redis__ConnectionString: "movieapp-redis:6379"
+      MovieProviders__Provider: Fake
+      Authentication__Jwt__SigningKey: ${Authentication__Jwt__SigningKey:?Set Authentication__Jwt__SigningKey in a local .env file}
+    networks:
+      - movieapp_default
+
+networks:
+  movieapp_default:
+    external: true
