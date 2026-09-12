@@ -1188,6 +1188,8 @@ Same semantics as movie favorite.
 
 Pagination applies to the combined favorites list (movies and TV shows merged, ordered by creation date). Each page may contain a mix of both types.
 
+**Mobile client:** Authenticated users open **Profile → Favorites** (`/favorites`). The app loads pages via `useInfiniteQuery` (`pageSize=20`), renders mixed movie/TV rows with `LibraryContentCard`, supports pull-to-refresh, infinite scroll, and remove actions. Favorite toggles on detail screens invalidate the same `['favorites']` query prefix so list and detail state stay synchronized.
+
 **Status codes:** `200`, `400`, `401`
 
 ---

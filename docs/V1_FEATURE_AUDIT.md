@@ -65,7 +65,7 @@ MovieApp is a **movie and TV tracking application** with a mature feature set: a
 | Discover | ✅ Implemented | Trending/popular + recommendation sections |
 | Movie/TV/season/episode details | ✅ Implemented | Actions: favorite, rating, review, watchlist, watched |
 | Favorites toggle | ✅ Implemented | On detail pages only |
-| Favorites list | ❌ Missing | API consumed for status resolution only |
+| Favorites list | ✅ Implemented | Profile → Favorites; paginated list with remove |
 | Watchlists | ✅ Implemented | Tab + CRUD + picker |
 | Ratings | ✅ Implemented | 1–10 on detail pages |
 | Reviews | ✅ Implemented | List + composer on detail pages |
@@ -209,7 +209,7 @@ Features the app **should not go public without**.
 
 | Field | Detail |
 |-------|-------|
-| **Current status** | Partial — toggle on detail pages; backend list API exists |
+| **Current status** | ✅ Implemented — `/favorites` screen with pagination, remove, cache sync |
 | **Classification** | 🟢 V1 REQUIRED |
 | **Why** | Core library feature incomplete without browse/manage view |
 | **User/business value** | Users expect to see saved titles |
@@ -643,7 +643,7 @@ Elasticsearch, social features, notifications, where-to-watch, playback position
 | TMDB movies | ✅ Implemented | — | Ship with production key |
 | TMDB TV catalog | ✅ Implemented | 🟢 Required | **Configure `Provider=Tmdb` in production** |
 | Favorites toggle | ✅ Implemented | — | Ship as-is |
-| Favorites list | ❌ Missing UI | 🟢 Required | **Implement before launch** |
+| Favorites list | ✅ Implemented | — | Ship as-is |
 | Watchlists | ✅ Implemented | — | Ship as-is |
 | Ratings | ✅ Implemented | — | Ship as-is |
 | Reviews | ✅ Implemented | — | Ship as-is |
