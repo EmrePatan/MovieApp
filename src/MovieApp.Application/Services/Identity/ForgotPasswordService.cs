@@ -7,6 +7,7 @@ using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Users;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace MovieApp.Application.Services.Identity;
@@ -15,7 +16,8 @@ public sealed class ForgotPasswordService(
     IUserRepository userRepository,
     IPasswordResetTokenRepository passwordResetTokenRepository,
     IEmailSender emailSender,
-    IOptions<PasswordResetOptions> passwordResetOptions) : IForgotPasswordService
+    IOptions<PasswordResetOptions> passwordResetOptions,
+    ILogger<ForgotPasswordService> logger) : IForgotPasswordService
 {
     public const string SuccessMessage =
         "If an account exists for this email, you will receive instructions to reset your password.";
@@ -57,7 +59,21 @@ public sealed class ForgotPasswordService(
             await passwordResetTokenRepository.CreateAsync(resetToken, cancellationToken);
 
             var resetUrl = BuildResetUrl(passwordResetOptions.Value.BaseUrl, rawToken);
-            await emailSender.SendPasswordResetEmailAsync(user.Email, resetUrl, cancellationToken);
+            try
+            {
+                await emailSender.SendPasswordResetEmailAsync(user.Email, resetUrl, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                ForgotPasswordLogMessages.LogPasswordResetEmailDeliveryFailed(
+                    logger,
+                    user.Id,
+                    exception.GetType().Name);
+            }
         }
 
         return new MessageResult(SuccessMessage);

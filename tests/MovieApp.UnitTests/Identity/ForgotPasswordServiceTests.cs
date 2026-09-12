@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
@@ -87,6 +89,77 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
+    public async Task ForgotPasswordAsyncReturnsGenericSuccessWhenEmailSenderFails()
+    {
+        var user = CreateUser();
+        var missingService = CreateService(new FakeUserRepository(null), new CapturingEmailSender());
+        var failingService = CreateService(
+            new FakeUserRepository(user),
+            new FailingEmailSender("SmtpProviderFailureDetail"));
+
+        var missingResult = await missingService.ForgotPasswordAsync(new ForgotPasswordRequest("missing@example.com"));
+        var failingResult = await failingService.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
+
+        Assert.Equal(ForgotPasswordService.SuccessMessage, missingResult.Message);
+        Assert.Equal(ForgotPasswordService.SuccessMessage, failingResult.Message);
+        Assert.Equal(missingResult.Message, failingResult.Message);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsyncEmailFailureStillPersistsResetToken()
+    {
+        var user = CreateUser();
+        var tokenRepository = new FakePasswordResetTokenRepository();
+        var service = CreateService(
+            new FakeUserRepository(user),
+            new FailingEmailSender(),
+            tokenRepository);
+
+        await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
+
+        Assert.Single(tokenRepository.CreatedTokens);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsyncEmailFailureDoesNotExposeSensitiveDetailsInResponse()
+    {
+        const string sensitiveMarker = "SmtpProviderFailureDetail";
+        var user = CreateUser();
+        var service = CreateService(
+            new FakeUserRepository(user),
+            new FailingEmailSender(sensitiveMarker));
+
+        var result = await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
+
+        Assert.Equal(ForgotPasswordService.SuccessMessage, result.Message);
+        Assert.DoesNotContain(sensitiveMarker, result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("token=", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Exception", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsyncEmailFailureLogsWithoutSensitiveValues()
+    {
+        const string rawTokenMarker = "raw-token-marker-value";
+        var user = CreateUser();
+        var logger = new CollectingLogger<ForgotPasswordService>();
+        var service = CreateService(
+            new FakeUserRepository(user),
+            new FailingEmailSenderWithResetUrl(rawTokenMarker),
+            logger: logger);
+
+        await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
+
+        Assert.NotEmpty(logger.Messages);
+        Assert.All(logger.Messages, message =>
+        {
+            Assert.DoesNotContain(rawTokenMarker, message, StringComparison.Ordinal);
+            Assert.DoesNotContain("movieapp://reset-password?token=", message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(nameof(InvalidOperationException), message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public void BuildResetUrlUsesConfiguredBaseUrl()
     {
         var url = ForgotPasswordService.BuildResetUrl(
@@ -98,8 +171,9 @@ public sealed class ForgotPasswordServiceTests
 
     private static ForgotPasswordService CreateService(
         FakeUserRepository userRepository,
-        CapturingEmailSender emailSender,
-        FakePasswordResetTokenRepository? tokenRepository = null)
+        IEmailSender emailSender,
+        FakePasswordResetTokenRepository? tokenRepository = null,
+        ILogger<ForgotPasswordService>? logger = null)
     {
         tokenRepository ??= new FakePasswordResetTokenRepository();
         var options = Options.Create(new PasswordResetOptions
@@ -112,7 +186,8 @@ public sealed class ForgotPasswordServiceTests
             userRepository,
             tokenRepository,
             emailSender,
-            options);
+            options,
+            logger ?? NullLogger<ForgotPasswordService>.Instance);
     }
 
     private static User CreateUser() =>
@@ -122,6 +197,60 @@ public sealed class ForgotPasswordServiceTests
             "hashed-password",
             "Display Name",
             DateTime.UtcNow);
+
+    private sealed class FailingEmailSender(string failureDetail = "SmtpProviderFailureDetail") : IEmailSender
+    {
+        public Task SendPasswordResetEmailAsync(
+            string toEmail,
+            string resetUrl,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException($"SMTP failed: {failureDetail}");
+    }
+
+    private sealed class FailingEmailSenderWithResetUrl(string resetUrlTokenMarker) : IEmailSender
+    {
+        public Task SendPasswordResetEmailAsync(
+            string toEmail,
+            string resetUrl,
+            CancellationToken cancellationToken = default)
+        {
+            if (!resetUrl.Contains(resetUrlTokenMarker, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Expected reset URL token marker was not passed to email sender.");
+            }
+
+            throw new InvalidOperationException("SMTP failed.");
+        }
+    }
+
+    private sealed class CollectingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull => NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static NullScope Instance { get; } = new();
+
+            public void Dispose()
+            {
+            }
+        }
+    }
 
     private sealed class CapturingEmailSender : IEmailSender
     {
