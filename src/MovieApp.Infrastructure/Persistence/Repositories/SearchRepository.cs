@@ -54,7 +54,7 @@ public sealed class SearchRepository(ApplicationDbContext dbContext) : ISearchRe
             .ToListAsync(cancellationToken);
 
         return projections
-            .Select(item => new SearchSuggestion(item.Id, item.Type, item.Title))
+            .Select(item => new SearchSuggestion(item.Id, item.Type, item.Title, item.PosterUrl))
             .ToList();
     }
 

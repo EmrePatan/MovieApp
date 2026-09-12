@@ -17,7 +17,11 @@ public static class SearchContractMapper
             result.HasPreviousPage);
 
     public static SearchAutocompleteResponse ToAutocompleteResponse(IReadOnlyList<SearchSuggestion> items) =>
-        new(items.Select(item => new SearchAutocompleteItemResponse(item.Id, item.Type, item.Title)).ToList());
+        new(items.Select(item => new SearchAutocompleteItemResponse(
+            item.Id,
+            item.Type,
+            item.Title,
+            item.PosterUrl)).ToList());
 
     public static SearchHistoryResponse ToSearchHistoryResponse(PaginatedResult<SearchHistoryItem> result) =>
         new(

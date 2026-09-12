@@ -59,6 +59,34 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
         Assert.NotNull(payload);
         Assert.NotEmpty(payload.Items);
         Assert.True(payload.Items.Count <= 10);
+        Assert.Contains(payload.Items, item => !string.IsNullOrWhiteSpace(item.PosterUrl));
+    }
+
+    [Fact]
+    public async Task AutocompleteReturnsNullPosterUrlWhenCatalogItemHasNoPoster()
+    {
+        await fixture.ResetAsync();
+
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new MovieApp.Domain.Entities.Movie
+        {
+            Id = movieId,
+            Title = "Posterless Title",
+            PosterPath = null,
+            VoteAverage = 5,
+            VoteCount = 10,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        await context.SaveChangesAsync();
+
+        var response = await _client.GetAsync("/api/search/autocomplete?q=posterless");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchAutocompleteResponse>();
+        Assert.NotNull(payload);
+        Assert.Contains(payload.Items, item => item.Title == "Posterless Title" && item.PosterUrl is null);
     }
 
     [Fact]
