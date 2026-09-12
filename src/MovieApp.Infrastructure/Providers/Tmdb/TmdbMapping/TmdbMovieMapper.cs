@@ -1,3 +1,4 @@
+using MovieApp.Application.Common;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
@@ -26,7 +27,7 @@ internal static class TmdbMovieMapper
             ExternalId: TmdbExternalIdFormatter.ToExternalId(details.Id),
             TmdbId: details.Id,
             TvdbId: details.ExternalIds?.TvdbId,
-            ImdbId: details.ExternalIds?.ImdbId ?? details.ImdbId,
+            ImdbId: ImdbIdNormalizer.Normalize(details.ExternalIds?.ImdbId ?? details.ImdbId),
             Title: details.Title ?? string.Empty,
             OriginalTitle: details.OriginalTitle,
             Overview: details.Overview,

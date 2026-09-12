@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Contracts.Movies;
+using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Providers;
 
@@ -151,6 +152,79 @@ public sealed class MovieSearchApiTests(MovieSearchApiFixture fixture)
         var response = await _client.GetAsync($"/api/movies/search?q=Interstellar&{paginationQuery}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SearchWithMultipleEmptyImdbIdsReturnsOkAndPersistsNullImdbValues()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync(
+            $"/api/movies/search?q={FakeMovieDataProvider.EmptyImdbCatalogQueryToken}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<MovieSearchResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(2, payload.Items.Count);
+        Assert.Equal(2, payload.TotalCount);
+        Assert.All(payload.Items, item => Assert.Null(item.ExternalIds.ImdbId));
+
+        await using var context = CreateContext();
+        Assert.Equal(2, await context.Movies.CountAsync());
+        Assert.Equal(0, await context.Movies.CountAsync(movie => movie.ImdbId == string.Empty));
+        Assert.Equal(2, await context.Movies.CountAsync(movie => movie.ImdbId == null));
+    }
+
+    [Fact]
+    public async Task SearchWithLegacyEmptyImdbRowAndMultipleEmptyImdbResultsReturnsOk()
+    {
+        await fixture.ResetAsync();
+
+        await using (var context = CreateContext())
+        {
+            var utcNow = DateTime.UtcNow;
+            context.Movies.Add(new Movie
+            {
+                Id = Guid.NewGuid(),
+                TmdbId = 999001,
+                ImdbId = string.Empty,
+                Title = "Legacy Empty IMDb Row",
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var response = await _client.GetAsync(
+            $"/api/movies/search?q={FakeMovieDataProvider.EmptyImdbCatalogQueryToken}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<MovieSearchResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(2, payload.Items.Count);
+    }
+
+    [Fact]
+    public async Task SearchSkipsDuplicateImdbConflictAndReturnsRemainingResults()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync(
+            $"/api/movies/search?q={FakeMovieDataProvider.DuplicateImdbCatalogQueryToken}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<MovieSearchResponse>();
+        Assert.NotNull(payload);
+        Assert.Single(payload.Items);
+        Assert.Equal(FakeMovieDataProvider.DuplicateImdbMovieOneTmdbId, payload.Items[0].ExternalIds.TmdbId);
+        Assert.Equal(2, payload.TotalCount);
+
+        await using var context = CreateContext();
+        Assert.Equal(1, await context.Movies.CountAsync(movie =>
+            movie.ImdbId == FakeMovieDataProvider.DuplicateImdbMovieImdbId));
     }
 
     private static ApplicationDbContext CreateContext()

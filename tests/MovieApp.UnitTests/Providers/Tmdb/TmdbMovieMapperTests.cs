@@ -92,6 +92,37 @@ public sealed class TmdbMovieMapperTests
         Assert.Equal("tt0816692", details.ImdbId);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ToDetailsNormalizesEmptyOrWhitespaceImdbIdToNull(string imdbId)
+    {
+        var details = TmdbMovieMapper.ToDetails(new TmdbMovieDetailsResponseJson
+        {
+            Id = 348369,
+            Title = "Avatar Days",
+            ExternalIds = new TmdbExternalIdsJson
+            {
+                ImdbId = imdbId
+            }
+        });
+
+        Assert.Null(details.ImdbId);
+    }
+
+    [Fact]
+    public void ToDetailsNormalizesTopLevelEmptyImdbIdToNull()
+    {
+        var details = TmdbMovieMapper.ToDetails(new TmdbMovieDetailsResponseJson
+        {
+            Id = 348369,
+            Title = "Avatar Days",
+            ImdbId = string.Empty
+        });
+
+        Assert.Null(details.ImdbId);
+    }
+
     [Fact]
     public void ToSearchResultMapsPaginationMetadata()
     {

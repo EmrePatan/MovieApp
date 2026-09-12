@@ -30,6 +30,14 @@ public sealed class MovieSearchApiFixture : IAsyncLifetime
             MovieSearchPagination.DefaultPage,
             MovieSearchPagination.DefaultPageSize));
         await cacheService.RemoveAsync(MovieSearchCacheKeys.Create("Interstellar", 2, MovieSearchPagination.DefaultPageSize));
+        await cacheService.RemoveAsync(MovieSearchCacheKeys.Create(
+            FakeMovieDataProvider.EmptyImdbCatalogQueryToken,
+            MovieSearchPagination.DefaultPage,
+            MovieSearchPagination.DefaultPageSize));
+        await cacheService.RemoveAsync(MovieSearchCacheKeys.Create(
+            FakeMovieDataProvider.DuplicateImdbCatalogQueryToken,
+            MovieSearchPagination.DefaultPage,
+            MovieSearchPagination.DefaultPageSize));
 
         await using var context = CreateContext();
         context.MovieGenres.RemoveRange(context.MovieGenres);

@@ -11,7 +11,14 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
     public const int InterstellarTvdbId = 900002;
     public const string InterstellarImdbId = "tt9000001";
     public const string PagedCatalogQueryToken = "paged-catalog";
+    public const string EmptyImdbCatalogQueryToken = "avatar-empty-imdb";
+    public const string DuplicateImdbCatalogQueryToken = "duplicate-imdb";
     public const int PagedCatalogMovieCount = 25;
+    public const int EmptyImdbMovieOneTmdbId = 348369;
+    public const int EmptyImdbMovieTwoTmdbId = 350632;
+    public const int DuplicateImdbMovieOneTmdbId = 930001;
+    public const int DuplicateImdbMovieTwoTmdbId = 930002;
+    public const string DuplicateImdbMovieImdbId = "tt9300001";
 
     private static readonly MovieProviderDetails InterstellarDetails = new(
         ExternalId: InterstellarExternalId,
@@ -62,6 +69,16 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult(CreatePagedResult(PagedCatalogSummaries, page, pageSize));
         }
 
+        if (normalizedQuery.Contains(EmptyImdbCatalogQueryToken, StringComparison.Ordinal))
+        {
+            return Task.FromResult(CreatePagedResult(CreateEmptyImdbSummaries(), page, pageSize));
+        }
+
+        if (normalizedQuery.Contains(DuplicateImdbCatalogQueryToken, StringComparison.Ordinal))
+        {
+            return Task.FromResult(CreatePagedResult(CreateDuplicateImdbSummaries(), page, pageSize));
+        }
+
         if (!normalizedQuery.Contains("interstellar", StringComparison.Ordinal))
         {
             return Task.FromResult(CreatePagedResult([], page, pageSize));
@@ -94,6 +111,16 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
         if (TryParsePagedCatalogExternalId(externalId, out var index))
         {
             return Task.FromResult<MovieProviderDetails?>(CreatePagedCatalogDetails(index));
+        }
+
+        if (TryParseEmptyImdbExternalId(externalId, out var emptyImdbIndex))
+        {
+            return Task.FromResult<MovieProviderDetails?>(CreateEmptyImdbDetails(emptyImdbIndex));
+        }
+
+        if (TryParseDuplicateImdbExternalId(externalId, out var duplicateImdbIndex))
+        {
+            return Task.FromResult<MovieProviderDetails?>(CreateDuplicateImdbDetails(duplicateImdbIndex));
         }
 
         return Task.FromResult<MovieProviderDetails?>(null);
@@ -154,4 +181,115 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             VoteAverage: 7.0m,
             VoteCount: 100 + index,
             Genres: ["Drama"]);
+
+    private static IReadOnlyList<MovieProviderSummary> CreateEmptyImdbSummaries() =>
+    [
+        CreateEmptyImdbSummary(1),
+        CreateEmptyImdbSummary(2)
+    ];
+
+    private static MovieProviderSummary CreateEmptyImdbSummary(int index) =>
+        new(
+            ExternalId: $"fake-tmdb-{EmptyImdbMovieOneTmdbId + index - 1}",
+            TmdbId: EmptyImdbMovieOneTmdbId + index - 1,
+            TvdbId: null,
+            ImdbId: null,
+            Title: index == 1 ? "Avatar Days" : "The Inception of Dramatic Representation",
+            Overview: $"Overview for empty IMDb movie {index}.",
+            ReleaseDate: new DateOnly(2020, 1, 1).AddDays(index),
+            PosterPath: $"/fake/empty-imdb-{index}-poster.jpg",
+            VoteAverage: 6.0m,
+            VoteCount: 10 + index);
+
+    private static MovieProviderDetails CreateEmptyImdbDetails(int index) =>
+        new(
+            ExternalId: $"fake-tmdb-{EmptyImdbMovieOneTmdbId + index - 1}",
+            TmdbId: EmptyImdbMovieOneTmdbId + index - 1,
+            TvdbId: null,
+            ImdbId: string.Empty,
+            Title: index == 1 ? "Avatar Days" : "The Inception of Dramatic Representation",
+            OriginalTitle: index == 1 ? "Avatar Days" : "The Inception of Dramatic Representation",
+            Overview: $"Overview for empty IMDb movie {index}.",
+            ReleaseDate: new DateOnly(2020, 1, 1).AddDays(index),
+            RuntimeMinutes: 90 + index,
+            PosterPath: $"/fake/empty-imdb-{index}-poster.jpg",
+            BackdropPath: $"/fake/empty-imdb-{index}-backdrop.jpg",
+            OriginalLanguage: "en",
+            VoteAverage: 6.0m,
+            VoteCount: 10 + index,
+            Genres: ["Documentary"]);
+
+    private static IReadOnlyList<MovieProviderSummary> CreateDuplicateImdbSummaries() =>
+    [
+        CreateDuplicateImdbSummary(1),
+        CreateDuplicateImdbSummary(2)
+    ];
+
+    private static MovieProviderSummary CreateDuplicateImdbSummary(int index) =>
+        new(
+            ExternalId: $"fake-tmdb-{DuplicateImdbMovieOneTmdbId + index - 1}",
+            TmdbId: DuplicateImdbMovieOneTmdbId + index - 1,
+            TvdbId: null,
+            ImdbId: DuplicateImdbMovieImdbId,
+            Title: $"Duplicate IMDb Movie {index}",
+            Overview: $"Overview for duplicate IMDb movie {index}.",
+            ReleaseDate: new DateOnly(2021, 1, 1).AddDays(index),
+            PosterPath: $"/fake/duplicate-imdb-{index}-poster.jpg",
+            VoteAverage: 5.0m,
+            VoteCount: 20 + index);
+
+    private static MovieProviderDetails CreateDuplicateImdbDetails(int index) =>
+        new(
+            ExternalId: $"fake-tmdb-{DuplicateImdbMovieOneTmdbId + index - 1}",
+            TmdbId: DuplicateImdbMovieOneTmdbId + index - 1,
+            TvdbId: null,
+            ImdbId: DuplicateImdbMovieImdbId,
+            Title: $"Duplicate IMDb Movie {index}",
+            OriginalTitle: $"Duplicate IMDb Movie {index}",
+            Overview: $"Overview for duplicate IMDb movie {index}.",
+            ReleaseDate: new DateOnly(2021, 1, 1).AddDays(index),
+            RuntimeMinutes: 95 + index,
+            PosterPath: $"/fake/duplicate-imdb-{index}-poster.jpg",
+            BackdropPath: $"/fake/duplicate-imdb-{index}-backdrop.jpg",
+            OriginalLanguage: "en",
+            VoteAverage: 5.0m,
+            VoteCount: 20 + index,
+            Genres: ["Drama"]);
+
+    private static bool TryParseEmptyImdbExternalId(string externalId, out int index)
+    {
+        if (!TryParseTmdbExternalId(externalId, out var tmdbId))
+        {
+            index = 0;
+            return false;
+        }
+
+        index = tmdbId - EmptyImdbMovieOneTmdbId + 1;
+        return index is >= 1 and <= 2;
+    }
+
+    private static bool TryParseDuplicateImdbExternalId(string externalId, out int index)
+    {
+        if (!TryParseTmdbExternalId(externalId, out var tmdbId))
+        {
+            index = 0;
+            return false;
+        }
+
+        index = tmdbId - DuplicateImdbMovieOneTmdbId + 1;
+        return index is >= 1 and <= 2;
+    }
+
+    private static bool TryParseTmdbExternalId(string externalId, out int tmdbId)
+    {
+        const string prefix = "fake-tmdb-";
+
+        if (!externalId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            tmdbId = 0;
+            return false;
+        }
+
+        return int.TryParse(externalId[prefix.Length..], out tmdbId);
+    }
 }

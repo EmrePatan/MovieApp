@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Common;
+using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 
@@ -55,7 +57,7 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
 
         movie.TmdbId = details.TmdbId;
         movie.TvdbId = details.TvdbId;
-        movie.ImdbId = details.ImdbId;
+        movie.ImdbId = ImdbIdNormalizer.Normalize(details.ImdbId);
         movie.Title = details.Title;
         movie.OriginalTitle = details.OriginalTitle;
         movie.Overview = details.Overview;
@@ -69,7 +71,18 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         movie.UpdatedAt = utcNow;
 
         await SyncGenresAsync(movie, details.Genres, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
+        {
+            throw new MovieExternalIdPersistenceConflictException(
+                details.TmdbId,
+                details.ExternalId,
+                exception);
+        }
 
         return movie;
     }
