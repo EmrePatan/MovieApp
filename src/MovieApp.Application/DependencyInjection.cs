@@ -53,6 +53,7 @@ public static class DependencyInjection
 
         services.AddScoped<IWatchHistoryService, WatchHistoryService>();
 
+        services.AddScoped<IUnifiedSearchProviderIngestionService, UnifiedSearchProviderIngestionService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAutocompleteService, AutocompleteService>();
         services.AddScoped<IDiscoveryService, DiscoveryService>();

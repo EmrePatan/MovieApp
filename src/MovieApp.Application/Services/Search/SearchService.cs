@@ -14,7 +14,8 @@ public sealed class SearchService(
     ISearchRepository searchRepository,
     ISearchHistoryRepository searchHistoryRepository,
     ICurrentUser currentUser,
-    ICacheService cacheService) : ISearchService
+    ICacheService cacheService,
+    IUnifiedSearchProviderIngestionService providerIngestionService) : ISearchService
 {
     private static readonly TimeSpan SearchCacheTtl = TimeSpan.FromMinutes(5);
 
@@ -37,12 +38,45 @@ public sealed class SearchService(
         }
 
         var result = await searchRepository.SearchAsync(criteria, cancellationToken);
+        var providerIngestionSucceeded = false;
+        var providerIngestionFailed = false;
 
-        await cacheService.SetAsync(
-            cacheKey,
-            new UnifiedSearchCacheEntry { Result = result },
-            SearchCacheTtl,
-            cancellationToken);
+        if (UnifiedSearchCatalogSatisfaction.ShouldUseProviderFallback(criteria, result))
+        {
+            var catalogResult = result;
+            try
+            {
+                await providerIngestionService.IngestAsync(criteria, cancellationToken);
+                providerIngestionSucceeded = true;
+                result = await searchRepository.SearchAsync(criteria, cancellationToken);
+            }
+            catch (Exception)
+            {
+                providerIngestionFailed = true;
+
+                if (catalogResult.TotalCount > 0)
+                {
+                    result = catalogResult;
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
+        if (UnifiedSearchCatalogSatisfaction.ShouldCacheAfterSearch(
+                result,
+                criteria,
+                providerIngestionSucceeded,
+                providerIngestionFailed))
+        {
+            await cacheService.SetAsync(
+                cacheKey,
+                new UnifiedSearchCacheEntry { Result = result },
+                SearchCacheTtl,
+                cancellationToken);
+        }
 
         await TryRecordSearchHistoryAsync(criteria, cancellationToken);
 

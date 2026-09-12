@@ -10,4 +10,8 @@
     <ProjectReference Include="..\MovieApp.Domain\MovieApp.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="MovieApp.UnitTests" />
+  </ItemGroup>
+
 </Project>
