@@ -1,4 +1,6 @@
+using MovieApp.Api.Cors;
 using MovieApp.Api.ForwardedHeaders;
+using MovieApp.Api.Security;
 using MovieApp.Application;
 using MovieApp.Infrastructure;
 using Serilog;
@@ -35,7 +37,8 @@ public static class ApplicationBootstrap
 
         app.UseConfiguredForwardedHeaders();
         app.UseSerilogRequestLogging();
-        app.UseHttpsRedirection();
+        app.UseProductionTransportSecurity();
+        app.UseConfiguredCors();
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();

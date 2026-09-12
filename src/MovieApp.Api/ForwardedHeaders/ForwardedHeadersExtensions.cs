@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using HttpOverridesForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders;
 using MovieApp.Infrastructure.Configuration;
 
@@ -11,8 +13,11 @@ internal static class ForwardedHeadersExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<ForwardedHeadersOptionsConfig>(
-            configuration.GetSection(ForwardedHeadersOptionsConfig.SectionName));
+        services.AddOptions<ForwardedHeadersOptionsConfig>()
+            .Bind(configuration.GetSection(ForwardedHeadersOptionsConfig.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<ForwardedHeadersOptionsConfig>, ForwardedHeadersOptionsValidator>();
 
         var options = configuration
             .GetSection(ForwardedHeadersOptionsConfig.SectionName)
