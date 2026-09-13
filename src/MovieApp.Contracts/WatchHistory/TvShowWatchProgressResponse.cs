@@ -5,4 +5,5 @@ public sealed record TvShowWatchProgressResponse(
     int TotalEpisodes,
     int WatchedEpisodes,
     decimal ProgressPercentage,
-    NextEpisodeResponse? NextEpisode);
+    NextEpisodeResponse? NextEpisode,
+    IReadOnlyList<TvShowSeasonProgressResponse> Seasons);

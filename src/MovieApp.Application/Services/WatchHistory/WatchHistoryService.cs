@@ -176,8 +176,29 @@ public sealed class WatchHistoryService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
 
-        var totalEpisodes = await episodeRepository.CountByTvShowIdAsync(tvShowId, cancellationToken);
-        var watchedEpisodes = await watchedEpisodeRepository.CountWatchedForTvShowAsync(userId, tvShowId, cancellationToken);
+        var episodeCounts = await episodeRepository.GetEpisodeCountsBySeasonAsync(tvShowId, cancellationToken);
+        var watchedCounts = await watchedEpisodeRepository.GetWatchedEpisodeCountsBySeasonAsync(
+            userId,
+            tvShowId,
+            cancellationToken);
+        var watchedBySeason = watchedCounts.ToDictionary(
+            count => count.SeasonNumber,
+            count => count.EpisodeCount);
+
+        var seasons = episodeCounts
+            .Select(count =>
+            {
+                var watched = watchedBySeason.GetValueOrDefault(count.SeasonNumber);
+                return new SeasonProgressSummaryResult(
+                    count.SeasonNumber,
+                    count.EpisodeCount,
+                    watched,
+                    WatchHistoryMapper.CalculateProgressPercentage(watched, count.EpisodeCount));
+            })
+            .ToList();
+
+        var totalEpisodes = seasons.Sum(season => season.TotalEpisodes);
+        var watchedEpisodes = seasons.Sum(season => season.WatchedEpisodes);
         var nextEpisode = await episodeRepository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId, cancellationToken);
 
         return new TvShowWatchProgressResult(
@@ -185,7 +206,8 @@ public sealed class WatchHistoryService(
             totalEpisodes,
             watchedEpisodes,
             WatchHistoryMapper.CalculateProgressPercentage(watchedEpisodes, totalEpisodes),
-            WatchHistoryMapper.ToNextEpisodeResult(nextEpisode));
+            WatchHistoryMapper.ToNextEpisodeResult(nextEpisode),
+            seasons);
     }
 
     public async Task<IReadOnlyList<ContinueWatchingItemResult>> GetContinueWatchingAsync(

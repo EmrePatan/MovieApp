@@ -157,6 +157,8 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
         Assert.NotNull(payload.NextEpisode);
         Assert.Equal(3, payload.NextEpisode!.EpisodeNumber);
         Assert.Equal(1, payload.NextEpisode.SeasonNumber);
+        Assert.NotEmpty(payload.Seasons);
+        Assert.Contains(payload.Seasons, season => season.SeasonNumber == 1 && season.WatchedEpisodes == 2);
     }
 
     [Fact]

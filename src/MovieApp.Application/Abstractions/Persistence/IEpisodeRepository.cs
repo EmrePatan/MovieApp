@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.WatchHistory;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Abstractions.Persistence;
@@ -12,6 +13,10 @@ public interface IEpisodeRepository
     Task<int> CountByTvShowIdAndSeasonNumberAsync(
         Guid tvShowId,
         int seasonNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<SeasonEpisodeCountResult>> GetEpisodeCountsBySeasonAsync(
+        Guid tvShowId,
         CancellationToken cancellationToken = default);
 
     Task<Episode?> GetFirstUnwatchedForTvShowAsync(

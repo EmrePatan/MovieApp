@@ -80,7 +80,14 @@ public static class WatchHistoryContractMapper
                     result.NextEpisode.EpisodeId,
                     result.NextEpisode.SeasonNumber,
                     result.NextEpisode.EpisodeNumber,
-                    result.NextEpisode.Title));
+                    result.NextEpisode.Title),
+            result.Seasons
+                .Select(season => new TvShowSeasonProgressResponse(
+                    season.SeasonNumber,
+                    season.TotalEpisodes,
+                    season.WatchedEpisodes,
+                    season.ProgressPercentage))
+                .ToList());
 
     public static SeasonWatchProgressResponse ToSeasonWatchProgressResponse(SeasonWatchProgressResult result) =>
         new(

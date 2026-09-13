@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Models.WatchHistory;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -120,6 +121,22 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
             .CountAsync(
                 watchedEpisode => watchedEpisode.Episode.SeasonId == seasonId,
                 cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SeasonEpisodeCountResult>> GetWatchedEpisodeCountsBySeasonAsync(
+        Guid userId,
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WatchedEpisodes
+            .AsNoTracking()
+            .Where(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                watchedEpisode.Episode.Season.TvShowId == tvShowId)
+            .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.SeasonNumber)
+            .Select(group => new SeasonEpisodeCountResult(group.Key, group.Count()))
+            .OrderBy(result => result.SeasonNumber)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<(

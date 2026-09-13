@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.WatchHistory;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.UnitTests.Caching;
@@ -200,6 +201,7 @@ public sealed class WatchHistoryServiceTests
         Assert.Equal(0, result.WatchedEpisodes);
         Assert.Equal(0m, result.ProgressPercentage);
         Assert.Null(result.NextEpisode);
+        Assert.Empty(result.Seasons);
     }
 
     [Fact]
@@ -602,6 +604,26 @@ public sealed class WatchHistoryServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_watchedForSeason);
 
+        public Task<IReadOnlyList<SeasonEpisodeCountResult>> GetWatchedEpisodeCountsBySeasonAsync(
+            Guid userId,
+            Guid tvShowId,
+            CancellationToken cancellationToken = default)
+        {
+            if (_watchedForSeason > 0)
+            {
+                return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>(
+                    [new SeasonEpisodeCountResult(1, _watchedForSeason)]);
+            }
+
+            if (_watchedForTvShow > 0)
+            {
+                return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>(
+                    [new SeasonEpisodeCountResult(1, _watchedForTvShow)]);
+            }
+
+            return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>([]);
+        }
+
         public Task<IReadOnlyList<(
             Guid EpisodeId,
             Guid TvShowId,
@@ -704,6 +726,25 @@ public sealed class WatchHistoryServiceTests
             int seasonNumber,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(totalSeasonEpisodes);
+
+        public Task<IReadOnlyList<SeasonEpisodeCountResult>> GetEpisodeCountsBySeasonAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default)
+        {
+            if (totalEpisodes <= 0)
+            {
+                return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>([]);
+            }
+
+            var seasonTotal = Math.Max(totalEpisodes, totalSeasonEpisodes);
+            if (seasonTotal <= 0)
+            {
+                return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>([]);
+            }
+
+            return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>(
+                [new SeasonEpisodeCountResult(1, seasonTotal)]);
+        }
 
         public Task<Episode?> GetFirstUnwatchedForTvShowAsync(
             Guid tvShowId,
