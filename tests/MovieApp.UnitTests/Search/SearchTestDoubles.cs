@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
 using Microsoft.Extensions.DependencyInjection;
@@ -162,6 +163,32 @@ internal static class SearchTestDoubles
 
     internal sealed class FakeProviderIngestionService : IUnifiedSearchProviderIngestionService
     {
+        private static readonly SearchItem MovieItem = new(
+            Guid.NewGuid(),
+            "movie",
+            "Inception",
+            null,
+            "Overview",
+            "/poster.jpg",
+            null,
+            new DateOnly(2010, 7, 16),
+            8.8m,
+            32000,
+            2010);
+
+        private static readonly SearchItem TvItem = new(
+            Guid.NewGuid(),
+            "tv",
+            "Friends",
+            null,
+            "Overview",
+            "/poster.jpg",
+            null,
+            new DateOnly(1994, 9, 22),
+            8.9m,
+            12000,
+            1994);
+
         private int _ingestCount;
 
         public int IngestCount => _ingestCount;
@@ -173,6 +200,8 @@ internal static class SearchTestDoubles
         public bool TvSucceeds { get; set; } = true;
 
         public bool ThrowBeforeResult { get; set; }
+
+        public bool ThrowOnAutocomplete { get; set; }
 
         public int ArtificialDelayMilliseconds { get; set; }
 
@@ -195,19 +224,100 @@ internal static class SearchTestDoubles
 
             var movieRequired = criteria.Type is SearchContentType.Movie or SearchContentType.All;
             var tvRequired = criteria.Type is SearchContentType.Tv or SearchContentType.All;
+            var movieSucceeded = movieRequired && MovieSucceeds;
+            var tvSucceeded = tvRequired && TvSucceeds;
+
+            PaginatedResult<SearchItem>? result = null;
+            if (movieSucceeded || tvSucceeded)
+            {
+                result = CreateProviderResult(criteria, movieSucceeded, tvSucceeded);
+            }
 
             return new UnifiedSearchProviderIngestionResult(
                 movieRequired,
                 tvRequired,
                 movieRequired,
                 tvRequired,
-                movieRequired && MovieSucceeds,
-                tvRequired && TvSucceeds);
+                movieSucceeded,
+                tvSucceeded,
+                result);
         }
+
+        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
+            string query,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            if (ThrowOnAutocomplete)
+            {
+                throw new InvalidOperationException("autocomplete provider unavailable");
+            }
+
+            var title = QueryTitle(query);
+            IReadOnlyList<SearchSuggestion> suggestions =
+            [
+                new(MovieItem.Id, "movie", title, MovieItem.PosterUrl),
+                new(TvItem.Id, "tv", title, TvItem.PosterUrl)
+            ];
+
+            return Task.FromResult<IReadOnlyList<SearchSuggestion>>(
+                suggestions.Take(limit).ToList());
+        }
+
+        private static PaginatedResult<SearchItem> CreateProviderResult(
+            SearchCriteria criteria,
+            bool includeMovie,
+            bool includeTv)
+        {
+            var title = QueryTitle(criteria.Query);
+            var items = new List<SearchItem>();
+
+            if (includeMovie)
+            {
+                items.Add(MovieItem with { Id = Guid.NewGuid(), Title = title });
+            }
+
+            if (includeTv)
+            {
+                items.Add(TvItem with { Id = Guid.NewGuid(), Title = title });
+            }
+
+            var totalCount = criteria.Type switch
+            {
+                SearchContentType.Movie => includeMovie ? Math.Max(items.Count, 2) : 0,
+                SearchContentType.Tv => includeTv ? Math.Max(items.Count, 2) : 0,
+                _ => (includeMovie ? 2 : 0) + (includeTv ? 2 : 0)
+            };
+
+            return new PaginatedResult<SearchItem>(
+                items,
+                criteria.Page,
+                criteria.PageSize,
+                totalCount,
+                totalCount == 0 ? 0 : 1);
+        }
+
+        private static string QueryTitle(string? query) =>
+            string.IsNullOrWhiteSpace(query)
+                ? "Result"
+                : char.ToUpperInvariant(query[0]) + query[1..];
     }
 
     internal sealed class CountingProviderIngestionService : IUnifiedSearchProviderIngestionService
     {
+        private static readonly SearchItem MovieItem = new(
+            Guid.NewGuid(),
+            "movie",
+            "Result",
+            null,
+            null,
+            null,
+            null,
+            null,
+            8m,
+            100,
+            null);
+
         private int _ingestCount;
 
         public int IngestCount => _ingestCount;
@@ -229,13 +339,27 @@ internal static class SearchTestDoubles
                 }, cancellationToken);
             }
 
+            var result = new PaginatedResult<SearchItem>(
+                [MovieItem],
+                criteria.Page,
+                criteria.PageSize,
+                1,
+                1);
+
             return Task.FromResult(new UnifiedSearchProviderIngestionResult(
                 true,
                 true,
                 true,
                 true,
                 true,
-                true));
+                true,
+                result));
         }
+
+        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
+            string query,
+            int limit,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
     }
 }

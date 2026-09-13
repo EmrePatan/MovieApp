@@ -113,6 +113,71 @@ public sealed class MovieRepositoryTests
         Assert.Equal(1, await context.Movies.CountAsync());
     }
 
+    [Fact]
+    public async Task EnsureFromSummariesAsyncReusesExistingMovieAppGuid()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"movie-repository-summary-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new MovieRepository(context);
+
+        var details = CreateDetails(
+            tmdbId: 12345,
+            imdbId: "tt12345",
+            title: "Existing Movie");
+
+        var existing = await repository.UpsertFromProviderAsync(details);
+        var resolved = await repository.EnsureFromSummariesAsync(
+        [
+            new MovieProviderSummary(
+                "fake-tmdb-12345",
+                12345,
+                null,
+                "tt12345",
+                "Existing Movie",
+                "Overview",
+                new DateOnly(2010, 1, 1),
+                "/poster.jpg",
+                8m,
+                100)
+        ]);
+
+        Assert.Equal(existing.Id, resolved[12345]);
+        Assert.Equal(1, await context.Movies.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncCreatesMinimalRowsWithoutGenres()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"movie-repository-summary-create-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new MovieRepository(context);
+
+        var resolved = await repository.EnsureFromSummariesAsync(
+        [
+            new MovieProviderSummary(
+                "fake-tmdb-54321",
+                54321,
+                null,
+                null,
+                "New Movie",
+                "Overview",
+                new DateOnly(2020, 1, 1),
+                "/poster.jpg",
+                7.5m,
+                50)
+        ]);
+
+        Assert.True(resolved.ContainsKey(54321));
+        Assert.Equal(1, await context.Movies.CountAsync());
+        Assert.Equal(0, await context.MovieGenres.CountAsync());
+    }
+
     private static MovieProviderDetails CreateDetails(int tmdbId, string? imdbId, string title) =>
         new(
             ExternalId: $"fake-tmdb-{tmdbId}",

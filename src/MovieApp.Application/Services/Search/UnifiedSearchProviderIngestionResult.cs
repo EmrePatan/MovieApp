@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Services.Search;
@@ -8,7 +9,8 @@ public sealed record UnifiedSearchProviderIngestionResult(
     bool MovieRefreshAttempted,
     bool TvRefreshAttempted,
     bool MovieRefreshSucceeded,
-    bool TvRefreshSucceeded)
+    bool TvRefreshSucceeded,
+    PaginatedResult<SearchItem>? Result = null)
 {
     public bool IsFullySuccessful =>
         (!MovieRefreshRequired || MovieRefreshSucceeded) &&

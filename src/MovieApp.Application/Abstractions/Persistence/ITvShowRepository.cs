@@ -12,4 +12,9 @@ public interface ITvShowRepository
     Task<TvShow> UpsertFromProviderAsync(
         TvShowProviderDetails details,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+        IReadOnlyList<TvShowProviderSummary> summaries,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

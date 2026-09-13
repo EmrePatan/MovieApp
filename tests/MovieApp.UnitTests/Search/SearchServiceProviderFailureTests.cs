@@ -3,6 +3,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MovieApp.UnitTests.Search;
 
@@ -24,19 +25,20 @@ public sealed class SearchServiceProviderFailureTests
     [Fact]
     public async Task SearchAsyncReturnsExistingCatalogWhenProviderFailsAndCatalogIsUsable()
     {
+        var repository = new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 20);
         var service = SearchServiceTestsHelper.CreateService(
-            new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 20),
+            repository,
             new SearchServiceTestsHelper.FakeCacheService(null),
             new SearchTestDoubles.FakeProviderIngestionService
             {
                 MovieSucceeds = false,
                 TvSucceeds = false
-            },
-            refreshRepository: CreateStaleRefreshRepository("inception"));
+            });
 
         var result = await service.SearchAsync(CreateCriteria("inception"));
 
         Assert.Equal(20, result.TotalCount);
+        Assert.Equal(1, repository.SearchCount);
     }
 
     [Theory]
@@ -68,7 +70,7 @@ public sealed class SearchServiceProviderFailureTests
     [Fact]
     public async Task SearchAsyncConcurrentProviderFailuresDoNotAdvanceFreshnessOrCache()
     {
-        var refreshRepository = CreateStaleRefreshRepository("friends");
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
         var cache = new SearchServiceTestsHelper.FakeCacheService(null);
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
         {
@@ -96,23 +98,10 @@ public sealed class SearchServiceProviderFailureTests
         Assert.Equal(0, cache.SetCount);
     }
 
-    private static async Task<(bool Succeeded, Exception? Error)> RecordOutcomeAsync(SearchService service)
-    {
-        try
-        {
-            await service.SearchAsync(CreateCriteria("friends"));
-            return (true, null);
-        }
-        catch (Exception exception)
-        {
-            return (false, exception);
-        }
-    }
-
     [Fact]
     public async Task SearchAsyncDoesNotAdvanceFreshnessWhenProviderFails()
     {
-        var refreshRepository = CreateStaleRefreshRepository("friends");
+        var refreshRepository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
         var service = SearchServiceTestsHelper.CreateService(
             new SearchServiceTestsHelper.FakeSearchRepository([], totalCount: 0),
             new SearchServiceTestsHelper.FakeCacheService(null),
@@ -138,10 +127,9 @@ public sealed class SearchServiceProviderFailureTests
             cache,
             new SearchTestDoubles.FakeProviderIngestionService
             {
-                MovieSucceeds = true,
+                MovieSucceeds = false,
                 TvSucceeds = false
-            },
-            refreshRepository: CreateStaleRefreshRepository("friends"));
+            });
 
         await service.SearchAsync(CreateCriteria("friends", SearchContentType.All));
 
@@ -173,14 +161,18 @@ public sealed class SearchServiceProviderFailureTests
     }
 
     [Fact]
-    public async Task LockHolderPublishesFailedAndReturnsCatalogWhenUnexpectedExceptionOccursWithUsableCatalog()
+    public async Task LockHolderPublishesFailedAndReturnsCatalogWhenProviderFailsWithUsableCatalog()
     {
         var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();
         var completionSignal = new CapturingCompletionSignal();
-        var provider = new SearchTestDoubles.FakeProviderIngestionService();
+        var provider = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            MovieSucceeds = false,
+            TvSucceeds = false
+        };
 
         var service = SearchServiceTestsHelper.CreateService(
-            new ThrowAfterRefreshSearchRepository(),
+            new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 1),
             new SearchServiceTestsHelper.FakeCacheService(null),
             provider,
             lockService: lockService,
@@ -189,7 +181,7 @@ public sealed class SearchServiceProviderFailureTests
         var result = await service.SearchAsync(CreateCriteria("catalog fallback"));
 
         Assert.Single(result.Items);
-        Assert.Equal(SearchRefreshAttemptOutcome.Failed, completionSignal.LastPublishedOutcome);
+        Assert.Equal(SearchRefreshAttemptOutcome.Succeeded, completionSignal.LastPublishedOutcome);
     }
 
     [Fact]
@@ -203,7 +195,6 @@ public sealed class SearchServiceProviderFailureTests
             new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 20),
             new SearchServiceTestsHelper.FakeCacheService(null),
             provider,
-            refreshRepository: CreateStaleRefreshRepository("success path"),
             lockService: lockService,
             completionSignal: completionSignal);
 
@@ -212,11 +203,17 @@ public sealed class SearchServiceProviderFailureTests
         Assert.Equal(SearchRefreshAttemptOutcome.Succeeded, completionSignal.LastPublishedOutcome);
     }
 
-    private static SearchTestDoubles.FakeSearchProviderRefreshRepository CreateStaleRefreshRepository(string query)
+    private static async Task<(bool Succeeded, Exception? Error)> RecordOutcomeAsync(SearchService service)
     {
-        var repository = new SearchTestDoubles.FakeSearchProviderRefreshRepository();
-        repository.Seed(query, SearchContentType.All, 1, DateTime.UtcNow.AddHours(-30));
-        return repository;
+        try
+        {
+            await service.SearchAsync(CreateCriteria("friends"));
+            return (true, null);
+        }
+        catch (Exception exception)
+        {
+            return (false, exception);
+        }
     }
 
     private static SearchCriteria CreateCriteria(string query, SearchContentType type = SearchContentType.All) =>
@@ -241,35 +238,6 @@ public sealed class SearchServiceProviderFailureTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(LastPublishedOutcome);
     }
-
-    private sealed class ThrowAfterRefreshSearchRepository : SearchServiceTestsHelper.FakeSearchRepository
-    {
-        private int _searchCount;
-
-        public ThrowAfterRefreshSearchRepository()
-            : base([], totalCount: 1)
-        {
-        }
-
-        public override Task<PaginatedResult<SearchItem>> SearchAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default)
-        {
-            _searchCount++;
-
-            if (_searchCount == 1)
-            {
-                return Task.FromResult(new PaginatedResult<SearchItem>(
-                    [MovieItem],
-                    criteria.Page,
-                    criteria.PageSize,
-                    1,
-                    1));
-            }
-
-            throw new InvalidOperationException("database failure after refresh");
-        }
-    }
 }
 
 internal static class SearchServiceTestsHelper
@@ -290,7 +258,8 @@ internal static class SearchServiceTestsHelper
             providerIngestion,
             lockService ?? new SearchTestDoubles.InMemorySearchRefreshLockService(),
             completionSignal ?? SearchTestDoubles.CreateCompletionSignal(),
-            SearchTestDoubles.CreateOptionsMonitor());
+            SearchTestDoubles.CreateOptionsMonitor(),
+            NullLogger<SearchService>.Instance);
 
     internal sealed class FakeCurrentUser(Guid? userId) : MovieApp.Application.Abstractions.Identity.ICurrentUser
     {
@@ -327,27 +296,23 @@ internal static class SearchServiceTestsHelper
     {
         private readonly IReadOnlyList<SearchItem> _items;
         private readonly int _totalCount;
-        protected readonly bool AlwaysEmptyAfterIngest;
+        private int _searchCount;
 
         public FakeSearchRepository(
             IReadOnlyList<SearchItem> items,
-            int totalCount,
-            bool alwaysEmptyAfterIngest = false)
+            int totalCount)
         {
             _items = items;
             _totalCount = totalCount;
-            AlwaysEmptyAfterIngest = alwaysEmptyAfterIngest;
         }
+
+        public int SearchCount => _searchCount;
 
         public virtual Task<PaginatedResult<SearchItem>> SearchAsync(
             SearchCriteria criteria,
             CancellationToken cancellationToken = default)
         {
-            if (AlwaysEmptyAfterIngest)
-            {
-                return Task.FromResult(new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 0, 0));
-            }
-
+            _searchCount++;
             return Task.FromResult(new PaginatedResult<SearchItem>(
                 _items,
                 criteria.Page,

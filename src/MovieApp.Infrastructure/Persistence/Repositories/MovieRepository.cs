@@ -87,6 +87,84 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         return movie;
     }
 
+    public async Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+        IReadOnlyList<MovieProviderSummary> summaries,
+        CancellationToken cancellationToken = default)
+    {
+        var tmdbIds = summaries
+            .Where(summary => summary.TmdbId.HasValue)
+            .Select(summary => summary.TmdbId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (tmdbIds.Count == 0)
+        {
+            return new Dictionary<int, Guid>();
+        }
+
+        var existingIds = await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movie.TmdbId.HasValue && tmdbIds.Contains(movie.TmdbId.Value))
+            .Select(movie => new { movie.TmdbId, movie.Id })
+            .ToDictionaryAsync(
+                movie => movie.TmdbId!.Value,
+                movie => movie.Id,
+                cancellationToken);
+
+        var utcNow = DateTime.UtcNow;
+        var hasChanges = false;
+
+        foreach (var summary in summaries)
+        {
+            if (!summary.TmdbId.HasValue || existingIds.ContainsKey(summary.TmdbId.Value))
+            {
+                continue;
+            }
+
+            var movie = new Movie
+            {
+                Id = Guid.NewGuid(),
+                TmdbId = summary.TmdbId,
+                TvdbId = summary.TvdbId,
+                ImdbId = ImdbIdNormalizer.Normalize(summary.ImdbId),
+                Title = summary.Title,
+                Overview = summary.Overview,
+                ReleaseDate = summary.ReleaseDate,
+                PosterPath = summary.PosterPath,
+                VoteAverage = summary.VoteAverage,
+                VoteCount = summary.VoteCount,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            };
+
+            dbContext.Movies.Add(movie);
+            existingIds[summary.TmdbId.Value] = movie.Id;
+            hasChanges = true;
+        }
+
+        if (!hasChanges)
+        {
+            return existingIds;
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return existingIds;
+        }
+        catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
+        {
+            return await dbContext.Movies
+                .AsNoTracking()
+                .Where(movie => movie.TmdbId.HasValue && tmdbIds.Contains(movie.TmdbId.Value))
+                .Select(movie => new { movie.TmdbId, movie.Id })
+                .ToDictionaryAsync(
+                    movie => movie.TmdbId!.Value,
+                    movie => movie.Id,
+                    cancellationToken);
+        }
+    }
+
     private async Task SyncGenresAsync(
         Movie movie,
         IReadOnlyList<string> genreNames,

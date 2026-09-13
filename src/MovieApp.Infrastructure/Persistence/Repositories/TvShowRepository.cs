@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 
@@ -77,6 +78,87 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return tvShow;
+    }
+
+    public async Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+        IReadOnlyList<TvShowProviderSummary> summaries,
+        CancellationToken cancellationToken = default)
+    {
+        var tmdbIds = summaries
+            .Where(summary => summary.TmdbId.HasValue)
+            .Select(summary => summary.TmdbId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (tmdbIds.Count == 0)
+        {
+            return new Dictionary<int, Guid>();
+        }
+
+        var existingIds = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShow.TmdbId.HasValue && tmdbIds.Contains(tvShow.TmdbId.Value))
+            .Select(tvShow => new { tvShow.TmdbId, tvShow.Id })
+            .ToDictionaryAsync(
+                tvShow => tvShow.TmdbId!.Value,
+                tvShow => tvShow.Id,
+                cancellationToken);
+
+        var utcNow = DateTime.UtcNow;
+        var hasChanges = false;
+
+        foreach (var summary in summaries)
+        {
+            if (!summary.TmdbId.HasValue || existingIds.ContainsKey(summary.TmdbId.Value))
+            {
+                continue;
+            }
+
+            var tvShow = new TvShow
+            {
+                Id = Guid.NewGuid(),
+                TmdbId = summary.TmdbId,
+                TvdbId = summary.TvdbId,
+                ImdbId = summary.ImdbId,
+                Title = summary.Title,
+                OriginalTitle = summary.OriginalTitle,
+                Overview = summary.Overview,
+                FirstAirDate = summary.FirstAirDate,
+                PosterPath = summary.PosterPath,
+                BackdropPath = summary.BackdropPath,
+                OriginalLanguage = summary.OriginalLanguage,
+                VoteAverage = summary.VoteAverage,
+                VoteCount = summary.VoteCount,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            };
+
+            dbContext.TvShows.Add(tvShow);
+            existingIds[summary.TmdbId.Value] = tvShow.Id;
+            hasChanges = true;
+        }
+
+        if (!hasChanges)
+        {
+            return existingIds;
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return existingIds;
+        }
+        catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
+        {
+            return await dbContext.TvShows
+                .AsNoTracking()
+                .Where(tvShow => tvShow.TmdbId.HasValue && tmdbIds.Contains(tvShow.TmdbId.Value))
+                .Select(tvShow => new { tvShow.TmdbId, tvShow.Id })
+                .ToDictionaryAsync(
+                    tvShow => tvShow.TmdbId!.Value,
+                    tvShow => tvShow.Id,
+                    cancellationToken);
+        }
     }
 
     private async Task SyncGenresAsync(

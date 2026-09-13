@@ -480,8 +480,22 @@ internal sealed class LoadTestProviderIngestionService(int delayMs, bool provide
             true,
             true,
             providerSucceeds,
-            providerSucceeds);
+            providerSucceeds,
+            providerSucceeds
+                ? new PaginatedResult<SearchItem>(
+                    [CreateItem("movie"), CreateItem("tv")],
+                    criteria.Page,
+                    criteria.PageSize,
+                    2,
+                    1)
+                : null);
     }
+
+    public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
+        string query,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
 }
 
 internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePostIngestionPopulation = true) : ISearchRepository

@@ -48,6 +48,73 @@ public sealed class TvShowRepositoryTests
         Assert.Equal(3, await context.TvShowGenres.CountAsync());
     }
 
+    [Fact]
+    public async Task EnsureFromSummariesAsyncReusesExistingMovieAppGuid()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"tvshow-repository-summary-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new TvShowRepository(context);
+
+        var existing = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
+        var resolved = await repository.EnsureFromSummariesAsync(
+        [
+            new TvShowProviderSummary(
+                "fake-tv-900101",
+                900101,
+                900102,
+                "tt9003747",
+                "Breaking Bad",
+                "Breaking Bad",
+                "Overview",
+                new DateOnly(2008, 1, 20),
+                "/fake/poster.jpg",
+                "/fake/backdrop.jpg",
+                "en",
+                9.5m,
+                12000)
+        ]);
+
+        Assert.Equal(existing.Id, resolved[900101]);
+        Assert.Equal(1, await context.TvShows.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncCreatesMinimalRowsWithoutSeasonsOrGenres()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"tvshow-repository-summary-create-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new TvShowRepository(context);
+
+        var resolved = await repository.EnsureFromSummariesAsync(
+        [
+            new TvShowProviderSummary(
+                "fake-tv-777777",
+                777777,
+                null,
+                null,
+                "New Show",
+                null,
+                "Overview",
+                new DateOnly(2021, 1, 1),
+                "/poster.jpg",
+                null,
+                "en",
+                7m,
+                20)
+        ]);
+
+        Assert.True(resolved.ContainsKey(777777));
+        Assert.Equal(1, await context.TvShows.CountAsync());
+        Assert.Equal(0, await context.TvShowGenres.CountAsync());
+        Assert.Equal(0, await context.Seasons.CountAsync());
+    }
+
     private static TvShowProviderDetails CreateBreakingBadDetails() =>
         new(
             ExternalId: "fake-tv-900101",

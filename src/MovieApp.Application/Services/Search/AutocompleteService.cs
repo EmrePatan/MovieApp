@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
@@ -9,7 +10,9 @@ namespace MovieApp.Application.Services.Search;
 
 public sealed class AutocompleteService(
     ISearchRepository searchRepository,
-    ICacheService cacheService) : IAutocompleteService
+    IUnifiedSearchProviderIngestionService providerIngestionService,
+    ICacheService cacheService,
+    ILogger<AutocompleteService> logger) : IAutocompleteService
 {
     private const int MaxSuggestions = 10;
     private static readonly TimeSpan AutocompleteCacheTtl = TimeSpan.FromMinutes(10);
@@ -31,14 +34,27 @@ public sealed class AutocompleteService(
             return cachedEntry.Items;
         }
 
-        var items = await searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+        try
+        {
+            var items = await providerIngestionService.GetAutocompleteSuggestionsAsync(
+                query,
+                MaxSuggestions,
+                cancellationToken);
 
-        await cacheService.SetAsync(
-            cacheKey,
-            new SearchAutocompleteCacheEntry { Items = items },
-            AutocompleteCacheTtl,
-            cancellationToken);
+            await cacheService.SetAsync(
+                cacheKey,
+                new SearchAutocompleteCacheEntry { Items = items },
+                AutocompleteCacheTtl,
+                cancellationToken);
 
-        return items;
+            return items;
+        }
+        catch (Exception exception)
+        {
+            AutocompleteServiceLogMessages.LogDbFallback(logger, query, exception);
+
+            var fallbackItems = await searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+            return fallbackItems;
+        }
     }
 }

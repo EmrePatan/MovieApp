@@ -1,102 +1,21 @@
-using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
-using Microsoft.Extensions.Options;
 
 namespace MovieApp.UnitTests.Search;
 
 public sealed class UnifiedSearchProviderPolicyTests
 {
     [Fact]
-    public void DoesNotNeedProviderRefreshWhenCatalogIsEmptyButFreshnessIsCurrent()
-    {
-        var criteria = CreateCriteria("missing-title");
-        var result = EmptyResult(criteria);
-        var lastRefreshed = DateTime.UtcNow.AddHours(-1);
-
-        Assert.False(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-            criteria,
-            result,
-            lastRefreshed,
-            DateTime.UtcNow,
-            TimeSpan.FromHours(24)));
-    }
-
-    [Fact]
-    public void NeedsProviderRefreshWhenCatalogIsEmptyAndFreshnessIsStale()
-    {
-        var criteria = CreateCriteria("missing-title");
-        var result = EmptyResult(criteria);
-        var lastRefreshed = DateTime.UtcNow.AddHours(-25);
-
-        Assert.True(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-            criteria,
-            result,
-            lastRefreshed,
-            DateTime.UtcNow,
-            TimeSpan.FromHours(24)));
-    }
-
-    [Fact]
-    public void ShouldCacheSuccessfulEmptyProviderRefresh()
-    {
-        var criteria = CreateCriteria("missing-title");
-        var result = EmptyResult(criteria);
-
-        Assert.True(UnifiedSearchProviderPolicy.ShouldCacheAfterSearch(
-            result,
-            criteria,
-            providerRefreshFullySucceeded: true,
-            providerRefreshFailedOrPartial: false));
-    }
-
-    [Fact]
-    public void NeedsProviderRefreshWhenCatalogIsEmpty()
+    public void IsProviderScopeReturnsTrueForRelevanceQueryWithoutFilters()
     {
         var criteria = CreateCriteria("friends");
-        var result = EmptyResult(criteria);
 
-        Assert.True(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-            criteria,
-            result,
-            lastRefreshedAtUtc: null,
-            DateTime.UtcNow,
-            TimeSpan.FromHours(24)));
+        Assert.True(UnifiedSearchProviderPolicy.IsProviderScope(criteria));
     }
 
     [Fact]
-    public void DoesNotNeedProviderRefreshWhenCatalogIsSufficientAndFresh()
-    {
-        var criteria = CreateCriteria("inception");
-        var result = new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 20, 1);
-        var lastRefreshed = DateTime.UtcNow.AddHours(-1);
-
-        Assert.False(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-            criteria,
-            result,
-            lastRefreshed,
-            DateTime.UtcNow,
-            TimeSpan.FromHours(24)));
-    }
-
-    [Fact]
-    public void NeedsProviderRefreshWhenCatalogIsSufficientButStale()
-    {
-        var criteria = CreateCriteria("friends");
-        var result = new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 20, 1);
-        var lastRefreshed = DateTime.UtcNow.AddHours(-25);
-
-        Assert.True(UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-            criteria,
-            result,
-            lastRefreshed,
-            DateTime.UtcNow,
-            TimeSpan.FromHours(24)));
-    }
-
-    [Fact]
-    public void DoesNotApplyProviderScopeWithoutQuery()
+    public void IsProviderScopeReturnsFalseWithoutQuery()
     {
         var criteria = new SearchCriteria(
             null,
@@ -109,11 +28,11 @@ public sealed class UnifiedSearchProviderPolicyTests
             1,
             20);
 
-        Assert.False(UnifiedSearchProviderPolicy.IsProviderRefreshScope(criteria));
+        Assert.False(UnifiedSearchProviderPolicy.IsProviderScope(criteria));
     }
 
     [Fact]
-    public void DoesNotApplyProviderScopeForNonRelevanceSort()
+    public void IsProviderScopeReturnsFalseForNonRelevanceSort()
     {
         var criteria = new SearchCriteria(
             "friends",
@@ -126,33 +45,60 @@ public sealed class UnifiedSearchProviderPolicyTests
             1,
             20);
 
-        Assert.False(UnifiedSearchProviderPolicy.IsProviderRefreshScope(criteria));
+        Assert.False(UnifiedSearchProviderPolicy.IsProviderScope(criteria));
     }
 
     [Fact]
-    public void ShouldNotCacheFailedOrPartialRefresh()
+    public void IsProviderScopeReturnsFalseWhenFiltersArePresent()
+    {
+        var criteria = new SearchCriteria(
+            "friends",
+            SearchContentType.All,
+            Guid.NewGuid(),
+            2020,
+            7m,
+            9m,
+            SearchSortOption.Relevance,
+            1,
+            20);
+
+        Assert.False(UnifiedSearchProviderPolicy.IsProviderScope(criteria));
+    }
+
+    [Fact]
+    public void ShouldCacheProviderResultWhenProviderSucceeded()
+    {
+        var criteria = CreateCriteria("missing-title");
+        var result = EmptyResult(criteria);
+
+        Assert.True(UnifiedSearchProviderPolicy.ShouldCacheProviderResult(result, providerSucceeded: true));
+    }
+
+    [Fact]
+    public void ShouldNotCacheProviderResultWhenProviderFailed()
     {
         var criteria = CreateCriteria("friends");
         var result = new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 2, 1);
 
-        Assert.False(UnifiedSearchProviderPolicy.ShouldCacheAfterSearch(
-            result,
-            criteria,
-            providerRefreshFullySucceeded: false,
-            providerRefreshFailedOrPartial: true));
+        Assert.False(UnifiedSearchProviderPolicy.ShouldCacheProviderResult(result, providerSucceeded: false));
     }
 
     [Fact]
-    public void ShouldCacheSuccessfulProviderRefreshEvenWhenPageIsNotFull()
+    public void ShouldCacheDbResultWhenCatalogHasItems()
     {
         var criteria = CreateCriteria("friends");
         var result = new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 2, 1);
 
-        Assert.True(UnifiedSearchProviderPolicy.ShouldCacheAfterSearch(
-            result,
-            criteria,
-            providerRefreshFullySucceeded: true,
-            providerRefreshFailedOrPartial: false));
+        Assert.True(UnifiedSearchProviderPolicy.ShouldCacheDbResult(result));
+    }
+
+    [Fact]
+    public void ShouldNotCacheDbResultWhenCatalogIsEmpty()
+    {
+        var criteria = CreateCriteria("missing-title");
+        var result = EmptyResult(criteria);
+
+        Assert.False(UnifiedSearchProviderPolicy.ShouldCacheDbResult(result));
     }
 
     private static SearchCriteria CreateCriteria(string query) =>

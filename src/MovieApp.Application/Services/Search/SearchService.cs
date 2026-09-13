@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -21,7 +22,8 @@ public sealed class SearchService(
     IUnifiedSearchProviderIngestionService providerIngestionService,
     ISearchRefreshLockService refreshLockService,
     ISearchRefreshCompletionSignal refreshCompletionSignal,
-    IOptions<SearchOptions> searchOptions) : ISearchService
+    IOptions<SearchOptions> searchOptions,
+    ILogger<SearchService> logger) : ISearchService
 {
     private static readonly TimeSpan MinimumRefreshWait = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RefreshWaitSafetyMargin = TimeSpan.FromSeconds(2);
@@ -42,38 +44,26 @@ public sealed class SearchService(
         var cachedEntry = await cacheService.GetAsync<UnifiedSearchCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
+            SearchServiceLogMessages.LogCacheHit(logger, criteria.Query, criteria.Type, criteria.Page);
             await TryRecordSearchHistoryAsync(criteria, cancellationToken);
             return cachedEntry.Result;
         }
 
-        var utcNow = DateTime.UtcNow;
-        var normalizedQuery = GetNormalizedQuery(criteria);
-        var result = await searchRepository.SearchAsync(criteria, cancellationToken);
-        var lastRefreshedAtUtc = normalizedQuery is null
-            ? null
-            : await refreshRepository.GetLastRefreshedAtUtcAsync(
-                normalizedQuery,
-                criteria.Type,
-                criteria.Page,
-                cancellationToken);
-
-        if (!UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-                criteria,
-                result,
-                lastRefreshedAtUtc,
-                utcNow,
-                options.ProviderRefreshInterval))
+        if (!UnifiedSearchProviderPolicy.IsProviderScope(criteria))
         {
-            await TryCacheResultAsync(
-                cacheKey,
-                result,
-                criteria,
-                providerRefreshFullySucceeded: false,
-                providerRefreshFailedOrPartial: false,
-                options,
-                cancellationToken);
+            var dbResult = await searchRepository.SearchAsync(criteria, cancellationToken);
+
+            if (UnifiedSearchProviderPolicy.ShouldCacheDbResult(dbResult))
+            {
+                await cacheService.SetAsync(
+                    cacheKey,
+                    new UnifiedSearchCacheEntry { Result = dbResult },
+                    options.CacheDuration,
+                    cancellationToken);
+            }
+
             await TryRecordSearchHistoryAsync(criteria, cancellationToken);
-            return result;
+            return dbResult;
         }
 
         var lockKey = SearchRefreshLockKeys.Create(criteria);
@@ -84,46 +74,20 @@ public sealed class SearchService(
 
         if (lockHandle is null)
         {
-            result = await SearchRefreshCoordinator.WaitForConcurrentRefreshAsync(
+            var waiterResult = await WaitForConcurrentProviderSearchAsync(
                 lockKey,
-                refreshCompletionSignal,
-                () => TryGetCachedResultAsync(cacheKey, cancellationToken),
-                () => LoadCatalogStateAsync(criteria, normalizedQuery, cancellationToken),
+                cacheKey,
                 criteria,
-                utcNow,
                 options,
                 cancellationToken);
 
-            if (!UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-                    criteria,
-                    result,
-                    normalizedQuery is null
-                        ? null
-                        : await refreshRepository.GetLastRefreshedAtUtcAsync(
-                            normalizedQuery,
-                            criteria.Type,
-                            criteria.Page,
-                            cancellationToken),
-                    DateTime.UtcNow,
-                    options.ProviderRefreshInterval))
-            {
-                await TryCacheResultAsync(
-                    cacheKey,
-                    result,
-                    criteria,
-                    providerRefreshFullySucceeded: false,
-                    providerRefreshFailedOrPartial: false,
-                    options,
-                    cancellationToken);
-            }
-
             await TryRecordSearchHistoryAsync(criteria, cancellationToken);
-            return result;
+            return waiterResult;
         }
 
         SearchRefreshAttemptOutcome? refreshOutcome = null;
         Exception? terminalException = null;
-        var catalogBeforeLock = result;
+        PaginatedResult<SearchItem>? result = null;
 
         try
         {
@@ -142,11 +106,9 @@ public sealed class SearchService(
 
             try
             {
-                result = await ExecuteProviderRefreshAsync(
+                result = await ExecuteProviderSearchAsync(
                     criteria,
-                    normalizedQuery,
                     cacheKey,
-                    catalogBeforeLock,
                     options,
                     refreshCancellation.Token);
 
@@ -174,19 +136,6 @@ public sealed class SearchService(
             {
                 refreshOutcome = SearchRefreshAttemptOutcome.Failed;
                 throw;
-            }
-            catch (Exception)
-            {
-                refreshOutcome = SearchRefreshAttemptOutcome.Failed;
-
-                if (catalogBeforeLock.TotalCount > 0)
-                {
-                    result = catalogBeforeLock;
-                }
-                else
-                {
-                    terminalException = new SearchProviderUnavailableException();
-                }
             }
             finally
             {
@@ -224,18 +173,15 @@ public sealed class SearchService(
         }
 
         await TryRecordSearchHistoryAsync(criteria, cancellationToken);
-        return result;
+        return result!;
     }
 
-    private async Task<PaginatedResult<SearchItem>> ExecuteProviderRefreshAsync(
+    private async Task<PaginatedResult<SearchItem>> ExecuteProviderSearchAsync(
         SearchCriteria criteria,
-        string? normalizedQuery,
         string cacheKey,
-        PaginatedResult<SearchItem> catalogResult,
         SearchOptions options,
         CancellationToken cancellationToken)
     {
-        var catalogBeforeRefresh = catalogResult;
         UnifiedSearchProviderIngestionResult ingestionResult;
 
         try
@@ -244,20 +190,16 @@ public sealed class SearchService(
         }
         catch (Exception)
         {
-            if (catalogBeforeRefresh.TotalCount > 0)
-            {
-                return catalogBeforeRefresh;
-            }
-
-            throw new SearchProviderUnavailableException();
+            return await FallbackToDatabaseAsync(criteria, cancellationToken);
         }
 
-        var refreshedResult = await searchRepository.SearchAsync(criteria, cancellationToken);
-        var providerRefreshFullySucceeded = ingestionResult.IsFullySuccessful;
-        var providerRefreshFailedOrPartial = !providerRefreshFullySucceeded &&
-            (ingestionResult.MovieRefreshAttempted || ingestionResult.TvRefreshAttempted);
+        if (!ingestionResult.IsFullySuccessful || ingestionResult.Result is null)
+        {
+            return await FallbackToDatabaseAsync(criteria, cancellationToken);
+        }
 
-        if (providerRefreshFullySucceeded && normalizedQuery is not null)
+        var normalizedQuery = GetNormalizedQuery(criteria);
+        if (normalizedQuery is not null)
         {
             await refreshRepository.SetLastRefreshedAtUtcAsync(
                 normalizedQuery,
@@ -267,60 +209,81 @@ public sealed class SearchService(
                 cancellationToken);
         }
 
-        var result = refreshedResult;
-
-        if (providerRefreshFailedOrPartial &&
-            !UnifiedSearchProviderPolicy.CanSatisfyRequestedPage(refreshedResult, criteria) &&
-            UnifiedSearchProviderPolicy.CanSatisfyRequestedPage(catalogBeforeRefresh, criteria))
-        {
-            result = catalogBeforeRefresh;
-        }
-        else if (!providerRefreshFullySucceeded && catalogBeforeRefresh.TotalCount > 0)
-        {
-            result = catalogBeforeRefresh;
-        }
-        else if (providerRefreshFailedOrPartial &&
-                 !UnifiedSearchProviderPolicy.CanSatisfyRequestedPage(refreshedResult, criteria) &&
-                 !UnifiedSearchProviderPolicy.CanSatisfyRequestedPage(catalogBeforeRefresh, criteria))
-        {
-            throw new SearchProviderUnavailableException();
-        }
-
-        await TryCacheResultAsync(
+        await cacheService.SetAsync(
             cacheKey,
-            result,
-            criteria,
-            providerRefreshFullySucceeded,
-            providerRefreshFailedOrPartial,
-            options,
+            new UnifiedSearchCacheEntry { Result = ingestionResult.Result },
+            options.CacheDuration,
             cancellationToken);
 
-        return result;
+        return ingestionResult.Result;
     }
 
-    private async Task TryCacheResultAsync(
-        string cacheKey,
-        PaginatedResult<SearchItem> result,
+    private async Task<PaginatedResult<SearchItem>> FallbackToDatabaseAsync(
         SearchCriteria criteria,
-        bool providerRefreshFullySucceeded,
-        bool providerRefreshFailedOrPartial,
+        CancellationToken cancellationToken)
+    {
+        var dbResult = await searchRepository.SearchAsync(criteria, cancellationToken);
+
+        if (dbResult.TotalCount > 0)
+        {
+            SearchServiceLogMessages.LogDbFallback(logger, criteria.Query, criteria.Type, criteria.Page);
+            return dbResult;
+        }
+
+        SearchServiceLogMessages.LogProviderUnavailable(logger, criteria.Query, criteria.Type, criteria.Page);
+        throw new SearchProviderUnavailableException();
+    }
+
+    private async Task<PaginatedResult<SearchItem>> WaitForConcurrentProviderSearchAsync(
+        string lockKey,
+        string cacheKey,
+        SearchCriteria criteria,
         SearchOptions options,
         CancellationToken cancellationToken)
     {
-        if (!UnifiedSearchProviderPolicy.ShouldCacheAfterSearch(
-                result,
-                criteria,
-                providerRefreshFullySucceeded,
-                providerRefreshFailedOrPartial))
+        var deadline = DateTime.UtcNow + ResolveRefreshWaitDuration(options);
+
+        while (DateTime.UtcNow <= deadline)
         {
-            return;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var cachedResult = await TryGetCachedResultAsync(cacheKey, cancellationToken);
+            if (cachedResult is not null)
+            {
+                return cachedResult;
+            }
+
+            var completionOutcome = await refreshCompletionSignal.TryGetOutcomeAsync(lockKey, cancellationToken);
+            if (completionOutcome == SearchRefreshAttemptOutcome.Failed)
+            {
+                return await FallbackToDatabaseAsync(criteria, cancellationToken);
+            }
+
+            await Task.Delay(RefreshPollInterval, cancellationToken);
         }
 
-        await cacheService.SetAsync(
-            cacheKey,
-            new UnifiedSearchCacheEntry { Result = result },
-            options.CacheDuration,
-            cancellationToken);
+        var finalCachedResult = await TryGetCachedResultAsync(cacheKey, cancellationToken);
+        if (finalCachedResult is not null)
+        {
+            return finalCachedResult;
+        }
+
+        var finalOutcome = await refreshCompletionSignal.TryGetOutcomeAsync(lockKey, cancellationToken);
+        if (finalOutcome == SearchRefreshAttemptOutcome.Failed)
+        {
+            return await FallbackToDatabaseAsync(criteria, cancellationToken);
+        }
+
+        if (finalOutcome == SearchRefreshAttemptOutcome.Succeeded)
+        {
+            var completedCachedResult = await TryGetCachedResultAsync(cacheKey, cancellationToken);
+            if (completedCachedResult is not null)
+            {
+                return completedCachedResult;
+            }
+        }
+
+        return await FallbackToDatabaseAsync(criteria, cancellationToken);
     }
 
     private async Task<PaginatedResult<SearchItem>?> TryGetCachedResultAsync(
@@ -329,26 +292,6 @@ public sealed class SearchService(
     {
         var cachedEntry = await cacheService.GetAsync<UnifiedSearchCacheEntry>(cacheKey, cancellationToken);
         return cachedEntry?.Result;
-    }
-
-    private async Task<(PaginatedResult<SearchItem> Result, DateTime? LastRefreshedAtUtc)> LoadCatalogStateAsync(
-        SearchCriteria criteria,
-        string? normalizedQuery,
-        CancellationToken cancellationToken)
-    {
-        var result = await searchRepository.SearchAsync(criteria, cancellationToken);
-        if (normalizedQuery is null)
-        {
-            return (result, null);
-        }
-
-        var lastRefreshedAtUtc = await refreshRepository.GetLastRefreshedAtUtcAsync(
-            normalizedQuery,
-            criteria.Type,
-            criteria.Page,
-            cancellationToken);
-
-        return (result, lastRefreshedAtUtc);
     }
 
     private static string? GetNormalizedQuery(SearchCriteria criteria) =>
@@ -389,102 +332,5 @@ public sealed class SearchService(
             normalizedQuery,
             DateTime.UtcNow,
             cancellationToken);
-    }
-
-    private sealed class SearchRefreshCoordinator
-    {
-        public static async Task<PaginatedResult<SearchItem>> WaitForConcurrentRefreshAsync(
-            string lockKey,
-            ISearchRefreshCompletionSignal refreshCompletionSignal,
-            Func<Task<PaginatedResult<SearchItem>?>> tryGetCachedResultAsync,
-            Func<Task<(PaginatedResult<SearchItem> Result, DateTime? LastRefreshedAtUtc)>> loadCatalogStateAsync,
-            SearchCriteria criteria,
-            DateTime utcNow,
-            SearchOptions options,
-            CancellationToken cancellationToken)
-        {
-            var deadline = utcNow + ResolveRefreshWaitDuration(options);
-            PaginatedResult<SearchItem>? latestCatalog = null;
-
-            while (DateTime.UtcNow <= deadline)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var cachedResult = await tryGetCachedResultAsync();
-                if (cachedResult is not null)
-                {
-                    return cachedResult;
-                }
-
-                var completionOutcome = await refreshCompletionSignal.TryGetOutcomeAsync(lockKey, cancellationToken);
-                if (completionOutcome == SearchRefreshAttemptOutcome.Failed)
-                {
-                    throw new SearchProviderUnavailableException();
-                }
-
-                if (completionOutcome == SearchRefreshAttemptOutcome.Succeeded)
-                {
-                    var completedCachedResult = await tryGetCachedResultAsync();
-                    if (completedCachedResult is not null)
-                    {
-                        return completedCachedResult;
-                    }
-
-                    return (await loadCatalogStateAsync()).Result;
-                }
-
-                var (catalogResult, lastRefreshedAtUtc) = await loadCatalogStateAsync();
-                latestCatalog = catalogResult;
-
-                if (!UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-                        criteria,
-                        catalogResult,
-                        lastRefreshedAtUtc,
-                        DateTime.UtcNow,
-                        options.ProviderRefreshInterval))
-                {
-                    return catalogResult;
-                }
-
-                await Task.Delay(RefreshPollInterval, cancellationToken);
-            }
-
-            var finalOutcome = await refreshCompletionSignal.TryGetOutcomeAsync(lockKey, cancellationToken);
-            if (finalOutcome == SearchRefreshAttemptOutcome.Failed)
-            {
-                throw new SearchProviderUnavailableException();
-            }
-
-            if (finalOutcome == SearchRefreshAttemptOutcome.Succeeded)
-            {
-                var cachedResult = await tryGetCachedResultAsync();
-                if (cachedResult is not null)
-                {
-                    return cachedResult;
-                }
-
-                return (await loadCatalogStateAsync()).Result;
-            }
-
-            var (finalCatalog, finalLastRefreshedAtUtc) = await loadCatalogStateAsync();
-            if (!UnifiedSearchProviderPolicy.NeedsProviderRefresh(
-                    criteria,
-                    finalCatalog,
-                    finalLastRefreshedAtUtc,
-                    DateTime.UtcNow,
-                    options.ProviderRefreshInterval))
-            {
-                return finalCatalog;
-            }
-
-            if (finalCatalog.TotalCount == 0 &&
-                finalLastRefreshedAtUtc is null &&
-                UnifiedSearchProviderPolicy.IsProviderRefreshScope(criteria))
-            {
-                throw new SearchProviderUnavailableException();
-            }
-
-            return latestCatalog ?? finalCatalog;
-        }
     }
 }

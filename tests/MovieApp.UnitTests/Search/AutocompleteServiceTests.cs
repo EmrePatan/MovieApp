@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MovieApp.UnitTests.Search;
 
@@ -18,7 +19,9 @@ public sealed class AutocompleteServiceTests
         };
         var service = new AutocompleteService(
             new FakeSearchRepository(suggestions),
-            new FakeCacheService(suggestions));
+            new FakeProviderIngestionService(),
+            new FakeCacheService(suggestions),
+            NullLogger<AutocompleteService>.Instance);
 
         var result = await service.GetSuggestionsAsync("bat");
 
@@ -27,34 +30,92 @@ public sealed class AutocompleteServiceTests
     }
 
     [Fact]
-    public async Task GetSuggestionsAsyncReturnsPosterUrlFromRepositoryWithoutProviderCalls()
+    public async Task GetSuggestionsAsyncReturnsProviderSuggestionsOnCacheMiss()
+    {
+        var provider = new FakeProviderIngestionService();
+        var service = new AutocompleteService(
+            new FakeSearchRepository([]),
+            provider,
+            new FakeCacheService(null),
+            NullLogger<AutocompleteService>.Instance);
+
+        var result = await service.GetSuggestionsAsync("ava");
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("/poster.jpg", result[0].PosterUrl);
+        Assert.Equal(1, provider.AutocompleteCount);
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsyncFallsBackToDatabaseWhenProviderFails()
     {
         var suggestions = new List<SearchSuggestion>
         {
             new(Guid.NewGuid(), "movie", "Avatar", "/fake/avatar-poster.jpg"),
             new(Guid.NewGuid(), "tv", "Avatar: The Last Airbender", null),
         };
+        var repository = new FakeSearchRepository(suggestions);
         var service = new AutocompleteService(
-            new FakeSearchRepository(suggestions),
-            new FakeCacheService(null));
+            repository,
+            new FakeProviderIngestionService { ThrowOnAutocomplete = true },
+            new FakeCacheService(null),
+            NullLogger<AutocompleteService>.Instance);
 
         var result = await service.GetSuggestionsAsync("ava");
 
         Assert.Equal(2, result.Count);
         Assert.Equal("/fake/avatar-poster.jpg", result[0].PosterUrl);
         Assert.Null(result[1].PosterUrl);
+        Assert.Equal(1, repository.AutocompleteCount);
     }
 
     [Fact]
     public async Task GetSuggestionsAsyncThrowsForShortQuery()
     {
-        var service = new AutocompleteService(new FakeSearchRepository([]), new FakeCacheService(null));
+        var service = new AutocompleteService(
+            new FakeSearchRepository([]),
+            new FakeProviderIngestionService(),
+            new FakeCacheService(null),
+            NullLogger<AutocompleteService>.Instance);
 
         await Assert.ThrowsAsync<ValidationException>(() => service.GetSuggestionsAsync("a"));
     }
 
+    private sealed class FakeProviderIngestionService : IUnifiedSearchProviderIngestionService
+    {
+        public int AutocompleteCount { get; private set; }
+
+        public bool ThrowOnAutocomplete { get; set; }
+
+        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
+            SearchCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(UnifiedSearchProviderIngestionResult.NotRequired());
+
+        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
+            string query,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            AutocompleteCount++;
+
+            if (ThrowOnAutocomplete)
+            {
+                throw new InvalidOperationException("provider unavailable");
+            }
+
+            return Task.FromResult<IReadOnlyList<SearchSuggestion>>(
+            [
+                new(Guid.NewGuid(), "movie", "Avatar", "/poster.jpg"),
+                new(Guid.NewGuid(), "tv", "Avatar: The Last Airbender", null)
+            ]);
+        }
+    }
+
     private sealed class FakeSearchRepository(IReadOnlyList<SearchSuggestion> suggestions) : ISearchRepository
     {
+        public int AutocompleteCount { get; private set; }
+
         public Task<PaginatedResult<SearchItem>> SearchAsync(
             SearchCriteria criteria,
             CancellationToken cancellationToken = default) =>
@@ -63,8 +124,11 @@ public sealed class AutocompleteServiceTests
         public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
             string query,
             int limit,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(suggestions);
+            CancellationToken cancellationToken = default)
+        {
+            AutocompleteCount++;
+            return Task.FromResult(suggestions);
+        }
 
         public Task<PaginatedResult<SearchItem>> GetPopularAsync(
             DiscoveryCriteria criteria,
