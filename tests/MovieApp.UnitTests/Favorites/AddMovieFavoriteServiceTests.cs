@@ -5,6 +5,8 @@ using MovieApp.Application.Models.Favorites;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Domain.Entities;
 
+using MovieApp.UnitTests.Caching;
+
 namespace MovieApp.UnitTests.Favorites;
 
 public sealed class AddMovieFavoriteServiceTests
@@ -64,7 +66,7 @@ public sealed class AddMovieFavoriteServiceTests
         ICurrentUser currentUser,
         IFavoriteRepository favoriteRepository,
         IMovieRepository movieRepository) =>
-        new(currentUser, favoriteRepository, movieRepository);
+        new(currentUser, favoriteRepository, movieRepository, new FakeProfileStatisticsCache());
 
     private static Movie CreateMovie() =>
         new()

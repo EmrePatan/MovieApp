@@ -6,6 +6,8 @@ using MovieApp.Application.Models.Ratings;
 using MovieApp.Application.Services.Ratings;
 using MovieApp.Domain.Entities;
 
+using MovieApp.UnitTests.Caching;
+
 namespace MovieApp.UnitTests.Ratings;
 
 public sealed class RatingServiceTests
@@ -100,7 +102,8 @@ public sealed class RatingServiceTests
             new FakeCurrentUser(UserId),
             ratingRepository,
             new FakeMovieRepository(movie),
-            new FakeTvShowRepository(tvShow));
+            new FakeTvShowRepository(tvShow),
+            new FakeProfileStatisticsCache());
 
     private static Movie CreateMovie() =>
         new()

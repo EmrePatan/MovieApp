@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -13,6 +14,7 @@ public sealed class UserProfileService(
     ICurrentUser currentUser,
     IUserRepository userRepository,
     IUserStatisticsRepository userStatisticsRepository,
+    IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
     ITokenService tokenService) : IUserProfileService
 {
@@ -95,7 +97,15 @@ public sealed class UserProfileService(
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        return await userStatisticsRepository.GetStatisticsAsync(userId, timeZoneId, cancellationToken);
+        var cached = await profileStatisticsCache.GetAsync(userId, timeZoneId, cancellationToken);
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        var statistics = await userStatisticsRepository.GetStatisticsAsync(userId, timeZoneId, cancellationToken);
+        await profileStatisticsCache.SetAsync(userId, timeZoneId, statistics, cancellationToken);
+        return statistics;
     }
 
     public async Task DeleteAccountAsync(string currentPassword, CancellationToken cancellationToken = default)

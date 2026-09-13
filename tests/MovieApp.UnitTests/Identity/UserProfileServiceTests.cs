@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Users;
+using MovieApp.UnitTests.Caching;
 
 namespace MovieApp.UnitTests.Identity;
 
@@ -196,6 +197,7 @@ public sealed class UserProfileServiceTests
             new FakeCurrentUser(user.Id),
             repository,
             statisticsRepository,
+            new FakeProfileStatisticsCache(),
             passwordHasher,
             new FakeTokenService());
     }

@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -11,7 +12,8 @@ public sealed class AddTvShowToWatchlistService(
     ICurrentUser currentUser,
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
-    ITvShowRepository tvShowRepository) : IAddTvShowToWatchlistService
+    ITvShowRepository tvShowRepository,
+    IProfileStatisticsCache profileStatisticsCache) : IAddTvShowToWatchlistService
 {
     public async Task<WatchlistItemMutationResult> AddAsync(
         Guid watchlistId,
@@ -40,6 +42,7 @@ public sealed class AddTvShowToWatchlistService(
         if (added)
         {
             await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
+            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
             return WatchlistItemMutationResult.Created;
         }
 

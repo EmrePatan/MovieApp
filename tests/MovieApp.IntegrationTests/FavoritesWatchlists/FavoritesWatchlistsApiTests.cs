@@ -117,6 +117,87 @@ public sealed class FavoritesWatchlistsApiTests(FavoritesWatchlistsApiFixture fi
     }
 
     [Fact]
+    public async Task FavoriteStatusEndpointsReturnExpectedValues()
+    {
+        await fixture.ResetAsync();
+
+        var userAToken = await RegisterAndGetTokenAsync("status-user-a");
+        var userBToken = await RegisterAndGetTokenAsync("status-user-b");
+        var movieId = await SeedMovieAsync();
+
+        var unauthorizedResponse = await _client.GetAsync($"/api/favorites/movies/{movieId}/status");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedResponse.StatusCode);
+
+        var beforeFavorite = await SendAuthorizedGetAsync($"/api/favorites/movies/{movieId}/status", userAToken);
+        Assert.Equal(HttpStatusCode.OK, beforeFavorite.StatusCode);
+        var beforeFavoriteStatus = await beforeFavorite.Content.ReadFromJsonAsync<FavoriteStatusResponse>();
+        Assert.NotNull(beforeFavoriteStatus);
+        Assert.False(beforeFavoriteStatus.IsFavorited);
+
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", userAToken);
+
+        var afterFavorite = await SendAuthorizedGetAsync($"/api/favorites/movies/{movieId}/status", userAToken);
+        var afterFavoriteStatus = await afterFavorite.Content.ReadFromJsonAsync<FavoriteStatusResponse>();
+        Assert.NotNull(afterFavoriteStatus);
+        Assert.True(afterFavoriteStatus.IsFavorited);
+
+        var otherUserStatusResponse = await SendAuthorizedGetAsync(
+            $"/api/favorites/movies/{movieId}/status",
+            userBToken);
+        var otherUserStatus = await otherUserStatusResponse.Content.ReadFromJsonAsync<FavoriteStatusResponse>();
+        Assert.NotNull(otherUserStatus);
+        Assert.False(otherUserStatus.IsFavorited);
+    }
+
+    [Fact]
+    public async Task WatchlistMembershipEndpointReturnsExpectedValues()
+    {
+        await fixture.ResetAsync();
+
+        var userAToken = await RegisterAndGetTokenAsync("membership-user-a");
+        var userBToken = await RegisterAndGetTokenAsync("membership-user-b");
+        var movieId = await SeedMovieAsync();
+
+        var unauthorizedResponse = await _client.GetAsync(
+            $"/api/watchlists/membership?mediaType=movie&contentId={movieId}");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedResponse.StatusCode);
+
+        var emptyMembershipResponse = await SendAuthorizedGetAsync(
+            $"/api/watchlists/membership?mediaType=movie&contentId={movieId}",
+            userAToken);
+        Assert.Equal(HttpStatusCode.OK, emptyMembershipResponse.StatusCode);
+        var emptyMembership = await emptyMembershipResponse.Content.ReadFromJsonAsync<WatchlistMembershipResponse>();
+        Assert.NotNull(emptyMembership);
+        Assert.False(emptyMembership.IsInWatchlist);
+        Assert.Empty(emptyMembership.WatchlistIds);
+
+        var createWatchlistResponse = await SendAuthorizedPostAsync(
+            "/api/watchlists",
+            userAToken,
+            new CreateWatchlistRequest("Status List"));
+        var watchlist = await createWatchlistResponse.Content.ReadFromJsonAsync<WatchlistSummaryResponse>();
+        Assert.NotNull(watchlist);
+
+        await SendAuthorizedPostAsync($"/api/watchlists/{watchlist.Id}/movies/{movieId}", userAToken);
+
+        var membershipResponse = await SendAuthorizedGetAsync(
+            $"/api/watchlists/membership?mediaType=movie&contentId={movieId}",
+            userAToken);
+        var membership = await membershipResponse.Content.ReadFromJsonAsync<WatchlistMembershipResponse>();
+        Assert.NotNull(membership);
+        Assert.True(membership.IsInWatchlist);
+        Assert.Equal([watchlist.Id], membership.WatchlistIds);
+
+        var otherUserMembershipResponse = await SendAuthorizedGetAsync(
+            $"/api/watchlists/membership?mediaType=movie&contentId={movieId}",
+            userBToken);
+        var otherUserMembership = await otherUserMembershipResponse.Content.ReadFromJsonAsync<WatchlistMembershipResponse>();
+        Assert.NotNull(otherUserMembership);
+        Assert.False(otherUserMembership.IsInWatchlist);
+        Assert.Empty(otherUserMembership.WatchlistIds);
+    }
+
+    [Fact]
     public async Task MissingTokenReturnsUnauthorized()
     {
         await fixture.ResetAsync();

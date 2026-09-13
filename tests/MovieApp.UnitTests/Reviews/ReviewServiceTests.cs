@@ -4,6 +4,8 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
 
+using MovieApp.UnitTests.Caching;
+
 namespace MovieApp.UnitTests.Reviews;
 
 public sealed class ReviewServiceTests
@@ -81,7 +83,8 @@ public sealed class ReviewServiceTests
             new FakeCurrentUser(UserId),
             repository,
             new FakeMovieRepository(movie),
-            new FakeTvShowRepository(null));
+            new FakeTvShowRepository(null),
+            new FakeProfileStatisticsCache());
 
     private static Movie CreateMovie() =>
         new()

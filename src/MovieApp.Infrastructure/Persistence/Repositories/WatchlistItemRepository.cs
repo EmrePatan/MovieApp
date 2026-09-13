@@ -145,4 +145,30 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
             .Select(group => new { group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Guid>> GetWatchlistIdsContainingMovieAsync(
+        Guid userId,
+        Guid movieId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WatchlistItems
+            .AsNoTracking()
+            .Where(item => item.Watchlist.UserId == userId && item.MovieId == movieId)
+            .Select(item => item.WatchlistId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetWatchlistIdsContainingTvShowAsync(
+        Guid userId,
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WatchlistItems
+            .AsNoTracking()
+            .Where(item => item.Watchlist.UserId == userId && item.TvShowId == tvShowId)
+            .Select(item => item.WatchlistId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
 }

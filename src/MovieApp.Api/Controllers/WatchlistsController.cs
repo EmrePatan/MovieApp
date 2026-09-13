@@ -22,7 +22,8 @@ public sealed class WatchlistsController(
     IRemoveMovieFromWatchlistService removeMovieFromWatchlistService,
     IAddTvShowToWatchlistService addTvShowToWatchlistService,
     IRemoveTvShowFromWatchlistService removeTvShowFromWatchlistService,
-    IGetWatchlistItemsService getWatchlistItemsService) : ControllerBase
+    IGetWatchlistItemsService getWatchlistItemsService,
+    IGetWatchlistMembershipService getWatchlistMembershipService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(WatchlistSummaryResponse), StatusCodes.Status201Created)]
@@ -60,6 +61,41 @@ public sealed class WatchlistsController(
             return Conflict(CreateProblemDetails(
                 StatusCodes.Status409Conflict,
                 "Watchlist conflict.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("membership")]
+    [ProducesResponseType(typeof(WatchlistMembershipResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<WatchlistMembershipResponse>> GetMembership(
+        [FromQuery] string mediaType,
+        [FromQuery] Guid contentId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = string.Equals(mediaType, "movie", StringComparison.OrdinalIgnoreCase)
+                ? await getWatchlistMembershipService.GetMovieMembershipAsync(contentId, cancellationToken)
+                : string.Equals(mediaType, "tv", StringComparison.OrdinalIgnoreCase)
+                    ? await getWatchlistMembershipService.GetTvShowMembershipAsync(contentId, cancellationToken)
+                    : throw new ValidationException("Media type must be 'movie' or 'tv'.");
+
+            return Ok(WatchlistContractMapper.ToMembershipResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid membership request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
                 exception.Message));
         }
     }

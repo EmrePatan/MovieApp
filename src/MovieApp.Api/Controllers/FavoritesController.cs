@@ -17,7 +17,8 @@ public sealed class FavoritesController(
     IRemoveMovieFavoriteService removeMovieFavoriteService,
     IAddTvShowFavoriteService addTvShowFavoriteService,
     IRemoveTvShowFavoriteService removeTvShowFavoriteService,
-    IGetFavoritesService getFavoritesService) : ControllerBase
+    IGetFavoritesService getFavoritesService,
+    IGetFavoriteStatusService getFavoriteStatusService) : ControllerBase
 {
     [HttpPost("movies/{movieId:guid}")]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -115,6 +116,48 @@ public sealed class FavoritesController(
         {
             await removeTvShowFavoriteService.RemoveAsync(tvShowId, cancellationToken);
             return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("movies/{movieId:guid}/status")]
+    [ProducesResponseType(typeof(FavoriteStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<FavoriteStatusResponse>> GetMovieFavoriteStatus(
+        Guid movieId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var isFavorited = await getFavoriteStatusService.GetMovieStatusAsync(movieId, cancellationToken);
+            return Ok(new FavoriteStatusResponse(isFavorited));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("tvshows/{tvShowId:guid}/status")]
+    [ProducesResponseType(typeof(FavoriteStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<FavoriteStatusResponse>> GetTvShowFavoriteStatus(
+        Guid tvShowId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var isFavorited = await getFavoriteStatusService.GetTvShowStatusAsync(tvShowId, cancellationToken);
+            return Ok(new FavoriteStatusResponse(isFavorited));
         }
         catch (AuthenticationException exception)
         {

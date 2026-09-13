@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -17,7 +18,8 @@ public sealed class WatchHistoryService(
     IMovieRepository movieRepository,
     IEpisodeRepository episodeRepository,
     ITvShowRepository tvShowRepository,
-    ISeasonRepository seasonRepository) : IWatchHistoryService
+    ISeasonRepository seasonRepository,
+    IProfileStatisticsCache profileStatisticsCache) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
@@ -29,6 +31,7 @@ public sealed class WatchHistoryService(
         var utcNow = DateTime.UtcNow;
         var watchedMovie = WatchedMovie.Create(userId, movieId, utcNow);
         var (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new WatchMutationResult(entity.WatchedAt, created);
     }
@@ -37,6 +40,7 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await watchedMovieRepository.RemoveAsync(userId, movieId, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
     public async Task<MovieWatchStatusResult> GetMovieWatchStatusAsync(
@@ -78,6 +82,7 @@ public sealed class WatchHistoryService(
         var utcNow = DateTime.UtcNow;
         var watchedEpisode = WatchedEpisode.Create(userId, episodeId, utcNow);
         var (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new WatchMutationResult(entity.WatchedAt, created);
     }
@@ -86,6 +91,7 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await watchedEpisodeRepository.RemoveAsync(userId, episodeId, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
     public async Task<EpisodeWatchStatusResult> GetEpisodeWatchStatusAsync(
@@ -309,6 +315,7 @@ public sealed class WatchHistoryService(
         var affectedCount = watched
             ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, validEpisodeIds, utcNow, cancellationToken)
             : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, validEpisodeIds, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
     }
@@ -338,6 +345,7 @@ public sealed class WatchHistoryService(
             episodeIds,
             utcNow,
             cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new MarkThroughEpisodeResult(episodeId, affectedCount, utcNow);
     }
@@ -372,6 +380,7 @@ public sealed class WatchHistoryService(
         var affectedCount = watched
             ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, episodeIds, utcNow, cancellationToken)
             : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, episodeIds, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
     }
@@ -394,9 +403,13 @@ public sealed class WatchHistoryService(
         var affectedCount = watched
             ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, episodeIds, utcNow, cancellationToken)
             : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, episodeIds, cancellationToken);
+        await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
     }
+
+    private Task InvalidateProfileStatisticsAsync(Guid userId, CancellationToken cancellationToken) =>
+        profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
 
     private static void ValidatePagination(int page, int pageSize)
     {

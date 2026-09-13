@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -8,7 +9,8 @@ namespace MovieApp.Application.Services.Watchlists;
 public sealed class RemoveTvShowFromWatchlistService(
     ICurrentUser currentUser,
     IWatchlistRepository watchlistRepository,
-    IWatchlistItemRepository watchlistItemRepository) : IRemoveTvShowFromWatchlistService
+    IWatchlistItemRepository watchlistItemRepository,
+    IProfileStatisticsCache profileStatisticsCache) : IRemoveTvShowFromWatchlistService
 {
     public async Task RemoveAsync(
         Guid watchlistId,
@@ -24,5 +26,6 @@ public sealed class RemoveTvShowFromWatchlistService(
 
         await watchlistItemRepository.RemoveForTvShowAsync(watchlistId, tvShowId, cancellationToken);
         await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
+        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
     }
 }

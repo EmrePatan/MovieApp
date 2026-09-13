@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Caching;
 
 namespace MovieApp.UnitTests.WatchHistory;
 
@@ -51,7 +52,8 @@ public sealed class WatchHistoryServiceTests
             new FakeMovieRepository(null),
             new FakeEpisodeRepository(CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 7, CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 3, CreateEpisode(EpisodeId1, 1, 1, "Pilot")),
             new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(CreateSeason()));
+            new FakeSeasonRepository(CreateSeason()),
+            new FakeProfileStatisticsCache());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkMovieWatchedAsync(MovieId));
     }
@@ -125,7 +127,8 @@ public sealed class WatchHistoryServiceTests
             new FakeMovieRepository(CreateMovie()),
             new FakeEpisodeRepository(null, 7, CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 3, CreateEpisode(EpisodeId1, 1, 1, "Pilot")),
             new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(CreateSeason()));
+            new FakeSeasonRepository(CreateSeason()),
+            new FakeProfileStatisticsCache());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkEpisodeWatchedAsync(EpisodeId1));
     }
@@ -188,7 +191,8 @@ public sealed class WatchHistoryServiceTests
             new FakeMovieRepository(CreateMovie()),
             new FakeEpisodeRepository(CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 0, null, 0, null),
             new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(CreateSeason()));
+            new FakeSeasonRepository(CreateSeason()),
+            new FakeProfileStatisticsCache());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -226,7 +230,8 @@ public sealed class WatchHistoryServiceTests
             new FakeMovieRepository(CreateMovie()),
             new FakeEpisodeRepository(CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 7, null, 3, null),
             new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(CreateSeason()));
+            new FakeSeasonRepository(CreateSeason()),
+            new FakeProfileStatisticsCache());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -263,7 +268,8 @@ public sealed class WatchHistoryServiceTests
             new FakeMovieRepository(CreateMovie()),
             new FakeEpisodeRepository(CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 7, CreateEpisode(EpisodeId1, 1, 1, "Pilot"), 3, CreateEpisode(EpisodeId1, 1, 1, "Pilot")),
             new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(null));
+            new FakeSeasonRepository(null),
+            new FakeProfileStatisticsCache());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetSeasonWatchProgressAsync(TvShowId, 99));
     }
@@ -389,7 +395,8 @@ public sealed class WatchHistoryServiceTests
                 totalSeasonEpisodes,
                 nextSeasonEpisode ?? CreateEpisode(EpisodeId1, 1, 1, "Pilot")),
             new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(season ?? CreateSeason()));
+            new FakeSeasonRepository(season ?? CreateSeason()),
+            new FakeProfileStatisticsCache());
 
     private static Movie CreateMovie() =>
         new()

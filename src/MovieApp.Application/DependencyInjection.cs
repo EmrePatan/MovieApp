@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Application.Services.Identity;
@@ -28,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IRegisterUserService, RegisterUserService>();
         services.AddScoped<ILoginUserService, LoginUserService>();
         services.AddScoped<IGetCurrentUserService, GetCurrentUserService>();
+        services.AddScoped<IProfileStatisticsCache, ProfileStatisticsCache>();
         services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
         services.AddScoped<IResetPasswordService, ResetPasswordService>();
@@ -37,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IAddTvShowFavoriteService, AddTvShowFavoriteService>();
         services.AddScoped<IRemoveTvShowFavoriteService, RemoveTvShowFavoriteService>();
         services.AddScoped<IGetFavoritesService, GetFavoritesService>();
+        services.AddScoped<IGetFavoriteStatusService, GetFavoriteStatusService>();
 
         services.AddScoped<ICreateWatchlistService, CreateWatchlistService>();
         services.AddScoped<IDeleteWatchlistService, DeleteWatchlistService>();
@@ -47,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IAddTvShowToWatchlistService, AddTvShowToWatchlistService>();
         services.AddScoped<IRemoveTvShowFromWatchlistService, RemoveTvShowFromWatchlistService>();
         services.AddScoped<IGetWatchlistItemsService, GetWatchlistItemsService>();
+        services.AddScoped<IGetWatchlistMembershipService, GetWatchlistMembershipService>();
 
         services.AddScoped<IRatingService, RatingService>();
         services.AddScoped<IReviewService, ReviewService>();

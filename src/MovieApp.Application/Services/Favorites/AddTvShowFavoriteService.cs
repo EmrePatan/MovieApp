@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -10,7 +11,8 @@ namespace MovieApp.Application.Services.Favorites;
 public sealed class AddTvShowFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
-    ITvShowRepository tvShowRepository) : IAddTvShowFavoriteService
+    ITvShowRepository tvShowRepository,
+    IProfileStatisticsCache profileStatisticsCache) : IAddTvShowFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
@@ -29,6 +31,12 @@ public sealed class AddTvShowFavoriteService(
         var favorite = Favorite.CreateForTvShow(userId, tvShowId, DateTime.UtcNow);
 
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
-        return added ? FavoriteMutationResult.Created : FavoriteMutationResult.AlreadyExists;
+        if (added)
+        {
+            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            return FavoriteMutationResult.Created;
+        }
+
+        return FavoriteMutationResult.AlreadyExists;
     }
 }

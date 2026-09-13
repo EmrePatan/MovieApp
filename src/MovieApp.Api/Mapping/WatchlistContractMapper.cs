@@ -54,4 +54,7 @@ public static class WatchlistContractMapper
             result.FirstAirDate,
             result.VoteAverage,
             result.CreatedAt);
+
+    public static WatchlistMembershipResponse ToMembershipResponse(WatchlistMembershipResult result) =>
+        new(result.WatchlistIds, result.IsInWatchlist);
 }

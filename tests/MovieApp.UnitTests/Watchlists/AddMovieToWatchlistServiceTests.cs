@@ -5,6 +5,8 @@ using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Watchlists;
 using MovieApp.Domain.Entities;
 
+using MovieApp.UnitTests.Caching;
+
 namespace MovieApp.UnitTests.Watchlists;
 
 public sealed class AddMovieToWatchlistServiceTests
@@ -45,7 +47,7 @@ public sealed class AddMovieToWatchlistServiceTests
         IWatchlistRepository watchlistRepository,
         IWatchlistItemRepository watchlistItemRepository,
         IMovieRepository movieRepository) =>
-        new(currentUser, watchlistRepository, watchlistItemRepository, movieRepository);
+        new(currentUser, watchlistRepository, watchlistItemRepository, movieRepository, new FakeProfileStatisticsCache());
 
     private static Movie CreateMovie() =>
         new()
@@ -156,6 +158,18 @@ public sealed class AddMovieToWatchlistServiceTests
             IReadOnlyCollection<Guid> watchlistIds,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
+
+        public Task<IReadOnlyList<Guid>> GetWatchlistIdsContainingMovieAsync(
+            Guid userId,
+            Guid movieId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetWatchlistIdsContainingTvShowAsync(
+            Guid userId,
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository

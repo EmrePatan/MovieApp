@@ -7,50 +7,24 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : IUserStatisticsRepository
 {
+    private sealed record ProfileStatisticsCounts(
+        int FavoriteMovieCount,
+        int FavoriteTvShowCount,
+        int WatchlistCount,
+        int WatchlistItemCount,
+        int RatedMovieCount,
+        int RatedTvShowCount,
+        int ReviewedMovieCount,
+        int ReviewedTvShowCount,
+        int WatchedMovieCount,
+        int WatchedEpisodeCount);
+
     public async Task<UserStatisticsResult> GetStatisticsAsync(
         Guid userId,
         string? timeZoneId = null,
         CancellationToken cancellationToken = default)
     {
-        var favoriteMovieCount = await dbContext.Favorites
-            .AsNoTracking()
-            .CountAsync(favorite => favorite.UserId == userId && favorite.MovieId != null, cancellationToken);
-
-        var favoriteTvShowCount = await dbContext.Favorites
-            .AsNoTracking()
-            .CountAsync(favorite => favorite.UserId == userId && favorite.TvShowId != null, cancellationToken);
-
-        var watchlistCount = await dbContext.Watchlists
-            .AsNoTracking()
-            .CountAsync(watchlist => watchlist.UserId == userId, cancellationToken);
-
-        var watchlistItemCount = await dbContext.WatchlistItems
-            .AsNoTracking()
-            .CountAsync(item => item.Watchlist.UserId == userId, cancellationToken);
-
-        var ratedMovieCount = await dbContext.Ratings
-            .AsNoTracking()
-            .CountAsync(rating => rating.UserId == userId && rating.MovieId != null, cancellationToken);
-
-        var ratedTvShowCount = await dbContext.Ratings
-            .AsNoTracking()
-            .CountAsync(rating => rating.UserId == userId && rating.TvShowId != null, cancellationToken);
-
-        var reviewedMovieCount = await dbContext.Reviews
-            .AsNoTracking()
-            .CountAsync(review => review.UserId == userId && review.MovieId != null, cancellationToken);
-
-        var reviewedTvShowCount = await dbContext.Reviews
-            .AsNoTracking()
-            .CountAsync(review => review.UserId == userId && review.TvShowId != null, cancellationToken);
-
-        var watchedMovieCount = await dbContext.WatchedMovies
-            .AsNoTracking()
-            .CountAsync(watchedMovie => watchedMovie.UserId == userId, cancellationToken);
-
-        var watchedEpisodeCount = await dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .CountAsync(watchedEpisode => watchedEpisode.UserId == userId, cancellationToken);
+        var counts = await GetCountsAsync(userId, cancellationToken);
 
         var showsStarted = await dbContext.WatchedEpisodes
             .AsNoTracking()
@@ -76,16 +50,16 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
         var firstCompletedShowAt = await GetFirstCompletedShowAtAsync(userId, cancellationToken);
 
         var raw = new ProfileStatisticsRawData(
-            favoriteMovieCount,
-            favoriteTvShowCount,
-            watchlistCount,
-            watchlistItemCount,
-            ratedMovieCount,
-            ratedTvShowCount,
-            reviewedMovieCount,
-            reviewedTvShowCount,
-            watchedMovieCount,
-            watchedEpisodeCount,
+            counts.FavoriteMovieCount,
+            counts.FavoriteTvShowCount,
+            counts.WatchlistCount,
+            counts.WatchlistItemCount,
+            counts.RatedMovieCount,
+            counts.RatedTvShowCount,
+            counts.ReviewedMovieCount,
+            counts.ReviewedTvShowCount,
+            counts.WatchedMovieCount,
+            counts.WatchedEpisodeCount,
             showsStarted,
             showsCompleted,
             monthlyActivity,
@@ -96,6 +70,27 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
             firstCompletedShowAt);
 
         return ProfileStatisticsBuilder.Build(raw, DateTime.UtcNow);
+    }
+
+    private async Task<ProfileStatisticsCounts> GetCountsAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => new ProfileStatisticsCounts(
+                dbContext.Favorites.Count(favorite => favorite.UserId == userId && favorite.MovieId != null),
+                dbContext.Favorites.Count(favorite => favorite.UserId == userId && favorite.TvShowId != null),
+                dbContext.Watchlists.Count(watchlist => watchlist.UserId == userId),
+                dbContext.WatchlistItems.Count(item => item.Watchlist.UserId == userId),
+                dbContext.Ratings.Count(rating => rating.UserId == userId && rating.MovieId != null),
+                dbContext.Ratings.Count(rating => rating.UserId == userId && rating.TvShowId != null),
+                dbContext.Reviews.Count(review => review.UserId == userId && review.MovieId != null),
+                dbContext.Reviews.Count(review => review.UserId == userId && review.TvShowId != null),
+                dbContext.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
+                dbContext.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId)))
+            .FirstAsync(cancellationToken);
     }
 
     private async Task<int> CountCompletedShowsAsync(Guid userId, CancellationToken cancellationToken)
@@ -119,40 +114,28 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
 
     private async Task<DateTime?> GetFirstCompletedShowAtAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var latestWatchedByShow = await dbContext.WatchedEpisodes
+        return await dbContext.TvShows
             .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId)
-            .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-            .Select(group => new
+            .Where(tvShow => dbContext.WatchedEpisodes.Any(
+                watchedEpisode => watchedEpisode.UserId == userId &&
+                                  watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
+            .Select(tvShow => new
             {
-                TvShowId = group.Key,
-                WatchedCount = group.Select(item => item.EpisodeId).Distinct().Count(),
-                LastWatchedAt = group.Max(item => item.WatchedAt),
+                TotalEpisodes = tvShow.Seasons.SelectMany(season => season.Episodes).Count(),
+                WatchedEpisodes = dbContext.WatchedEpisodes.Count(
+                    watchedEpisode => watchedEpisode.UserId == userId &&
+                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id),
+                LastWatchedAt = dbContext.WatchedEpisodes
+                    .Where(watchedEpisode => watchedEpisode.UserId == userId &&
+                                             watchedEpisode.Episode.Season.TvShowId == tvShow.Id)
+                    .Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt),
             })
-            .ToListAsync(cancellationToken);
-
-        if (latestWatchedByShow.Count == 0)
-        {
-            return null;
-        }
-
-        DateTime? firstCompletedAt = null;
-
-        foreach (var show in latestWatchedByShow)
-        {
-            var totalEpisodes = await dbContext.Episodes
-                .AsNoTracking()
-                .CountAsync(episode => episode.Season.TvShowId == show.TvShowId, cancellationToken);
-
-            if (totalEpisodes > 0 && show.WatchedCount >= totalEpisodes)
-            {
-                firstCompletedAt = firstCompletedAt is null || show.LastWatchedAt < firstCompletedAt
-                    ? show.LastWatchedAt
-                    : firstCompletedAt;
-            }
-        }
-
-        return firstCompletedAt;
+            .Where(show => show.TotalEpisodes > 0 &&
+                           show.WatchedEpisodes >= show.TotalEpisodes &&
+                           show.LastWatchedAt != null)
+            .OrderBy(show => show.LastWatchedAt)
+            .Select(show => show.LastWatchedAt)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyList<MonthlyActivityResult>> GetMonthlyActivityAsync(
@@ -217,21 +200,16 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var movieDates = await dbContext.WatchedMovies
+        return await dbContext.WatchedMovies
             .AsNoTracking()
             .Where(watchedMovie => watchedMovie.UserId == userId)
             .Select(watchedMovie => watchedMovie.WatchedAt)
+            .Concat(
+                dbContext.WatchedEpisodes
+                    .AsNoTracking()
+                    .Where(watchedEpisode => watchedEpisode.UserId == userId)
+                    .Select(watchedEpisode => watchedEpisode.WatchedAt))
             .ToListAsync(cancellationToken);
-
-        var episodeDates = await dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId)
-            .Select(watchedEpisode => watchedEpisode.WatchedAt)
-            .ToListAsync(cancellationToken);
-
-        return movieDates
-            .Concat(episodeDates)
-            .ToList();
     }
 
     private async Task<IReadOnlyList<GenreStatisticResult>> GetGenreStatisticsAsync(

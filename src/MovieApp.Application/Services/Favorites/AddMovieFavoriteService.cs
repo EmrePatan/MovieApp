@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -10,7 +11,8 @@ namespace MovieApp.Application.Services.Favorites;
 public sealed class AddMovieFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
-    IMovieRepository movieRepository) : IAddMovieFavoriteService
+    IMovieRepository movieRepository,
+    IProfileStatisticsCache profileStatisticsCache) : IAddMovieFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
@@ -29,6 +31,12 @@ public sealed class AddMovieFavoriteService(
         var favorite = Favorite.CreateForMovie(userId, movieId, DateTime.UtcNow);
 
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
-        return added ? FavoriteMutationResult.Created : FavoriteMutationResult.AlreadyExists;
+        if (added)
+        {
+            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            return FavoriteMutationResult.Created;
+        }
+
+        return FavoriteMutationResult.AlreadyExists;
     }
 }
