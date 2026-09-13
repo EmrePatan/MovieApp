@@ -337,6 +337,7 @@ public sealed class HomeServiceTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
+            bool includeColdStartDiscoverySections = true,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(sections);
     }
@@ -361,6 +362,7 @@ public sealed class HomeServiceTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
+            bool includeColdStartDiscoverySections = true,
             CancellationToken cancellationToken = default) =>
             Task.FromCanceled<IReadOnlyList<RecommendationSection>>(cancellationToken);
     }

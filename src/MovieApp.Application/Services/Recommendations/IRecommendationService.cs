@@ -20,5 +20,6 @@ public interface IRecommendationService
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
+        bool includeColdStartDiscoverySections = true,
         CancellationToken cancellationToken = default);
 }

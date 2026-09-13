@@ -161,6 +161,7 @@ public sealed class RecommendationService(
     }
 
     public async Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
+        bool includeColdStartDiscoverySections = true,
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
@@ -177,7 +178,9 @@ public sealed class RecommendationService(
 
         if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
         {
-            sections = await BuildColdStartHomeSectionsAsync(cancellationToken);
+            sections = includeColdStartDiscoverySections
+                ? await BuildColdStartHomeSectionsAsync(cancellationToken)
+                : [];
         }
         else
         {
@@ -366,68 +369,19 @@ public sealed class RecommendationService(
         CancellationToken cancellationToken)
     {
         var aggregated = new Dictionary<(Guid Id, string Type), RecommendationItem>();
+        var movieSignals = sourceSignals.Where(signal => signal.ContentType == "movie").ToList();
+        var tvSignals = sourceSignals.Where(signal => signal.ContentType == "tv").ToList();
 
-        foreach (var signal in sourceSignals)
-        {
-            if (signal.ContentType == "movie")
-            {
-                var source = await recommendationRepository.GetMovieSimilarityProfileAsync(signal.ContentId, cancellationToken);
-                if (source is null)
-                {
-                    continue;
-                }
-
-                var candidates = await recommendationRepository.GetSimilarMovieCandidatesAsync(
-                    signal.ContentId,
-                    source.GenreIds,
-                    _options.MaximumCandidates,
-                    cancellationToken);
-
-                foreach (var (candidate, score) in SimilarityEngine.RankSimilarCandidates(source, candidates, _options))
-                {
-                    if (context.ExcludedMovieIds.Contains(candidate.Id) || candidate.Id == signal.ContentId)
-                    {
-                        continue;
-                    }
-
-                    AddAggregatedItem(
-                        aggregated,
-                        RecommendationMapper.ToRecommendationItem(
-                            candidate,
-                            score,
-                            RecommendationReasonBuilder.BuildSimilarReason(source, candidate)));
-                }
-            }
-            else if (signal.ContentType == "tv")
-            {
-                var source = await recommendationRepository.GetTvShowSimilarityProfileAsync(signal.ContentId, cancellationToken);
-                if (source is null)
-                {
-                    continue;
-                }
-
-                var candidates = await recommendationRepository.GetSimilarTvShowCandidatesAsync(
-                    signal.ContentId,
-                    source.GenreIds,
-                    _options.MaximumCandidates,
-                    cancellationToken);
-
-                foreach (var (candidate, score) in SimilarityEngine.RankSimilarCandidates(source, candidates, _options))
-                {
-                    if (context.ExcludedTvShowIds.Contains(candidate.Id) || candidate.Id == signal.ContentId)
-                    {
-                        continue;
-                    }
-
-                    AddAggregatedItem(
-                        aggregated,
-                        RecommendationMapper.ToRecommendationItem(
-                            candidate,
-                            score,
-                            RecommendationReasonBuilder.BuildSimilarReason(source, candidate)));
-                }
-            }
-        }
+        await AggregateSimilarMovieSignalsAsync(
+            movieSignals,
+            context.ExcludedMovieIds,
+            aggregated,
+            cancellationToken);
+        await AggregateSimilarTvSignalsAsync(
+            tvSignals,
+            context.ExcludedTvShowIds,
+            aggregated,
+            cancellationToken);
 
         return aggregated.Values
             .OrderByDescending(item => item.Score)
@@ -436,6 +390,136 @@ public sealed class RecommendationService(
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
             .Take(sectionSize)
             .ToList();
+    }
+
+    private async Task AggregateSimilarMovieSignalsAsync(
+        IReadOnlyList<UserBehaviorSignal> movieSignals,
+        IReadOnlySet<Guid> excludedMovieIds,
+        Dictionary<(Guid Id, string Type), RecommendationItem> aggregated,
+        CancellationToken cancellationToken)
+    {
+        if (movieSignals.Count == 0)
+        {
+            return;
+        }
+
+        var movieIds = movieSignals.Select(signal => signal.ContentId).Distinct().ToList();
+        var sourceProfiles = await recommendationRepository.GetMovieSimilarityProfilesAsync(movieIds, cancellationToken);
+        var sourceRequests = movieSignals
+            .Where(signal => sourceProfiles.ContainsKey(signal.ContentId))
+            .Select(signal => new SimilaritySourceGenreRequest(
+                signal.ContentId,
+                sourceProfiles[signal.ContentId].GenreIds))
+            .DistinctBy(request => request.SourceId)
+            .ToList();
+        var candidateIdsBySource = await recommendationRepository.GetSimilarMovieCandidateIdsForSourcesAsync(
+            sourceRequests,
+            _options.MaximumCandidates,
+            cancellationToken);
+
+        var uniqueCandidateIds = candidateIdsBySource.Values
+            .SelectMany(ids => ids)
+            .Distinct()
+            .ToList();
+        var candidateProfiles = await recommendationRepository.GetSimilarMovieCandidatesByIdsAsync(
+            uniqueCandidateIds,
+            cancellationToken);
+        var candidatesById = candidateProfiles.ToDictionary(candidate => candidate.Id);
+
+        foreach (var signal in movieSignals)
+        {
+            if (!sourceProfiles.TryGetValue(signal.ContentId, out var source) ||
+                !candidateIdsBySource.TryGetValue(signal.ContentId, out var candidateIds) ||
+                candidateIds.Count == 0)
+            {
+                continue;
+            }
+
+            var candidates = candidateIds
+                .Where(candidatesById.ContainsKey)
+                .Select(id => candidatesById[id])
+                .ToList();
+
+            foreach (var (candidate, score) in SimilarityEngine.RankSimilarCandidates(source, candidates, _options))
+            {
+                if (excludedMovieIds.Contains(candidate.Id) || candidate.Id == signal.ContentId)
+                {
+                    continue;
+                }
+
+                AddAggregatedItem(
+                    aggregated,
+                    RecommendationMapper.ToRecommendationItem(
+                        candidate,
+                        score,
+                        RecommendationReasonBuilder.BuildSimilarReason(source, candidate)));
+            }
+        }
+    }
+
+    private async Task AggregateSimilarTvSignalsAsync(
+        IReadOnlyList<UserBehaviorSignal> tvSignals,
+        IReadOnlySet<Guid> excludedTvShowIds,
+        Dictionary<(Guid Id, string Type), RecommendationItem> aggregated,
+        CancellationToken cancellationToken)
+    {
+        if (tvSignals.Count == 0)
+        {
+            return;
+        }
+
+        var tvShowIds = tvSignals.Select(signal => signal.ContentId).Distinct().ToList();
+        var sourceProfiles = await recommendationRepository.GetTvShowSimilarityProfilesAsync(tvShowIds, cancellationToken);
+        var sourceRequests = tvSignals
+            .Where(signal => sourceProfiles.ContainsKey(signal.ContentId))
+            .Select(signal => new SimilaritySourceGenreRequest(
+                signal.ContentId,
+                sourceProfiles[signal.ContentId].GenreIds))
+            .DistinctBy(request => request.SourceId)
+            .ToList();
+        var candidateIdsBySource = await recommendationRepository.GetSimilarTvShowCandidateIdsForSourcesAsync(
+            sourceRequests,
+            _options.MaximumCandidates,
+            cancellationToken);
+
+        var uniqueCandidateIds = candidateIdsBySource.Values
+            .SelectMany(ids => ids)
+            .Distinct()
+            .ToList();
+        var candidateProfiles = await recommendationRepository.GetSimilarTvShowCandidatesByIdsAsync(
+            uniqueCandidateIds,
+            cancellationToken);
+        var candidatesById = candidateProfiles.ToDictionary(candidate => candidate.Id);
+
+        foreach (var signal in tvSignals)
+        {
+            if (!sourceProfiles.TryGetValue(signal.ContentId, out var source) ||
+                !candidateIdsBySource.TryGetValue(signal.ContentId, out var candidateIds) ||
+                candidateIds.Count == 0)
+            {
+                continue;
+            }
+
+            var candidates = candidateIds
+                .Where(candidatesById.ContainsKey)
+                .Select(id => candidatesById[id])
+                .ToList();
+
+            foreach (var (candidate, score) in SimilarityEngine.RankSimilarCandidates(source, candidates, _options))
+            {
+                if (excludedTvShowIds.Contains(candidate.Id) || candidate.Id == signal.ContentId)
+                {
+                    continue;
+                }
+
+                AddAggregatedItem(
+                    aggregated,
+                    RecommendationMapper.ToRecommendationItem(
+                        candidate,
+                        score,
+                        RecommendationReasonBuilder.BuildSimilarReason(source, candidate)));
+            }
+        }
     }
 
     private static void AddAggregatedItem(

@@ -120,7 +120,8 @@ public sealed class RecommendationsController(IRecommendationService recommendat
     {
         try
         {
-            var sections = await recommendationService.GetHomeRecommendationsForCurrentUserAsync(cancellationToken);
+            var sections = await recommendationService.GetHomeRecommendationsForCurrentUserAsync(
+                cancellationToken: cancellationToken);
             return Ok(RecommendationContractMapper.ToRecommendationHomeResponse(sections));
         }
         catch (AuthenticationException exception)

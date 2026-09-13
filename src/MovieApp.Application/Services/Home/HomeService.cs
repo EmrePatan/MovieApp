@@ -66,7 +66,7 @@ public sealed class HomeService(
         var recommendationSectionsTask = RunScopedAsync(
             (services, ct) => services
                 .GetRequiredService<IRecommendationService>()
-                .GetHomeRecommendationsForCurrentUserAsync(ct),
+                .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
             cancellationToken);
         var continueWatchingTask = RunScopedAsync(
             (services, ct) => BuildContinueWatchingSectionAsync(
