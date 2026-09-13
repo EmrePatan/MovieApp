@@ -14,6 +14,15 @@ public sealed class ReviewTests
     }
 
     [Fact]
+    public void CreateForMovieAcceptsEmojiOnlyContent()
+    {
+        var review = Review.CreateForMovie(Guid.NewGuid(), Guid.NewGuid(), "🔥👍", DateTime.UtcNow);
+
+        Assert.Equal("🔥👍", review.Content);
+        review.ValidateInvariants();
+    }
+
+    [Fact]
     public void CreateForMovieRejectsEmptyContent()
     {
         Assert.Throws<ArgumentException>(() =>

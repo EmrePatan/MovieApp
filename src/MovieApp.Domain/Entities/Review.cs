@@ -95,7 +95,7 @@ public sealed class Review
             throw new InvalidOperationException("Review content is required.");
         }
 
-        if (Content.Length > ReviewContentRules.MaxLength)
+        if (ReviewContentRules.GetContentLength(Content) > ReviewContentRules.MaxLength)
         {
             throw new InvalidOperationException(
                 $"Review content must not exceed {ReviewContentRules.MaxLength} characters.");

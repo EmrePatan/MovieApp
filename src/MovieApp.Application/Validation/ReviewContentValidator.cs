@@ -11,7 +11,7 @@ public static class ReviewContentValidator
             return SearchQueryValidationResult.Failure("Review content is required.");
         }
 
-        if (content.Trim().Length > ReviewContentRules.MaxLength)
+        if (ReviewContentRules.GetContentLength(content.Trim()) > ReviewContentRules.MaxLength)
         {
             return SearchQueryValidationResult.Failure(
                 $"Review content must not exceed {ReviewContentRules.MaxLength} characters.");
