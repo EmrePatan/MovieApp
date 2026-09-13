@@ -64,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<IDiscoveryService, DiscoveryService>();
         services.AddScoped<ISearchHistoryService, SearchHistoryService>();
         services.AddScoped<IRecommendationService, RecommendationService>();
+        services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
         services.AddScoped<IHomeService, HomeService>();
 
         return services;

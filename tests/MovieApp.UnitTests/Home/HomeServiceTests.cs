@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Caching;
+using MovieApp.Infrastructure.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Home;
@@ -217,31 +218,74 @@ public sealed class HomeServiceTests
             service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), cts.Token));
     }
 
+    [Fact]
+    public async Task GetHomeAsyncReusesGlobalSectionsAcrossUsers()
+    {
+        var sharedCache = new SharedHomeCacheService();
+        var discovery = new CountingDiscoveryService();
+        var firstUserService = CreateService(
+            cache: sharedCache,
+            discoveryService: discovery,
+            userId: Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        var secondUserService = CreateService(
+            cache: sharedCache,
+            discoveryService: discovery,
+            userId: Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
+
+        await firstUserService.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        await secondUserService.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(1, discovery.PopularCallCount);
+        Assert.Equal(1, discovery.NewReleasesCallCount);
+        Assert.Equal(1, discovery.TopRatedCallCount);
+        Assert.Equal(1, discovery.GenreCallCount);
+        Assert.Equal(2, sharedCache.HomeSetCount);
+        Assert.Equal(1, sharedCache.GlobalSetCount);
+    }
+
     private static HomeService CreateService(
-        FakeCacheService? cache = null,
+        ICacheService? cache = null,
         IRecommendationService? recommendationService = null,
         IDiscoveryService? discoveryService = null,
         IWatchHistoryService? watchHistoryService = null,
-        HomeOptions? options = null)
+        HomeOptions? options = null,
+        Guid? userId = null)
     {
+        var homeOptions = options ?? new HomeOptions
+        {
+            DefaultSectionSize = 10,
+            MaximumSectionSize = 20,
+            GenreSections = ["Science Fiction"]
+        };
+
         return new HomeService(
-            new FakeCurrentUser(UserId),
-            CreateScopeFactory(recommendationService, discoveryService, watchHistoryService),
+            new FakeCurrentUser(userId ?? UserId),
+            CreateScopeFactory(
+                recommendationService,
+                discoveryService,
+                watchHistoryService,
+                cache,
+                homeOptions),
             cache ?? new FakeCacheService(),
-            Options.Create(options ?? new HomeOptions
-            {
-                DefaultSectionSize = 10,
-                MaximumSectionSize = 20,
-                GenreSections = ["Science Fiction"]
-            }));
+            Options.Create(homeOptions));
     }
 
     private static IServiceScopeFactory CreateScopeFactory(
         IRecommendationService? recommendationService = null,
         IDiscoveryService? discoveryService = null,
-        IWatchHistoryService? watchHistoryService = null)
+        IWatchHistoryService? watchHistoryService = null,
+        ICacheService? sharedCache = null,
+        HomeOptions? options = null)
     {
+        var homeOptions = options ?? new HomeOptions
+        {
+            DefaultSectionSize = 10,
+            MaximumSectionSize = 20,
+            GenreSections = ["Science Fiction"]
+        };
         var services = new ServiceCollection();
+        services.AddSingleton(Options.Create(homeOptions));
         services.AddScoped<ICurrentUser>(_ => new FakeCurrentUser(UserId));
         services.AddScoped<IRecommendationService>(_ =>
             recommendationService ?? new FakeRecommendationService([]));
@@ -249,6 +293,9 @@ public sealed class HomeServiceTests
             discoveryService ?? new FakeDiscoveryService());
         services.AddScoped<IWatchHistoryService>(_ =>
             watchHistoryService ?? new FakeWatchHistoryService([]));
+        services.AddSingleton<ICacheService>(_ => sharedCache ?? new PassthroughCacheService());
+        services.AddSingleton<ISearchRefreshLockService, TestSearchRefreshLockService>();
+        services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
 
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
@@ -365,6 +412,177 @@ public sealed class HomeServiceTests
             bool includeColdStartDiscoverySections = true,
             CancellationToken cancellationToken = default) =>
             Task.FromCanceled<IReadOnlyList<RecommendationSection>>(cancellationToken);
+    }
+
+    private sealed class SharedHomeCacheService : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = new(StringComparer.Ordinal);
+
+        public int HomeSetCount { get; private set; }
+
+        public int GlobalSetCount { get; private set; }
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class
+        {
+            _entries.TryGetValue(key, out var value);
+            return Task.FromResult(value as T);
+        }
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value!;
+
+            if (key.StartsWith(HomeGlobalCacheKeys.Prefix, StringComparison.Ordinal))
+            {
+                GlobalSetCount++;
+            }
+            else if (key.StartsWith(HomeCacheKeys.Prefix, StringComparison.Ordinal))
+            {
+                HomeSetCount++;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class PassthroughCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class TestSearchRefreshLockService : ISearchRefreshLockService
+    {
+        private readonly LocalSearchRefreshSingleFlightGate _localGate = new();
+
+        public Task<SearchRefreshLockHandle?> TryAcquireAsync(
+            string lockKey,
+            TimeSpan lockDuration,
+            CancellationToken cancellationToken = default)
+        {
+            if (_localGate.TryAcquire(lockKey, out var lockToken))
+            {
+                return Task.FromResult<SearchRefreshLockHandle?>(
+                    new SearchRefreshLockHandle(lockKey, lockToken, SearchRefreshLockBackend.LocalSingleFlight));
+            }
+
+            return Task.FromResult<SearchRefreshLockHandle?>(null);
+        }
+
+        public Task ReleaseAsync(
+            string lockKey,
+            string lockToken,
+            SearchRefreshLockBackend backend,
+            CancellationToken cancellationToken = default)
+        {
+            _localGate.Release(lockKey, lockToken);
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> TryRenewAsync(
+            string lockKey,
+            string lockToken,
+            SearchRefreshLockBackend backend,
+            TimeSpan lockDuration,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class CountingDiscoveryService : IDiscoveryService
+    {
+        public int TrendingCallCount { get; private set; }
+
+        public int PopularCallCount { get; private set; }
+
+        public int NewReleasesCallCount { get; private set; }
+
+        public int TopRatedCallCount { get; private set; }
+
+        public int GenreCallCount { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            PopularCallCount++;
+            return Task.FromResult(CreateResult(criteria, "movie", 10));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            TrendingCallCount++;
+            return Task.FromResult(CreateResult(criteria, "tv", 20));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            NewReleasesCallCount++;
+            return Task.FromResult(CreateResult(criteria, "movie", 30));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            TopRatedCallCount++;
+            return Task.FromResult(CreateResult(criteria, "tv", 40));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
+            string genreName,
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            GenreCallCount++;
+            return Task.FromResult(CreateResult(criteria, "movie", 50));
+        }
+
+        private static PaginatedResult<SearchItem> CreateResult(
+            DiscoveryCriteria criteria,
+            string type,
+            int seed)
+        {
+            var item = new SearchItem(
+                Guid.Parse($"eeeeeeee-eeee-eeee-eeee-{seed:D012}"),
+                type,
+                $"Discovery {seed}",
+                null,
+                null,
+                null,
+                null,
+                new DateOnly(2021, 1, 1),
+                7m,
+                50,
+                2021);
+
+            return new PaginatedResult<SearchItem>([item], 1, criteria.PageSize, 1, 1);
+        }
     }
 
     private sealed class FakeDiscoveryService(bool includeGenre = true) : IDiscoveryService
