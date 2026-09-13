@@ -192,7 +192,7 @@ public static class ProfileStatisticsBuilder
         return Math.Round(weightedScore / (decimal)totalCount / 2m, 1, MidpointRounding.AwayFromZero);
     }
 
-    private static IReadOnlyList<ProfileMilestoneResult> BuildMilestones(ProfileStatisticsRawData raw)
+    private static List<ProfileMilestoneResult> BuildMilestones(ProfileStatisticsRawData raw)
     {
         var milestones = new List<ProfileMilestoneResult>();
 
