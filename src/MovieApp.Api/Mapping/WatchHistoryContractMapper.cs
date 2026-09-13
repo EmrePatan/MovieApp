@@ -95,4 +95,15 @@ public static class WatchHistoryContractMapper
                     result.NextEpisode.EpisodeId,
                     result.NextEpisode.EpisodeNumber,
                     result.NextEpisode.Title));
+
+    public static SeasonWatchedEpisodesResponse ToSeasonWatchedEpisodesResponse(
+        SeasonWatchedEpisodesResult result) =>
+        new(result.TvShowId, result.SeasonNumber, result.WatchedEpisodeIds);
+
+    public static BulkUpdateEpisodeWatchStateResponse ToBulkUpdateEpisodeWatchStateResponse(
+        BulkUpdateEpisodeWatchStateResult result) =>
+        new(result.AffectedCount, result.WatchedAt);
+
+    public static MarkThroughEpisodeResponse ToMarkThroughEpisodeResponse(MarkThroughEpisodeResult result) =>
+        new(result.EpisodeId, result.AffectedCount, result.WatchedAt);
 }

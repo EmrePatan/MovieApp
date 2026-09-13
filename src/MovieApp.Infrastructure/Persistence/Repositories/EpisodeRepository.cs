@@ -124,4 +124,79 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
 
         return episode;
     }
+
+    public async Task<IReadOnlyList<Guid>> GetEpisodeIdsBelongingToTvShowAsync(
+        Guid tvShowId,
+        IReadOnlyList<Guid> episodeIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (episodeIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode => episodeIds.Contains(episode.Id) && episode.Season.TvShowId == tvShowId)
+            .Select(episode => episode.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowUpToEpisodeAsync(
+        Guid tvShowId,
+        Guid targetEpisodeId,
+        CancellationToken cancellationToken = default)
+    {
+        var targetEpisode = await dbContext.Episodes
+            .AsNoTracking()
+            .Include(episode => episode.Season)
+            .FirstOrDefaultAsync(
+                episode => episode.Id == targetEpisodeId && episode.Season.TvShowId == tvShowId,
+                cancellationToken);
+
+        if (targetEpisode is null)
+        {
+            return [];
+        }
+
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode => episode.Season.TvShowId == tvShowId)
+            .Where(episode =>
+                episode.Season.SeasonNumber < targetEpisode.Season.SeasonNumber ||
+                (episode.Season.SeasonNumber == targetEpisode.Season.SeasonNumber &&
+                 episode.EpisodeNumber <= targetEpisode.EpisodeNumber))
+            .OrderBy(episode => episode.Season.SeasonNumber)
+            .ThenBy(episode => episode.EpisodeNumber)
+            .Select(episode => episode.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetEpisodeIdsForSeasonAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode =>
+                episode.Season.TvShowId == tvShowId &&
+                episode.Season.SeasonNumber == seasonNumber)
+            .OrderBy(episode => episode.EpisodeNumber)
+            .Select(episode => episode.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode => episode.Season.TvShowId == tvShowId)
+            .OrderBy(episode => episode.Season.SeasonNumber)
+            .ThenBy(episode => episode.EpisodeNumber)
+            .Select(episode => episode.Id)
+            .ToListAsync(cancellationToken);
+    }
 }

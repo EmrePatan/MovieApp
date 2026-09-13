@@ -302,6 +302,60 @@ public sealed class WatchHistoryServiceTests
     }
 
     [Fact]
+    public async Task BulkUpdateEpisodeWatchStateAsyncMarksEpisodes()
+    {
+        var watchedEpisodeRepo = new FakeWatchedEpisodeRepository();
+        var service = CreateService(new FakeWatchedMovieRepository(), watchedEpisodeRepo);
+
+        var result = await service.BulkUpdateEpisodeWatchStateAsync(
+            TvShowId,
+            [EpisodeId1, EpisodeId2],
+            watched: true);
+
+        Assert.Equal(2, result.AffectedCount);
+        Assert.NotNull(result.WatchedAt);
+        Assert.Equal(1, watchedEpisodeRepo.BulkMarkCount);
+    }
+
+    [Fact]
+    public async Task BulkUpdateEpisodeWatchStateAsyncUnmarksEpisodes()
+    {
+        var watchedEpisodeRepo = new FakeWatchedEpisodeRepository();
+        var service = CreateService(new FakeWatchedMovieRepository(), watchedEpisodeRepo);
+
+        var result = await service.BulkUpdateEpisodeWatchStateAsync(
+            TvShowId,
+            [EpisodeId1, EpisodeId2],
+            watched: false);
+
+        Assert.Equal(2, result.AffectedCount);
+        Assert.Null(result.WatchedAt);
+        Assert.Equal(1, watchedEpisodeRepo.BulkUnmarkCount);
+    }
+
+    [Fact]
+    public async Task BulkUpdateEpisodeWatchStateAsyncRejectsEmptyEpisodeList()
+    {
+        var service = CreateService(new FakeWatchedMovieRepository(), new FakeWatchedEpisodeRepository());
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.BulkUpdateEpisodeWatchStateAsync(TvShowId, [], watched: true));
+    }
+
+    [Fact]
+    public async Task MarkThroughEpisodeAsyncMarksEpisodesUpToTarget()
+    {
+        var watchedEpisodeRepo = new FakeWatchedEpisodeRepository();
+        var service = CreateService(new FakeWatchedMovieRepository(), watchedEpisodeRepo);
+
+        var result = await service.MarkThroughEpisodeAsync(TvShowId, EpisodeId1);
+
+        Assert.Equal(EpisodeId1, result.EpisodeId);
+        Assert.Equal(1, result.AffectedCount);
+        Assert.Equal(1, watchedEpisodeRepo.BulkMarkCount);
+    }
+
+    [Fact]
     public async Task MarkMovieWatchedAsyncThrowsWhenUserNotAuthenticated()
     {
         var service = CreateService(
@@ -581,6 +635,36 @@ public sealed class WatchHistoryServiceTests
                 decimal VoteAverage,
                 int VoteCount,
                 DateTime LastWatchedAt)>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetWatchedEpisodeIdsForSeasonAsync(
+            Guid userId,
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public int BulkMarkCount { get; private set; }
+
+        public int BulkUnmarkCount { get; private set; }
+
+        public Task<int> BulkMarkWatchedAsync(
+            Guid userId,
+            IReadOnlyList<Guid> episodeIds,
+            DateTime watchedAt,
+            CancellationToken cancellationToken = default)
+        {
+            BulkMarkCount++;
+            return Task.FromResult(episodeIds.Distinct().Count());
+        }
+
+        public Task<int> BulkUnmarkWatchedAsync(
+            Guid userId,
+            IReadOnlyList<Guid> episodeIds,
+            CancellationToken cancellationToken = default)
+        {
+            BulkUnmarkCount++;
+            return Task.FromResult(episodeIds.Distinct().Count());
+        }
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository
@@ -638,6 +722,29 @@ public sealed class WatchHistoryServiceTests
             EpisodeProviderDetails details,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsBelongingToTvShowAsync(
+            Guid tvShowId,
+            IReadOnlyList<Guid> episodeIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>(episodeIds.Distinct().ToList());
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowUpToEpisodeAsync(
+            Guid tvShowId,
+            Guid targetEpisodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>(episode?.Id == targetEpisodeId ? [targetEpisodeId] : []);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>(episode is null ? [] : [episode.Id]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>(episode is null ? [] : [episode.Id]);
     }
 
     private sealed class FakeTvShowRepository(TvShow tvShow) : ITvShowRepository

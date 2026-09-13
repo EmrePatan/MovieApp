@@ -247,6 +247,104 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
     }
 
     [Fact]
+    public async Task BulkUpdateEpisodeWatchStateMarksMultipleEpisodesInOneRequest()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("bulk-watch");
+        var tvShowId = await SeedTvShowAsync();
+        await _client.GetAsync($"/api/tvshows/{tvShowId}/seasons/1");
+        var episode1 = await SeedEpisodeAsync(tvShowId, 1, 1);
+        var episode2 = await SeedEpisodeAsync(tvShowId, 1, 2);
+        var episode3 = await SeedEpisodeAsync(tvShowId, 1, 3);
+
+        var response = await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/bulk",
+            token,
+            new BulkUpdateEpisodeWatchStateRequest([episode1, episode2], true));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<BulkUpdateEpisodeWatchStateResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(2, payload.AffectedCount);
+
+        var seasonWatched = await SendAuthorizedGetAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/seasons/1/episodes",
+            token);
+        var seasonPayload = await seasonWatched.Content.ReadFromJsonAsync<SeasonWatchedEpisodesResponse>();
+        Assert.NotNull(seasonPayload);
+        Assert.Equal(2, seasonPayload.WatchedEpisodeIds.Count);
+        Assert.Contains(episode1, seasonPayload.WatchedEpisodeIds);
+        Assert.Contains(episode2, seasonPayload.WatchedEpisodeIds);
+        Assert.DoesNotContain(episode3, seasonPayload.WatchedEpisodeIds);
+    }
+
+    [Fact]
+    public async Task BulkUpdateEpisodeWatchStateIsIdempotentForAlreadyWatchedEpisodes()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("bulk-idempotent");
+        var tvShowId = await SeedTvShowAsync();
+        var episodeId = await SeedEpisodeAsync(tvShowId, 1, 1);
+        await SendAuthorizedPostAsync($"/api/watch-history/episodes/{episodeId}", token);
+
+        var response = await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/bulk",
+            token,
+            new BulkUpdateEpisodeWatchStateRequest([episodeId], true));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<BulkUpdateEpisodeWatchStateResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(1, payload.AffectedCount);
+    }
+
+    [Fact]
+    public async Task BulkUpdateEpisodeWatchStateRejectsInvalidEpisodeIds()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("bulk-invalid");
+        var tvShowId = await SeedTvShowAsync();
+
+        var response = await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/bulk",
+            token,
+            new BulkUpdateEpisodeWatchStateRequest([Guid.NewGuid()], true));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MarkThroughEpisodeMarksAllPriorEpisodesAcrossSeasons()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("mark-through");
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        await _client.GetAsync($"/api/tvshows/{tvShowId}/seasons/1");
+        var episodeS1E1 = await SeedEpisodeAsync(tvShowId, 1, 1);
+        var episodeS2E1 = await SeedEpisodeAsync(tvShowId, 2, 1);
+
+        var response = await SendAuthorizedPostAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/{episodeS2E1}/mark-through",
+            token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<MarkThroughEpisodeResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload.AffectedCount >= 2);
+
+        var progress = await SendAuthorizedGetAsync($"/api/watch-history/tvshows/{tvShowId}", token);
+        var progressPayload = await progress.Content.ReadFromJsonAsync<TvShowWatchProgressResponse>();
+        Assert.NotNull(progressPayload);
+        Assert.True(progressPayload.WatchedEpisodes >= 2);
+    }
+
+    [Fact]
     public async Task ExistingMovieSearchStillWorks()
     {
         await fixture.ResetAsync();
@@ -323,6 +421,19 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
     private Task<HttpResponseMessage> SendAuthorizedPostAsync(string url, string token)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return _client.SendAsync(request);
+    }
+
+    private Task<HttpResponseMessage> SendAuthorizedPostJsonAsync<TPayload>(
+        string url,
+        string token,
+        TPayload payload)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(payload),
+        };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return _client.SendAsync(request);
     }

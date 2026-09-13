@@ -251,6 +251,153 @@ public sealed class WatchHistoryService(
             WatchHistoryMapper.ToSeasonNextEpisodeResult(nextEpisode));
     }
 
+    public async Task<SeasonWatchedEpisodesResult> GetSeasonWatchedEpisodesAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default)
+    {
+        if (seasonNumber < 1)
+        {
+            throw new ValidationException("Season number must be at least 1.");
+        }
+
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+
+        var season = await seasonRepository.GetByTvShowIdAndSeasonNumberAsync(tvShowId, seasonNumber, cancellationToken);
+        if (season is null)
+        {
+            throw new NotFoundException($"Season {seasonNumber} for TV show '{tvShowId}' was not found.");
+        }
+
+        var watchedEpisodeIds = await watchedEpisodeRepository.GetWatchedEpisodeIdsForSeasonAsync(
+            userId,
+            tvShowId,
+            seasonNumber,
+            cancellationToken);
+
+        return new SeasonWatchedEpisodesResult(tvShowId, seasonNumber, watchedEpisodeIds);
+    }
+
+    public async Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateEpisodeWatchStateAsync(
+        Guid tvShowId,
+        IReadOnlyList<Guid> episodeIds,
+        bool watched,
+        CancellationToken cancellationToken = default)
+    {
+        var validationResult = WatchHistoryBulkValidator.ValidateEpisodeIds(episodeIds);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ErrorMessage!);
+        }
+
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+
+        var distinctIds = episodeIds.Distinct().ToList();
+        var validEpisodeIds = await episodeRepository.GetEpisodeIdsBelongingToTvShowAsync(
+            tvShowId,
+            distinctIds,
+            cancellationToken);
+
+        if (validEpisodeIds.Count != distinctIds.Count)
+        {
+            throw new ValidationException("One or more episode IDs do not belong to the requested TV show.");
+        }
+
+        var utcNow = DateTime.UtcNow;
+        var affectedCount = watched
+            ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, validEpisodeIds, utcNow, cancellationToken)
+            : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, validEpisodeIds, cancellationToken);
+
+        return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
+    }
+
+    public async Task<MarkThroughEpisodeResult> MarkThroughEpisodeAsync(
+        Guid tvShowId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+        await EnsureEpisodeExistsAsync(episodeId, cancellationToken);
+
+        var episodeIds = await episodeRepository.GetEpisodeIdsForTvShowUpToEpisodeAsync(
+            tvShowId,
+            episodeId,
+            cancellationToken);
+
+        if (episodeIds.Count == 0)
+        {
+            throw new NotFoundException("The requested episode was not found for this TV show.");
+        }
+
+        var utcNow = DateTime.UtcNow;
+        var affectedCount = await watchedEpisodeRepository.BulkMarkWatchedAsync(
+            userId,
+            episodeIds,
+            utcNow,
+            cancellationToken);
+
+        return new MarkThroughEpisodeResult(episodeId, affectedCount, utcNow);
+    }
+
+    public async Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateSeasonWatchStateAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        bool watched,
+        CancellationToken cancellationToken = default)
+    {
+        if (seasonNumber < 1)
+        {
+            throw new ValidationException("Season number must be at least 1.");
+        }
+
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+
+        var season = await seasonRepository.GetByTvShowIdAndSeasonNumberAsync(tvShowId, seasonNumber, cancellationToken);
+        if (season is null)
+        {
+            throw new NotFoundException($"Season {seasonNumber} for TV show '{tvShowId}' was not found.");
+        }
+
+        var episodeIds = await episodeRepository.GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+        if (episodeIds.Count == 0)
+        {
+            return new BulkUpdateEpisodeWatchStateResult(0, null);
+        }
+
+        var utcNow = DateTime.UtcNow;
+        var affectedCount = watched
+            ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, episodeIds, utcNow, cancellationToken)
+            : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, episodeIds, cancellationToken);
+
+        return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
+    }
+
+    public async Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateTvShowWatchStateAsync(
+        Guid tvShowId,
+        bool watched,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+
+        var episodeIds = await episodeRepository.GetEpisodeIdsForTvShowAsync(tvShowId, cancellationToken);
+        if (episodeIds.Count == 0)
+        {
+            return new BulkUpdateEpisodeWatchStateResult(0, null);
+        }
+
+        var utcNow = DateTime.UtcNow;
+        var affectedCount = watched
+            ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, episodeIds, utcNow, cancellationToken)
+            : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, episodeIds, cancellationToken);
+
+        return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
+    }
+
     private static void ValidatePagination(int page, int pageSize)
     {
         var validationResult = SearchPaginationValidator.Validate(page, pageSize);

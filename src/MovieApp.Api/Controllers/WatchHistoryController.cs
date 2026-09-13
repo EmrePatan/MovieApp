@@ -288,6 +288,203 @@ public sealed class WatchHistoryController(IWatchHistoryService watchHistoryServ
         }
     }
 
+    [HttpGet("tvshows/{tvShowId:guid}/seasons/{seasonNumber:int}/episodes")]
+    [ProducesResponseType(typeof(SeasonWatchedEpisodesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SeasonWatchedEpisodesResponse>> GetSeasonWatchedEpisodes(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await watchHistoryService.GetSeasonWatchedEpisodesAsync(
+                tvShowId,
+                seasonNumber,
+                cancellationToken);
+
+            return Ok(WatchHistoryContractMapper.ToSeasonWatchedEpisodesResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid season request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Season not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("tvshows/{tvShowId:guid}/watch-state")]
+    [ProducesResponseType(typeof(BulkUpdateEpisodeWatchStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BulkUpdateEpisodeWatchStateResponse>> BulkUpdateTvShowWatchState(
+        Guid tvShowId,
+        [FromBody] SetWatchStateRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await watchHistoryService.BulkUpdateTvShowWatchStateAsync(
+                tvShowId,
+                request.Watched,
+                cancellationToken);
+
+            return Ok(WatchHistoryContractMapper.ToBulkUpdateEpisodeWatchStateResponse(result));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("tvshows/{tvShowId:guid}/seasons/{seasonNumber:int}/watch-state")]
+    [ProducesResponseType(typeof(BulkUpdateEpisodeWatchStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BulkUpdateEpisodeWatchStateResponse>> BulkUpdateSeasonWatchState(
+        Guid tvShowId,
+        int seasonNumber,
+        [FromBody] SetWatchStateRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await watchHistoryService.BulkUpdateSeasonWatchStateAsync(
+                tvShowId,
+                seasonNumber,
+                request.Watched,
+                cancellationToken);
+
+            return Ok(WatchHistoryContractMapper.ToBulkUpdateEpisodeWatchStateResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid season request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Season not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("tvshows/{tvShowId:guid}/episodes/bulk")]
+    [ProducesResponseType(typeof(BulkUpdateEpisodeWatchStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BulkUpdateEpisodeWatchStateResponse>> BulkUpdateEpisodeWatchState(
+        Guid tvShowId,
+        [FromBody] BulkUpdateEpisodeWatchStateRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await watchHistoryService.BulkUpdateEpisodeWatchStateAsync(
+                tvShowId,
+                request.EpisodeIds,
+                request.Watched,
+                cancellationToken);
+
+            return Ok(WatchHistoryContractMapper.ToBulkUpdateEpisodeWatchStateResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid bulk watch history request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("tvshows/{tvShowId:guid}/episodes/{episodeId:guid}/mark-through")]
+    [ProducesResponseType(typeof(MarkThroughEpisodeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MarkThroughEpisodeResponse>> MarkThroughEpisode(
+        Guid tvShowId,
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await watchHistoryService.MarkThroughEpisodeAsync(
+                tvShowId,
+                episodeId,
+                cancellationToken);
+
+            return Ok(WatchHistoryContractMapper.ToMarkThroughEpisodeResponse(result));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Episode not found.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("tvshows/{tvShowId:guid}/seasons/{seasonNumber:int}")]
     [ProducesResponseType(typeof(SeasonWatchProgressResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

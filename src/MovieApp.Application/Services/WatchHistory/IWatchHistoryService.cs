@@ -44,4 +44,31 @@ public interface IWatchHistoryService
     Task<IReadOnlyList<ContinueWatchingItemResult>> GetContinueWatchingAsync(
         int sectionSize,
         CancellationToken cancellationToken = default);
+
+    Task<SeasonWatchedEpisodesResult> GetSeasonWatchedEpisodesAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateEpisodeWatchStateAsync(
+        Guid tvShowId,
+        IReadOnlyList<Guid> episodeIds,
+        bool watched,
+        CancellationToken cancellationToken = default);
+
+    Task<MarkThroughEpisodeResult> MarkThroughEpisodeAsync(
+        Guid tvShowId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default);
+
+    Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateSeasonWatchStateAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        bool watched,
+        CancellationToken cancellationToken = default);
+
+    Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateTvShowWatchStateAsync(
+        Guid tvShowId,
+        bool watched,
+        CancellationToken cancellationToken = default);
 }

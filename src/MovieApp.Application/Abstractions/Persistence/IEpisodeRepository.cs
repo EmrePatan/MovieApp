@@ -34,4 +34,23 @@ public interface IEpisodeRepository
         Guid seasonId,
         EpisodeProviderDetails details,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetEpisodeIdsBelongingToTvShowAsync(
+        Guid tvShowId,
+        IReadOnlyList<Guid> episodeIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowUpToEpisodeAsync(
+        Guid tvShowId,
+        Guid targetEpisodeId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetEpisodeIdsForSeasonAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
 }

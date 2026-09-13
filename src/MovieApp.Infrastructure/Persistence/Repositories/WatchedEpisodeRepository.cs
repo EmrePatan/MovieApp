@@ -228,4 +228,83 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
                 item.LastWatchedAt))
             .ToList();
     }
+
+    public async Task<IReadOnlyList<Guid>> GetWatchedEpisodeIdsForSeasonAsync(
+        Guid userId,
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WatchedEpisodes
+            .AsNoTracking()
+            .Where(watchedEpisode => watchedEpisode.UserId == userId)
+            .Where(watchedEpisode =>
+                watchedEpisode.Episode.Season.TvShowId == tvShowId &&
+                watchedEpisode.Episode.Season.SeasonNumber == seasonNumber)
+            .Select(watchedEpisode => watchedEpisode.EpisodeId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> BulkMarkWatchedAsync(
+        Guid userId,
+        IReadOnlyList<Guid> episodeIds,
+        DateTime watchedAt,
+        CancellationToken cancellationToken = default)
+    {
+        if (episodeIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var distinctIds = episodeIds.Distinct().ToList();
+        var existingEpisodes = await dbContext.WatchedEpisodes
+            .Where(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                distinctIds.Contains(watchedEpisode.EpisodeId))
+            .ToListAsync(cancellationToken);
+
+        var existingIds = existingEpisodes
+            .Select(watchedEpisode => watchedEpisode.EpisodeId)
+            .ToHashSet();
+
+        foreach (var watchedEpisode in existingEpisodes)
+        {
+            watchedEpisode.UpdateWatchedAt(watchedAt);
+        }
+
+        foreach (var episodeId in distinctIds.Where(id => !existingIds.Contains(id)))
+        {
+            dbContext.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodeId, watchedAt));
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return distinctIds.Count;
+    }
+
+    public async Task<int> BulkUnmarkWatchedAsync(
+        Guid userId,
+        IReadOnlyList<Guid> episodeIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (episodeIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var distinctIds = episodeIds.Distinct().ToList();
+        var watchedEpisodes = await dbContext.WatchedEpisodes
+            .Where(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                distinctIds.Contains(watchedEpisode.EpisodeId))
+            .ToListAsync(cancellationToken);
+
+        if (watchedEpisodes.Count == 0)
+        {
+            return 0;
+        }
+
+        dbContext.WatchedEpisodes.RemoveRange(watchedEpisodes);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return watchedEpisodes.Count;
+    }
 }

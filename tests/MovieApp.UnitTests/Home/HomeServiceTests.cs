@@ -470,5 +470,37 @@ public sealed class HomeServiceTests
             int sectionSize,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ContinueWatchingItemResult>>(items.Take(sectionSize).ToList());
+
+        public Task<SeasonWatchedEpisodesResult> GetSeasonWatchedEpisodesAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateEpisodeWatchStateAsync(
+            Guid tvShowId,
+            IReadOnlyList<Guid> episodeIds,
+            bool watched,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MarkThroughEpisodeResult> MarkThroughEpisodeAsync(
+            Guid tvShowId,
+            Guid episodeId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateSeasonWatchStateAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            bool watched,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateTvShowWatchStateAsync(
+            Guid tvShowId,
+            bool watched,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

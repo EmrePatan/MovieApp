@@ -59,4 +59,21 @@ public interface IWatchedEpisodeRepository
         Guid userId,
         int take,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetWatchedEpisodeIdsForSeasonAsync(
+        Guid userId,
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<int> BulkMarkWatchedAsync(
+        Guid userId,
+        IReadOnlyList<Guid> episodeIds,
+        DateTime watchedAt,
+        CancellationToken cancellationToken = default);
+
+    Task<int> BulkUnmarkWatchedAsync(
+        Guid userId,
+        IReadOnlyList<Guid> episodeIds,
+        CancellationToken cancellationToken = default);
 }
