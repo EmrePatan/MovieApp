@@ -140,12 +140,13 @@ public sealed class UserProfileServiceTests
     public async Task GetStatisticsAsyncReturnsRepositoryCounts()
     {
         var user = CreateUser();
-        var statistics = new UserStatisticsResult(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13);
+        var statistics = CreateSampleStatistics();
         var service = CreateService(user, statistics: statistics);
 
         var result = await service.GetStatisticsAsync();
 
         Assert.Equal(statistics, result);
+        Assert.Equal(9, result.Summary.MoviesWatched);
     }
 
     [Fact]
@@ -208,7 +209,14 @@ public sealed class UserProfileServiceTests
             DateTime.UtcNow);
 
     private static UserStatisticsResult CreateEmptyStatistics() =>
-        new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        ProfileStatisticsBuilder.Build(
+            new ProfileStatisticsRawData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [], [], [], null, null),
+            DateTime.UtcNow);
+
+    private static UserStatisticsResult CreateSampleStatistics() =>
+        ProfileStatisticsBuilder.Build(
+            new ProfileStatisticsRawData(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 1, [], [], [], [], null, null),
+            DateTime.UtcNow);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -259,7 +267,10 @@ public sealed class UserProfileServiceTests
 
     private sealed class FakeUserStatisticsRepository(UserStatisticsResult statistics) : IUserStatisticsRepository
     {
-        public Task<UserStatisticsResult> GetStatisticsAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        public Task<UserStatisticsResult> GetStatisticsAsync(
+            Guid userId,
+            string? timeZoneId = null,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult(statistics);
     }
 

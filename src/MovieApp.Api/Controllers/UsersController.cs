@@ -172,11 +172,13 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
     [HttpGet("me/statistics")]
     [ProducesResponseType(typeof(UserStatisticsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<UserStatisticsResponse>> GetStatistics(CancellationToken cancellationToken)
+    public async Task<ActionResult<UserStatisticsResponse>> GetStatistics(
+        [FromQuery] string? timeZone,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var statistics = await userProfileService.GetStatisticsAsync(cancellationToken);
+            var statistics = await userProfileService.GetStatisticsAsync(timeZone, cancellationToken);
             return Ok(UserProfileContractMapper.ToUserStatisticsResponse(statistics));
         }
         catch (AuthenticationException exception)

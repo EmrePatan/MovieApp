@@ -231,17 +231,15 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
 
         var statistics = await response.Content.ReadFromJsonAsync<UserStatisticsResponse>();
         Assert.NotNull(statistics);
-        Assert.Equal(1, statistics.FavoriteMovieCount);
-        Assert.Equal(1, statistics.FavoriteTvShowCount);
-        Assert.Equal(1, statistics.WatchlistCount);
-        Assert.Equal(1, statistics.WatchlistItemCount);
-        Assert.Equal(1, statistics.RatedMovieCount);
-        Assert.Equal(1, statistics.ReviewedMovieCount);
-        Assert.Equal(1, statistics.WatchedMovieCount);
-        Assert.Equal(1, statistics.WatchedEpisodeCount);
-        Assert.Equal(1, statistics.TotalRatingCount);
-        Assert.Equal(1, statistics.TotalReviewCount);
-        Assert.Equal(2, statistics.TotalWatchedCount);
+        Assert.Equal(1, statistics.Summary.FavoritesCount);
+        Assert.Equal(1, statistics.Summary.WatchlistCount);
+        Assert.Equal(1, statistics.Summary.RatingsCount);
+        Assert.Equal(1, statistics.Summary.ReviewsCount);
+        Assert.Equal(1, statistics.Summary.MoviesWatched);
+        Assert.Equal(1, statistics.Summary.EpisodesWatched);
+        Assert.Equal(4.0m, statistics.Summary.AverageStarRating);
+        Assert.Equal(12, statistics.Activity.Last12Months.Count);
+        Assert.Single(statistics.Ratings.Distribution.Where(item => item.Stars == 4));
     }
 
     [Fact]

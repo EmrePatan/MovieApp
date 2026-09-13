@@ -4,5 +4,8 @@ namespace MovieApp.Application.Abstractions.Persistence;
 
 public interface IUserStatisticsRepository
 {
-    Task<UserStatisticsResult> GetStatisticsAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserStatisticsResult> GetStatisticsAsync(
+        Guid userId,
+        string? timeZoneId = null,
+        CancellationToken cancellationToken = default);
 }

@@ -90,10 +90,12 @@ public sealed class UserProfileService(
         return CreateAuthenticationResult(user);
     }
 
-    public async Task<UserStatisticsResult> GetStatisticsAsync(CancellationToken cancellationToken = default)
+    public async Task<UserStatisticsResult> GetStatisticsAsync(
+        string? timeZoneId = null,
+        CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        return await userStatisticsRepository.GetStatisticsAsync(userId, cancellationToken);
+        return await userStatisticsRepository.GetStatisticsAsync(userId, timeZoneId, cancellationToken);
     }
 
     public async Task DeleteAccountAsync(string currentPassword, CancellationToken cancellationToken = default)

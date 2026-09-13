@@ -20,7 +20,9 @@ public interface IUserProfileService
         string newPassword,
         CancellationToken cancellationToken = default);
 
-    Task<UserStatisticsResult> GetStatisticsAsync(CancellationToken cancellationToken = default);
+    Task<UserStatisticsResult> GetStatisticsAsync(
+        string? timeZoneId = null,
+        CancellationToken cancellationToken = default);
 
     Task DeleteAccountAsync(string currentPassword, CancellationToken cancellationToken = default);
 }
