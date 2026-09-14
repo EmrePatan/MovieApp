@@ -29,6 +29,7 @@ public sealed class TvShowFollowsApiFixture : IAsyncLifetime
         context.TmdbTvChangesSyncCheckpoints.RemoveRange(context.TmdbTvChangesSyncCheckpoints);
         context.CatalogFollows.RemoveRange(context.CatalogFollows);
         context.Favorites.RemoveRange(context.Favorites);
+        context.Movies.RemoveRange(context.Movies);
         context.TvShowGenres.RemoveRange(context.TvShowGenres);
         context.TvShows.RemoveRange(context.TvShows);
         context.Users.RemoveRange(context.Users);
