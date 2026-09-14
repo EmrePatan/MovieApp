@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
@@ -9,6 +10,7 @@ using MovieApp.Application.Models.WatchHistory;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.WatchHistory;
 
@@ -22,6 +24,7 @@ public sealed class WatchHistoryService(
     ISeasonRepository seasonRepository,
     IGetSeasonService getSeasonService,
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
+    ITvShowCatalogSyncStateService catalogSyncStateService,
     IProfileStatisticsCache profileStatisticsCache) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
@@ -448,9 +451,17 @@ public sealed class WatchHistoryService(
         Guid tvShowId,
         CancellationToken cancellationToken)
     {
-        var tvShow = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(tvShowId, cancellationToken);
+        var hydrationResult = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(tvShowId, cancellationToken);
+        if (hydrationResult.ProviderCatalogRefreshed)
+        {
+            await catalogSyncStateService.MarkRefreshedAsync(
+                tvShowId,
+                TvShowCatalogRefreshReason.DetailHydration,
+                DateTime.UtcNow,
+                cancellationToken);
+        }
 
-        foreach (var seasonNumber in tvShow.Seasons
+        foreach (var seasonNumber in hydrationResult.TvShow.Seasons
                      .Where(season => season.SeasonNumber >= 1)
                      .Select(season => season.SeasonNumber)
                      .OrderBy(seasonNumber => seasonNumber))

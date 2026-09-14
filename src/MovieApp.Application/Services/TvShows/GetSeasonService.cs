@@ -1,10 +1,12 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.TvShows;
 
@@ -13,6 +15,7 @@ public sealed class GetSeasonService(
     ISeasonRepository seasonRepository,
     ITvShowDataProvider tvShowDataProvider,
     ITvShowExternalIdResolver externalIdResolver,
+    ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService) : IGetSeasonService
 {
     private static readonly TimeSpan SeasonCacheTtl = TimeSpan.FromMinutes(15);
@@ -41,6 +44,7 @@ public sealed class GetSeasonService(
         }
 
         var season = await seasonRepository.GetByTvShowIdAndSeasonNumberAsync(tvShowId, seasonNumber, cancellationToken);
+        var providerCatalogRefreshed = false;
         if (season is null || season.Episodes.Count == 0)
         {
             var externalId = externalIdResolver.Resolve(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
@@ -62,6 +66,16 @@ public sealed class GetSeasonService(
             }
 
             season = await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
+            providerCatalogRefreshed = true;
+        }
+
+        if (providerCatalogRefreshed)
+        {
+            await catalogSyncStateService.MarkRefreshedAsync(
+                tvShowId,
+                TvShowCatalogRefreshReason.DetailHydration,
+                DateTime.UtcNow,
+                cancellationToken);
         }
 
         var result = TvShowMapper.ToSeasonResult(season);

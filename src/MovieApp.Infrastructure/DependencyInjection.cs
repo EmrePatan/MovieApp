@@ -14,6 +14,7 @@ using MovieApp.Infrastructure.Identity;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Application.Abstractions.RateLimiting;
+using MovieApp.Infrastructure.PushNotifications;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.RateLimiting;
 using StackExchange.Redis;
@@ -53,6 +54,8 @@ public static class DependencyInjection
         services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
 
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
+
+        services.Configure<PushNotificationsOptions>(configuration.GetSection(PushNotificationsOptions.SectionName));
 
         services.AddOptions<SearchOptions>()
             .Bind(configuration.GetSection(SearchOptions.SectionName))
@@ -127,6 +130,28 @@ public static class DependencyInjection
         services.AddScoped<IUserStatisticsRepository, UserStatisticsRepository>();
 
         services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+
+        services.AddScoped<ITvShowFollowRepository, TvShowFollowRepository>();
+
+        services.AddScoped<ITvShowCatalogSyncStateRepository, TvShowCatalogSyncStateRepository>();
+
+        services.AddScoped<ITmdbTvChangesSyncCheckpointRepository, TmdbTvChangesSyncCheckpointRepository>();
+
+        services.AddScoped<IFollowedTvShowCatalogRepository, FollowedTvShowCatalogRepository>();
+
+        services.AddScoped<IHotReleaseCandidateRepository, HotReleaseCandidateRepository>();
+
+        services.AddScoped<ICatalogReleaseEventRepository, CatalogReleaseEventRepository>();
+
+        services.AddScoped<IReleaseNotificationFanoutRepository, ReleaseNotificationFanoutRepository>();
+
+        services.AddScoped<IPushDeviceRepository, PushDeviceRepository>();
+
+        services.AddScoped<IPushNotificationDeliveryRepository, PushNotificationDeliveryRepository>();
+
+        services.AddExpoPushClient();
+
+        services.AddScoped<IReleaseDetectionCatalogRepository, ReleaseDetectionCatalogRepository>();
 
         services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 

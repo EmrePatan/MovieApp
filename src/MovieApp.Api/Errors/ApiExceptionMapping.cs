@@ -62,6 +62,14 @@ internal static class ApiExceptionMappings
                     ApiErrorCodes.SearchProviderUnavailable,
                     LogAsError: false);
                 return true;
+            case MovieApp.Application.Exceptions.TvShowFollowBaselineException baseline:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Follow baseline unavailable.",
+                    baseline.Message,
+                    ApiErrorCodes.TvShowFollowBaselineUnavailable,
+                    LogAsError: false);
+                return true;
             default:
                 return false;
         }

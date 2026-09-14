@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Favorites;
@@ -11,6 +12,14 @@ using MovieApp.Application.Services.Search;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Application.Services.WatchHistory;
+using MovieApp.Application.Abstractions.ReleaseDetection;
+using MovieApp.Application.Services.ReleaseDetection;
+using MovieApp.Application.Services.PushDevices;
+using MovieApp.Application.Services.PushNotifications;
+using MovieApp.Application.Services.ReleaseNotifications;
+using MovieApp.Application.Services.HotRelease;
+using MovieApp.Application.Services.TvShowChanges;
+using MovieApp.Application.Services.TvShowFollows;
 using MovieApp.Application.Services.Watchlists;
 
 namespace MovieApp.Application;
@@ -27,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();
         services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();
+        services.AddScoped<ITvShowCatalogSyncStateService, TvShowCatalogSyncStateService>();
         services.AddScoped<IGetTvShowCreditsService, GetTvShowCreditsService>();
         services.AddScoped<IGetTvShowWatchProvidersService, GetTvShowWatchProvidersService>();
         services.AddScoped<IGetSeasonService, GetSeasonService>();
@@ -46,6 +56,28 @@ public static class DependencyInjection
         services.AddScoped<IRemoveTvShowFavoriteService, RemoveTvShowFavoriteService>();
         services.AddScoped<IGetFavoritesService, GetFavoritesService>();
         services.AddScoped<IGetFavoriteStatusService, GetFavoriteStatusService>();
+
+        services.AddScoped<IGetTvShowFollowStatusService, GetTvShowFollowStatusService>();
+        services.AddScoped<IUpsertTvShowFollowService, UpsertTvShowFollowService>();
+        services.AddScoped<IRemoveTvShowFollowService, RemoveTvShowFollowService>();
+        services.AddScoped<IGetTvShowFollowsService, GetTvShowFollowsService>();
+        services.AddScoped<ITvShowFollowBaselineService, TvShowFollowBaselineService>();
+
+        services.AddScoped<IReleaseDetector, ReleaseDetector>();
+        services.AddScoped<IReleaseNotificationFanoutService, ReleaseNotificationFanoutService>();
+
+        services.AddScoped<IRegisterPushDeviceService, RegisterPushDeviceService>();
+        services.AddScoped<IUnregisterPushDeviceService, UnregisterPushDeviceService>();
+
+        services.AddScoped<IPushNotificationDeliveryPreparationService, PushNotificationDeliveryPreparationService>();
+        services.AddScoped<IPushNotificationDispatchService, PushNotificationDispatchService>();
+        services.AddScoped<IPushNotificationReceiptService, PushNotificationReceiptService>();
+
+        services.AddScoped<ITmdbTvChangesSyncService, TmdbTvChangesSyncService>();
+        services.AddScoped<ITvShowChangesTargetedRefreshService, TvShowChangesTargetedRefreshService>();
+
+        services.AddScoped<IHotReleaseCheckService, HotReleaseCheckService>();
+        services.AddScoped<IHotReleaseCandidateProcessor, HotReleaseCandidateProcessor>();
 
         services.AddScoped<ICreateWatchlistService, CreateWatchlistService>();
         services.AddScoped<IDeleteWatchlistService, DeleteWatchlistService>();

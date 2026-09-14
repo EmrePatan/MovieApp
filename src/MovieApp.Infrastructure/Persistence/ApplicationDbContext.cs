@@ -49,6 +49,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
+    public DbSet<TvShowFollow> TvShowFollows => Set<TvShowFollow>();
+
+    public DbSet<CatalogReleaseEvent> CatalogReleaseEvents => Set<CatalogReleaseEvent>();
+
+    public DbSet<UserReleaseNotification> UserReleaseNotifications => Set<UserReleaseNotification>();
+
+    public DbSet<UserReleaseNotificationEvent> UserReleaseNotificationEvents => Set<UserReleaseNotificationEvent>();
+
+    public DbSet<TvShowCatalogSyncState> TvShowCatalogSyncStates => Set<TvShowCatalogSyncState>();
+
+    public DbSet<TmdbTvChangesSyncCheckpoint> TmdbTvChangesSyncCheckpoints => Set<TmdbTvChangesSyncCheckpoint>();
+
+    public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+
+    public DbSet<PushNotificationDelivery> PushNotificationDeliveries => Set<PushNotificationDelivery>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

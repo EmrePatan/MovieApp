@@ -16,3 +16,4 @@ public sealed class AccountRateLimitOptions
 
     public int AccountDeletionWindowMinutes { get; set; } = 60;
 }
+

@@ -51,4 +51,12 @@ public sealed class TvShow
     public ICollection<Rating> Ratings { get; set; } = [];
 
     public ICollection<Review> Reviews { get; set; } = [];
+
+    public ICollection<TvShowFollow> TvShowFollows { get; set; } = [];
+
+    public ICollection<CatalogReleaseEvent> CatalogReleaseEvents { get; set; } = [];
+
+    public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];
+
+    public TvShowCatalogSyncState? CatalogSyncState { get; set; }
 }

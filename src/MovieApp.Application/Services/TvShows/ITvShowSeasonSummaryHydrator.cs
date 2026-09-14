@@ -1,8 +1,8 @@
-using MovieApp.Domain.Entities;
-
-namespace MovieApp.Application.Services.TvShows;
-
-public interface ITvShowSeasonSummaryHydrator
-{
-    Task<TvShow> EnsureSeasonSummariesAsync(Guid tvShowId, CancellationToken cancellationToken = default);
-}
+namespace MovieApp.Application.Services.TvShows;
+
+public interface ITvShowSeasonSummaryHydrator
+{
+    Task<TvShowSeasonSummaryHydrationResult> EnsureSeasonSummariesAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
+}

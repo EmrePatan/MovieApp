@@ -17,6 +17,10 @@ internal static class ProductionRateLimitPolicyRegistration
             .GetSection(AccountRateLimitOptions.SectionName)
             .Get<AccountRateLimitOptions>() ?? new AccountRateLimitOptions();
 
+        var tvShowFollowOptions = configuration
+            .GetSection(TvShowFollowRateLimitOptions.SectionName)
+            .Get<TvShowFollowRateLimitOptions>() ?? new TvShowFollowRateLimitOptions();
+
         rateLimiterOptions.AddPolicy(SearchRateLimitPolicies.UnifiedSearch, httpContext =>
             CreateDistributedPolicy(
                 httpContext,
@@ -63,6 +67,14 @@ internal static class ProductionRateLimitPolicyRegistration
                 AccountRateLimitPolicies.DeleteAccount,
                 accountOptions.AccountDeletionPermitLimit,
                 accountOptions.AccountDeletionWindowMinutes,
+                AccountPartitionKeyFactory.Create));
+
+        rateLimiterOptions.AddPolicy(TvShowFollowRateLimitPolicies.Mutation, httpContext =>
+            CreateDistributedPolicy(
+                httpContext,
+                TvShowFollowRateLimitPolicies.Mutation,
+                tvShowFollowOptions.MutationPermitLimit,
+                tvShowFollowOptions.MutationWindowMinutes,
                 AccountPartitionKeyFactory.Create));
     }
 

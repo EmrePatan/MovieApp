@@ -22,6 +22,55 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.CatalogReleaseEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DedupeKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DetectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("EpisodeNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("ReleaseAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TvShowId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DedupeKey")
+                        .IsUnique();
+
+                    b.HasIndex("EventType");
+
+                    b.HasIndex("ReleaseAtUtc");
+
+                    b.HasIndex("TvShowId");
+
+                    b.ToTable("catalog_release_events", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.Episode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -360,6 +409,126 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("people", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.PushDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeviceIdentifier")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ExpoPushToken")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpoPushToken")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "IsActive");
+
+                    b.ToTable("push_devices", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.PushNotificationDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<Guid?>("ClaimToken")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClaimedUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExpoTicketId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PushDeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserReleaseNotificationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimedUntilUtc");
+
+                    b.HasIndex("ExpoTicketId");
+
+                    b.HasIndex("PushDeviceId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Status", "NextAttemptAtUtc");
+
+                    b.HasIndex("UserReleaseNotificationId", "PushDeviceId")
+                        .IsUnique();
+
+                    b.ToTable("push_notification_deliveries", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.Rating", b =>
                 {
                     b.Property<Guid>("Id")
@@ -574,6 +743,26 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("seasons", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.TmdbTvChangesSyncCheckpoint", b =>
+                {
+                    b.Property<string>("CheckpointKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("LastCompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("LastCompletedEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CheckpointKey");
+
+                    b.ToTable("tmdb_tv_changes_sync_checkpoints", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.TvShow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -659,6 +848,77 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasFilter("\"TvdbId\" IS NOT NULL");
 
                     b.ToTable("tv_shows", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.TvShowCatalogSyncState", b =>
+                {
+                    b.Property<Guid>("TvShowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("LastChangeSignalDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LastRefreshReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("LastRefreshedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NextHotCheckAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("TvShowId");
+
+                    b.ToTable("tv_show_catalog_sync_states", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.TvShowFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("BaselineEstablishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NotifyFromUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("NotifyNewEpisodes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("NotifyNewSeasons")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("TvShowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TvShowId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "TvShowId")
+                        .IsUnique();
+
+                    b.ToTable("tv_show_follows", (string)null);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.TvShowGenre", b =>
@@ -760,6 +1020,87 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AggregationWindowKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NotificationType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TvShowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TvShowId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "TvShowId", "NotificationType", "AggregationWindowKey")
+                        .IsUnique();
+
+                    b.ToTable("user_release_notifications", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotificationEvent", b =>
+                {
+                    b.Property<Guid>("UserReleaseNotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CatalogReleaseEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserReleaseNotificationId", "CatalogReleaseEventId");
+
+                    b.HasIndex("CatalogReleaseEventId");
+
+                    b.HasIndex("UserId", "CatalogReleaseEventId")
+                        .IsUnique();
+
+                    b.HasIndex("UserReleaseNotificationId", "CatalogReleaseEventId")
+                        .IsUnique();
+
+                    b.HasIndex("UserReleaseNotificationId", "UserId")
+                        .HasDatabaseName("IX_user_release_notification_events_UserReleaseNotificationId~1");
+
+                    b.ToTable("user_release_notification_events", (string)null);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.WatchedEpisode", b =>
@@ -904,6 +1245,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("watchlist_items", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.CatalogReleaseEvent", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
+                        .WithMany("CatalogReleaseEvents")
+                        .HasForeignKey("TvShowId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("TvShow");
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.Episode", b =>
                 {
                     b.HasOne("MovieApp.Domain.Entities.Season", "Season")
@@ -989,6 +1341,36 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.PushDevice", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", "User")
+                        .WithMany("PushDevices")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.PushNotificationDelivery", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.PushDevice", "PushDevice")
+                        .WithMany()
+                        .HasForeignKey("PushDeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.UserReleaseNotification", "UserReleaseNotification")
+                        .WithMany()
+                        .HasForeignKey("UserReleaseNotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PushDevice");
+
+                    b.Navigation("UserReleaseNotification");
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.Rating", b =>
                 {
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
@@ -1061,6 +1443,36 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("TvShow");
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.TvShowCatalogSyncState", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
+                        .WithOne("CatalogSyncState")
+                        .HasForeignKey("MovieApp.Domain.Entities.TvShowCatalogSyncState", "TvShowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TvShow");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.TvShowFollow", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
+                        .WithMany("TvShowFollows")
+                        .HasForeignKey("TvShowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", "User")
+                        .WithMany("TvShowFollows")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TvShow");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.TvShowGenre", b =>
                 {
                     b.HasOne("MovieApp.Domain.Entities.Genre", "Genre")
@@ -1097,6 +1509,53 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Person");
 
                     b.Navigation("TvShow");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotification", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
+                        .WithMany("ReleaseNotifications")
+                        .HasForeignKey("TvShowId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", "User")
+                        .WithMany("ReleaseNotifications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TvShow");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotificationEvent", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.CatalogReleaseEvent", "ReleaseEvent")
+                        .WithMany("NotificationEvents")
+                        .HasForeignKey("CatalogReleaseEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.UserReleaseNotification", "Notification")
+                        .WithMany("NotificationEvents")
+                        .HasForeignKey("UserReleaseNotificationId", "UserId")
+                        .HasPrincipalKey("Id", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Notification");
+
+                    b.Navigation("ReleaseEvent");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.WatchedEpisode", b =>
@@ -1173,6 +1632,11 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Watchlist");
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.CatalogReleaseEvent", b =>
+                {
+                    b.Navigation("NotificationEvents");
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.Episode", b =>
                 {
                     b.Navigation("WatchedEpisodes");
@@ -1216,13 +1680,21 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.TvShow", b =>
                 {
+                    b.Navigation("CatalogReleaseEvents");
+
+                    b.Navigation("CatalogSyncState");
+
                     b.Navigation("Favorites");
 
                     b.Navigation("Ratings");
 
+                    b.Navigation("ReleaseNotifications");
+
                     b.Navigation("Reviews");
 
                     b.Navigation("Seasons");
+
+                    b.Navigation("TvShowFollows");
 
                     b.Navigation("TvShowGenres");
 
@@ -1237,17 +1709,28 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.Navigation("PasswordResetTokens");
 
+                    b.Navigation("PushDevices");
+
                     b.Navigation("Ratings");
+
+                    b.Navigation("ReleaseNotifications");
 
                     b.Navigation("Reviews");
 
                     b.Navigation("SearchHistories");
+
+                    b.Navigation("TvShowFollows");
 
                     b.Navigation("WatchedEpisodes");
 
                     b.Navigation("WatchedMovies");
 
                     b.Navigation("Watchlists");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotification", b =>
+                {
+                    b.Navigation("NotificationEvents");
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.Watchlist", b =>

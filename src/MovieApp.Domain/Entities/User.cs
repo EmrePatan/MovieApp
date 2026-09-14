@@ -42,6 +42,12 @@ public sealed class User
 
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = [];
 
+    public ICollection<TvShowFollow> TvShowFollows { get; set; } = [];
+
+    public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];
+
+    public ICollection<PushDevice> PushDevices { get; set; } = [];
+
     public static User Create(
         Guid id,
         string email,

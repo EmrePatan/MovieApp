@@ -64,6 +64,13 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
         string externalId,
         CancellationToken cancellationToken = default)
     {
+        callTracker.RecordGetTvShow();
+
+        if (callTracker.FailGetTvShow)
+        {
+            return Task.FromResult<TvShowProviderDetails?>(null);
+        }
+
         if (string.Equals(externalId, BreakingBadExternalId, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<TvShowProviderDetails?>(BreakingBadDetails);
@@ -82,6 +89,13 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
         int seasonNumber,
         CancellationToken cancellationToken = default)
     {
+        callTracker.RecordGetSeason();
+
+        if (callTracker.FailGetSeason)
+        {
+            return Task.FromResult<SeasonProviderDetails?>(null);
+        }
+
         if (!string.Equals(externalTvShowId, BreakingBadExternalId, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<SeasonProviderDetails?>(null);

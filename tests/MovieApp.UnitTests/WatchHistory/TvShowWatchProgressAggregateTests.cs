@@ -5,7 +5,9 @@ using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.WatchHistory;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Services.TvShows;
+using MovieApp.Domain.Enums;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 
@@ -31,6 +33,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeSeasonRepository(),
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
+            new FakeCatalogSyncStateService(),
             new FakeProfileStatisticsCache());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
@@ -70,6 +73,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeSeasonRepository(),
             getSeasonService,
             new FakeSeasonSummaryHydrator(tvShow),
+            new FakeCatalogSyncStateService(),
             new FakeProfileStatisticsCache());
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
@@ -92,6 +96,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeSeasonRepository(),
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
+            new FakeCatalogSyncStateService(),
             new FakeProfileStatisticsCache());
 
         var result = await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
@@ -116,6 +121,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeSeasonRepository(),
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
+            new FakeCatalogSyncStateService(),
             new FakeProfileStatisticsCache());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
@@ -140,6 +146,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeSeasonRepository(),
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
+            new FakeCatalogSyncStateService(),
             new FakeProfileStatisticsCache());
 
         await service.GetTvShowWatchProgressAsync(TvShowId);
@@ -650,10 +657,48 @@ public sealed class TvShowWatchProgressAggregateTests
         public FakeSeasonSummaryHydrator(TvShow? tvShow = null) =>
             _tvShow = tvShow ?? CreateTvShow();
 
-        public Task<TvShow> EnsureSeasonSummariesAsync(
+        public Task<TvShowSeasonSummaryHydrationResult> EnsureSeasonSummariesAsync(
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(_tvShow);
+            Task.FromResult(new TvShowSeasonSummaryHydrationResult(_tvShow, ProviderCatalogRefreshed: false));
+    }
+
+    private sealed class FakeCatalogSyncStateService : ITvShowCatalogSyncStateService
+    {
+        public Task MarkRefreshedAsync(
+            Guid tvShowId,
+            TvShowCatalogRefreshReason reason,
+            DateTime refreshedAtUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task MarkChangeSignalAsync(
+            Guid tvShowId,
+            DateOnly changeSignalDate,
+            DateTime updatedAtUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task MarkChangesSyncAsync(
+            Guid tvShowId,
+            DateTime refreshedAtUtc,
+            DateOnly changeSignalDate,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task MarkHotReleaseAsync(
+            Guid tvShowId,
+            DateTime refreshedAtUtc,
+            DateTime? nextHotCheckAtUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task UpdateNextHotCheckAsync(
+            Guid tvShowId,
+            DateTime? nextHotCheckAtUtc,
+            DateTime updatedAtUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeGetSeasonService : IGetSeasonService

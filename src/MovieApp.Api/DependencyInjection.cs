@@ -26,6 +26,8 @@ public static class DependencyInjection
         services.AddConfiguredCors(configuration);
         services.Configure<SearchRateLimitOptions>(configuration.GetSection(SearchRateLimitOptions.SectionName));
         services.Configure<AccountRateLimitOptions>(configuration.GetSection(AccountRateLimitOptions.SectionName));
+        services.Configure<TvShowFollowRateLimitOptions>(
+            configuration.GetSection(TvShowFollowRateLimitOptions.SectionName));
 
         services.AddAuthRateLimiting(configuration);
 

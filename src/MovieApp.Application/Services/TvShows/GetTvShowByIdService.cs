@@ -1,14 +1,15 @@
 using MovieApp.Application.Abstractions.Caching;
-using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
-using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.TvShows;
 
 public sealed class GetTvShowByIdService(
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
+    ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService) : IGetTvShowByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
@@ -24,8 +25,17 @@ public sealed class GetTvShowByIdService(
             return cachedEntry.Result;
         }
 
-        var tvShow = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(id, cancellationToken);
-        var result = TvShowMapper.ToDetailsResult(tvShow);
+        var hydrationResult = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(id, cancellationToken);
+        if (hydrationResult.ProviderCatalogRefreshed)
+        {
+            await catalogSyncStateService.MarkRefreshedAsync(
+                id,
+                TvShowCatalogRefreshReason.DetailHydration,
+                DateTime.UtcNow,
+                cancellationToken);
+        }
+
+        var result = TvShowMapper.ToDetailsResult(hydrationResult.TvShow);
 
         await cacheService.SetAsync(
             cacheKey,

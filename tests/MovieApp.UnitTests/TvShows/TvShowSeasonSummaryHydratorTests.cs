@@ -19,9 +19,10 @@ public sealed class TvShowSeasonSummaryHydratorTests
         var provider = new FakeTvShowDataProvider();
         var hydrator = new TvShowSeasonSummaryHydrator(repository, provider, new FakeExternalIdResolver());
 
-        var tvShow = await hydrator.EnsureSeasonSummariesAsync(TvShowId);
+        var hydrationResult = await hydrator.EnsureSeasonSummariesAsync(TvShowId);
 
-        Assert.Equal(3, tvShow.Seasons.Count);
+        Assert.Equal(3, hydrationResult.TvShow.Seasons.Count);
+        Assert.True(hydrationResult.ProviderCatalogRefreshed);
         Assert.Equal(1, provider.GetTvShowCalls);
         Assert.Equal(1, repository.UpsertCalls);
     }
@@ -43,9 +44,10 @@ public sealed class TvShowSeasonSummaryHydratorTests
         var provider = new FakeTvShowDataProvider();
         var hydrator = new TvShowSeasonSummaryHydrator(repository, provider, new FakeExternalIdResolver());
 
-        var result = await hydrator.EnsureSeasonSummariesAsync(TvShowId);
+        var hydrationResult = await hydrator.EnsureSeasonSummariesAsync(TvShowId);
 
-        Assert.Single(result.Seasons);
+        Assert.Single(hydrationResult.TvShow.Seasons);
+        Assert.False(hydrationResult.ProviderCatalogRefreshed);
         Assert.Equal(0, provider.GetTvShowCalls);
         Assert.Equal(0, repository.UpsertCalls);
     }

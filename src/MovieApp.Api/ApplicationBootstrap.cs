@@ -1,3 +1,4 @@
+using MovieApp.Api.BackgroundJobs;
 using MovieApp.Api.Cors;
 using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
@@ -21,7 +22,8 @@ public static class ApplicationBootstrap
         builder.Services
             .AddApplication()
             .AddInfrastructure(builder.Configuration)
-            .AddApi(builder.Configuration);
+            .AddApi(builder.Configuration)
+            .AddBackgroundJobs(builder.Configuration);
     }
 
     public static void ConfigurePipeline(WebApplication app)
