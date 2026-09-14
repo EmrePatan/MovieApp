@@ -22,7 +22,9 @@ internal static class JwtSecurityStampValidator
         }
 
         var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
-        var currentSecurityStamp = await userRepository.GetSecurityStampAsync(userId, context.HttpContext.RequestAborted);
+        var currentSecurityStamp = await userRepository.GetSecurityStampAsync(
+            userId,
+            context.HttpContext.RequestAborted);
 
         if (currentSecurityStamp is null || currentSecurityStamp.Value != securityStamp)
         {

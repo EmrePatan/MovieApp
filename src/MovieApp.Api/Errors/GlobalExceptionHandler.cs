@@ -9,6 +9,11 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
         Exception exception,
         CancellationToken cancellationToken)
     {
+        if (RequestAbortExceptionHandling.IsRequestAbortedCancellation(httpContext, exception))
+        {
+            return true;
+        }
+
         var traceId = httpContext.TraceIdentifier;
         ApiExceptionMapping mapping;
 

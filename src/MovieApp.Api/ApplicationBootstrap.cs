@@ -1,9 +1,11 @@
 using MovieApp.Api.Cors;
+using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Api.Security;
 using MovieApp.Application;
 using MovieApp.Infrastructure;
 using Serilog;
+using Serilog.Events;
 
 namespace MovieApp.Api;
 
@@ -14,9 +16,7 @@ public static class ApplicationBootstrap
         builder.Host.UseSerilog((context, services, configuration) =>
             configuration
                 .ReadFrom.Configuration(context.Configuration)
-                .ReadFrom.Services(services)
-                .Enrich.FromLogContext()
-                .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture));
+                .ReadFrom.Services(services));
 
         builder.Services
             .AddApplication()
@@ -38,7 +38,26 @@ public static class ApplicationBootstrap
         }
 
         app.UseConfiguredForwardedHeaders();
-        app.UseSerilogRequestLogging();
+        app.UseSerilogRequestLogging(options =>
+        {
+            options.GetLevel = static (httpContext, _, exception) =>
+            {
+                if (exception is not null
+                    && RequestAbortExceptionHandling.IsRequestAbortedCancellation(httpContext, exception))
+                {
+                    return LogEventLevel.Debug;
+                }
+
+                if (exception is not null)
+                {
+                    return LogEventLevel.Error;
+                }
+
+                return httpContext.Response.StatusCode > 499
+                    ? LogEventLevel.Error
+                    : LogEventLevel.Information;
+            };
+        });
         app.UseProductionTransportSecurity();
         app.UseConfiguredCors();
         app.UseRateLimiter();
