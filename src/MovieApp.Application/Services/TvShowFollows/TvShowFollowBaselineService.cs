@@ -23,7 +23,7 @@ public sealed class TvShowFollowBaselineService(
 {
     private const int MaxConcurrentSeasonHydrations = 3;
 
-    public async Task EstablishAsync(TvShowFollow follow, CancellationToken cancellationToken = default)
+    public async Task EstablishAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
     {
         var currentFollow = await tvShowFollowRepository.GetForUserAndTvShowForUpdateAsync(
             follow.UserId,

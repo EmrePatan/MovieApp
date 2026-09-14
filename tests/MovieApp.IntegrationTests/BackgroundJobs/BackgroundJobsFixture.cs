@@ -26,7 +26,7 @@ public sealed class BackgroundJobsFixture : IAsyncLifetime
         context.UserReleaseNotificationEvents.RemoveRange(context.UserReleaseNotificationEvents);
         context.UserReleaseNotifications.RemoveRange(context.UserReleaseNotifications);
         context.CatalogReleaseEvents.RemoveRange(context.CatalogReleaseEvents);
-        context.TvShowFollows.RemoveRange(context.TvShowFollows);
+        context.CatalogFollows.RemoveRange(context.CatalogFollows);
         context.TvShows.RemoveRange(context.TvShows);
         context.Users.RemoveRange(context.Users);
         await context.SaveChangesAsync();

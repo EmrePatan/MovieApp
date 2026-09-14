@@ -41,9 +41,9 @@ public sealed class ReleaseNotificationEligibilityTests
             CatalogReleaseEventSource.BoundaryDetection,
             DateTime.UtcNow);
 
-    private static TvShowFollow CreateFollow(DateTime notifyFromUtc)
+    private static CatalogFollow CreateFollow(DateTime notifyFromUtc)
     {
-        var follow = TvShowFollow.Create(Guid.NewGuid(), Guid.NewGuid(), true, true, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(Guid.NewGuid(), Guid.NewGuid(), true, true, DateTime.UtcNow);
         follow.SetNotifyFromUtc(notifyFromUtc, DateTime.UtcNow);
         follow.EstablishBaseline(DateTime.UtcNow);
         return follow;

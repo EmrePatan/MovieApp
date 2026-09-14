@@ -11,15 +11,28 @@ internal static class PushNotificationMessageComposer
         int eventCount)
     {
         var notification = delivery.UserReleaseNotification;
-        var title = string.IsNullOrWhiteSpace(notification.Title) ? "TV Show" : notification.Title;
+        var title = string.IsNullOrWhiteSpace(notification.Title)
+            ? notification.NotificationType == UserReleaseNotificationType.MovieReleased ? "Movie" : "TV Show"
+            : notification.Title;
         var body = BuildBody(notification, eventCount);
 
         var data = new Dictionary<string, string>
         {
-            ["type"] = "tv-release",
-            ["tvShowId"] = notification.TvShowId.ToString(),
+            ["type"] = notification.NotificationType == UserReleaseNotificationType.MovieReleased
+                ? "movie-release"
+                : "tv-release",
             ["notificationId"] = notification.Id.ToString()
         };
+
+        if (notification.TvShowId.HasValue)
+        {
+            data["tvShowId"] = notification.TvShowId.Value.ToString();
+        }
+
+        if (notification.MovieId.HasValue)
+        {
+            data["movieId"] = notification.MovieId.Value.ToString();
+        }
 
         return new PushNotificationMessage(
             delivery.Id,
@@ -43,6 +56,7 @@ internal static class PushNotificationMessageComposer
                     ? "A new episode is available."
                     : $"{eventCount} new episodes are available.",
             UserReleaseNotificationType.NewSeason => "A new season is available.",
+            UserReleaseNotificationType.MovieReleased => "The movie is now available.",
             _ => "New content is available."
         };
     }

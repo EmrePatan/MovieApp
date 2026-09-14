@@ -18,9 +18,6 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
         builder.Property(notification => notification.UserId)
             .IsRequired();
 
-        builder.Property(notification => notification.TvShowId)
-            .IsRequired();
-
         builder.Property(notification => notification.NotificationType)
             .IsRequired()
             .HasConversion<string>()
@@ -52,11 +49,20 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
         builder.HasOne(notification => notification.TvShow)
             .WithMany(tvShow => tvShow.ReleaseNotifications)
             .HasForeignKey(notification => notification.TvShowId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+
+        builder.HasOne(notification => notification.Movie)
+            .WithMany(movie => movie.ReleaseNotifications)
+            .HasForeignKey(notification => notification.MovieId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
 
         builder.HasIndex(notification => notification.UserId);
 
         builder.HasIndex(notification => notification.TvShowId);
+
+        builder.HasIndex(notification => notification.MovieId);
 
         builder.HasIndex(notification => notification.Status);
 
@@ -64,6 +70,7 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
             {
                 notification.UserId,
                 notification.TvShowId,
+                notification.MovieId,
                 notification.NotificationType,
                 notification.AggregationWindowKey
             })
@@ -74,5 +81,9 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
             notification.Id,
             notification.UserId
         });
+
+        builder.ToTable(tableBuilder => tableBuilder.HasCheckConstraint(
+            "CK_user_release_notifications_content_ref",
+            "(\"TvShowId\" IS NOT NULL AND \"MovieId\" IS NULL) OR (\"TvShowId\" IS NULL AND \"MovieId\" IS NOT NULL)"));
     }
 }

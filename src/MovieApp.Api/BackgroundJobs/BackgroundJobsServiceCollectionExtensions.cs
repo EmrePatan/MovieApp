@@ -57,6 +57,7 @@ public static class BackgroundJobsServiceCollectionExtensions
 
         services.AddScoped<TmdbTvChangesSyncJob>();
         services.AddScoped<HotReleaseCheckJob>();
+        services.AddScoped<MovieReleaseCheckJob>();
         services.AddScoped<ReleaseNotificationFanoutJob>();
         services.AddScoped<PushDeliveryPreparationJob>();
         services.AddScoped<PushDispatchJob>();

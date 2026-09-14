@@ -6,8 +6,9 @@ using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbContext)
-    : IReleaseNotificationFanoutRepository
+public sealed class ReleaseNotificationFanoutRepository(
+    ApplicationDbContext dbContext,
+    ICatalogFollowRepository catalogFollowRepository) : IReleaseNotificationFanoutRepository
 {
     public async Task<IReadOnlyList<CatalogReleaseEvent>> GetEventsByIdsAsync(
         IReadOnlyCollection<Guid> catalogReleaseEventIds,
@@ -24,21 +25,26 @@ public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbC
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<TvShowFollow>> GetEstablishedFollowsByTvShowIdsAsync(
+    public Task<IReadOnlyList<CatalogFollow>> GetEstablishedFollowsByTvShowIdsAsync(
         IReadOnlyCollection<Guid> tvShowIds,
+        CancellationToken cancellationToken = default) =>
+        catalogFollowRepository.GetEstablishedTvFollowsByTvShowIdsAsync(tvShowIds, cancellationToken);
+
+    public async Task<IReadOnlyList<CatalogFollow>> GetMovieFollowsByMovieIdsAsync(
+        IReadOnlyCollection<Guid> movieIds,
         CancellationToken cancellationToken = default)
     {
-        if (tvShowIds.Count == 0)
+        if (movieIds.Count == 0)
         {
             return [];
         }
 
-        return await dbContext.TvShowFollows
+        return await dbContext.CatalogFollows
             .AsNoTracking()
             .Where(follow =>
-                tvShowIds.Contains(follow.TvShowId) &&
-                follow.BaselineEstablishedAtUtc != null &&
-                follow.NotifyFromUtc != null)
+                follow.ContentType == CatalogContentType.Movie &&
+                movieIds.Contains(follow.ContentId) &&
+                follow.NotifyMovieRelease)
             .ToListAsync(cancellationToken);
     }
 
@@ -57,6 +63,21 @@ public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbC
             .ToDictionaryAsync(tvShow => tvShow.Id, tvShow => tvShow.Title, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, string>> GetMovieTitlesByIdsAsync(
+        IReadOnlyCollection<Guid> movieIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (movieIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movieIds.Contains(movie.Id))
+            .ToDictionaryAsync(movie => movie.Id, movie => movie.Title, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<UserReleaseNotification>> GetNotificationsByBucketsAsync(
         IReadOnlyCollection<ReleaseNotificationBucketKey> bucketKeys,
         CancellationToken cancellationToken = default)
@@ -67,18 +88,31 @@ public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbC
         }
 
         var bucketKeySet = bucketKeys.ToHashSet();
-        var tvShowIds = bucketKeys.Select(key => key.TvShowId).Distinct().ToList();
+        var tvShowIds = bucketKeys
+            .Where(key => key.TvShowId.HasValue)
+            .Select(key => key.TvShowId!.Value)
+            .Distinct()
+            .ToList();
+
+        var movieIds = bucketKeys
+            .Where(key => key.MovieId.HasValue)
+            .Select(key => key.MovieId!.Value)
+            .Distinct()
+            .ToList();
 
         var notifications = await dbContext.UserReleaseNotifications
             .AsNoTracking()
             .Include(notification => notification.NotificationEvents)
-            .Where(notification => tvShowIds.Contains(notification.TvShowId))
+            .Where(notification =>
+                (notification.TvShowId.HasValue && tvShowIds.Contains(notification.TvShowId.Value)) ||
+                (notification.MovieId.HasValue && movieIds.Contains(notification.MovieId.Value)))
             .ToListAsync(cancellationToken);
 
         return notifications
             .Where(notification => bucketKeySet.Contains(new ReleaseNotificationBucketKey(
                 notification.UserId,
                 notification.TvShowId,
+                notification.MovieId,
                 notification.NotificationType,
                 notification.AggregationWindowKey)))
             .ToList();
@@ -132,6 +166,7 @@ public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbC
                     candidate =>
                         candidate.UserId == notification.UserId &&
                         candidate.TvShowId == notification.TvShowId &&
+                        candidate.MovieId == notification.MovieId &&
                         candidate.NotificationType == notification.NotificationType &&
                         candidate.AggregationWindowKey == notification.AggregationWindowKey,
                     cancellationToken);
@@ -221,6 +256,9 @@ public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbC
         var baselineSource = CatalogReleaseEventSource.BaselineAbsorb.ToString();
         var episodeType = CatalogReleaseEventType.NewEpisode.ToString();
         var seasonType = CatalogReleaseEventType.NewSeasonPremiere.ToString();
+        var movieReleasedType = CatalogReleaseEventType.MovieReleased.ToString();
+        var tvContentType = CatalogContentType.Tv.ToString();
+        var movieContentType = CatalogContentType.Movie.ToString();
 
         return await dbContext.Database
             .SqlQuery<Guid>($"""
@@ -228,15 +266,20 @@ public sealed class ReleaseNotificationFanoutRepository(ApplicationDbContext dbC
                 FROM (
                     SELECT e."Id", MIN(e."DetectedAtUtc") AS detected_at
                     FROM catalog_release_events AS e
-                    INNER JOIN tv_show_follows AS f ON f."TvShowId" = e."TvShowId"
+                    INNER JOIN catalog_follows AS f ON (
+                        (e."TvShowId" IS NOT NULL AND f."ContentType" = {tvContentType} AND f."ContentId" = e."TvShowId")
+                        OR (e."MovieId" IS NOT NULL AND f."ContentType" = {movieContentType} AND f."ContentId" = e."MovieId")
+                    )
                     WHERE e."Source" <> {baselineSource}
-                      AND f."BaselineEstablishedAtUtc" IS NOT NULL
-                      AND f."NotifyFromUtc" IS NOT NULL
                       AND (
-                        (e."EventType" = {episodeType} AND f."NotifyNewEpisodes" = TRUE)
-                        OR (e."EventType" = {seasonType} AND f."NotifyNewSeasons" = TRUE)
+                        (e."EventType" = {episodeType} AND f."ContentType" = {tvContentType} AND f."BaselineEstablishedAtUtc" IS NOT NULL AND f."NotifyFromUtc" IS NOT NULL AND f."NotifyNewEpisodes" = TRUE)
+                        OR (e."EventType" = {seasonType} AND f."ContentType" = {tvContentType} AND f."BaselineEstablishedAtUtc" IS NOT NULL AND f."NotifyFromUtc" IS NOT NULL AND f."NotifyNewSeasons" = TRUE)
+                        OR (e."EventType" = {movieReleasedType} AND f."ContentType" = {movieContentType} AND f."NotifyMovieRelease" = TRUE)
                       )
-                      AND e."ReleaseAtUtc"::date >= f."NotifyFromUtc"::date
+                      AND (
+                        e."EventType" = {movieReleasedType}
+                        OR e."ReleaseAtUtc"::date >= f."NotifyFromUtc"::date
+                      )
                       AND NOT EXISTS (
                         SELECT 1
                         FROM user_release_notification_events AS ne

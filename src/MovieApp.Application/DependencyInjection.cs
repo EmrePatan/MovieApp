@@ -21,6 +21,9 @@ using MovieApp.Application.Services.ReleaseNotifications;
 using MovieApp.Application.Services.HotRelease;
 using MovieApp.Application.Services.TvShowChanges;
 using MovieApp.Application.Services.TvShowFollows;
+using MovieApp.Application.Services.MovieFollows;
+using MovieApp.Application.Services.CatalogFollows;
+using MovieApp.Application.Services.MovieRelease;
 using MovieApp.Application.Services.Watchlists;
 
 namespace MovieApp.Application;
@@ -67,8 +70,16 @@ public static class DependencyInjection
         services.AddScoped<IGetTvShowFollowsService, GetTvShowFollowsService>();
         services.AddScoped<ITvShowFollowBaselineService, TvShowFollowBaselineService>();
 
+        services.AddScoped<IGetMovieFollowStatusService, GetMovieFollowStatusService>();
+        services.AddScoped<IUpsertMovieFollowService, UpsertMovieFollowService>();
+        services.AddScoped<IRemoveMovieFollowService, RemoveMovieFollowService>();
+        services.AddScoped<IGetCatalogFollowsService, GetCatalogFollowsService>();
+        services.AddScoped<IGetCatalogUpcomingService, GetCatalogUpcomingService>();
+
         services.AddScoped<IReleaseDetector, ReleaseDetector>();
         services.AddScoped<IReleaseNotificationFanoutService, ReleaseNotificationFanoutService>();
+        services.AddScoped<IMovieReleaseFollowCleanupService, MovieReleaseFollowCleanupService>();
+        services.AddScoped<IMovieReleaseCheckService, MovieReleaseCheckService>();
 
         services.AddScoped<IRegisterPushDeviceService, RegisterPushDeviceService>();
         services.AddScoped<IUnregisterPushDeviceService, UnregisterPushDeviceService>();

@@ -49,7 +49,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
-    public DbSet<TvShowFollow> TvShowFollows => Set<TvShowFollow>();
+    public DbSet<CatalogFollow> CatalogFollows => Set<CatalogFollow>();
 
     public DbSet<CatalogReleaseEvent> CatalogReleaseEvents => Set<CatalogReleaseEvent>();
 

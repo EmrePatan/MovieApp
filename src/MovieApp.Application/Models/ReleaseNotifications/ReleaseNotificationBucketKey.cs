@@ -4,6 +4,7 @@ namespace MovieApp.Application.Models.ReleaseNotifications;
 
 public readonly record struct ReleaseNotificationBucketKey(
     Guid UserId,
-    Guid TvShowId,
+    Guid? TvShowId,
+    Guid? MovieId,
     UserReleaseNotificationType NotificationType,
     string AggregationWindowKey);

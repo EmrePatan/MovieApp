@@ -136,10 +136,16 @@ public sealed class BackgroundJobWrapperTests
         public Task<IReadOnlyList<CatalogReleaseEvent>> GetEventsByIdsAsync(IReadOnlyCollection<Guid> catalogReleaseEventIds, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<TvShowFollow>> GetEstablishedFollowsByTvShowIdsAsync(IReadOnlyCollection<Guid> tvShowIds, CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<CatalogFollow>> GetEstablishedFollowsByTvShowIdsAsync(IReadOnlyCollection<Guid> tvShowIds, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyDictionary<Guid, string>> GetTvShowTitlesByIdsAsync(IReadOnlyCollection<Guid> tvShowIds, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CatalogFollow>> GetMovieFollowsByMovieIdsAsync(IReadOnlyCollection<Guid> movieIds, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetMovieTitlesByIdsAsync(IReadOnlyCollection<Guid> movieIds, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<UserReleaseNotification>> GetNotificationsByBucketsAsync(IReadOnlyCollection<ReleaseNotificationBucketKey> bucketKeys, CancellationToken cancellationToken = default) =>

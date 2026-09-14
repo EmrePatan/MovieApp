@@ -51,6 +51,19 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             recurringJobManager.RemoveIfExists(RecurringJobIds.HotRelease);
         }
 
+        if (backgroundJobs.MovieReleaseEnabled)
+        {
+            recurringJobManager.AddOrUpdate<MovieReleaseCheckJob>(
+                RecurringJobIds.MovieRelease,
+                job => job.ExecuteAsync(),
+                Cron.Hourly(),
+                UtcOptions);
+        }
+        else
+        {
+            recurringJobManager.RemoveIfExists(RecurringJobIds.MovieRelease);
+        }
+
         if (backgroundJobs.NotificationFanoutEnabled)
         {
             recurringJobManager.AddOrUpdate<ReleaseNotificationFanoutJob>(

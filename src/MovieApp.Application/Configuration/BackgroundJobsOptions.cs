@@ -10,6 +10,8 @@ public sealed class BackgroundJobsOptions
 
     public bool HotReleaseEnabled { get; set; } = true;
 
+    public bool MovieReleaseEnabled { get; set; } = true;
+
     public bool NotificationFanoutEnabled { get; set; } = true;
 
     public bool PushDeliveryEnabled { get; set; } = true;

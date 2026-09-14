@@ -4,12 +4,14 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.TvShowFollows;
 using MovieApp.Application.Validation;
+using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Services.TvShowFollows;
 
 public sealed class GetTvShowFollowsService(
     ICurrentUser currentUser,
-    ITvShowFollowRepository tvShowFollowRepository) : IGetTvShowFollowsService
+    ITvShowFollowRepository tvShowFollowRepository,
+    ITvShowRepository tvShowRepository) : IGetTvShowFollowsService
 {
     public async Task<TvShowFollowsListResult> GetAsync(
         int page,
@@ -30,22 +32,39 @@ public sealed class GetTvShowFollowsService(
             pageSize,
             cancellationToken);
 
+        var tvShowIds = follows.Select(follow => follow.ContentId).Distinct().ToList();
+        var tvShows = new Dictionary<Guid, TvShow>();
+
+        foreach (var tvShowId in tvShowIds)
+        {
+            var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
+            if (tvShow is not null)
+            {
+                tvShows[tvShowId] = tvShow;
+            }
+        }
+
         var totalPages = totalCount == 0
             ? 0
             : (int)Math.Ceiling(totalCount / (double)pageSize);
 
         return new TvShowFollowsListResult(
             follows
-                .Select(follow => new TvShowFollowTvShowResult(
-                    follow.TvShow.Id,
-                    follow.TvShow.Title,
-                    follow.TvShow.PosterPath,
-                    follow.TvShow.FirstAirDate,
-                    follow.TvShow.VoteAverage,
-                    follow.NotifyNewSeasons,
-                    follow.NotifyNewEpisodes,
-                    follow.IsBaselineEstablished,
-                    follow.CreatedAt))
+                .Where(follow => tvShows.ContainsKey(follow.ContentId))
+                .Select(follow =>
+                {
+                    var tvShow = tvShows[follow.ContentId];
+                    return new TvShowFollowTvShowResult(
+                        tvShow.Id,
+                        tvShow.Title,
+                        tvShow.PosterPath,
+                        tvShow.FirstAirDate,
+                        tvShow.VoteAverage,
+                        follow.NotifyNewSeasons,
+                        follow.NotifyNewEpisodes,
+                        follow.IsBaselineEstablished,
+                        follow.CreatedAt);
+                })
                 .ToList(),
             page,
             pageSize,

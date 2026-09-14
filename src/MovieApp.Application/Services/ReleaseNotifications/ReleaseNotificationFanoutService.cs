@@ -6,9 +6,10 @@ using MovieApp.Domain.Enums;
 namespace MovieApp.Application.Services.ReleaseNotifications;
 
 public sealed class ReleaseNotificationFanoutService(
-    IReleaseNotificationFanoutRepository repository) : IReleaseNotificationFanoutService
+    IReleaseNotificationFanoutRepository repository,
+    IMovieReleaseFollowCleanupService movieReleaseFollowCleanupService) : IReleaseNotificationFanoutService
 {
-    private sealed record EligibleFanoutLink(CatalogReleaseEvent ReleaseEvent, TvShowFollow Follow);
+    private sealed record EligibleFanoutLink(CatalogReleaseEvent ReleaseEvent, CatalogFollow Follow);
 
     public async Task<ReleaseNotificationFanoutResult> ProcessAsync(
         IReadOnlyCollection<Guid> catalogReleaseEventIds,
@@ -39,11 +40,29 @@ public sealed class ReleaseNotificationFanoutService(
                 skippedBySource);
         }
 
-        var tvShowIds = fanoutableEvents.Select(releaseEvent => releaseEvent.TvShowId).Distinct().ToList();
-        var follows = await repository.GetEstablishedFollowsByTvShowIdsAsync(tvShowIds, cancellationToken);
-        var titles = await repository.GetTvShowTitlesByIdsAsync(tvShowIds, cancellationToken);
-        var followsByTvShow = follows
-            .GroupBy(follow => follow.TvShowId)
+        var tvShowIds = fanoutableEvents
+            .Where(releaseEvent => releaseEvent.TvShowId.HasValue)
+            .Select(releaseEvent => releaseEvent.TvShowId!.Value)
+            .Distinct()
+            .ToList();
+
+        var movieIds = fanoutableEvents
+            .Where(releaseEvent => releaseEvent.MovieId.HasValue)
+            .Select(releaseEvent => releaseEvent.MovieId!.Value)
+            .Distinct()
+            .ToList();
+
+        var tvFollows = await repository.GetEstablishedFollowsByTvShowIdsAsync(tvShowIds, cancellationToken);
+        var movieFollows = await repository.GetMovieFollowsByMovieIdsAsync(movieIds, cancellationToken);
+        var tvTitles = await repository.GetTvShowTitlesByIdsAsync(tvShowIds, cancellationToken);
+        var movieTitles = await repository.GetMovieTitlesByIdsAsync(movieIds, cancellationToken);
+
+        var followsByTvShow = tvFollows
+            .GroupBy(follow => follow.ContentId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        var followsByMovie = movieFollows
+            .GroupBy(follow => follow.ContentId)
             .ToDictionary(group => group.Key, group => group.ToList());
 
         var eligibleLinks = new List<EligibleFanoutLink>();
@@ -52,12 +71,17 @@ public sealed class ReleaseNotificationFanoutService(
 
         foreach (var releaseEvent in fanoutableEvents)
         {
-            if (!followsByTvShow.TryGetValue(releaseEvent.TvShowId, out var showFollows))
-            {
-                continue;
-            }
+            var showFollows = releaseEvent.TvShowId.HasValue &&
+                              followsByTvShow.TryGetValue(releaseEvent.TvShowId.Value, out var tvShowFollows)
+                ? tvShowFollows
+                : [];
 
-            foreach (var follow in showFollows)
+            var movieShowFollows = releaseEvent.MovieId.HasValue &&
+                                   followsByMovie.TryGetValue(releaseEvent.MovieId.Value, out var movieShowFollowsList)
+                ? movieShowFollowsList
+                : [];
+
+            foreach (var follow in showFollows.Concat(movieShowFollows))
             {
                 if (!ReleaseNotificationEligibility.MatchesPreference(releaseEvent, follow))
                 {
@@ -77,6 +101,8 @@ public sealed class ReleaseNotificationFanoutService(
 
         if (eligibleLinks.Count == 0)
         {
+            await CleanupMovieReleaseFollowsAsync(fanoutableEvents, cancellationToken);
+
             return new ReleaseNotificationFanoutResult(
                 eventsProcessed,
                 0,
@@ -97,21 +123,12 @@ public sealed class ReleaseNotificationFanoutService(
             cancellationToken);
 
         var bucketGroups = eligibleLinks
-            .GroupBy(link => new ReleaseNotificationBucketKey(
-                link.Follow.UserId,
-                link.ReleaseEvent.TvShowId,
-                ReleaseNotificationEligibility.MapNotificationType(link.ReleaseEvent.EventType),
-                ReleaseNotificationAggregation.BuildWindowKey(link.ReleaseEvent.ReleaseAtUtc)))
+            .GroupBy(link => CreateBucketKey(link.ReleaseEvent, link.Follow))
             .ToList();
 
         var bucketKeys = bucketGroups.Select(group => group.Key).ToList();
         var existingNotifications = await repository.GetNotificationsByBucketsAsync(bucketKeys, cancellationToken);
-        var existingNotificationMap = existingNotifications.ToDictionary(
-            notification => new ReleaseNotificationBucketKey(
-                notification.UserId,
-                notification.TvShowId,
-                notification.NotificationType,
-                notification.AggregationWindowKey));
+        var existingNotificationMap = existingNotifications.ToDictionary(CreateBucketKeyFromNotification);
 
         var newNotifications = new List<UserReleaseNotification>();
         var notificationsToUpdate = new List<UserReleaseNotification>();
@@ -128,6 +145,7 @@ public sealed class ReleaseNotificationFanoutService(
                     Id = Guid.NewGuid(),
                     UserId = bucketGroup.Key.UserId,
                     TvShowId = bucketGroup.Key.TvShowId,
+                    MovieId = bucketGroup.Key.MovieId,
                     NotificationType = bucketGroup.Key.NotificationType,
                     Status = UserReleaseNotificationStatus.Pending,
                     AggregationWindowKey = bucketGroup.Key.AggregationWindowKey,
@@ -163,9 +181,9 @@ public sealed class ReleaseNotificationFanoutService(
                 ? persistedNotification.NotificationEvents.Count
                 : 0;
             var totalEventCount = existingCount + addedLinks;
-            var tvShowTitle = titles.GetValueOrDefault(bucketGroup.Key.TvShowId, "TV Show");
+            var contentTitle = ResolveContentTitle(bucketGroup.Key, tvTitles, movieTitles);
             var (title, body) = ReleaseNotificationContentBuilder.Build(
-                tvShowTitle,
+                contentTitle,
                 bucketGroup.Key.NotificationType,
                 totalEventCount);
 
@@ -184,6 +202,8 @@ public sealed class ReleaseNotificationFanoutService(
             newEventLinks,
             cancellationToken);
 
+        await CleanupMovieReleaseFollowsAsync(fanoutableEvents, cancellationToken);
+
         return new ReleaseNotificationFanoutResult(
             eventsProcessed,
             eligibleFollowers,
@@ -192,5 +212,61 @@ public sealed class ReleaseNotificationFanoutService(
             skippedByPreference,
             skippedByBoundary,
             skippedBySource);
+    }
+
+    private async Task CleanupMovieReleaseFollowsAsync(
+        IReadOnlyList<CatalogReleaseEvent> fanoutableEvents,
+        CancellationToken cancellationToken)
+    {
+        var movieReleaseMovieIds = fanoutableEvents
+            .Where(releaseEvent => releaseEvent.EventType == CatalogReleaseEventType.MovieReleased)
+            .Where(releaseEvent => releaseEvent.MovieId.HasValue)
+            .Select(releaseEvent => releaseEvent.MovieId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (movieReleaseMovieIds.Count == 0)
+        {
+            return;
+        }
+
+        await movieReleaseFollowCleanupService.CleanupAsync(movieReleaseMovieIds, cancellationToken);
+    }
+
+    private static ReleaseNotificationBucketKey CreateBucketKey(
+        CatalogReleaseEvent releaseEvent,
+        CatalogFollow follow) =>
+        new(
+            follow.UserId,
+            releaseEvent.TvShowId,
+            releaseEvent.MovieId,
+            ReleaseNotificationEligibility.MapNotificationType(releaseEvent.EventType),
+            ReleaseNotificationAggregation.BuildWindowKey(releaseEvent.ReleaseAtUtc));
+
+    private static ReleaseNotificationBucketKey CreateBucketKeyFromNotification(
+        UserReleaseNotification notification) =>
+        new(
+            notification.UserId,
+            notification.TvShowId,
+            notification.MovieId,
+            notification.NotificationType,
+            notification.AggregationWindowKey);
+
+    private static string ResolveContentTitle(
+        ReleaseNotificationBucketKey bucketKey,
+        IReadOnlyDictionary<Guid, string> tvTitles,
+        IReadOnlyDictionary<Guid, string> movieTitles)
+    {
+        if (bucketKey.TvShowId.HasValue)
+        {
+            return tvTitles.GetValueOrDefault(bucketKey.TvShowId.Value, "TV Show");
+        }
+
+        if (bucketKey.MovieId.HasValue)
+        {
+            return movieTitles.GetValueOrDefault(bucketKey.MovieId.Value, "Movie");
+        }
+
+        return "Release";
     }
 }

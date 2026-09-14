@@ -47,4 +47,8 @@ public sealed class Movie
     public ICollection<Review> Reviews { get; set; } = [];
 
     public ICollection<WatchedMovie> WatchedMovies { get; set; } = [];
+
+    public ICollection<CatalogReleaseEvent> CatalogReleaseEvents { get; set; } = [];
+
+    public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];
 }

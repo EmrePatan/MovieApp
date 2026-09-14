@@ -26,6 +26,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             entry => entry.JobId == RecurringJobIds.HotRelease && entry.Cron == Cron.Hourly());
         Assert.Contains(
             manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.MovieRelease && entry.Cron == Cron.Hourly());
+        Assert.Contains(
+            manager.AddedOrUpdated,
             entry => entry.JobId == RecurringJobIds.ReleaseFanout && entry.Cron == Cron.MinuteInterval(5));
         Assert.Contains(
             manager.AddedOrUpdated,
@@ -73,7 +76,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         registrar.RegisterRecurringJobs();
         registrar.RegisterRecurringJobs();
 
-        Assert.Equal(6, manager.AddedOrUpdated.Count);
+        Assert.Equal(7, manager.AddedOrUpdated.Count);
     }
 
     private static HangfireRecurringBackgroundJobRegistrar CreateRegistrar(

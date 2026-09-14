@@ -68,7 +68,7 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
         await SeedFanoutDiscoveryDataAsync();
 
         await using var context = ReleaseNotificationFanoutFixture.CreateContext();
-        var repository = new ReleaseNotificationFanoutRepository(context);
+        var repository = new ReleaseNotificationFanoutRepository(context, new CatalogFollowRepository(context));
 
         var pending = await repository.GetPendingFanoutEventIdsAsync(1);
 
@@ -137,18 +137,10 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
         };
         context.Users.Add(user);
         context.TvShows.Add(tvShow);
-        context.TvShowFollows.Add(new TvShowFollow
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            TvShowId = tvShow.Id,
-            NotifyNewEpisodes = true,
-            NotifyNewSeasons = true,
-            BaselineEstablishedAtUtc = DateTime.UtcNow.AddDays(-2),
-            NotifyFromUtc = DateTime.UtcNow.AddDays(-2),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+        var follow = CatalogFollow.CreateTvFollow(user.Id, tvShow.Id, true, true, DateTime.UtcNow);
+        follow.SetNotifyFromUtc(DateTime.UtcNow.AddDays(-2), DateTime.UtcNow);
+        follow.EstablishBaseline(DateTime.UtcNow);
+        context.CatalogFollows.Add(follow);
         context.CatalogReleaseEvents.Add(CatalogReleaseEventFactory.CreateEpisodeEvent(
             tvShow.Id,
             1,
@@ -186,18 +178,10 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
         };
         context.Users.Add(user);
         context.TvShows.Add(tvShow);
-        context.TvShowFollows.Add(new TvShowFollow
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            TvShowId = tvShow.Id,
-            NotifyNewEpisodes = true,
-            NotifyNewSeasons = true,
-            BaselineEstablishedAtUtc = DateTime.UtcNow.AddDays(-2),
-            NotifyFromUtc = DateTime.UtcNow.AddDays(-2),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+        var follow = CatalogFollow.CreateTvFollow(user.Id, tvShow.Id, true, true, DateTime.UtcNow);
+        follow.SetNotifyFromUtc(DateTime.UtcNow.AddDays(-2), DateTime.UtcNow);
+        follow.EstablishBaseline(DateTime.UtcNow);
+        context.CatalogFollows.Add(follow);
         var releaseEvent = CatalogReleaseEventFactory.CreateEpisodeEvent(
             tvShow.Id,
             1,

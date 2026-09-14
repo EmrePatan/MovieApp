@@ -122,7 +122,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
     public async Task FollowBaseline_ZeroProviderCalls_DoesNotFakeRefresh()
     {
         var syncState = new TrackingCatalogSyncStateService();
-        var follow = TvShowFollow.Create(Guid.NewGuid(), TvShowId, true, true, NotifyFromUtc);
+        var follow = CatalogFollow.CreateTvFollow(Guid.NewGuid(), TvShowId, true, true, NotifyFromUtc);
         follow.SetNotifyFromUtc(NotifyFromUtc, NotifyFromUtc);
 
         var service = new TvShowFollowBaselineService(
@@ -145,7 +145,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
     public async Task FollowBaseline_WithProviderCalls_WritesFollowBaseline()
     {
         var syncState = new TrackingCatalogSyncStateService();
-        var follow = TvShowFollow.Create(Guid.NewGuid(), TvShowId, true, true, NotifyFromUtc);
+        var follow = CatalogFollow.CreateTvFollow(Guid.NewGuid(), TvShowId, true, true, NotifyFromUtc);
         follow.SetNotifyFromUtc(NotifyFromUtc, NotifyFromUtc);
         var partialSeason = CreateSeasonSummary(1, new DateOnly(2026, 8, 1), 10);
 
@@ -417,34 +417,34 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeTvShowFollowRepository(TvShowFollow follow) : ITvShowFollowRepository
+    private sealed class FakeTvShowFollowRepository(CatalogFollow follow) : ITvShowFollowRepository
     {
-        public Task<TvShowFollow?> GetForUserAndTvShowAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<TvShowFollow?>(follow);
+            Task.FromResult<CatalogFollow?>(follow);
 
-        public Task<TvShowFollow?> GetForUserAndTvShowForUpdateAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowForUpdateAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<TvShowFollow?>(follow);
+            Task.FromResult<CatalogFollow?>(follow);
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task<bool> TryAddAsync(TvShowFollow follow, CancellationToken cancellationToken = default) =>
+        public Task<bool> TryAddAsync(CatalogFollow follow, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
 
         public Task<bool> RemoveForTvShowAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
-        public Task<(IReadOnlyList<TvShowFollow> Follows, int TotalCount)> GetUserFollowsAsync(
+        public Task<(IReadOnlyList<CatalogFollow> Follows, int TotalCount)> GetUserFollowsAsync(
             Guid userId,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<(IReadOnlyList<TvShowFollow>, int)>(([], 0));
+            Task.FromResult<(IReadOnlyList<CatalogFollow>, int)>(([], 0));
     }
 
     private sealed class FakeReleaseDetectionCatalogRepository(IReadOnlyList<Season> seasons)

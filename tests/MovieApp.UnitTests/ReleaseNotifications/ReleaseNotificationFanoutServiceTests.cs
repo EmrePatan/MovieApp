@@ -5,6 +5,8 @@ using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Domain.Notifications;
 
+using static MovieApp.UnitTests.ReleaseNotifications.ReleaseNotificationFanoutServiceTestHelpers;
+
 namespace MovieApp.UnitTests.ReleaseNotifications;
 
 public sealed class ReleaseNotificationFanoutServiceTests
@@ -22,7 +24,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.Add(releaseEvent);
         repository.Follows.Add(CreateEstablishedFollow(UserA));
 
-        var service = new ReleaseNotificationFanoutService(repository);
+        var service = CreateService(repository);
         var result = await service.ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(0, result.NotificationsCreated);
@@ -39,7 +41,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.Add(releaseEvent);
         repository.Follows.Add(CreateEstablishedFollow(UserA, notifyNewEpisodes: false));
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(0, result.NotificationsCreated);
         Assert.Equal(1, result.SkippedByPreference);
@@ -53,7 +55,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Follows.Add(CreateEstablishedFollow(UserA, notifyNewSeasons: false));
         repository.Events.Add(releaseEvent);
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(0, result.NotificationsCreated);
         Assert.Equal(1, result.SkippedByPreference);
@@ -68,7 +70,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Follows.Add(CreateEstablishedFollow(UserA));
         repository.Titles[TvShowId] = "Breaking Bad";
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(1, result.NotificationsCreated);
         Assert.Equal(1, result.EventLinksCreated);
@@ -85,7 +87,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.Add(releaseEvent);
         repository.Follows.Add(CreateEstablishedFollow(UserA));
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(1, result.NotificationsCreated);
         Assert.Equal(UserReleaseNotificationType.NewSeason, Assert.Single(repository.PersistedNotifications).NotificationType);
@@ -100,7 +102,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.AddRange([first, second]);
         repository.Follows.Add(CreateEstablishedFollow(UserA));
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([first.Id, second.Id]);
+        var result = await CreateService(repository).ProcessAsync([first.Id, second.Id]);
 
         Assert.Equal(1, result.NotificationsCreated);
         Assert.Equal(2, result.EventLinksCreated);
@@ -116,7 +118,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.AddRange([dayOne, dayTwo]);
         repository.Follows.Add(CreateEstablishedFollow(UserA));
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([dayOne.Id, dayTwo.Id]);
+        var result = await CreateService(repository).ProcessAsync([dayOne.Id, dayTwo.Id]);
 
         Assert.Equal(2, result.NotificationsCreated);
         Assert.Equal(2, repository.PersistedNotifications.Count);
@@ -130,7 +132,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.Add(releaseEvent);
         repository.Follows.AddRange([CreateEstablishedFollow(UserA), CreateEstablishedFollow(UserB)]);
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(2, result.NotificationsCreated);
         Assert.Equal(2, repository.PersistedNotifications.Count);
@@ -146,7 +148,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
             UserA,
             notifyFromUtc: new DateTime(2026, 9, 15, 18, 0, 0, DateTimeKind.Utc)));
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(1, result.NotificationsCreated);
         Assert.Equal(0, result.SkippedByBoundary);
@@ -162,7 +164,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
             UserA,
             notifyFromUtc: new DateTime(2026, 9, 15, 0, 0, 0, DateTimeKind.Utc)));
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(0, result.NotificationsCreated);
         Assert.Equal(1, result.SkippedByBoundary);
@@ -176,7 +178,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.Add(releaseEvent);
         repository.Follows.Add(CreateEstablishedFollow(UserA));
 
-        var service = new ReleaseNotificationFanoutService(repository);
+        var service = CreateService(repository);
         await service.ProcessAsync([releaseEvent.Id]);
         var second = await service.ProcessAsync([releaseEvent.Id]);
 
@@ -193,7 +195,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         repository.Events.Add(releaseEvent);
         repository.Follows.Add(CreateEstablishedFollow(UserA));
 
-        var service = new ReleaseNotificationFanoutService(repository);
+        var service = CreateService(repository);
         var results = await Task.WhenAll(
             service.ProcessAsync([releaseEvent.Id]),
             service.ProcessAsync([releaseEvent.Id]));
@@ -210,7 +212,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         var releaseEvent = CreateEpisodeEvent();
         repository.Events.Add(releaseEvent);
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(0, result.NotificationsCreated);
     }
@@ -221,11 +223,11 @@ public sealed class ReleaseNotificationFanoutServiceTests
         var repository = new FakeFanoutRepository();
         var releaseEvent = CreateEpisodeEvent();
         repository.Events.Add(releaseEvent);
-        var follow = TvShowFollow.Create(UserA, TvShowId, true, true, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(UserA, TvShowId, true, true, DateTime.UtcNow);
         follow.SetNotifyFromUtc(DateTime.UtcNow, DateTime.UtcNow);
         repository.Follows.Add(follow);
 
-        var result = await new ReleaseNotificationFanoutService(repository).ProcessAsync([releaseEvent.Id]);
+        var result = await CreateService(repository).ProcessAsync([releaseEvent.Id]);
 
         Assert.Equal(0, result.NotificationsCreated);
     }
@@ -250,13 +252,13 @@ public sealed class ReleaseNotificationFanoutServiceTests
             CatalogReleaseEventSource.BoundaryDetection,
             DateTime.UtcNow);
 
-    private static TvShowFollow CreateEstablishedFollow(
+    private static CatalogFollow CreateEstablishedFollow(
         Guid userId,
         DateTime? notifyFromUtc = null,
         bool notifyNewSeasons = true,
         bool notifyNewEpisodes = true)
     {
-        var follow = TvShowFollow.Create(userId, TvShowId, notifyNewSeasons, notifyNewEpisodes, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(userId, TvShowId, notifyNewSeasons, notifyNewEpisodes, DateTime.UtcNow);
         follow.SetNotifyFromUtc(
             notifyFromUtc ?? new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
             DateTime.UtcNow);
@@ -268,7 +270,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
     {
         public List<CatalogReleaseEvent> Events { get; } = [];
 
-        public List<TvShowFollow> Follows { get; } = [];
+        public List<CatalogFollow> Follows { get; } = [];
 
         public Dictionary<Guid, string> Titles { get; } = [];
 
@@ -284,12 +286,12 @@ public sealed class ReleaseNotificationFanoutServiceTests
             Task.FromResult<IReadOnlyList<CatalogReleaseEvent>>(
                 Events.Where(releaseEvent => catalogReleaseEventIds.Contains(releaseEvent.Id)).ToList());
 
-        public Task<IReadOnlyList<TvShowFollow>> GetEstablishedFollowsByTvShowIdsAsync(
+        public Task<IReadOnlyList<CatalogFollow>> GetEstablishedFollowsByTvShowIdsAsync(
             IReadOnlyCollection<Guid> tvShowIds,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<TvShowFollow>>(
+            Task.FromResult<IReadOnlyList<CatalogFollow>>(
                 Follows.Where(follow =>
-                    tvShowIds.Contains(follow.TvShowId) &&
+                    tvShowIds.Contains(follow.ContentId) &&
                     follow.BaselineEstablishedAtUtc != null &&
                     follow.NotifyFromUtc != null).ToList());
 
@@ -300,6 +302,16 @@ public sealed class ReleaseNotificationFanoutServiceTests
                 Titles.Where(pair => tvShowIds.Contains(pair.Key))
                     .ToDictionary(pair => pair.Key, pair => pair.Value));
 
+        public Task<IReadOnlyList<CatalogFollow>> GetMovieFollowsByMovieIdsAsync(
+            IReadOnlyCollection<Guid> movieIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CatalogFollow>>([]);
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetMovieTitlesByIdsAsync(
+            IReadOnlyCollection<Guid> movieIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
         public Task<IReadOnlyList<UserReleaseNotification>> GetNotificationsByBucketsAsync(
             IReadOnlyCollection<ReleaseNotificationBucketKey> bucketKeys,
             CancellationToken cancellationToken = default)
@@ -309,6 +321,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
                 .Where(notification => keySet.Contains(new ReleaseNotificationBucketKey(
                     notification.UserId,
                     notification.TvShowId,
+                    notification.MovieId,
                     notification.NotificationType,
                     notification.AggregationWindowKey)))
                 .Select(notification =>
@@ -353,6 +366,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
                 if (PersistedNotifications.Any(existing =>
                         existing.UserId == notification.UserId &&
                         existing.TvShowId == notification.TvShowId &&
+                        existing.MovieId == notification.MovieId &&
                         existing.NotificationType == notification.NotificationType &&
                         existing.AggregationWindowKey == notification.AggregationWindowKey))
                 {

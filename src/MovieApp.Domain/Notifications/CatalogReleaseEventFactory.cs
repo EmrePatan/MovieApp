@@ -43,4 +43,22 @@ public static class CatalogReleaseEventFactory
             Source = source,
             DedupeKey = CatalogReleaseEventDedupeKey.ForSeasonPremiere(tvShowId, seasonNumber)
         };
+
+    public static CatalogReleaseEvent CreateMovieReleasedEvent(
+        Guid movieId,
+        DateOnly releaseDate,
+        CatalogReleaseEventSource source,
+        DateTime detectedAtUtc) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            MovieId = movieId,
+            EventType = CatalogReleaseEventType.MovieReleased,
+            SeasonNumber = 0,
+            EpisodeNumber = null,
+            ReleaseAtUtc = ReleaseDateTime.ToReleaseAtUtc(releaseDate),
+            DetectedAtUtc = detectedAtUtc,
+            Source = source,
+            DedupeKey = CatalogReleaseEventDedupeKey.ForMovieReleased(movieId)
+        };
 }

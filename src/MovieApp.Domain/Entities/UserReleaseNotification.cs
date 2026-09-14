@@ -8,7 +8,9 @@ public sealed class UserReleaseNotification
 
     public Guid UserId { get; set; }
 
-    public Guid TvShowId { get; set; }
+    public Guid? TvShowId { get; set; }
+
+    public Guid? MovieId { get; set; }
 
     public UserReleaseNotificationType NotificationType { get; set; }
 
@@ -26,7 +28,9 @@ public sealed class UserReleaseNotification
 
     public User User { get; set; } = null!;
 
-    public TvShow TvShow { get; set; } = null!;
+    public TvShow? TvShow { get; set; }
+
+    public Movie? Movie { get; set; }
 
     public ICollection<UserReleaseNotificationEvent> NotificationEvents { get; set; } = [];
 }

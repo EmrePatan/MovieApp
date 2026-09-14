@@ -7,4 +7,7 @@ public static class CatalogReleaseEventDedupeKey
 
     public static string ForSeasonPremiere(Guid tvShowId, int seasonNumber) =>
         $"tv:{tvShowId}:season:{seasonNumber}:premiere";
+
+    public static string ForMovieReleased(Guid movieId) =>
+        $"movie:{movieId}:released";
 }

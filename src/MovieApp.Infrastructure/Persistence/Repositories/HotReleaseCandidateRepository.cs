@@ -16,9 +16,10 @@ public sealed class HotReleaseCandidateRepository(ApplicationDbContext dbContext
         var (windowStart, windowEnd) = HotReleaseCheckWindow.ForBoundary(boundaryDate);
         var boundaryAtUtc = ReleaseDateTime.ToReleaseAtUtc(boundaryDate);
 
-        var followedTvShowIds = dbContext.TvShowFollows
+        var followedTvShowIds = dbContext.CatalogFollows
             .AsNoTracking()
-            .Select(follow => follow.TvShowId)
+            .Where(follow => follow.ContentType == Domain.Enums.CatalogContentType.Tv)
+            .Select(follow => follow.ContentId)
             .Distinct();
 
         var candidates = await dbContext.TvShows

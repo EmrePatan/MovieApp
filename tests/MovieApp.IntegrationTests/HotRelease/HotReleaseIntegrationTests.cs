@@ -333,10 +333,10 @@ public sealed class HotReleaseIntegrationTests(HotReleaseFixture fixture)
             $"Hot Release {userSuffix}",
             DateTime.UtcNow);
         context.Users.Add(user);
-        var follow = TvShowFollow.Create(user.Id, tvShowId, true, true, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(user.Id, tvShowId, true, true, DateTime.UtcNow);
         follow.SetNotifyFromUtc(DateTime.UtcNow, DateTime.UtcNow);
         follow.EstablishBaseline(DateTime.UtcNow);
-        context.TvShowFollows.Add(follow);
+        context.CatalogFollows.Add(follow);
         await context.SaveChangesAsync();
     }
 

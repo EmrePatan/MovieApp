@@ -22,7 +22,7 @@ public sealed class HotReleaseFixture : IAsyncLifetime
         context.UserReleaseNotifications.RemoveRange(context.UserReleaseNotifications);
         context.CatalogReleaseEvents.RemoveRange(context.CatalogReleaseEvents);
         context.TvShowCatalogSyncStates.RemoveRange(context.TvShowCatalogSyncStates);
-        context.TvShowFollows.RemoveRange(context.TvShowFollows);
+        context.CatalogFollows.RemoveRange(context.CatalogFollows);
         context.Episodes.RemoveRange(context.Episodes);
         context.Seasons.RemoveRange(context.Seasons);
         context.TvShowGenres.RemoveRange(context.TvShowGenres);

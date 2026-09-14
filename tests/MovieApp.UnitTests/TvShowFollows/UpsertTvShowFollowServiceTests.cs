@@ -49,7 +49,7 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncUpdatesSinglePreferenceAndPreservesOther()
     {
         var repository = new FakeTvShowFollowRepository();
-        var existing = TvShowFollow.Create(UserId, TvShowId, true, true, DateTime.UtcNow);
+        var existing = CatalogFollow.CreateTvFollow(UserId, TvShowId, true, true, DateTime.UtcNow);
         repository.Seed(existing);
 
         var service = CreateService(repository, tvShowExists: true);
@@ -67,7 +67,7 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncThrowsValidationWhenUpdatingWithoutPreferences()
     {
         var repository = new FakeTvShowFollowRepository();
-        var existing = TvShowFollow.Create(UserId, TvShowId, true, true, DateTime.UtcNow);
+        var existing = CatalogFollow.CreateTvFollow(UserId, TvShowId, true, true, DateTime.UtcNow);
         existing.SetNotifyFromUtc(DateTime.UtcNow, DateTime.UtcNow);
         existing.EstablishBaseline(DateTime.UtcNow);
         repository.Seed(existing);
@@ -106,7 +106,7 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncEstablishedFollowUpdateDoesNotRerunBaseline()
     {
         var repository = new FakeTvShowFollowRepository();
-        var existing = TvShowFollow.Create(UserId, TvShowId, true, true, DateTime.UtcNow);
+        var existing = CatalogFollow.CreateTvFollow(UserId, TvShowId, true, true, DateTime.UtcNow);
         existing.SetNotifyFromUtc(DateTime.UtcNow, DateTime.UtcNow);
         existing.EstablishBaseline(DateTime.UtcNow);
         repository.Seed(existing);
@@ -123,7 +123,7 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncUnestablishedFollowRetriesBaseline()
     {
         var repository = new FakeTvShowFollowRepository();
-        var existing = TvShowFollow.Create(UserId, TvShowId, true, true, DateTime.UtcNow);
+        var existing = CatalogFollow.CreateTvFollow(UserId, TvShowId, true, true, DateTime.UtcNow);
         existing.SetNotifyFromUtc(new DateTime(2026, 9, 14, 21, 0, 0, DateTimeKind.Utc), DateTime.UtcNow);
         repository.Seed(existing);
 
@@ -191,27 +191,27 @@ public sealed class UpsertTvShowFollowServiceTests
 
     private sealed class ConcurrentWinTvShowFollowRepository : ITvShowFollowRepository
     {
-        private TvShowFollow? _follow;
+        private CatalogFollow? _follow;
 
-        public Task<TvShowFollow?> GetForUserAndTvShowAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_follow);
 
-        public Task<TvShowFollow?> GetForUserAndTvShowForUpdateAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowForUpdateAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_follow);
 
-        public Task<bool> TryAddAsync(TvShowFollow follow, CancellationToken cancellationToken = default)
+        public Task<bool> TryAddAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
         {
             if (_follow is null)
             {
-                _follow = TvShowFollow.Create(
+                _follow = CatalogFollow.CreateTvFollow(
                     follow.UserId,
-                    follow.TvShowId,
+                    follow.ContentId,
                     follow.NotifyNewSeasons,
                     follow.NotifyNewEpisodes,
                     follow.CreatedAt);
@@ -228,12 +228,12 @@ public sealed class UpsertTvShowFollowServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
-        public Task<(IReadOnlyList<TvShowFollow> Follows, int TotalCount)> GetUserFollowsAsync(
+        public Task<(IReadOnlyList<CatalogFollow> Follows, int TotalCount)> GetUserFollowsAsync(
             Guid userId,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<(IReadOnlyList<TvShowFollow>, int)>(([], 0));
+            Task.FromResult<(IReadOnlyList<CatalogFollow>, int)>(([], 0));
     }
 
     private sealed class FakeTvShowFollowBaselineService : ITvShowFollowBaselineService
@@ -242,7 +242,7 @@ public sealed class UpsertTvShowFollowServiceTests
 
         public bool ShouldFail { get; init; }
 
-        public Task EstablishAsync(TvShowFollow follow, CancellationToken cancellationToken = default)
+        public Task EstablishAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
         {
             EstablishCallCount++;
 
@@ -258,25 +258,25 @@ public sealed class UpsertTvShowFollowServiceTests
 
     private sealed class FakeTvShowFollowRepository : ITvShowFollowRepository
     {
-        private TvShowFollow? _follow;
+        private CatalogFollow? _follow;
 
-        public TvShowFollow? SeededFollow => _follow;
+        public CatalogFollow? SeededFollow => _follow;
 
-        public void Seed(TvShowFollow follow) => _follow = follow;
+        public void Seed(CatalogFollow follow) => _follow = follow;
 
-        public Task<TvShowFollow?> GetForUserAndTvShowAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_follow);
 
-        public Task<TvShowFollow?> GetForUserAndTvShowForUpdateAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowForUpdateAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_follow);
 
-        public Task<bool> TryAddAsync(TvShowFollow follow, CancellationToken cancellationToken = default)
+        public Task<bool> TryAddAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
         {
             if (_follow is not null)
             {
@@ -298,12 +298,12 @@ public sealed class UpsertTvShowFollowServiceTests
             return Task.FromResult(true);
         }
 
-        public Task<(IReadOnlyList<TvShowFollow> Follows, int TotalCount)> GetUserFollowsAsync(
+        public Task<(IReadOnlyList<CatalogFollow> Follows, int TotalCount)> GetUserFollowsAsync(
             Guid userId,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<(IReadOnlyList<TvShowFollow>, int)>(
-                (_follow is null ? [] : new List<TvShowFollow> { _follow }, _follow is null ? 0 : 1));
+            Task.FromResult<(IReadOnlyList<CatalogFollow>, int)>(
+                (_follow is null ? [] : new List<CatalogFollow> { _follow }, _follow is null ? 0 : 1));
     }
 }

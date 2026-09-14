@@ -6,7 +6,9 @@ public sealed class CatalogReleaseEvent
 {
     public Guid Id { get; set; }
 
-    public Guid TvShowId { get; set; }
+    public Guid? TvShowId { get; set; }
+
+    public Guid? MovieId { get; set; }
 
     public CatalogReleaseEventType EventType { get; set; }
 
@@ -22,7 +24,9 @@ public sealed class CatalogReleaseEvent
 
     public string DedupeKey { get; set; } = string.Empty;
 
-    public TvShow TvShow { get; set; } = null!;
+    public TvShow? TvShow { get; set; }
+
+    public Movie? Movie { get; set; }
 
     public ICollection<UserReleaseNotificationEvent> NotificationEvents { get; set; } = [];
 }

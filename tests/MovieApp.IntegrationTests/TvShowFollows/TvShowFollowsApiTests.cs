@@ -135,7 +135,7 @@ public sealed class TvShowFollowsApiTests(TvShowFollowsApiFixture fixture)
                     $"Iteration {iteration} returned unexpected status {response.StatusCode}"));
 
             await using var context = TvShowFollowsApiFixture.CreateContext();
-            var follow = await context.TvShowFollows.SingleAsync();
+            var follow = await context.CatalogFollows.SingleAsync();
             Assert.NotNull(follow.NotifyFromUtc);
             Assert.NotNull(follow.BaselineEstablishedAtUtc);
         }

@@ -23,7 +23,7 @@ public sealed class TvShowCatalogSyncStateFixture : IAsyncLifetime
         context.CatalogReleaseEvents.RemoveRange(context.CatalogReleaseEvents);
         context.TvShowCatalogSyncStates.RemoveRange(context.TvShowCatalogSyncStates);
         context.TmdbTvChangesSyncCheckpoints.RemoveRange(context.TmdbTvChangesSyncCheckpoints);
-        context.TvShowFollows.RemoveRange(context.TvShowFollows);
+        context.CatalogFollows.RemoveRange(context.CatalogFollows);
         context.Episodes.RemoveRange(context.Episodes);
         context.Seasons.RemoveRange(context.Seasons);
         context.TvShowGenres.RemoveRange(context.TvShowGenres);

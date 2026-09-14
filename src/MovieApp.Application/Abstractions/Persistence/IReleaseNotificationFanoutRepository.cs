@@ -9,12 +9,20 @@ public interface IReleaseNotificationFanoutRepository
         IReadOnlyCollection<Guid> catalogReleaseEventIds,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<TvShowFollow>> GetEstablishedFollowsByTvShowIdsAsync(
+    Task<IReadOnlyList<CatalogFollow>> GetEstablishedFollowsByTvShowIdsAsync(
         IReadOnlyCollection<Guid> tvShowIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CatalogFollow>> GetMovieFollowsByMovieIdsAsync(
+        IReadOnlyCollection<Guid> movieIds,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<Guid, string>> GetTvShowTitlesByIdsAsync(
         IReadOnlyCollection<Guid> tvShowIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<Guid, string>> GetMovieTitlesByIdsAsync(
+        IReadOnlyCollection<Guid> movieIds,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<UserReleaseNotification>> GetNotificationsByBucketsAsync(

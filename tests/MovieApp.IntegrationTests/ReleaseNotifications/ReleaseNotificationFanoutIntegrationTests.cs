@@ -273,12 +273,12 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
             UpdatedAt = DateTime.UtcNow
         });
 
-        var follow = TvShowFollow.Create(user.Id, tvShowId, true, notifyNewEpisodes, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(user.Id, tvShowId, true, notifyNewEpisodes, DateTime.UtcNow);
         follow.SetNotifyFromUtc(
             notifyFromUtc ?? new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
             DateTime.UtcNow);
         follow.EstablishBaseline(DateTime.UtcNow);
-        context.TvShowFollows.Add(follow);
+        context.CatalogFollows.Add(follow);
 
         var releaseEvent = CatalogReleaseEventFactory.CreateEpisodeEvent(
             tvShowId,
@@ -308,10 +308,10 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
             UpdatedAt = DateTime.UtcNow
         });
 
-        var follow = TvShowFollow.Create(user.Id, tvShowId, true, true, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(user.Id, tvShowId, true, true, DateTime.UtcNow);
         follow.SetNotifyFromUtc(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), DateTime.UtcNow);
         follow.EstablishBaseline(DateTime.UtcNow);
-        context.TvShowFollows.Add(follow);
+        context.CatalogFollows.Add(follow);
 
         var first = CatalogReleaseEventFactory.CreateEpisodeEvent(
             tvShowId, 1, 1, ReleaseDate, CatalogReleaseEventSource.BoundaryDetection, DateTime.UtcNow);
@@ -341,10 +341,10 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
 
         foreach (var user in new[] { userA, userB })
         {
-            var follow = TvShowFollow.Create(user.Id, tvShowId, true, true, DateTime.UtcNow);
+            var follow = CatalogFollow.CreateTvFollow(user.Id, tvShowId, true, true, DateTime.UtcNow);
             follow.SetNotifyFromUtc(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), DateTime.UtcNow);
             follow.EstablishBaseline(DateTime.UtcNow);
-            context.TvShowFollows.Add(follow);
+            context.CatalogFollows.Add(follow);
         }
 
         var releaseEvent = CatalogReleaseEventFactory.CreateEpisodeEvent(

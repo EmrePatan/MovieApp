@@ -52,8 +52,6 @@ public sealed class TvShow
 
     public ICollection<Review> Reviews { get; set; } = [];
 
-    public ICollection<TvShowFollow> TvShowFollows { get; set; } = [];
-
     public ICollection<CatalogReleaseEvent> CatalogReleaseEvents { get; set; } = [];
 
     public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];

@@ -1,14 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Configurations;
 
-internal sealed class TvShowFollowConfiguration : IEntityTypeConfiguration<TvShowFollow>
+internal sealed class CatalogFollowConfiguration : IEntityTypeConfiguration<CatalogFollow>
 {
-    public void Configure(EntityTypeBuilder<TvShowFollow> builder)
+    public void Configure(EntityTypeBuilder<CatalogFollow> builder)
     {
-        builder.ToTable("tv_show_follows");
+        builder.ToTable("catalog_follows");
 
         builder.HasKey(follow => follow.Id);
 
@@ -18,8 +19,17 @@ internal sealed class TvShowFollowConfiguration : IEntityTypeConfiguration<TvSho
         builder.Property(follow => follow.UserId)
             .IsRequired();
 
-        builder.Property(follow => follow.TvShowId)
+        builder.Property(follow => follow.ContentType)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(16);
+
+        builder.Property(follow => follow.ContentId)
             .IsRequired();
+
+        builder.Property(follow => follow.NotifyMovieRelease)
+            .IsRequired()
+            .HasDefaultValue(false);
 
         builder.Property(follow => follow.NotifyNewSeasons)
             .IsRequired()
@@ -36,20 +46,19 @@ internal sealed class TvShowFollowConfiguration : IEntityTypeConfiguration<TvSho
             .IsRequired();
 
         builder.HasOne(follow => follow.User)
-            .WithMany(user => user.TvShowFollows)
+            .WithMany(user => user.CatalogFollows)
             .HasForeignKey(follow => follow.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(follow => follow.TvShow)
-            .WithMany(tvShow => tvShow.TvShowFollows)
-            .HasForeignKey(follow => follow.TvShowId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(follow => follow.UserId);
 
-        builder.HasIndex(follow => follow.TvShowId);
+        builder.HasIndex(follow => new { follow.ContentType, follow.ContentId });
 
-        builder.HasIndex(follow => new { follow.UserId, follow.TvShowId })
+        builder.HasIndex(follow => new { follow.UserId, follow.ContentType, follow.ContentId })
             .IsUnique();
+
+        builder.ToTable(tableBuilder => tableBuilder.HasCheckConstraint(
+            "CK_catalog_follows_content_type",
+            "\"ContentType\" IN ('Movie', 'Tv')"));
     }
 }

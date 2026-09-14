@@ -44,7 +44,7 @@ public sealed class UpsertTvShowFollowService(
             var notifyNewSeasons = preferences.NotifyNewSeasons ?? true;
             var notifyNewEpisodes = preferences.NotifyNewEpisodes ?? true;
 
-            var follow = TvShowFollow.Create(
+            var follow = CatalogFollow.CreateTvFollow(
                 userId,
                 tvShowId,
                 notifyNewSeasons,
@@ -72,7 +72,7 @@ public sealed class UpsertTvShowFollowService(
     }
 
     private async Task<(TvShowFollowMutationResult, TvShowFollowStatusResult)> CompleteCreateAsync(
-        TvShowFollow follow,
+        CatalogFollow follow,
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
@@ -86,7 +86,7 @@ public sealed class UpsertTvShowFollowService(
     }
 
     private async Task<(TvShowFollowMutationResult, TvShowFollowStatusResult)> UpdateExistingAsync(
-        TvShowFollow follow,
+        CatalogFollow follow,
         TvShowFollowPreferencesUpdate preferences,
         DateTime utcNow,
         CancellationToken cancellationToken)
@@ -97,7 +97,7 @@ public sealed class UpsertTvShowFollowService(
             {
                 TvShowFollowValidator.ValidatePreferencesUpdate(preferences);
 
-                follow.UpdatePreferences(
+                follow.UpdateTvPreferences(
                     preferences.NotifyNewSeasons ?? follow.NotifyNewSeasons,
                     preferences.NotifyNewEpisodes ?? follow.NotifyNewEpisodes,
                     utcNow);
@@ -121,14 +121,14 @@ public sealed class UpsertTvShowFollowService(
         var notifyNewSeasons = preferences.NotifyNewSeasons ?? follow.NotifyNewSeasons;
         var notifyNewEpisodes = preferences.NotifyNewEpisodes ?? follow.NotifyNewEpisodes;
 
-        follow.UpdatePreferences(notifyNewSeasons, notifyNewEpisodes, utcNow);
+        follow.UpdateTvPreferences(notifyNewSeasons, notifyNewEpisodes, utcNow);
         await tvShowFollowRepository.SaveChangesAsync(cancellationToken);
 
         return (TvShowFollowMutationResult.Updated, ToStatusResult(follow));
     }
 
     private async Task TryEstablishBaselineAsync(
-        TvShowFollow follow,
+        CatalogFollow follow,
         CancellationToken cancellationToken)
     {
         try
@@ -149,7 +149,7 @@ public sealed class UpsertTvShowFollowService(
         }
     }
 
-    private async Task<TvShowFollow> GetRefreshedFollowAsync(
+    private async Task<CatalogFollow> GetRefreshedFollowAsync(
         Guid userId,
         Guid tvShowId,
         CancellationToken cancellationToken)
@@ -158,7 +158,7 @@ public sealed class UpsertTvShowFollowService(
             ?? throw new NotFoundException("The requested TV show follow was not found.");
     }
 
-    private static TvShowFollowStatusResult ToStatusResult(TvShowFollow follow) =>
+    private static TvShowFollowStatusResult ToStatusResult(CatalogFollow follow) =>
         new(
             IsFollowing: true,
             NotifyNewSeasons: follow.NotifyNewSeasons,

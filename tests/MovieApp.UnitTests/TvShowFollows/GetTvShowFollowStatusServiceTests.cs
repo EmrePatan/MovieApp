@@ -28,7 +28,7 @@ public sealed class GetTvShowFollowStatusServiceTests
     [Fact]
     public async Task GetAsyncReturnsFollowingState()
     {
-        var follow = TvShowFollow.Create(UserId, TvShowId, false, true, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(UserId, TvShowId, false, true, DateTime.UtcNow);
         var service = new GetTvShowFollowStatusService(
             new FakeCurrentUser(UserId),
             new FakeTvShowFollowRepository(follow));
@@ -48,21 +48,21 @@ public sealed class GetTvShowFollowStatusServiceTests
         public Guid? UserId => userId;
     }
 
-    private sealed class FakeTvShowFollowRepository(TvShowFollow? follow) : ITvShowFollowRepository
+    private sealed class FakeTvShowFollowRepository(CatalogFollow? follow) : ITvShowFollowRepository
     {
-        public Task<TvShowFollow?> GetForUserAndTvShowAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(follow);
 
-        public Task<TvShowFollow?> GetForUserAndTvShowForUpdateAsync(
+        public Task<CatalogFollow?> GetForUserAndTvShowForUpdateAsync(
             Guid userId,
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(follow);
 
-        public Task<bool> TryAddAsync(TvShowFollow follow, CancellationToken cancellationToken = default) =>
+        public Task<bool> TryAddAsync(CatalogFollow follow, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -73,11 +73,11 @@ public sealed class GetTvShowFollowStatusServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
 
-        public Task<(IReadOnlyList<TvShowFollow> Follows, int TotalCount)> GetUserFollowsAsync(
+        public Task<(IReadOnlyList<CatalogFollow> Follows, int TotalCount)> GetUserFollowsAsync(
             Guid userId,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<(IReadOnlyList<TvShowFollow>, int)>(([], 0));
+            Task.FromResult<(IReadOnlyList<CatalogFollow>, int)>(([], 0));
     }
 }

@@ -86,4 +86,15 @@ internal static partial class BackgroundJobLogMessages
         int delivered,
         int retryableFailures,
         int permanentFailures);
+
+    [LoggerMessage(
+        EventId = 6009,
+        Level = LogLevel.Information,
+        Message = "Movie release check completed: checked={MoviesChecked} events={ReleaseEventsCreated} providerFailures={SkippedProviderFailures} notReleased={SkippedNotReleased}")]
+    internal static partial void LogMovieReleaseCheckCompleted(
+        ILogger logger,
+        int moviesChecked,
+        int releaseEventsCreated,
+        int skippedProviderFailures,
+        int skippedNotReleased);
 }

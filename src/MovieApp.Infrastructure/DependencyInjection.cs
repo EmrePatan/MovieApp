@@ -133,7 +133,11 @@ public static class DependencyInjection
 
         services.AddScoped<IFavoriteRepository, FavoriteRepository>();
 
+        services.AddScoped<ICatalogFollowRepository, CatalogFollowRepository>();
+
         services.AddScoped<ITvShowFollowRepository, TvShowFollowRepository>();
+
+        services.AddScoped<ICatalogFollowCatalogRepository, CatalogFollowCatalogRepository>();
 
         services.AddScoped<ITvShowCatalogSyncStateRepository, TvShowCatalogSyncStateRepository>();
 

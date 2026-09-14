@@ -10,10 +10,11 @@ public sealed class FollowedTvShowCatalogRepository(ApplicationDbContext dbConte
         CancellationToken cancellationToken = default)
     {
         var rows = await (
-                from follow in dbContext.TvShowFollows.AsNoTracking()
-                join tvShow in dbContext.TvShows.AsNoTracking() on follow.TvShowId equals tvShow.Id
+                from follow in dbContext.CatalogFollows.AsNoTracking()
+                join tvShow in dbContext.TvShows.AsNoTracking() on follow.ContentId equals tvShow.Id
+                where follow.ContentType == Domain.Enums.CatalogContentType.Tv
                 where tvShow.TmdbId.HasValue
-                select new { tvShow.TmdbId, follow.TvShowId })
+                select new { tvShow.TmdbId, TvShowId = tvShow.Id })
             .Distinct()
             .ToListAsync(cancellationToken);
 

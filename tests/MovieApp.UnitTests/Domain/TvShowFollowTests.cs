@@ -11,7 +11,7 @@ public sealed class TvShowFollowTests
         var tvShowId = Guid.NewGuid();
         var utcNow = DateTime.UtcNow;
 
-        var follow = TvShowFollow.Create(userId, tvShowId, true, true, utcNow);
+        var follow = CatalogFollow.CreateTvFollow(userId, tvShowId, true, true, utcNow);
 
         Assert.True(follow.NotifyNewSeasons);
         Assert.True(follow.NotifyNewEpisodes);
@@ -23,10 +23,10 @@ public sealed class TvShowFollowTests
     [Fact]
     public void UpdatePreferencesUpdatesOnlyProvidedValues()
     {
-        var follow = TvShowFollow.Create(Guid.NewGuid(), Guid.NewGuid(), true, true, DateTime.UtcNow);
+        var follow = CatalogFollow.CreateTvFollow(Guid.NewGuid(), Guid.NewGuid(), true, true, DateTime.UtcNow);
         var updatedAt = DateTime.UtcNow.AddMinutes(1);
 
-        follow.UpdatePreferences(false, true, updatedAt);
+        follow.UpdateTvPreferences(false, true, updatedAt);
 
         Assert.False(follow.NotifyNewSeasons);
         Assert.True(follow.NotifyNewEpisodes);

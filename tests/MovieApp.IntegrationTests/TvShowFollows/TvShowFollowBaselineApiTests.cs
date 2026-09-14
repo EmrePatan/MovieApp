@@ -36,7 +36,7 @@ public sealed class TvShowFollowBaselineApiTests(TvShowFollowsApiFixture fixture
         Assert.True(status.BaselineEstablished);
 
         await using var context = TvShowFollowsApiFixture.CreateContext();
-        var follow = await context.TvShowFollows.SingleAsync();
+        var follow = await context.CatalogFollows.SingleAsync();
         Assert.NotNull(follow.NotifyFromUtc);
         Assert.NotNull(follow.BaselineEstablishedAtUtc);
     }
@@ -148,7 +148,7 @@ public sealed class TvShowFollowBaselineApiTests(TvShowFollowsApiFixture fixture
         DateTime? originalNotifyFromUtc;
         await using (var context = TvShowFollowsApiFixture.CreateContext())
         {
-            var follow = await context.TvShowFollows.SingleAsync();
+            var follow = await context.CatalogFollows.SingleAsync();
             originalNotifyFromUtc = follow.NotifyFromUtc;
             Assert.NotNull(originalNotifyFromUtc);
             Assert.Null(follow.BaselineEstablishedAtUtc);
@@ -171,7 +171,7 @@ public sealed class TvShowFollowBaselineApiTests(TvShowFollowsApiFixture fixture
         Assert.True(retryStatus.BaselineEstablished);
 
         await using var verifyContext = TvShowFollowsApiFixture.CreateContext();
-        var verifiedFollow = await verifyContext.TvShowFollows.SingleAsync();
+        var verifiedFollow = await verifyContext.CatalogFollows.SingleAsync();
         Assert.Equal(originalNotifyFromUtc, verifiedFollow.NotifyFromUtc);
         Assert.NotNull(verifiedFollow.BaselineEstablishedAtUtc);
     }
@@ -196,7 +196,7 @@ public sealed class TvShowFollowBaselineApiTests(TvShowFollowsApiFixture fixture
         Assert.Contains(responses, response => response.StatusCode == HttpStatusCode.Created);
 
         await using var context = TvShowFollowsApiFixture.CreateContext();
-        var follows = await context.TvShowFollows.ToListAsync();
+        var follows = await context.CatalogFollows.ToListAsync();
         Assert.Single(follows);
         Assert.NotNull(follows[0].NotifyFromUtc);
         Assert.NotNull(follows[0].BaselineEstablishedAtUtc);
