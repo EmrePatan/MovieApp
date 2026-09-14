@@ -9,6 +9,11 @@ public interface IMovieRepository
 
     Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
+        IReadOnlyList<int> tmdbIds,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<Movie> UpsertFromProviderAsync(
         MovieProviderDetails details,
         CancellationToken cancellationToken = default);

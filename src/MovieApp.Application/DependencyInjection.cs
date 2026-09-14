@@ -6,6 +6,7 @@ using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Services.Movies;
+using MovieApp.Application.Services.People;
 using MovieApp.Application.Services.Ratings;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
@@ -30,11 +31,14 @@ public static class DependencyInjection
     {
         services.AddScoped<ISearchMoviesService, SearchMoviesService>();
         services.AddScoped<IGetMovieByIdService, GetMovieByIdService>();
+        services.AddScoped<IGetMovieByTmdbIdService, GetMovieByTmdbIdService>();
         services.AddScoped<IGetMovieCreditsService, GetMovieCreditsService>();
         services.AddScoped<IGetMovieWatchProvidersService, GetMovieWatchProvidersService>();
+        services.AddScoped<IGetPersonByTmdbIdService, GetPersonByTmdbIdService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();
+        services.AddScoped<IGetTvShowByTmdbIdService, GetTvShowByTmdbIdService>();
         services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();
         services.AddScoped<ITvShowCatalogSyncStateService, TvShowCatalogSyncStateService>();
         services.AddScoped<IGetTvShowCreditsService, GetTvShowCreditsService>();

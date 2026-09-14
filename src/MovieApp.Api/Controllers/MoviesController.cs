@@ -16,6 +16,7 @@ namespace MovieApp.Api.Controllers;
 public sealed class MoviesController(
     ISearchMoviesService searchMoviesService,
     IGetMovieByIdService getMovieByIdService,
+    IGetMovieByTmdbIdService getMovieByTmdbIdService,
     IGetMovieCreditsService getMovieCreditsService,
     IGetMovieWatchProvidersService getMovieWatchProvidersService) : ControllerBase
 {
@@ -45,6 +46,34 @@ public sealed class MoviesController(
             return BadRequest(CreateProblemDetails(
                 StatusCodes.Status400BadRequest,
                 "Invalid search request.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("tmdb/{tmdbId:int}")]
+    [ProducesResponseType(typeof(MovieDetailsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MovieDetailsResponse>> GetByTmdbId(
+        int tmdbId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var movie = await getMovieByTmdbIdService.GetAsync(tmdbId, cancellationToken);
+            return Ok(MovieContractMapper.ToDetailsResponse(movie));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid movie request.",
                 exception.Message));
         }
     }

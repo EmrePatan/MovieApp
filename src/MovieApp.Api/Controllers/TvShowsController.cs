@@ -17,6 +17,7 @@ namespace MovieApp.Api.Controllers;
 public sealed class TvShowsController(
     ISearchTvShowsService searchTvShowsService,
     IGetTvShowByIdService getTvShowByIdService,
+    IGetTvShowByTmdbIdService getTvShowByTmdbIdService,
     IGetSeasonService getSeasonService,
     IGetEpisodeService getEpisodeService,
     IGetTvShowCreditsService getTvShowCreditsService,
@@ -48,6 +49,34 @@ public sealed class TvShowsController(
             return BadRequest(CreateProblemDetails(
                 StatusCodes.Status400BadRequest,
                 "Invalid search request.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("tmdb/{tmdbId:int}")]
+    [ProducesResponseType(typeof(TvShowDetailsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TvShowDetailsResponse>> GetByTmdbId(
+        int tmdbId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tvShow = await getTvShowByTmdbIdService.GetAsync(tmdbId, cancellationToken);
+            return Ok(TvShowContractMapper.ToDetailsResponse(tvShow));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid TV show request.",
                 exception.Message));
         }
     }

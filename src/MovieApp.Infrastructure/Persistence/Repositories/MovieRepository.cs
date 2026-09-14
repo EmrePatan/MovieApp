@@ -87,6 +87,30 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         return movie;
     }
 
+    public async Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
+        IReadOnlyList<int> tmdbIds,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctIds = tmdbIds
+            .Where(tmdbId => tmdbId > 0)
+            .Distinct()
+            .ToList();
+
+        if (distinctIds.Count == 0)
+        {
+            return new Dictionary<int, Guid>();
+        }
+
+        return await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movie.TmdbId.HasValue && distinctIds.Contains(movie.TmdbId.Value))
+            .Select(movie => new { movie.TmdbId, movie.Id })
+            .ToDictionaryAsync(
+                movie => movie.TmdbId!.Value,
+                movie => movie.Id,
+                cancellationToken);
+    }
+
     public async Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
         IReadOnlyList<MovieProviderSummary> summaries,
         CancellationToken cancellationToken = default)
@@ -102,21 +126,15 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
             return new Dictionary<int, Guid>();
         }
 
-        var existingIds = await dbContext.Movies
-            .AsNoTracking()
-            .Where(movie => movie.TmdbId.HasValue && tmdbIds.Contains(movie.TmdbId.Value))
-            .Select(movie => new { movie.TmdbId, movie.Id })
-            .ToDictionaryAsync(
-                movie => movie.TmdbId!.Value,
-                movie => movie.Id,
-                cancellationToken);
+        var existingIds = await GetExistingIdsByTmdbIdsAsync(tmdbIds, cancellationToken);
+        var mutableExistingIds = existingIds.ToDictionary(pair => pair.Key, pair => pair.Value);
 
         var utcNow = DateTime.UtcNow;
         var hasChanges = false;
 
         foreach (var summary in summaries)
         {
-            if (!summary.TmdbId.HasValue || existingIds.ContainsKey(summary.TmdbId.Value))
+            if (!summary.TmdbId.HasValue || mutableExistingIds.ContainsKey(summary.TmdbId.Value))
             {
                 continue;
             }
@@ -138,30 +156,23 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
             };
 
             dbContext.Movies.Add(movie);
-            existingIds[summary.TmdbId.Value] = movie.Id;
+            mutableExistingIds[summary.TmdbId.Value] = movie.Id;
             hasChanges = true;
         }
 
         if (!hasChanges)
         {
-            return existingIds;
+            return mutableExistingIds;
         }
 
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            return existingIds;
+            return mutableExistingIds;
         }
         catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
         {
-            return await dbContext.Movies
-                .AsNoTracking()
-                .Where(movie => movie.TmdbId.HasValue && tmdbIds.Contains(movie.TmdbId.Value))
-                .Select(movie => new { movie.TmdbId, movie.Id })
-                .ToDictionaryAsync(
-                    movie => movie.TmdbId!.Value,
-                    movie => movie.Id,
-                    cancellationToken);
+            return await GetExistingIdsByTmdbIdsAsync(tmdbIds, cancellationToken);
         }
     }
 

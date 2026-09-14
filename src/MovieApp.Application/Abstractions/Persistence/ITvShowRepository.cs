@@ -9,6 +9,11 @@ public interface ITvShowRepository
 
     Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
+        IReadOnlyList<int> tmdbIds,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<TvShow> UpsertFromProviderAsync(
         TvShowProviderDetails details,
         CancellationToken cancellationToken = default);
