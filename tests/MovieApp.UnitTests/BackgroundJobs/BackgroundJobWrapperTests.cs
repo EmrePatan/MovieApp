@@ -160,7 +160,7 @@ public sealed class BackgroundJobWrapperTests
 
     private sealed class FakeFanoutService : IReleaseNotificationFanoutService
     {
-        public IReadOnlyList<Guid> ProcessedIds { get; private set; } = [];
+        public List<Guid> ProcessedIds { get; private set; } = [];
 
         public Task<ReleaseNotificationFanoutResult> ProcessAsync(IReadOnlyCollection<Guid> catalogReleaseEventIds, CancellationToken cancellationToken = default)
         {
@@ -199,7 +199,7 @@ public sealed class BackgroundJobWrapperTests
 
     private sealed class FakePreparationService : IPushNotificationDeliveryPreparationService
     {
-        public IReadOnlyList<Guid> PreparedIds { get; private set; } = [];
+        public List<Guid> PreparedIds { get; private set; } = [];
 
         public Task<PushNotificationDeliveryPreparationResult> PrepareAsync(IReadOnlyCollection<Guid> userReleaseNotificationIds, CancellationToken cancellationToken = default)
         {

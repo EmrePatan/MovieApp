@@ -182,7 +182,7 @@ public sealed class ReleaseNotificationFanoutServiceTests
         await service.ProcessAsync([releaseEvent.Id]);
         var second = await service.ProcessAsync([releaseEvent.Id]);
 
-        Assert.Equal(1, repository.PersistedNotifications.Count);
+        Assert.Single(repository.PersistedNotifications);
         Assert.Equal(0, second.NotificationsCreated);
         Assert.Equal(0, second.EventLinksCreated);
     }
@@ -200,9 +200,9 @@ public sealed class ReleaseNotificationFanoutServiceTests
             service.ProcessAsync([releaseEvent.Id]),
             service.ProcessAsync([releaseEvent.Id]));
 
-        Assert.Equal(1, repository.PersistedNotifications.Count);
+        Assert.Single(repository.PersistedNotifications);
         Assert.Equal(1, repository.PersistedEventLinks.Sum());
-        Assert.True(results.Any(result => result.NotificationsCreated > 0));
+        Assert.Contains(results, result => result.NotificationsCreated > 0);
     }
 
     [Fact]

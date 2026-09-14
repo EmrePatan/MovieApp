@@ -292,7 +292,7 @@ internal static class SearchServiceTestsHelper
             Task.CompletedTask;
     }
 
-    internal class FakeSearchRepository : MovieApp.Application.Abstractions.Persistence.ISearchRepository
+    internal sealed class FakeSearchRepository : MovieApp.Application.Abstractions.Persistence.ISearchRepository
     {
         private readonly IReadOnlyList<SearchItem> _items;
         private readonly int _totalCount;
@@ -308,7 +308,7 @@ internal static class SearchServiceTestsHelper
 
         public int SearchCount => _searchCount;
 
-        public virtual Task<PaginatedResult<SearchItem>> SearchAsync(
+        public Task<PaginatedResult<SearchItem>> SearchAsync(
             SearchCriteria criteria,
             CancellationToken cancellationToken = default)
         {

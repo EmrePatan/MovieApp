@@ -135,7 +135,7 @@ public sealed class HotReleaseCandidateProcessorTests
         await processor.ProcessAsync(Candidate, Boundary);
 
         Assert.Equal(TvShowCatalogRefreshReason.HotRelease, Assert.Single(syncState.HotReleaseReasons));
-        Assert.NotNull(Assert.Single(syncState.HotReleaseRefreshedAtUtc));
+        Assert.Single(syncState.HotReleaseRefreshedAtUtc);
     }
 
     [Fact]

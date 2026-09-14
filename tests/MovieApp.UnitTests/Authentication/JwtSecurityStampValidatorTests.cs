@@ -61,8 +61,11 @@ public sealed class JwtSecurityStampValidatorTests
 
         await JwtSecurityStampValidator.ValidateAsync(context);
 
-        Assert.NotNull(context.Result.Failure);
-        Assert.Contains("revoked", context.Result.Failure.Message, StringComparison.OrdinalIgnoreCase);
+        var authenticateResult = context.Result;
+        Assert.NotNull(authenticateResult);
+        var failure = authenticateResult.Failure;
+        Assert.NotNull(failure);
+        Assert.Contains("revoked", failure.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static DefaultHttpContext CreateHttpContext(
