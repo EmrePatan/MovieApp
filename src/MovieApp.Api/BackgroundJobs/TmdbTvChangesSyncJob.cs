@@ -12,8 +12,8 @@ public sealed class TmdbTvChangesSyncJob(ITmdbTvChangesSyncService syncService, 
     {
         var result = await syncService.SyncAsync(DateTime.UtcNow);
 
-        logger.LogInformation(
-            "TMDB TV changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} refreshedShows={RefreshedShows} lastEndDate={LastEndDate}",
+        BackgroundJobLogMessages.LogTmdbTvChangesSyncCompleted(
+            logger,
             result.WindowsProcessed,
             result.ChangedTmdbIdsObserved,
             result.FollowedShowsRefreshed,

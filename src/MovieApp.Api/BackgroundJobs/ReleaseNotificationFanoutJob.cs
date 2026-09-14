@@ -22,14 +22,14 @@ public sealed class ReleaseNotificationFanoutJob(
 
         if (eventIds.Count == 0)
         {
-            logger.LogInformation("Release notification fanout completed: no pending events");
+            BackgroundJobLogMessages.LogReleaseNotificationFanoutNoPendingEvents(logger);
             return;
         }
 
         var result = await fanoutService.ProcessAsync(eventIds);
 
-        logger.LogInformation(
-            "Release notification fanout completed: events={EventsProcessed} discovered={Discovered} notifications={NotificationsCreated} links={LinksCreated} skippedPreference={SkippedPreference} skippedBoundary={SkippedBoundary} skippedSource={SkippedSource}",
+        BackgroundJobLogMessages.LogReleaseNotificationFanoutCompleted(
+            logger,
             result.EventsProcessed,
             eventIds.Count,
             result.NotificationsCreated,

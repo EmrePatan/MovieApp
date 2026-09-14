@@ -22,14 +22,14 @@ public sealed class PushDeliveryPreparationJob(
 
         if (notificationIds.Count == 0)
         {
-            logger.LogInformation("Push delivery preparation completed: no pending notifications");
+            BackgroundJobLogMessages.LogPushDeliveryPreparationNoPendingNotifications(logger);
             return;
         }
 
         var result = await preparationService.PrepareAsync(notificationIds);
 
-        logger.LogInformation(
-            "Push delivery preparation completed: discovered={Discovered} notifications={NotificationsProcessed} deliveriesCreated={DeliveriesCreated}",
+        BackgroundJobLogMessages.LogPushDeliveryPreparationCompleted(
+            logger,
             notificationIds.Count,
             result.NotificationsProcessed,
             result.DeliveriesCreated);

@@ -13,8 +13,8 @@ public sealed class PushReceiptJob(
     {
         var result = await receiptService.ProcessReceiptsAsync();
 
-        logger.LogInformation(
-            "Push receipt processing completed: processed={Processed} delivered={Delivered} retryableFailures={RetryableFailures} permanentFailures={PermanentFailures}",
+        BackgroundJobLogMessages.LogPushReceiptProcessingCompleted(
+            logger,
             result.ProcessedCount,
             result.DeliveredCount,
             result.RetryableFailureCount,

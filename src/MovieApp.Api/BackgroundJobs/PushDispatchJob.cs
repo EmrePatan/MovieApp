@@ -13,8 +13,8 @@ public sealed class PushDispatchJob(
     {
         var result = await dispatchService.DispatchDueAsync();
 
-        logger.LogInformation(
-            "Push dispatch completed: claimed={Claimed} sent={Sent} skipped={Skipped} retryableFailures={RetryableFailures} permanentFailures={PermanentFailures}",
+        BackgroundJobLogMessages.LogPushDispatchCompleted(
+            logger,
             result.ClaimedCount,
             result.SentCount,
             result.SkippedCount,

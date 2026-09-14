@@ -13,8 +13,8 @@ public sealed class HotReleaseCheckJob(IHotReleaseCheckService hotReleaseCheckSe
         var boundaryDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var result = await hotReleaseCheckService.RunAsync(boundaryDate);
 
-        logger.LogInformation(
-            "Hot release check completed: boundary={BoundaryDate} candidates={Candidates} checked={Checked} hydrated={Hydrated} events={Events} failures={Failures}",
+        BackgroundJobLogMessages.LogHotReleaseCheckCompleted(
+            logger,
             boundaryDate,
             result.Candidates,
             result.Checked,
