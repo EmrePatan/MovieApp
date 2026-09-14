@@ -393,7 +393,7 @@ public sealed class RecommendationService(
     }
 
     private async Task AggregateSimilarMovieSignalsAsync(
-        IReadOnlyList<UserBehaviorSignal> movieSignals,
+        List<UserBehaviorSignal> movieSignals,
         IReadOnlySet<Guid> excludedMovieIds,
         Dictionary<(Guid Id, string Type), RecommendationItem> aggregated,
         CancellationToken cancellationToken)
@@ -458,7 +458,7 @@ public sealed class RecommendationService(
     }
 
     private async Task AggregateSimilarTvSignalsAsync(
-        IReadOnlyList<UserBehaviorSignal> tvSignals,
+        List<UserBehaviorSignal> tvSignals,
         IReadOnlySet<Guid> excludedTvShowIds,
         Dictionary<(Guid Id, string Type), RecommendationItem> aggregated,
         CancellationToken cancellationToken)

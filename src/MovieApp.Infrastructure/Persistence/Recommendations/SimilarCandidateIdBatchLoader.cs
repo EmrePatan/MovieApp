@@ -106,7 +106,7 @@ internal sealed class SimilarCandidateIdBatchLoader(ApplicationDbContext dbConte
     }
 
     private static List<NpgsqlParameter> BuildParameters(
-        IReadOnlyList<SimilaritySourceGenreRequest> sources,
+        List<SimilaritySourceGenreRequest> sources,
         int maxCandidates)
     {
         var parameters = new List<NpgsqlParameter>

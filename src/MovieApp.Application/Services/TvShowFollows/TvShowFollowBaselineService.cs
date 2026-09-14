@@ -113,7 +113,7 @@ public sealed class TvShowFollowBaselineService(
         await tvShowFollowRepository.SaveChangesAsync(cancellationToken);
     }
 
-    private static IReadOnlyList<int> DetermineSeasonsToHydrate(
+    private static List<int> DetermineSeasonsToHydrate(
         IReadOnlyList<Season> seasons,
         DateOnly boundaryDate)
     {
@@ -141,7 +141,7 @@ public sealed class TvShowFollowBaselineService(
     private async Task HydrateSeasonsAsync(
         Guid tvShowId,
         string externalId,
-        IReadOnlyList<int> seasonNumbers,
+        List<int> seasonNumbers,
         CancellationToken cancellationToken)
     {
         for (var index = 0; index < seasonNumbers.Count; index += MaxConcurrentSeasonHydrations)

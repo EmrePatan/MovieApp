@@ -367,7 +367,7 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
     }
 
     private async Task<IReadOnlyList<Guid>> GetFullyWatchedTvShowIdsAsync(
-        IReadOnlyList<Guid> watchedEpisodeTvShowIds,
+        List<Guid> watchedEpisodeTvShowIds,
         CancellationToken cancellationToken)
     {
         if (watchedEpisodeTvShowIds.Count == 0)
