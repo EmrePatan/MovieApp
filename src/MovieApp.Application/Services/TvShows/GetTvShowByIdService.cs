@@ -8,7 +8,7 @@ using MovieApp.Application.Models.TvShows;
 namespace MovieApp.Application.Services.TvShows;
 
 public sealed class GetTvShowByIdService(
-    ITvShowRepository tvShowRepository,
+    ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     ICacheService cacheService) : IGetTvShowByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
@@ -19,17 +19,12 @@ public sealed class GetTvShowByIdService(
     {
         var cacheKey = TvShowDetailsCacheKeys.Create(id);
         var cachedEntry = await cacheService.GetAsync<TvShowDetailsCacheEntry>(cacheKey, cancellationToken);
-        if (cachedEntry is not null)
+        if (cachedEntry is not null && cachedEntry.Result.Seasons.Count > 0)
         {
             return cachedEntry.Result;
         }
 
-        var tvShow = await tvShowRepository.GetByIdAsync(id, cancellationToken);
-        if (tvShow is null)
-        {
-            throw new NotFoundException($"TV show with id '{id}' was not found.");
-        }
-
+        var tvShow = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(id, cancellationToken);
         var result = TvShowMapper.ToDetailsResult(tvShow);
 
         await cacheService.SetAsync(

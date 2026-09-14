@@ -74,6 +74,9 @@ public static class WatchHistoryContractMapper
             result.TotalEpisodes,
             result.WatchedEpisodes,
             result.ProgressPercentage,
+            result.RegularTotalEpisodes,
+            result.RegularWatchedEpisodes,
+            result.IsFullyWatched,
             result.NextEpisode is null
                 ? null
                 : new NextEpisodeResponse(

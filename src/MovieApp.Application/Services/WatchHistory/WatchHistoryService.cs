@@ -6,6 +6,7 @@ using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.WatchHistory;
+using MovieApp.Application.Services.TvShows;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 
@@ -19,6 +20,8 @@ public sealed class WatchHistoryService(
     IEpisodeRepository episodeRepository,
     ITvShowRepository tvShowRepository,
     ISeasonRepository seasonRepository,
+    IGetSeasonService getSeasonService,
+    ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     IProfileStatisticsCache profileStatisticsCache) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
@@ -199,6 +202,11 @@ public sealed class WatchHistoryService(
 
         var totalEpisodes = seasons.Sum(season => season.TotalEpisodes);
         var watchedEpisodes = seasons.Sum(season => season.WatchedEpisodes);
+        var regularSeasons = seasons.Where(season => season.SeasonNumber >= 1).ToList();
+        var regularTotalEpisodes = regularSeasons.Sum(season => season.TotalEpisodes);
+        var regularWatchedEpisodes = regularSeasons.Sum(season => season.WatchedEpisodes);
+        var isFullyWatched = regularTotalEpisodes > 0 &&
+                             regularWatchedEpisodes >= regularTotalEpisodes;
         var nextEpisode = await episodeRepository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId, cancellationToken);
 
         return new TvShowWatchProgressResult(
@@ -206,6 +214,9 @@ public sealed class WatchHistoryService(
             totalEpisodes,
             watchedEpisodes,
             WatchHistoryMapper.CalculateProgressPercentage(watchedEpisodes, totalEpisodes),
+            regularTotalEpisodes,
+            regularWatchedEpisodes,
+            isFullyWatched,
             WatchHistoryMapper.ToNextEpisodeResult(nextEpisode),
             seasons);
     }
@@ -392,6 +403,8 @@ public sealed class WatchHistoryService(
             throw new NotFoundException($"Season {seasonNumber} for TV show '{tvShowId}' was not found.");
         }
 
+        await getSeasonService.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+
         var episodeIds = await episodeRepository.GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
         if (episodeIds.Count == 0)
         {
@@ -414,8 +427,9 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+        await EnsureRegularSeasonEpisodesIngestedAsync(tvShowId, cancellationToken);
 
-        var episodeIds = await episodeRepository.GetEpisodeIdsForTvShowAsync(tvShowId, cancellationToken);
+        var episodeIds = await episodeRepository.GetEpisodeIdsForRegularSeasonsAsync(tvShowId, cancellationToken);
         if (episodeIds.Count == 0)
         {
             return new BulkUpdateEpisodeWatchStateResult(0, null);
@@ -428,6 +442,21 @@ public sealed class WatchHistoryService(
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
+    }
+
+    private async Task EnsureRegularSeasonEpisodesIngestedAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken)
+    {
+        var tvShow = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(tvShowId, cancellationToken);
+
+        foreach (var seasonNumber in tvShow.Seasons
+                     .Where(season => season.SeasonNumber >= 1)
+                     .Select(season => season.SeasonNumber)
+                     .OrderBy(seasonNumber => seasonNumber))
+        {
+            await getSeasonService.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+        }
     }
 
     private Task InvalidateProfileStatisticsAsync(Guid userId, CancellationToken cancellationToken) =>

@@ -102,10 +102,14 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
                                   watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
             .Select(tvShow => new
             {
-                TotalEpisodes = tvShow.Seasons.SelectMany(season => season.Episodes).Count(),
+                TotalEpisodes = tvShow.Seasons
+                    .Where(season => season.SeasonNumber >= 1)
+                    .SelectMany(season => season.Episodes)
+                    .Count(),
                 WatchedEpisodes = dbContext.WatchedEpisodes.Count(
                     watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id),
+                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
+                                      watchedEpisode.Episode.Season.SeasonNumber >= 1),
             })
             .CountAsync(
                 show => show.TotalEpisodes > 0 && show.WatchedEpisodes >= show.TotalEpisodes,
@@ -121,13 +125,18 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
                                   watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
             .Select(tvShow => new
             {
-                TotalEpisodes = tvShow.Seasons.SelectMany(season => season.Episodes).Count(),
+                TotalEpisodes = tvShow.Seasons
+                    .Where(season => season.SeasonNumber >= 1)
+                    .SelectMany(season => season.Episodes)
+                    .Count(),
                 WatchedEpisodes = dbContext.WatchedEpisodes.Count(
                     watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id),
+                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
+                                      watchedEpisode.Episode.Season.SeasonNumber >= 1),
                 LastWatchedAt = dbContext.WatchedEpisodes
                     .Where(watchedEpisode => watchedEpisode.UserId == userId &&
-                                             watchedEpisode.Episode.Season.TvShowId == tvShow.Id)
+                                             watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
+                                             watchedEpisode.Episode.Season.SeasonNumber >= 1)
                     .Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt),
             })
             .Where(show => show.TotalEpisodes > 0 &&

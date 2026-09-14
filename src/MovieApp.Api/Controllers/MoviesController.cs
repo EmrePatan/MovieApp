@@ -5,7 +5,9 @@ using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Movies;
+using MovieApp.Contracts.Credits;
 using MovieApp.Contracts.Movies;
+using MovieApp.Contracts.WatchProviders;
 
 namespace MovieApp.Api.Controllers;
 
@@ -13,7 +15,9 @@ namespace MovieApp.Api.Controllers;
 [Route("api/movies")]
 public sealed class MoviesController(
     ISearchMoviesService searchMoviesService,
-    IGetMovieByIdService getMovieByIdService) : ControllerBase
+    IGetMovieByIdService getMovieByIdService,
+    IGetMovieCreditsService getMovieCreditsService,
+    IGetMovieWatchProvidersService getMovieWatchProvidersService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.MovieSearch)]
@@ -56,6 +60,57 @@ public sealed class MoviesController(
         {
             var movie = await getMovieByIdService.GetByIdAsync(id, cancellationToken);
             return Ok(MovieContractMapper.ToDetailsResponse(movie));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/credits")]
+    [ProducesResponseType(typeof(CreditsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CreditsResponse>> GetCredits(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var credits = await getMovieCreditsService.GetCreditsAsync(id, cancellationToken);
+            return Ok(CreditsContractMapper.ToResponse(credits));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/watch-providers")]
+    [ProducesResponseType(typeof(WatchProvidersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WatchProvidersResponse>> GetWatchProviders(
+        Guid id,
+        [FromQuery] string? region,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var providers = await getMovieWatchProvidersService.GetWatchProvidersAsync(id, region, cancellationToken);
+            return Ok(WatchProvidersContractMapper.ToResponse(providers));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid watch provider request.",
+                exception.Message));
         }
         catch (NotFoundException exception)
         {

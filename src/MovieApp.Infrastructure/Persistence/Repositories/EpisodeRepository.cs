@@ -39,13 +39,21 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
-        return await dbContext.Episodes
+        var rows = await dbContext.Episodes
             .AsNoTracking()
             .Where(episode => episode.Season.TvShowId == tvShowId)
             .GroupBy(episode => episode.Season.SeasonNumber)
-            .Select(group => new SeasonEpisodeCountResult(group.Key, group.Count()))
-            .OrderBy(result => result.SeasonNumber)
+            .Select(group => new
+            {
+                SeasonNumber = group.Key,
+                EpisodeCount = group.Count(),
+            })
+            .OrderBy(row => row.SeasonNumber)
             .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new SeasonEpisodeCountResult(row.SeasonNumber, row.EpisodeCount))
+            .ToList();
     }
 
     public async Task<Episode?> GetFirstUnwatchedForTvShowAsync(
@@ -56,7 +64,9 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         return await dbContext.Episodes
             .AsNoTracking()
             .Include(episode => episode.Season)
-            .Where(episode => episode.Season.TvShowId == tvShowId)
+            .Where(episode =>
+                episode.Season.TvShowId == tvShowId &&
+                episode.Season.SeasonNumber >= 1)
             .Where(episode => !dbContext.WatchedEpisodes.Any(
                 watchedEpisode =>
                     watchedEpisode.UserId == userId &&
@@ -208,6 +218,21 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         return await dbContext.Episodes
             .AsNoTracking()
             .Where(episode => episode.Season.TvShowId == tvShowId)
+            .OrderBy(episode => episode.Season.SeasonNumber)
+            .ThenBy(episode => episode.EpisodeNumber)
+            .Select(episode => episode.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode =>
+                episode.Season.TvShowId == tvShowId &&
+                episode.Season.SeasonNumber >= 1)
             .OrderBy(episode => episode.Season.SeasonNumber)
             .ThenBy(episode => episode.EpisodeNumber)
             .Select(episode => episode.Id)

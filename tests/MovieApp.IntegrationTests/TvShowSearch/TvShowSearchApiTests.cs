@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MovieApp.Contracts.Search;
 using MovieApp.Contracts.TvShows;
+using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Providers;
 
@@ -80,6 +83,88 @@ public sealed class TvShowSearchApiTests(TvShowSearchApiFixture fixture)
         {
             var tracker = scope.ServiceProvider.GetRequiredService<TvShowDataProviderCallTracker>();
             Assert.Equal(1, tracker.SearchTvShowsCallCount);
+        }
+    }
+
+    [Fact]
+    public async Task GetTvShowByIdHydratesSeasonSummariesAfterUnifiedSearchIngestion()
+    {
+        await fixture.ResetAsync();
+
+        var searchResponse = await _client.GetAsync("/api/search?q=breaking&type=tv&page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+
+        var searchPayload = await searchResponse.Content.ReadFromJsonAsync<SearchResponse>();
+        Assert.NotNull(searchPayload);
+        Assert.Single(searchPayload.Items);
+        Assert.Equal("tv", searchPayload.Items[0].Type);
+
+        var tvShowId = searchPayload.Items[0].Id;
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(1, await context.TvShows.CountAsync());
+            Assert.Equal(0, await context.Seasons.CountAsync());
+            Assert.Equal(0, await context.Episodes.CountAsync());
+        }
+
+        var detailsResponse = await _client.GetAsync($"/api/tvshows/{tvShowId}");
+        Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+
+        var details = await detailsResponse.Content.ReadFromJsonAsync<TvShowDetailsResponse>();
+        Assert.NotNull(details);
+        Assert.Equal(3, details.Seasons.Count);
+        Assert.All(details.Seasons, season => Assert.True(season.SeasonNumber >= 1));
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(3, await context.Seasons.CountAsync());
+            Assert.Equal(0, await context.Episodes.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task GetTvShowByIdRepairsTvShowMissingSeasonRows()
+    {
+        await fixture.ResetAsync();
+
+        var tvShowId = Guid.NewGuid();
+        await using (var context = CreateContext())
+        {
+            context.TvShows.Add(new TvShow
+            {
+                Id = tvShowId,
+                TmdbId = FakeTvShowDataProvider.BreakingBadTmdbId,
+                TvdbId = FakeTvShowDataProvider.BreakingBadTvdbId,
+                ImdbId = FakeTvShowDataProvider.BreakingBadImdbId,
+                Title = "Breaking Bad",
+                OriginalTitle = "Breaking Bad",
+                Overview = "Existing row without seasons.",
+                FirstAirDate = new DateOnly(2008, 1, 20),
+                PosterPath = "/fake/breaking-bad-poster.jpg",
+                BackdropPath = "/fake/breaking-bad-backdrop.jpg",
+                OriginalLanguage = "en",
+                VoteAverage = 9.5m,
+                VoteCount = 12000,
+                Status = TvShowStatus.Ended,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
+            await context.SaveChangesAsync();
+            Assert.Equal(0, await context.Seasons.CountAsync());
+        }
+
+        var detailsResponse = await _client.GetAsync($"/api/tvshows/{tvShowId}");
+        Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+
+        var details = await detailsResponse.Content.ReadFromJsonAsync<TvShowDetailsResponse>();
+        Assert.NotNull(details);
+        Assert.Equal(3, details.Seasons.Count);
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(3, await context.Seasons.CountAsync());
+            Assert.Equal(0, await context.Episodes.CountAsync());
         }
     }
 

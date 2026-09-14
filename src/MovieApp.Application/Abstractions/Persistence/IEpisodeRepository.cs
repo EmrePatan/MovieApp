@@ -58,4 +58,8 @@ public interface IEpisodeRepository
     Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
         Guid tvShowId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
 }

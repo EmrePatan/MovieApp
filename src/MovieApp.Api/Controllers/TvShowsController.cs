@@ -6,7 +6,9 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Services.TvShows;
+using MovieApp.Contracts.Credits;
 using MovieApp.Contracts.TvShows;
+using MovieApp.Contracts.WatchProviders;
 
 namespace MovieApp.Api.Controllers;
 
@@ -16,7 +18,9 @@ public sealed class TvShowsController(
     ISearchTvShowsService searchTvShowsService,
     IGetTvShowByIdService getTvShowByIdService,
     IGetSeasonService getSeasonService,
-    IGetEpisodeService getEpisodeService) : ControllerBase
+    IGetEpisodeService getEpisodeService,
+    IGetTvShowCreditsService getTvShowCreditsService,
+    IGetTvShowWatchProvidersService getTvShowWatchProvidersService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.TvSearch)]
@@ -59,6 +63,57 @@ public sealed class TvShowsController(
         {
             var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
             return Ok(TvShowContractMapper.ToDetailsResponse(tvShow));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/credits")]
+    [ProducesResponseType(typeof(CreditsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CreditsResponse>> GetCredits(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var credits = await getTvShowCreditsService.GetCreditsAsync(id, cancellationToken);
+            return Ok(CreditsContractMapper.ToResponse(credits));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/watch-providers")]
+    [ProducesResponseType(typeof(WatchProvidersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WatchProvidersResponse>> GetWatchProviders(
+        Guid id,
+        [FromQuery] string? region,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var providers = await getTvShowWatchProvidersService.GetWatchProvidersAsync(id, region, cancellationToken);
+            return Ok(WatchProvidersContractMapper.ToResponse(providers));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid watch provider request.",
+                exception.Message));
         }
         catch (NotFoundException exception)
         {

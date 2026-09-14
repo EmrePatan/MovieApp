@@ -21,9 +21,14 @@ public static class DependencyInjection
     {
         services.AddScoped<ISearchMoviesService, SearchMoviesService>();
         services.AddScoped<IGetMovieByIdService, GetMovieByIdService>();
+        services.AddScoped<IGetMovieCreditsService, GetMovieCreditsService>();
+        services.AddScoped<IGetMovieWatchProvidersService, GetMovieWatchProvidersService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();
+        services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();
+        services.AddScoped<IGetTvShowCreditsService, GetTvShowCreditsService>();
+        services.AddScoped<IGetTvShowWatchProvidersService, GetTvShowWatchProvidersService>();
         services.AddScoped<IGetSeasonService, GetSeasonService>();
         services.AddScoped<IGetEpisodeService, GetEpisodeService>();
 

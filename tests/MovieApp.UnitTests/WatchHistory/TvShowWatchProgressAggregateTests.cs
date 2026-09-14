@@ -4,6 +4,8 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.WatchHistory;
+using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.TvShows;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 
@@ -27,12 +29,17 @@ public sealed class TvShowWatchProgressAggregateTests
                 episodeCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13, [0] = 2 }),
             new FakeTvShowRepository(CreateTvShow()),
             new FakeSeasonRepository(),
+            new FakeGetSeasonService(),
+            new FakeSeasonSummaryHydrator(),
             new FakeProfileStatisticsCache());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
         Assert.Equal(23, result.TotalEpisodes);
         Assert.Equal(20, result.WatchedEpisodes);
+        Assert.Equal(21, result.RegularTotalEpisodes);
+        Assert.Equal(20, result.RegularWatchedEpisodes);
+        Assert.False(result.IsFullyWatched);
         Assert.Equal(3, result.Seasons.Count);
         Assert.Contains(result.Seasons, season => season.SeasonNumber == 0 && season.TotalEpisodes == 2);
         Assert.Contains(
@@ -41,6 +48,81 @@ public sealed class TvShowWatchProgressAggregateTests
         Assert.Contains(
             result.Seasons,
             season => season.SeasonNumber == 2 && season.WatchedEpisodes == 12 && season.ProgressPercentage == 92.31m);
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateIngestsRegularSeasonsBeforeBulkMark()
+    {
+        var getSeasonService = new TrackingGetSeasonService();
+        var tvShow = CreateTvShow();
+        tvShow.Seasons =
+        [
+            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+        ];
+        var service = new WatchHistoryService(
+            new FakeCurrentUser(UserId),
+            new FakeWatchedMovieRepository(),
+            new TrackingWatchedEpisodeRepository(),
+            new FakeMovieRepository(),
+            new TrackingEpisodeRepository(),
+            new FakeTvShowRepository(tvShow),
+            new FakeSeasonRepository(),
+            getSeasonService,
+            new FakeSeasonSummaryHydrator(tvShow),
+            new FakeProfileStatisticsCache());
+
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+
+        Assert.Equal([1, 2], getSeasonService.IngestedSeasonNumbers);
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateUsesRegularSeasonEpisodesOnly()
+    {
+        var episodeRepository = new TrackingEpisodeRepository();
+        var watchedEpisodeRepository = new TrackingWatchedEpisodeRepository();
+        var service = new WatchHistoryService(
+            new FakeCurrentUser(UserId),
+            new FakeWatchedMovieRepository(),
+            watchedEpisodeRepository,
+            new FakeMovieRepository(),
+            episodeRepository,
+            new FakeTvShowRepository(CreateTvShow()),
+            new FakeSeasonRepository(),
+            new FakeGetSeasonService(),
+            new FakeSeasonSummaryHydrator(),
+            new FakeProfileStatisticsCache());
+
+        var result = await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+
+        Assert.Equal(2, result.AffectedCount);
+        Assert.Equal([Guid.Parse("11111111-1111-1111-1111-111111111101"), Guid.Parse("11111111-1111-1111-1111-111111111102")], episodeRepository.RegularSeasonEpisodeIdsRequested);
+        Assert.Equal(1, watchedEpisodeRepository.BulkMarkCalls);
+    }
+
+    [Fact]
+    public async Task GetTvShowWatchProgressAsyncMarksFullyWatchedWhenOnlyRegularSeasonsComplete()
+    {
+        var service = new WatchHistoryService(
+            new FakeCurrentUser(UserId),
+            new FakeWatchedMovieRepository(),
+            new FakeWatchedEpisodeRepository(
+                watchedCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13 }),
+            new FakeMovieRepository(),
+            new FakeEpisodeRepository(
+                episodeCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13, [0] = 2 }),
+            new FakeTvShowRepository(CreateTvShow()),
+            new FakeSeasonRepository(),
+            new FakeGetSeasonService(),
+            new FakeSeasonSummaryHydrator(),
+            new FakeProfileStatisticsCache());
+
+        var result = await service.GetTvShowWatchProgressAsync(TvShowId);
+
+        Assert.True(result.IsFullyWatched);
+        Assert.Equal(21, result.RegularTotalEpisodes);
+        Assert.Equal(21, result.RegularWatchedEpisodes);
     }
 
     [Fact]
@@ -56,6 +138,8 @@ public sealed class TvShowWatchProgressAggregateTests
             episodeRepository,
             new FakeTvShowRepository(CreateTvShow()),
             new FakeSeasonRepository(),
+            new FakeGetSeasonService(),
+            new FakeSeasonSummaryHydrator(),
             new FakeProfileStatisticsCache());
 
         await service.GetTvShowWatchProgressAsync(TvShowId);
@@ -174,7 +258,7 @@ public sealed class TvShowWatchProgressAggregateTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeWatchedEpisodeRepository(
+    private class FakeWatchedEpisodeRepository(
         IReadOnlyDictionary<int, int>? watchedCountsBySeason = null) : IWatchedEpisodeRepository
     {
         private readonly IReadOnlyDictionary<int, int> _watchedCountsBySeason =
@@ -254,14 +338,14 @@ public sealed class TvShowWatchProgressAggregateTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Guid>>([]);
 
-        public Task<int> BulkMarkWatchedAsync(
+        public virtual Task<int> BulkMarkWatchedAsync(
             Guid userId,
             IReadOnlyList<Guid> episodeIds,
             DateTime watchedAt,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(episodeIds.Count);
 
-        public Task<int> BulkUnmarkWatchedAsync(
+        public virtual Task<int> BulkUnmarkWatchedAsync(
             Guid userId,
             IReadOnlyList<Guid> episodeIds,
             CancellationToken cancellationToken = default) =>
@@ -364,13 +448,13 @@ public sealed class TvShowWatchProgressAggregateTests
             Task.FromResult(0);
     }
 
-    private sealed class FakeEpisodeRepository(
+    private class FakeEpisodeRepository(
         IReadOnlyDictionary<int, int>? episodeCountsBySeason = null) : IEpisodeRepository
     {
         private readonly IReadOnlyDictionary<int, int> _episodeCountsBySeason =
             episodeCountsBySeason ?? new Dictionary<int, int>();
 
-        public Task<Episode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        public virtual Task<Episode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<Episode?>(null);
 
         public Task<int> CountByTvShowIdAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
@@ -435,6 +519,11 @@ public sealed class TvShowWatchProgressAggregateTests
             Task.FromResult<IReadOnlyList<Guid>>([]);
 
         public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public virtual Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Guid>>([]);
@@ -516,5 +605,88 @@ public sealed class TvShowWatchProgressAggregateTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+    }
+
+    private sealed class TrackingEpisodeRepository : FakeEpisodeRepository
+    {
+        private static readonly Guid Season1EpisodeId = Guid.Parse("11111111-1111-1111-1111-111111111101");
+        private static readonly Guid Season2EpisodeId = Guid.Parse("11111111-1111-1111-1111-111111111102");
+
+        public IReadOnlyList<Guid> RegularSeasonEpisodeIdsRequested { get; private set; } = [];
+
+        public override Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default)
+        {
+            RegularSeasonEpisodeIdsRequested = [Season1EpisodeId, Season2EpisodeId];
+            return Task.FromResult<IReadOnlyList<Guid>>(RegularSeasonEpisodeIdsRequested);
+        }
+    }
+
+    private sealed class TrackingWatchedEpisodeRepository : FakeWatchedEpisodeRepository
+    {
+        public int BulkMarkCalls { get; private set; }
+
+        public override Task<int> BulkMarkWatchedAsync(
+            Guid userId,
+            IReadOnlyList<Guid> episodeIds,
+            DateTime watchedAt,
+            CancellationToken cancellationToken = default)
+        {
+            BulkMarkCalls++;
+            return base.BulkMarkWatchedAsync(userId, episodeIds, watchedAt, cancellationToken);
+        }
+    }
+
+    private sealed class FakeSeasonSummaryHydrator : ITvShowSeasonSummaryHydrator
+    {
+        private readonly TvShow _tvShow;
+
+        public FakeSeasonSummaryHydrator(TvShow? tvShow = null) =>
+            _tvShow = tvShow ?? CreateTvShow();
+
+        public Task<TvShow> EnsureSeasonSummariesAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_tvShow);
+    }
+
+    private sealed class FakeGetSeasonService : IGetSeasonService
+    {
+        public Task<SeasonResult> GetSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SeasonResult(
+                Guid.NewGuid(),
+                tvShowId,
+                seasonNumber,
+                $"Season {seasonNumber}",
+                null,
+                null,
+                0,
+                null,
+                []));
+    }
+
+    private sealed class TrackingGetSeasonService : IGetSeasonService
+    {
+        private readonly FakeGetSeasonService _inner = new();
+
+        public List<int> IngestedSeasonNumbers { get; } = [];
+
+        public async Task<SeasonResult> GetSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default)
+        {
+            IngestedSeasonNumbers.Add(seasonNumber);
+            return await _inner.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+        }
     }
 }

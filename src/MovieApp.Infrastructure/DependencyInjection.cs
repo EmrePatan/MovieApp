@@ -74,6 +74,8 @@ public static class DependencyInjection
 
         services.AddTvShowDataProviders(configuration);
 
+        services.AddDetailProviders(configuration);
+
 
 
         var postgreSqlOptions = configuration

@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using MovieApp.Contracts.Auth;
 using MovieApp.Contracts.Movies;
+using MovieApp.Contracts.Search;
 using MovieApp.Contracts.TvShows;
 using MovieApp.Contracts.WatchHistory;
+using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.IntegrationTests.WatchHistory;
 
@@ -320,6 +323,64 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
     }
 
     [Fact]
+    public async Task BulkUpdateTvShowWatchStateHydratesSeasonsForSummaryIngestedTvShow()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("tv-watch-summary");
+        var tvShowId = await SeedSummaryOnlyTvShowAsync();
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(0, await context.Seasons.CountAsync());
+            Assert.Equal(0, await context.Episodes.CountAsync());
+        }
+
+        var response = await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/watch-state",
+            token,
+            new SetWatchStateRequest(true));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<BulkUpdateEpisodeWatchStateResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload.AffectedCount > 0);
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(3, await context.Seasons.CountAsync());
+            Assert.True(await context.Episodes.CountAsync() > 0);
+        }
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateIngestsEpisodesBeforeMarkingWatched()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("tv-watch-state");
+        var tvShowId = await SeedTvShowAsync();
+
+        var response = await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/watch-state",
+            token,
+            new SetWatchStateRequest(true));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<BulkUpdateEpisodeWatchStateResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload.AffectedCount > 0);
+
+        var progress = await SendAuthorizedGetAsync($"/api/watch-history/tvshows/{tvShowId}", token);
+        var progressPayload = await progress.Content.ReadFromJsonAsync<TvShowWatchProgressResponse>();
+        Assert.NotNull(progressPayload);
+        Assert.True(progressPayload.RegularWatchedEpisodes > 0);
+        Assert.True(progressPayload.IsFullyWatched);
+    }
+
+    [Fact]
     public async Task MarkThroughEpisodeMarksAllPriorEpisodesAcrossSeasons()
     {
         await fixture.ResetAsync();
@@ -390,6 +451,27 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
         Assert.NotNull(payload);
         Assert.NotEmpty(payload.Items);
         return payload.Items[0].Id;
+    }
+
+    private async Task<Guid> SeedSummaryOnlyTvShowAsync()
+    {
+        var response = await _client.GetAsync("/api/search?q=breaking&type=tv&page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Items);
+        Assert.Equal("tv", payload.Items[0].Type);
+        return payload.Items[0].Id;
+    }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(WatchHistoryIntegrationDatabase.GetConnectionString())
+            .Options;
+
+        return new ApplicationDbContext(options);
     }
 
     private async Task<Guid> SeedTvShowWithAllEpisodesAsync()

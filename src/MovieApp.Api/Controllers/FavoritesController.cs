@@ -168,6 +168,46 @@ public sealed class FavoritesController(
         }
     }
 
+    [HttpPost("status/batch")]
+    [ProducesResponseType(typeof(BatchFavoriteStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<BatchFavoriteStatusResponse>> GetBatchFavoriteStatus(
+        [FromBody] BatchFavoriteStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var references = request.Items
+                .Select(item => new FavoriteContentReference(item.ContentType, item.Id))
+                .ToList();
+
+            var results = await getFavoriteStatusService.GetBatchStatusAsync(references, cancellationToken);
+
+            return Ok(new BatchFavoriteStatusResponse(
+                results
+                    .Select(result => new BatchFavoriteStatusItemResponse(
+                        result.ContentType,
+                        result.Id,
+                        result.IsFavorited))
+                    .ToList()));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid favorite status request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(FavoritesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

@@ -1,5 +1,7 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Favorites;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Domain.Entities;
 
@@ -37,6 +39,44 @@ public sealed class GetFavoriteStatusServiceTests
         Assert.Equal(tvShowId, repository.LastTvShowId);
     }
 
+    [Fact]
+    public async Task GetBatchStatusAsyncReturnsStatusesForMoviesAndTvShows()
+    {
+        var userId = Guid.NewGuid();
+        var movieId = Guid.NewGuid();
+        var tvShowId = Guid.NewGuid();
+        var repository = new FakeFavoriteRepository
+        {
+            FavoritedMovieIds = new HashSet<Guid> { movieId },
+            FavoritedTvShowIds = new HashSet<Guid>(),
+        };
+        var service = new GetFavoriteStatusService(new FakeCurrentUser(userId), repository);
+
+        var results = await service.GetBatchStatusAsync(
+        [
+            new FavoriteContentReference("movie", movieId),
+            new FavoriteContentReference("tv", tvShowId),
+        ]);
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, result => result.ContentType == "movie" && result.Id == movieId && result.IsFavorited);
+        Assert.Contains(results, result => result.ContentType == "tv" && result.Id == tvShowId && !result.IsFavorited);
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsyncRejectsTooManyItems()
+    {
+        var service = new GetFavoriteStatusService(
+            new FakeCurrentUser(Guid.NewGuid()),
+            new FakeFavoriteRepository());
+
+        var items = Enumerable.Range(0, 21)
+            .Select(index => new FavoriteContentReference("movie", Guid.NewGuid()))
+            .ToList();
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.GetBatchStatusAsync(items));
+    }
+
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
         public bool IsAuthenticated => true;
@@ -69,6 +109,22 @@ public sealed class GetFavoriteStatusServiceTests
             LastTvShowId = tvShowId;
             return Task.FromResult(TvShowStatus);
         }
+
+        public IReadOnlySet<Guid> FavoritedMovieIds { get; init; } = new HashSet<Guid>();
+
+        public IReadOnlySet<Guid> FavoritedTvShowIds { get; init; } = new HashSet<Guid>();
+
+        public Task<IReadOnlySet<Guid>> GetFavoritedMovieIdsAsync(
+            Guid userId,
+            IReadOnlyCollection<Guid> movieIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<Guid>>(FavoritedMovieIds);
+
+        public Task<IReadOnlySet<Guid>> GetFavoritedTvShowIdsAsync(
+            Guid userId,
+            IReadOnlyCollection<Guid> tvShowIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<Guid>>(FavoritedTvShowIds);
 
         public Task<bool> TryAddAsync(Favorite favorite, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);

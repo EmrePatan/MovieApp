@@ -128,15 +128,23 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
-        return await dbContext.WatchedEpisodes
+        var rows = await dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode =>
                 watchedEpisode.UserId == userId &&
                 watchedEpisode.Episode.Season.TvShowId == tvShowId)
             .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.SeasonNumber)
-            .Select(group => new SeasonEpisodeCountResult(group.Key, group.Count()))
-            .OrderBy(result => result.SeasonNumber)
+            .Select(group => new
+            {
+                SeasonNumber = group.Key,
+                EpisodeCount = group.Count(),
+            })
+            .OrderBy(row => row.SeasonNumber)
             .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new SeasonEpisodeCountResult(row.SeasonNumber, row.EpisodeCount))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<(
@@ -209,6 +217,7 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
         var items = await watchedShows
             .Where(show => dbContext.Episodes.Any(episode =>
                 episode.Season.TvShowId == show.TvShowId &&
+                episode.Season.SeasonNumber >= 1 &&
                 !dbContext.WatchedEpisodes.Any(watchedEpisode =>
                     watchedEpisode.UserId == userId &&
                     watchedEpisode.EpisodeId == episode.Id)))

@@ -92,6 +92,18 @@ public sealed class AddMovieFavoriteServiceTests
         public Task<bool> ExistsForTvShowAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
+        public Task<IReadOnlySet<Guid>> GetFavoritedMovieIdsAsync(
+            Guid userId,
+            IReadOnlyCollection<Guid> movieIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
+
+        public Task<IReadOnlySet<Guid>> GetFavoritedTvShowIdsAsync(
+            Guid userId,
+            IReadOnlyCollection<Guid> tvShowIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
+
         public Task<bool> TryAddAsync(Favorite favorite, CancellationToken cancellationToken = default) =>
             Task.FromResult(tryAddReturns);
 

@@ -30,6 +30,50 @@ public sealed class FavoriteRepository(ApplicationDbContext dbContext) : IFavori
                 cancellationToken);
     }
 
+    public async Task<IReadOnlySet<Guid>> GetFavoritedMovieIdsAsync(
+        Guid userId,
+        IReadOnlyCollection<Guid> movieIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (movieIds.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var favoritedIds = await dbContext.Favorites
+            .AsNoTracking()
+            .Where(favorite =>
+                favorite.UserId == userId &&
+                favorite.MovieId.HasValue &&
+                movieIds.Contains(favorite.MovieId.Value))
+            .Select(favorite => favorite.MovieId!.Value)
+            .ToListAsync(cancellationToken);
+
+        return favoritedIds.ToHashSet();
+    }
+
+    public async Task<IReadOnlySet<Guid>> GetFavoritedTvShowIdsAsync(
+        Guid userId,
+        IReadOnlyCollection<Guid> tvShowIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (tvShowIds.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var favoritedIds = await dbContext.Favorites
+            .AsNoTracking()
+            .Where(favorite =>
+                favorite.UserId == userId &&
+                favorite.TvShowId.HasValue &&
+                tvShowIds.Contains(favorite.TvShowId.Value))
+            .Select(favorite => favorite.TvShowId!.Value)
+            .ToListAsync(cancellationToken);
+
+        return favoritedIds.ToHashSet();
+    }
+
     public async Task<bool> TryAddAsync(Favorite favorite, CancellationToken cancellationToken = default)
     {
         favorite.ValidateInvariants();
