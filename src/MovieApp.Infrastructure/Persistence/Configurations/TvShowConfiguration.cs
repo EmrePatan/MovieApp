@@ -50,6 +50,8 @@ internal sealed class TvShowConfiguration : IEntityTypeConfiguration<TvShow>
         builder.Property(tvShow => tvShow.UpdatedAt)
             .IsRequired();
 
+        builder.Property(tvShow => tvShow.KeywordsSyncedAtUtc);
+
         builder.HasIndex(tvShow => tvShow.TmdbId).AsUniqueExternalIdIndex("TmdbId");
         builder.HasIndex(tvShow => tvShow.TvdbId).AsUniqueExternalIdIndex("TvdbId");
         builder.HasIndex(tvShow => tvShow.ImdbId).AsUniqueExternalIdIndex("ImdbId");

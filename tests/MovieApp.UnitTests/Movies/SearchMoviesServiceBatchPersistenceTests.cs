@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Keywords;
 using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Movies;
@@ -21,7 +22,7 @@ public sealed class SearchMoviesServiceBatchPersistenceTests
         var provider = new CountingMovieDataProvider(CreateSummaries(3));
         var service = new SearchMoviesService(
             provider,
-            repository,
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(repository),
             new SearchServiceTestsHelper.FakeCacheService(null),
             Options.Create(new SearchOptions
             {

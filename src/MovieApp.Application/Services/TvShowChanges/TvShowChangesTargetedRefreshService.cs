@@ -4,11 +4,13 @@ using MovieApp.Application.Abstractions.ReleaseDetection;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.ReleaseDetection;
+using MovieApp.Application.Services.Keywords;
 
 namespace MovieApp.Application.Services.TvShowChanges;
 
 public sealed class TvShowChangesTargetedRefreshService(
     ITvShowRepository tvShowRepository,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
     ISeasonRepository seasonRepository,
     ITvShowDataProvider tvShowDataProvider,
     ITvShowExternalIdResolver externalIdResolver,
@@ -42,7 +44,10 @@ public sealed class TvShowChangesTargetedRefreshService(
                 $"Provider TV show details were unavailable for TV show '{tvShowId}'.");
         }
 
-        await tvShowRepository.UpsertFromProviderAsync(providerDetails, cancellationToken);
+        await catalogProviderUpsertService.UpsertTvShowFromProviderAsync(
+            providerDetails,
+            enrichKeywords: true,
+            cancellationToken);
 
         var seasons = await releaseDetectionCatalogRepository.GetSeasonsWithEpisodesAsync(
             tvShowId,

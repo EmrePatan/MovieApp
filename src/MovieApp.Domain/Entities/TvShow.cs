@@ -38,7 +38,11 @@ public sealed class TvShow
 
     public DateTime UpdatedAt { get; set; }
 
+    public DateTime? KeywordsSyncedAtUtc { get; set; }
+
     public ICollection<TvShowGenre> TvShowGenres { get; set; } = [];
+
+    public ICollection<TvShowKeyword> TvShowKeywords { get; set; } = [];
 
     public ICollection<TvShowPerson> TvShowPeople { get; set; } = [];
 

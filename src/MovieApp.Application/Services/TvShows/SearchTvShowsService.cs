@@ -10,6 +10,7 @@ using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Enums;
@@ -18,7 +19,7 @@ namespace MovieApp.Application.Services.TvShows;
 
 public sealed class SearchTvShowsService(
     ITvShowDataProvider tvShowDataProvider,
-    ITvShowRepository tvShowRepository,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
     ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService,
     IOptions<SearchOptions> searchOptions) : ISearchTvShowsService
@@ -80,7 +81,7 @@ public sealed class SearchTvShowsService(
 
         var persistedResults = await SearchDetailPersistenceHelper.PersistTvShowSearchResultsAsync(
             detailsToPersist,
-            tvShowRepository,
+            catalogProviderUpsertService,
             cancellationToken);
 
         if (persistedResults.Count > 0)

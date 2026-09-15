@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.UnitTests.Keywords;
 
 namespace MovieApp.UnitTests.TvShows;
 
@@ -17,7 +18,7 @@ public sealed class TvShowSeasonSummaryHydratorTests
     {
         var repository = new FakeTvShowRepository(CreateTvShowWithoutSeasons());
         var provider = new FakeTvShowDataProvider();
-        var hydrator = new TvShowSeasonSummaryHydrator(repository, provider, new FakeExternalIdResolver());
+        var hydrator = CreateHydrator(repository, provider);
 
         var hydrationResult = await hydrator.EnsureSeasonSummariesAsync(TvShowId);
 
@@ -42,7 +43,7 @@ public sealed class TvShowSeasonSummaryHydratorTests
         });
         var repository = new FakeTvShowRepository(tvShow);
         var provider = new FakeTvShowDataProvider();
-        var hydrator = new TvShowSeasonSummaryHydrator(repository, provider, new FakeExternalIdResolver());
+        var hydrator = CreateHydrator(repository, provider);
 
         var hydrationResult = await hydrator.EnsureSeasonSummariesAsync(TvShowId);
 
@@ -55,14 +56,21 @@ public sealed class TvShowSeasonSummaryHydratorTests
     [Fact]
     public async Task EnsureSeasonSummariesAsyncThrowsWhenTvShowMissing()
     {
-        var hydrator = new TvShowSeasonSummaryHydrator(
-            new FakeTvShowRepository(null),
-            new FakeTvShowDataProvider(),
-            new FakeExternalIdResolver());
+        var hydrator = CreateHydrator(new FakeTvShowRepository(null), new FakeTvShowDataProvider());
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             hydrator.EnsureSeasonSummariesAsync(TvShowId));
     }
+
+    private static TvShowSeasonSummaryHydrator CreateHydrator(
+        FakeTvShowRepository repository,
+        FakeTvShowDataProvider provider) =>
+        new(
+            repository,
+            provider,
+            new FakeExternalIdResolver(),
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(tvShowRepository: repository),
+            CatalogProviderUpsertTestDoubles.CreateNoOpKeywordIngestionService());
 
     private static TvShow CreateTvShowWithoutSeasons() =>
         new()

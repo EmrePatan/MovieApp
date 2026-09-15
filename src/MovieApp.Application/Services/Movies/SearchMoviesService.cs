@@ -9,6 +9,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
@@ -17,7 +18,7 @@ namespace MovieApp.Application.Services.Movies;
 
 public sealed class SearchMoviesService(
     IMovieDataProvider movieDataProvider,
-    IMovieRepository movieRepository,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService,
     IOptions<SearchOptions> searchOptions,
     ILogger<SearchMoviesService> logger) : ISearchMoviesService
@@ -80,7 +81,7 @@ public sealed class SearchMoviesService(
         var persistedResults = await SearchDetailPersistenceHelper.PersistMovieSearchResultsAsync(
             detailsToPersist,
             providerSearchResult.Results,
-            movieRepository,
+            catalogProviderUpsertService,
             logger,
             cancellationToken);
 

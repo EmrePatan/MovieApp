@@ -8,8 +8,10 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Keywords;
 
 namespace MovieApp.UnitTests.Movies;
 
@@ -26,7 +28,8 @@ public sealed class SearchMoviesServiceTests
 
         var service = CreateService(
             new FakeMovieDataProvider(summaries),
-            new ConflictOnSecondUpsertMovieRepository(),
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(
+                new ConflictOnSecondUpsertMovieRepository()),
             new FakeCacheService(null));
 
         var result = await service.SearchAsync(new MovieSearchRequest("duplicate-imdb", 1, 20));
@@ -43,7 +46,8 @@ public sealed class SearchMoviesServiceTests
 
         var service = CreateService(
             new FakeMovieDataProvider(summaries),
-            new ThrowingMovieRepository(new InvalidOperationException("database unavailable")),
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(
+                new ThrowingMovieRepository(new InvalidOperationException("database unavailable"))),
             new FakeCacheService(null));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -52,12 +56,12 @@ public sealed class SearchMoviesServiceTests
 
     private static SearchMoviesService CreateService(
         IMovieDataProvider movieDataProvider,
-        IMovieRepository movieRepository,
+        ICatalogProviderUpsertService catalogProviderUpsertService,
         ICacheService cacheService,
         SearchOptions? searchOptions = null) =>
         new(
             movieDataProvider,
-            movieRepository,
+            catalogProviderUpsertService,
             cacheService,
             Options.Create(searchOptions ?? new SearchOptions()),
             NullLogger<SearchMoviesService>.Instance);

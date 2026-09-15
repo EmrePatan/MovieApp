@@ -3,12 +3,15 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Services.Keywords;
 
 namespace MovieApp.Application.Services.Movies;
 
 public sealed class GetMovieByTmdbIdService(
     IMovieRepository movieRepository,
     IMovieDataProvider movieDataProvider,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
+    ICatalogKeywordIngestionService catalogKeywordIngestionService,
     IGetMovieByIdService getMovieByIdService) : IGetMovieByTmdbIdService
 {
     public async Task<MovieDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default)
@@ -30,7 +33,17 @@ public sealed class GetMovieByTmdbIdService(
                 throw new NotFoundException("The requested movie was not found.");
             }
 
-            movie = await movieRepository.UpsertFromProviderAsync(providerDetails, cancellationToken);
+            movie = await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
+                providerDetails,
+                enrichKeywords: true,
+                cancellationToken);
+        }
+        else
+        {
+            await catalogKeywordIngestionService.TryEnrichMovieKeywordsAsync(
+                movie.Id,
+                refreshKeywords: false,
+                cancellationToken);
         }
 
         return await getMovieByIdService.GetByIdAsync(movie.Id, cancellationToken);

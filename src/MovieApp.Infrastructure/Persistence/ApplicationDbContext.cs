@@ -17,6 +17,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<TvShowGenre> TvShowGenres => Set<TvShowGenre>();
 
+    public DbSet<Keyword> Keywords => Set<Keyword>();
+
+    public DbSet<MovieKeyword> MovieKeywords => Set<MovieKeyword>();
+
+    public DbSet<TvShowKeyword> TvShowKeywords => Set<TvShowKeyword>();
+
     public DbSet<Person> People => Set<Person>();
 
     public DbSet<MoviePerson> MoviePeople => Set<MoviePerson>();

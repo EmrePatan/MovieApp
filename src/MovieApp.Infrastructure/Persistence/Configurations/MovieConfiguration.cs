@@ -55,6 +55,8 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(movie => movie.UpdatedAt)
             .IsRequired();
 
+        builder.Property(movie => movie.KeywordsSyncedAtUtc);
+
         builder.HasIndex(movie => movie.TmdbId).AsUniqueExternalIdIndex("TmdbId");
         builder.HasIndex(movie => movie.TvdbId).AsUniqueExternalIdIndex("TvdbId");
         builder.HasIndex(movie => movie.ImdbId).AsUniqueExternalIdIndex("ImdbId");

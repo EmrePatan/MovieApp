@@ -2,8 +2,10 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.ReleaseDetection;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.MovieRelease;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Keywords;
 using MovieApp.Domain.Enums;
 using MovieApp.Domain.Notifications;
 
@@ -144,10 +146,12 @@ public sealed class MovieReleaseCheckServiceTests
     {
         releaseRepository ??= new FakeCatalogReleaseEventRepository();
 
+        var movieRepository = new FakeMovieRepository(movie);
         return new MovieReleaseCheckService(
             new FakeCatalogFollowRepository(followedMovieIds),
-            new FakeMovieRepository(movie),
+            movieRepository,
             provider,
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(movieRepository),
             releaseRepository);
     }
 

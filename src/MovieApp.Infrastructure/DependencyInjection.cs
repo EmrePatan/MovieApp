@@ -119,6 +119,8 @@ public static class DependencyInjection
 
         services.AddScoped<IMovieRepository, MovieRepository>();
 
+        services.AddScoped<IKeywordCatalogRepository, KeywordCatalogRepository>();
+
         services.AddScoped<IPersonRepository, PersonRepository>();
 
         services.AddScoped<ITvShowRepository, TvShowRepository>();

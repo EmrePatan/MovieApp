@@ -42,7 +42,11 @@ public sealed class Movie
 
     public DateTime UpdatedAt { get; set; }
 
+    public DateTime? KeywordsSyncedAtUtc { get; set; }
+
     public ICollection<MovieGenre> MovieGenres { get; set; } = [];
+
+    public ICollection<MovieKeyword> MovieKeywords { get; set; } = [];
 
     public ICollection<MoviePerson> MoviePeople { get; set; } = [];
 

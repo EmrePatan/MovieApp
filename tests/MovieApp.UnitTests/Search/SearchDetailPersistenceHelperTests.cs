@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 
@@ -20,7 +20,7 @@ public sealed class SearchDetailPersistenceHelperTests
             SearchDetailPersistenceHelper.PersistMovieSearchResultsAsync(
                 details,
                 summaries,
-                new ThrowingMovieRepository(new InvalidOperationException("database unavailable")),
+                new ThrowingCatalogProviderUpsertService(new InvalidOperationException("database unavailable")),
                 NullLogger.Instance,
                 CancellationToken.None));
     }
@@ -39,13 +39,13 @@ public sealed class SearchDetailPersistenceHelperTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var repository = new ConflictThenThrowOnSecondSingleUpsertRepository();
+        var upsertService = new ConflictThenThrowOnSecondSingleUpsertService();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             SearchDetailPersistenceHelper.PersistMovieSearchResultsAsync(
                 details,
                 summaries,
-                repository,
+                upsertService,
                 NullLogger.Instance,
                 cts.Token));
     }
@@ -81,39 +81,47 @@ public sealed class SearchDetailPersistenceHelperTests
             8.0m,
             100);
 
-    private sealed class ThrowingMovieRepository(Exception exception) : IMovieRepository
+    private sealed class ThrowingCatalogProviderUpsertService(Exception exception) : ICatalogProviderUpsertService
     {
-        public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Movie?>(null);
-
-        public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Movie?>(null);
-
-        public Task<Movie> UpsertFromProviderAsync(MovieProviderDetails details, CancellationToken cancellationToken = default) =>
-            throw exception;
-
-        public Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
-            IReadOnlyList<MovieProviderDetails> details,
+        public Task<Movie> UpsertMovieFromProviderAsync(
+            MovieProviderDetails details,
+            bool enrichKeywords = false,
             CancellationToken cancellationToken = default) =>
             throw exception;
+
+        public Task<IReadOnlyList<Movie>> UpsertMoviesFromProviderBatchAsync(
+            IReadOnlyList<MovieProviderDetails> details,
+            bool enrichKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw exception;
+
+        public Task<TvShow> UpsertTvShowFromProviderAsync(
+            TvShowProviderDetails details,
+            bool enrichKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<TvShow>> UpsertTvShowsFromProviderBatchAsync(
+            IReadOnlyList<TvShowProviderDetails> details,
+            bool enrichKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
-    private sealed class ConflictThenThrowOnSecondSingleUpsertRepository : IMovieRepository
+    private sealed class ConflictThenThrowOnSecondSingleUpsertService : ICatalogProviderUpsertService
     {
         private int _singleUpsertCount;
 
-        public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Movie?>(null);
-
-        public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Movie?>(null);
-
-        public Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+        public Task<IReadOnlyList<Movie>> UpsertMoviesFromProviderBatchAsync(
             IReadOnlyList<MovieProviderDetails> details,
+            bool enrichKeywords = false,
             CancellationToken cancellationToken = default) =>
             throw new MovieExternalIdPersistenceConflictException(null, string.Empty);
 
-        public Task<Movie> UpsertFromProviderAsync(MovieProviderDetails details, CancellationToken cancellationToken = default)
+        public Task<Movie> UpsertMovieFromProviderAsync(
+            MovieProviderDetails details,
+            bool enrichKeywords = false,
+            CancellationToken cancellationToken = default)
         {
             _singleUpsertCount++;
             cancellationToken.ThrowIfCancellationRequested();
@@ -130,5 +138,17 @@ public sealed class SearchDetailPersistenceHelperTests
 
             throw new OperationCanceledException();
         }
+
+        public Task<TvShow> UpsertTvShowFromProviderAsync(
+            TvShowProviderDetails details,
+            bool enrichKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<TvShow>> UpsertTvShowsFromProviderBatchAsync(
+            IReadOnlyList<TvShowProviderDetails> details,
+            bool enrichKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

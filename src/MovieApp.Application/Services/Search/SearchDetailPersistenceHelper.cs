@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
-using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Movies;
 
 namespace MovieApp.Application.Services.Search;
@@ -14,7 +14,7 @@ internal static class SearchDetailPersistenceHelper
     internal static async Task<IReadOnlyList<MovieSearchResult>> PersistMovieSearchResultsAsync(
         IReadOnlyList<MovieProviderDetails> details,
         IReadOnlyList<MovieProviderSummary> summaries,
-        IMovieRepository movieRepository,
+        ICatalogProviderUpsertService catalogProviderUpsertService,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -25,7 +25,9 @@ internal static class SearchDetailPersistenceHelper
 
         try
         {
-            var movies = await movieRepository.UpsertFromProviderBatchAsync(details, cancellationToken);
+            var movies = await catalogProviderUpsertService.UpsertMoviesFromProviderBatchAsync(
+                details,
+                cancellationToken: cancellationToken);
             return movies.Select(MovieMapper.ToSearchResult).ToList();
         }
         catch (MovieExternalIdPersistenceConflictException)
@@ -33,7 +35,7 @@ internal static class SearchDetailPersistenceHelper
             return await PersistMovieSearchResultsIndividuallyAsync(
                 details,
                 summaries,
-                movieRepository,
+                catalogProviderUpsertService,
                 logger,
                 cancellationToken);
         }
@@ -41,7 +43,7 @@ internal static class SearchDetailPersistenceHelper
 
     internal static async Task<IReadOnlyList<TvShowSearchResult>> PersistTvShowSearchResultsAsync(
         IReadOnlyList<TvShowProviderDetails> details,
-        ITvShowRepository tvShowRepository,
+        ICatalogProviderUpsertService catalogProviderUpsertService,
         CancellationToken cancellationToken)
     {
         if (details.Count == 0)
@@ -49,14 +51,16 @@ internal static class SearchDetailPersistenceHelper
             return [];
         }
 
-        var tvShows = await tvShowRepository.UpsertFromProviderBatchAsync(details, cancellationToken);
+        var tvShows = await catalogProviderUpsertService.UpsertTvShowsFromProviderBatchAsync(
+            details,
+            cancellationToken: cancellationToken);
         return tvShows.Select(TvShowMapper.ToSearchResult).ToList();
     }
 
     private static async Task<IReadOnlyList<MovieSearchResult>> PersistMovieSearchResultsIndividuallyAsync(
         IReadOnlyList<MovieProviderDetails> details,
         IReadOnlyList<MovieProviderSummary> summaries,
-        IMovieRepository movieRepository,
+        ICatalogProviderUpsertService catalogProviderUpsertService,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -70,7 +74,9 @@ internal static class SearchDetailPersistenceHelper
 
             try
             {
-                var movie = await movieRepository.UpsertFromProviderAsync(detail, cancellationToken);
+                var movie = await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
+                    detail,
+                    cancellationToken: cancellationToken);
                 results.Add(MovieMapper.ToSearchResult(movie));
             }
             catch (MovieExternalIdPersistenceConflictException)

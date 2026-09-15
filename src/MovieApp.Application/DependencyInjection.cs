@@ -27,6 +27,7 @@ using MovieApp.Application.Services.MovieRelease;
 using MovieApp.Application.Services.Watchlists;
 using MovieApp.Application.Services.Collections;
 using MovieApp.Application.Services.Notifications;
+using MovieApp.Application.Services.Keywords;
 
 namespace MovieApp.Application;
 
@@ -121,6 +122,8 @@ public static class DependencyInjection
         services.AddScoped<IDiscoveryService, DiscoveryService>();
         services.AddScoped<IDiscoverBrowseService, DiscoverBrowseService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
+        services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
+        services.AddScoped<ICatalogProviderUpsertService, CatalogProviderUpsertService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<ISearchHistoryService, SearchHistoryService>();
         services.AddScoped<IRecommendationService, RecommendationService>();

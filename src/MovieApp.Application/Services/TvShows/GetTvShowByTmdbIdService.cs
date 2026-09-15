@@ -3,12 +3,15 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.Keywords;
 
 namespace MovieApp.Application.Services.TvShows;
 
 public sealed class GetTvShowByTmdbIdService(
     ITvShowRepository tvShowRepository,
     ITvShowDataProvider tvShowDataProvider,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
+    ICatalogKeywordIngestionService catalogKeywordIngestionService,
     IGetTvShowByIdService getTvShowByIdService) : IGetTvShowByTmdbIdService
 {
     public async Task<TvShowDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default)
@@ -30,7 +33,17 @@ public sealed class GetTvShowByTmdbIdService(
                 throw new NotFoundException("The requested TV show was not found.");
             }
 
-            tvShow = await tvShowRepository.UpsertFromProviderAsync(providerDetails, cancellationToken);
+            tvShow = await catalogProviderUpsertService.UpsertTvShowFromProviderAsync(
+                providerDetails,
+                enrichKeywords: true,
+                cancellationToken);
+        }
+        else
+        {
+            await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
+                tvShow.Id,
+                refreshKeywords: false,
+                cancellationToken);
         }
 
         return await getTvShowByIdService.GetByIdAsync(tvShow.Id, cancellationToken);

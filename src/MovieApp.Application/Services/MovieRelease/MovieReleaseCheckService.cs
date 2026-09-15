@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Domain.Enums;
 using MovieApp.Domain.Notifications;
 
@@ -9,6 +10,7 @@ public sealed class MovieReleaseCheckService(
     ICatalogFollowRepository catalogFollowRepository,
     IMovieRepository movieRepository,
     IMovieDataProvider movieDataProvider,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
     ICatalogReleaseEventRepository catalogReleaseEventRepository) : IMovieReleaseCheckService
 {
     private static readonly TimeSpan ReleaseDateRefreshThreshold = TimeSpan.FromHours(24);
@@ -102,7 +104,9 @@ public sealed class MovieReleaseCheckService(
             return null;
         }
 
-        return await movieRepository.UpsertFromProviderAsync(providerDetails, cancellationToken);
+        return await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
+            providerDetails,
+            cancellationToken: cancellationToken);
     }
 
     private static bool ShouldRefreshReleaseDate(Domain.Entities.Movie movie)
