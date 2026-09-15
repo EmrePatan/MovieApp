@@ -6,7 +6,7 @@ public static class HomeCacheKeys
 {
     public const string Prefix = "home:";
 
-    public const string Version = "v4";
+    public const string Version = "v5";
 
     public static string Create(Guid userId, SearchContentType type, int sectionSize) =>
         $"{Prefix}{userId}:{type}:{sectionSize}:{Version}";

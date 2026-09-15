@@ -18,9 +18,10 @@ public interface ICatalogFollowCatalogRepository
         string region,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedTvUpcomingEpisodesAsync(
+    Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedUpcomingForHomeAsync(
         Guid userId,
         DateOnly today,
+        string region,
         int limit,
         CancellationToken cancellationToken = default);
 }

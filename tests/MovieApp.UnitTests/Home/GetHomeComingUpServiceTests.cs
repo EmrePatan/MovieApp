@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Services.Home;
 using MovieApp.Domain.Enums;
@@ -51,7 +53,7 @@ public sealed class GetHomeComingUpServiceTests
     private static GetHomeComingUpService CreateService(
         ICurrentUser currentUser,
         ICatalogFollowCatalogRepository repository) =>
-        new(currentUser, repository);
+        new(currentUser, repository, Options.Create(new ReleaseRegionOptions()));
 
     private sealed class FakeCurrentUser(bool isAuthenticated, Guid? userId) : ICurrentUser
     {
@@ -83,9 +85,10 @@ public sealed class GetHomeComingUpServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedTvUpcomingEpisodesAsync(
+        public Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedUpcomingForHomeAsync(
             Guid userId,
             DateOnly today,
+            string region,
             int limit,
             CancellationToken cancellationToken = default)
         {

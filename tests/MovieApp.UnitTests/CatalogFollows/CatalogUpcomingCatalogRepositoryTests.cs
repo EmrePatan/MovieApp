@@ -217,7 +217,34 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
     }
 
     [Fact]
-    public async Task GetFollowedTvUpcomingEpisodesAsync_LimitsResultsToRequestedCount()
+    public async Task GetFollowedUpcomingForHomeAsync_IncludesFollowedFutureMovieRelease()
+    {
+        await using var context = CreateContext();
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Future Movie",
+            PosterPath = "/movie.jpg",
+            ReleaseDate = Today.AddDays(5),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.CatalogFollows.Add(CatalogFollow.CreateMovieFollow(UserId, movieId, utcNow));
+        await context.SaveChangesAsync();
+
+        var repository = new CatalogFollowCatalogRepository(context);
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        var movie = Assert.Single(items);
+        Assert.Equal(CatalogUpcomingKind.MovieRelease, movie.UpcomingKind);
+        Assert.Equal("Future Movie", movie.Title);
+        Assert.True(movie.IsFollowed);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_LimitsResultsToRequestedCount()
     {
         await using var context = CreateContext();
         for (var index = 0; index < 7; index++)
@@ -230,14 +257,41 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
         }
 
         var repository = new CatalogFollowCatalogRepository(context);
-        var items = await repository.GetFollowedTvUpcomingEpisodesAsync(UserId, Today, 5);
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
 
         Assert.Equal(5, items.Count);
         Assert.All(items, item => Assert.Equal(CatalogUpcomingKind.TvEpisode, item.UpcomingKind));
     }
 
     [Fact]
-    public async Task GetFollowedTvUpcomingEpisodesAsync_OrdersNearestAirDateFirst()
+    public async Task GetFollowedUpcomingForHomeAsync_OrdersNearestAirDateFirstAcrossMoviesAndEpisodes()
+    {
+        await using var context = CreateContext();
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Soon Movie",
+            ReleaseDate = Today.AddDays(1),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.CatalogFollows.Add(CatalogFollow.CreateMovieFollow(UserId, movieId, utcNow));
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Later Show",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(10), name: "Later")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        Assert.Equal(["Soon Movie", "Later Show"], items.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_OrdersNearestAirDateFirst()
     {
         await using var context = CreateContext();
         await SeedTvShowWithEpisodesAsync(
@@ -252,7 +306,7 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
             episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(2), name: "Sooner")]);
         var repository = new CatalogFollowCatalogRepository(context);
 
-        var items = await repository.GetFollowedTvUpcomingEpisodesAsync(UserId, Today, 5);
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
 
         Assert.Equal(["Sooner", "Later"], items.Select(item => item.Title).ToList());
     }

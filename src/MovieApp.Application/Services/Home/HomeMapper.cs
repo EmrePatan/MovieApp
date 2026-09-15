@@ -47,7 +47,7 @@ internal static class HomeMapper
     public static HomeItem FromUpcomingItem(CatalogUpcomingItemResult item) =>
         new(
             item.ContentId,
-            "tv",
+            item.ContentType == Domain.Enums.CatalogContentType.Movie ? "movie" : "tv",
             item.Title,
             null,
             item.PosterPath,
