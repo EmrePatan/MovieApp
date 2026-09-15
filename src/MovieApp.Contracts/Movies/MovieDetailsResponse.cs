@@ -15,4 +15,6 @@ public sealed record MovieDetailsResponse(
     int VoteCount,
     IReadOnlyList<string> Genres,
     MovieCollectionSummaryResponse? Collection,
-    bool IsReleased);
+    bool IsReleased,
+    bool CanFollowForRelease,
+    bool CanSetReleaseAlert);

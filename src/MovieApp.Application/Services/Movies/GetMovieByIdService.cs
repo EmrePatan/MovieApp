@@ -40,7 +40,14 @@ public sealed class GetMovieByIdService(
         var effectiveReleaseDate = MovieFollowReleaseDateResolver.Resolve(regionalRelease, movie.ReleaseDate);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var isReleased = MovieConsumptionReleaseGuardrail.IsReleasedForConsumption(effectiveReleaseDate, today);
+        var canFollowForRelease = MovieFollowActionEligibility.CanFollowForRelease(effectiveReleaseDate, today);
+        var canSetReleaseAlert = MovieFollowActionEligibility.CanSetReleaseAlert(effectiveReleaseDate, today);
 
-        return details with { IsReleased = isReleased };
+        return details with
+        {
+            IsReleased = isReleased,
+            CanFollowForRelease = canFollowForRelease,
+            CanSetReleaseAlert = canSetReleaseAlert
+        };
     }
 }

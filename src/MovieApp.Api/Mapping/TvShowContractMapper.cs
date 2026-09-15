@@ -47,7 +47,8 @@ public static class TvShowContractMapper
             result.VoteCount,
             result.Status,
             result.Genres,
-            result.Seasons.Select(ToSeasonSummaryResponse).ToList());
+            result.Seasons.Select(ToSeasonSummaryResponse).ToList(),
+            result.CanFollow);
 
     public static SeasonSummaryResponse ToSeasonSummaryResponse(SeasonSummaryResult result) =>
         new(

@@ -100,7 +100,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             0,
             "Ended",
             [],
-            [cachedSeason]);
+            [cachedSeason],
+            CanFollow: false);
 
         var cache = new NoOpCacheService();
         await cache.SetAsync(
