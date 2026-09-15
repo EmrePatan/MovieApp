@@ -24,6 +24,8 @@ public sealed class UserReleaseNotification
 
     public DateTime CreatedAtUtc { get; set; }
 
+    public DateTime? ReadAtUtc { get; set; }
+
     public DateTime? SentAtUtc { get; set; }
 
     public User User { get; set; } = null!;

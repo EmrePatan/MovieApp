@@ -41,6 +41,8 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
         builder.Property(notification => notification.CreatedAtUtc)
             .IsRequired();
 
+        builder.Property(notification => notification.ReadAtUtc);
+
         builder.HasOne(notification => notification.User)
             .WithMany(user => user.ReleaseNotifications)
             .HasForeignKey(notification => notification.UserId)
@@ -65,6 +67,17 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
         builder.HasIndex(notification => notification.MovieId);
 
         builder.HasIndex(notification => notification.Status);
+
+        builder.HasIndex(notification => new
+            {
+                notification.UserId,
+                notification.CreatedAtUtc,
+                notification.Id
+            })
+            .IsDescending(false, true, true);
+
+        builder.HasIndex(notification => notification.UserId)
+            .HasFilter("\"ReadAtUtc\" IS NULL");
 
         builder.HasIndex(notification => new
             {

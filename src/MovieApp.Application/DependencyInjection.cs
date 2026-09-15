@@ -26,6 +26,7 @@ using MovieApp.Application.Services.CatalogFollows;
 using MovieApp.Application.Services.MovieRelease;
 using MovieApp.Application.Services.Watchlists;
 using MovieApp.Application.Services.Collections;
+using MovieApp.Application.Services.Notifications;
 
 namespace MovieApp.Application;
 
@@ -124,6 +125,11 @@ public static class DependencyInjection
         services.AddScoped<IRecommendationService, RecommendationService>();
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
         services.AddScoped<IHomeService, HomeService>();
+
+        services.AddScoped<IGetNotificationsService, GetNotificationsService>();
+        services.AddScoped<IGetUnreadNotificationCountService, GetUnreadNotificationCountService>();
+        services.AddScoped<IMarkNotificationReadService, MarkNotificationReadService>();
+        services.AddScoped<IMarkAllNotificationsReadService, MarkAllNotificationsReadService>();
 
         return services;
     }
