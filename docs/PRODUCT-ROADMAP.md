@@ -64,7 +64,7 @@ Home may still surface useful personalized library-derived sections (e.g. Contin
 First-class bottom tab for finding new content:
 - Global Search entry
 - **Explore with Filters** (D1 Advanced Discover) → `/advanced-discover`
-- Layout prepared for D3–D6 (Now in Theaters, On TV This Week, World Cinema, Pick Something For Me) — placeholders only until those phases ship; D2 Streaming Services is live
+- Layout prepared for D4–D6 (On TV This Week, World Cinema, Pick Something For Me) — placeholders only until those phases ship; D2 Streaming Services and D3 Now in Theaters are live
 - Existing real discovery content (Trending, Top Rated, genres, New Releases browse)
 
 Filtered browse listing screens remain reachable from Discover, genres, See All, and deep links.
@@ -173,7 +173,7 @@ Provider-first discovery by **watch region** and streaming availability, reusing
 **Domain semantics (strict separation):**
 - `originCountry` — where content originates (D1)
 - `watchRegion` — ISO 3166-1 alpha-2 region for streaming availability queries (D2)
-- `releaseRegion` — reserved for future D3 theatrical/release-region semantics
+- `releaseRegion` — ISO 3166-1 alpha-2 region for theatrical availability queries (D3)
 
 **Backend:**
 - `GET /api/discovery/watch-providers?mediaType=movie|tv&watchRegion=TR` — stable MovieApp provider catalog (not raw TMDB DTOs); fields: `providerId`, `name`, `logoPath`, `displayPriority`; ordered by TMDB display priority for the region; cached 24h
@@ -183,13 +183,29 @@ Provider-first discovery by **watch region** and streaming availability, reusing
 - Lazy summary ingestion unchanged (`EnsureFromSummariesAsync`); no schema change
 
 **Mobile:**
-- Discover hub **Streaming Services** entry active → `/streaming-discover` (D3–D6 remain coming-soon placeholders)
+- Discover hub **Streaming Services** entry active → `/streaming-discover` (D4–D6 remain coming-soon placeholders)
 - Provider-first screen: watch region, multi-select providers (logos + names), Movies/TV toggle, availability types (Stream/Free/With Ads/Rent/Buy), optional min rating + sort, results via existing search cards with pagination and detail navigation
 - Advanced Discover filter sheet extended with optional Streaming section (watch region, providers, availability); D1 URLs remain valid
 - JustWatch attribution on Streaming Services screen (aligned with Where to Watch)
 - Initial watch region defaults to existing app preference / `TR` fallback; no GPS/location permission
 
-**Next Discovery 2.0 phase:** D3 Now in Theaters.
+## DONE — Discovery 2.0 D3 (Now in Theaters)
+
+Region-aware theatrical discovery for **movies only**, using explicit `releaseRegion` semantics (distinct from `originCountry` and `watchRegion`).
+
+**Backend:**
+- `GET /api/discovery/now-in-theaters?releaseRegion=TR&page=1&pageSize=20` — returns standard `SearchResponse` movie items
+- TMDB source: **`movie/now_playing`** with `region={releaseRegion}` (canonical theatrical now-playing list per region; not Discover date filtering)
+- Cache key includes `releaseRegion`, `page`, `pageSize`; TTL 30 minutes
+- Lazy summary ingestion via `EnsureFromSummariesAsync`; no schema change
+
+**Mobile:**
+- Discover hub **Now in Theaters** preview carousel with See All, contained loading/error/empty states
+- Full screen `/now-in-theaters` with release-region selector, infinite pagination, pull-to-refresh, movie detail navigation with return-state preservation
+- Shared generic `RegionSelector` with semantic wrappers: `WatchRegionSelector` (D2) and `ReleaseRegionSelector` (D3)
+- Default release region uses existing `TR` beta convention; no GPS/location permission
+
+**Next Discovery 2.0 phase:** D4 On TV This Week.
 
 ## DONE — Discovery 2.0 D1.5 (Navigation IA + Discover Hub + Global Search + Library Hub)
 
@@ -197,7 +213,7 @@ Provider-first discovery by **watch region** and streaming availability, reusing
 
 - Bottom navigation: **Home | Discover | Library | Profile**; Search and Watchlist hidden from tab bar (routes preserved)
 - Global Search entry component on Home and Discover → existing Search experience with origin-aware back
-- Discover hub with D1 **Explore with Filters**, D2 **Streaming Services**, future D3–D6 placeholders (non-interactive), and existing Trending / Top Rated / genre browse
+- Discover hub with D1 **Explore with Filters**, D2 **Streaming Services**, D3 **Now in Theaters** preview, future D4–D6 placeholders (non-interactive), and existing Trending / Top Rated / genre browse
 - Library hub reusing profile statistics, Home Continue Watching, and existing Favorites / Watchlists / Following / History / Coming Up destinations
 - Premium library status accents for domain-backed watching (TV episode context) and summary counts; no invented movie playback progress
 - Profile demoted to account/settings with compact Library shortcut

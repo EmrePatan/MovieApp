@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
+using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Search;
@@ -18,6 +19,7 @@ public sealed class DiscoveryController(
     IDiscoverBrowseService discoverBrowseService,
     IAdvancedDiscoverService advancedDiscoverService,
     IDiscoveryWatchProvidersService discoveryWatchProvidersService,
+    INowInTheatersService nowInTheatersService,
     IExplorePreviewService explorePreviewService) : ControllerBase
 {
     [HttpGet("explore-preview")]
@@ -143,6 +145,40 @@ public sealed class DiscoveryController(
         }
     }
 
+    [HttpGet("now-in-theaters")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<SearchResponse>> GetNowInTheaters(
+        [FromQuery] string? releaseRegion,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var criteria = BuildNowInTheatersCriteria(releaseRegion, page, pageSize);
+            var result = await nowInTheatersService.GetNowInTheatersAsync(criteria, cancellationToken);
+            return Ok(SearchContractMapper.ToSearchResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid now in theaters request.",
+                exception.Message));
+        }
+        catch (SearchProviderUnavailableException)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                CreateProblemDetails(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Now in theaters is temporarily unavailable.",
+                    "Theatrical listings could not be loaded right now. Please try again."));
+        }
+    }
+
     [HttpGet("advanced")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -241,6 +277,29 @@ public sealed class DiscoveryController(
                 "Invalid discovery browse request.",
                 exception.Message));
         }
+    }
+
+    private static NowInTheatersCriteria BuildNowInTheatersCriteria(
+        string? releaseRegion,
+        int? page,
+        int? pageSize)
+    {
+        var normalizedRegion = string.IsNullOrWhiteSpace(releaseRegion)
+            ? WatchProviderRegionValidator.DefaultRegion
+            : WatchProviderRegionValidator.Normalize(releaseRegion);
+
+        var criteria = new NowInTheatersCriteria(
+            normalizedRegion,
+            page ?? SearchPaginationDefaults.DefaultPage,
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+
+        var validation = NowInTheatersValidator.Validate(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        return criteria;
     }
 
     private static AdvancedDiscoverCriteria BuildAdvancedDiscoverCriteria(
