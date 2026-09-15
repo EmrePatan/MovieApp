@@ -265,7 +265,22 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 **Settings:**
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
-**Next Discovery 2.0 phase:** D5.6 Library 2.0.
+## DONE — Discovery 2.0 D5.6 (Library 2.0)
+
+**Backend:**
+- `GET /api/library?category=watching|watched|liked|watchlist&mediaType=all|movie|tv&page=&pageSize=` unified authenticated read model
+- Default category **Watching**; default page size **24**
+- Watching: TV only, partial regular-season progress, progress % + next episode
+- Watched: explicitly watched movies + fully completed TV (season 0 excluded)
+- Liked: existing Favorites domain
+- Watchlist: union across all user watchlists, deduped by media type + content id
+- No schema change / migration
+
+**Mobile:**
+- Library tab is a content-first collection: category chips + media filter + 3-column poster grid
+- Infinite pagination, pull-to-refresh, category empty states, Browse Discover CTA
+- `library_opened` once per tab focus; `library_filter_selected` on category/media change
+- Secondary routes (`/favorites`, watchlist tab, `/watch-history`, etc.) remain for deep links
 
 ## DONE — Discovery 2.0 D6 (Pick Something For Me)
 

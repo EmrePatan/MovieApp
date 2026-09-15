@@ -202,6 +202,8 @@ public static class DependencyInjection
 
         services.AddScoped<IWatchedEpisodeRepository, WatchedEpisodeRepository>();
 
+        services.AddScoped<ILibraryRepository, LibraryRepository>();
+
         services.AddScoped<ISearchRepository, SearchRepository>();
 
         services.AddScoped<IGenreReadRepository, GenreReadRepository>();

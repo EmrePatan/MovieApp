@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Services.Home;
+using MovieApp.Application.Services.Library;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Services.Movies;
@@ -155,6 +156,7 @@ public static class DependencyInjection
         services.AddScoped<IMarkNotificationReadService, MarkNotificationReadService>();
         services.AddScoped<IMarkAllNotificationsReadService, MarkAllNotificationsReadService>();
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
+        services.AddScoped<ILibraryService, LibraryService>();
 
         return services;
     }
