@@ -209,16 +209,24 @@ Per-job launch checklist:
 
 ### Bounded validation (before enabling recurring)
 
-- [ ] BEFORE Movie coverage recorded (eligible / synced / unsynced / %)
-- [ ] BEFORE TV coverage recorded
-- [ ] BEFORE Overall coverage recorded
-- [ ] One bounded execution performed (max 25 titles; no drain loop)
-- [ ] `selected` / `succeeded` / `failed` / `skipped` reviewed in structured logs (events 6010/6011)
-- [ ] Provider errors reviewed (transient vs permanent)
-- [ ] AFTER coverage recorded
-- [ ] Sample persistence validated (`KeywordsSyncedAtUtc` set; relationships exist OR successful-empty)
+**Staging gate — CLOSED 2026-09-15** (production checklist items below still apply at first prod deploy):
+
+- [x] BEFORE Movie coverage recorded (eligible / synced / unsynced / %)
+- [x] BEFORE TV coverage recorded
+- [x] BEFORE Overall coverage recorded
+- [x] One bounded execution performed (max 25 titles; no drain loop)
+- [x] `selected` / `succeeded` / `failed` / `skipped` reviewed in structured logs (events 6010/6011)
+- [x] Provider errors reviewed (transient vs permanent) — none in validated run
+- [x] AFTER coverage recorded
+- [x] Sample persistence validated (`KeywordsSyncedAtUtc` set; relationships exist OR successful-empty)
+
+**Staging validated run:** `selected=25` `succeeded=25` `failed=0` `skipped=0` · movies +12 / TV +13 · coverage **4.22% → 8.28%** (51 / 616 synced). Concurrency fixes **c295896** (scoped `DbContext`) and **a90f2a5** (`ON CONFLICT` keyword upsert) confirmed on real staging.
 
 Manual trigger: `ICatalogKeywordBackfillJobEnqueuer.EnqueueOneExecution()` (DI/Hangfire only — **no public HTTP endpoint**).
+
+### Controlled staging coverage growth (post-validation, pre–Recommendation 2.1)
+
+Staging only — grow from **8.28%** toward **~25%** (~103 additional titles, ~4× `BatchSize=25` batches). Keep `MaxConcurrency=2`. Run batches **sequentially**; stop on any failure, `DbContext` concurrency error, or `23505` / `IX_keywords_TmdbKeywordId`. Full catalog drain **not** required before production launch rehearsal.
 
 ### After bounded validation only
 
@@ -417,8 +425,8 @@ Do not assume dashboards exist unless provisioned.
 - [ ] API health passes (`/health`, `/health/ready`)
 - [ ] Smoke test critical API flows
 - [ ] Recurring jobs observed (intentional set only)
-- [ ] One keyword backfill batch observed
-- [ ] Keyword coverage measured before/after
+- [x] One keyword backfill batch observed (staging — 2026-09-15: 25/25 succeeded, 4.22% → 8.28%)
+- [x] Keyword coverage measured before/after (staging)
 - [ ] Notification pipeline observed
 - [ ] No unexpected provider-call regression (recommendation = 0 keyword calls)
 - [ ] Logs reviewed
@@ -478,9 +486,11 @@ These are current launch validation gaps, not permanent architecture.
 | Item | Status |
 |---|---|
 | `CatalogKeywordBackfillJob` code | Implemented at `6296381` |
-| Staging keyword backfill execution validation | **In progress externally** |
+| Staging keyword backfill execution validation | **DONE / PASS** (2026-09-15 — bounded batch 25/25, `failed=0`) |
 | Staging keyword migration `20260915095315_AddCatalogKeywords` | **Manually confirmed present** on staging |
-| Staging keyword coverage (measured) | Movies: 332 eligible / 1 synced / 331 unsynced · TV: 284 / 0 / 284 · Overall: 616 / 1 / 615 |
+| Staging keyword coverage (measured) | **51 / 616 synced (8.28%)** after validated run · Movies: 25/332 · TV: 26/284 · 565 unsynced |
+| Controlled staging coverage growth (~25%) | **In progress / next operator step** |
+| Recommendation 2.1 real-data validation | **Next** after ~25% staging coverage |
 | Physical iPhone push E2E | **Not complete** |
 | PostgreSQL integration test project | Pre-existing analyzer build issues (CA1707, CA1822, etc.) — must be clean before production rehearsal |
 | Production migration workflow | Staging workflow exists; **production equivalent must be created** before first prod deploy |
