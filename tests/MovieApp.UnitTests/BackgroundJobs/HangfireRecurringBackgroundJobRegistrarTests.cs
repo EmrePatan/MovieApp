@@ -79,10 +79,45 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         Assert.Equal(7, manager.AddedOrUpdated.Count);
     }
 
+    [Fact]
+    public void RegisterRecurringJobs_WhenKeywordBackfillEnabled_RegistersCatalogKeywordBackfillJob()
+    {
+        var manager = new FakeRecurringJobManager();
+        var registrar = CreateRegistrar(
+            manager,
+            enabled: true,
+            pushEnabled: true,
+            keywordBackfillEnabled: true);
+
+        registrar.RegisterRecurringJobs();
+
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.CatalogKeywordBackfill &&
+                     entry.Cron == "0 * * * *");
+    }
+
+    [Fact]
+    public void RegisterRecurringJobs_WhenKeywordBackfillDisabled_RemovesCatalogKeywordBackfillJob()
+    {
+        var manager = new FakeRecurringJobManager();
+        var registrar = CreateRegistrar(
+            manager,
+            enabled: true,
+            pushEnabled: true,
+            keywordBackfillEnabled: false);
+
+        registrar.RegisterRecurringJobs();
+
+        Assert.DoesNotContain(manager.AddedOrUpdated, entry => entry.JobId == RecurringJobIds.CatalogKeywordBackfill);
+        Assert.Contains(RecurringJobIds.CatalogKeywordBackfill, manager.Removed);
+    }
+
     private static HangfireRecurringBackgroundJobRegistrar CreateRegistrar(
         FakeRecurringJobManager manager,
         bool enabled,
-        bool pushEnabled) =>
+        bool pushEnabled,
+        bool keywordBackfillEnabled = false) =>
         new(
             manager,
             Options.Create(new BackgroundJobsOptions
@@ -96,5 +131,10 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             Options.Create(new PushNotificationsOptions
             {
                 Enabled = pushEnabled
+            }),
+            Options.Create(new CatalogKeywordBackfillOptions
+            {
+                Enabled = keywordBackfillEnabled,
+                RecurringCron = "0 * * * *"
             }));
 }

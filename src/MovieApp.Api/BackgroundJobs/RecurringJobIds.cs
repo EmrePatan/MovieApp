@@ -9,6 +9,7 @@ public static class RecurringJobIds
     public const string PushPreparation = "movieapp:push-preparation";
     public const string PushDispatch = "movieapp:push-dispatch";
     public const string PushReceipts = "movieapp:push-receipts";
+    public const string CatalogKeywordBackfill = "movieapp:catalog-keyword-backfill";
 
     public static IReadOnlyList<string> All =>
     [
@@ -18,6 +19,7 @@ public static class RecurringJobIds
         ReleaseFanout,
         PushPreparation,
         PushDispatch,
-        PushReceipts
+        PushReceipts,
+        CatalogKeywordBackfill
     ];
 }

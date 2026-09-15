@@ -13,6 +13,8 @@ public static class BackgroundJobsServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.Configure<BackgroundJobsOptions>(configuration.GetSection(BackgroundJobsOptions.SectionName));
+        services.Configure<CatalogKeywordBackfillOptions>(
+            configuration.GetSection(CatalogKeywordBackfillOptions.SectionName));
 
         var backgroundJobs = configuration
             .GetSection(BackgroundJobsOptions.SectionName)
@@ -62,6 +64,8 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.AddScoped<PushDeliveryPreparationJob>();
         services.AddScoped<PushDispatchJob>();
         services.AddScoped<PushReceiptJob>();
+        services.AddScoped<CatalogKeywordBackfillJob>();
+        services.AddScoped<ICatalogKeywordBackfillJobEnqueuer, CatalogKeywordBackfillJobEnqueuer>();
 
         return services;
     }

@@ -7,7 +7,8 @@ namespace MovieApp.Api.BackgroundJobs;
 public sealed class HangfireRecurringBackgroundJobRegistrar(
     IRecurringJobManager recurringJobManager,
     IOptions<BackgroundJobsOptions> backgroundJobsOptions,
-    IOptions<PushNotificationsOptions> pushNotificationsOptions) : IRecurringBackgroundJobRegistrar
+    IOptions<PushNotificationsOptions> pushNotificationsOptions,
+    IOptions<CatalogKeywordBackfillOptions> catalogKeywordBackfillOptions) : IRecurringBackgroundJobRegistrar
 {
     private static readonly RecurringJobOptions UtcOptions = new()
     {
@@ -104,6 +105,19 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             recurringJobManager.RemoveIfExists(RecurringJobIds.PushPreparation);
             recurringJobManager.RemoveIfExists(RecurringJobIds.PushDispatch);
             recurringJobManager.RemoveIfExists(RecurringJobIds.PushReceipts);
+        }
+
+        if (catalogKeywordBackfillOptions.Value.Enabled)
+        {
+            recurringJobManager.AddOrUpdate<CatalogKeywordBackfillJob>(
+                RecurringJobIds.CatalogKeywordBackfill,
+                job => job.ExecuteAsync(),
+                catalogKeywordBackfillOptions.Value.RecurringCron,
+                UtcOptions);
+        }
+        else
+        {
+            recurringJobManager.RemoveIfExists(RecurringJobIds.CatalogKeywordBackfill);
         }
     }
 

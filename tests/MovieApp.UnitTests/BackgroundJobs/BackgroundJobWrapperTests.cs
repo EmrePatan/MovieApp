@@ -11,6 +11,8 @@ using MovieApp.Application.Models.TvShowChanges;
 using MovieApp.Application.Services.HotRelease;
 using MovieApp.Application.Services.PushNotifications;
 using MovieApp.Application.Services.ReleaseNotifications;
+using MovieApp.Application.Models.Keywords;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.TvShowChanges;
 using MovieApp.Domain.Entities;
 
@@ -97,6 +99,54 @@ public sealed class BackgroundJobWrapperTests
         await job.ExecuteAsync();
 
         Assert.Equal(1, service.Calls);
+    }
+
+    [Fact]
+    public async Task CatalogKeywordBackfillJob_SelectsAndProcessesBoundedBatch()
+    {
+        var backfillService = new FakeCatalogKeywordBackfillService();
+        var job = new CatalogKeywordBackfillJob(
+            backfillService,
+            Options.Create(new CatalogKeywordBackfillOptions { BatchSize = 25 }),
+            NullLogger<CatalogKeywordBackfillJob>.Instance);
+
+        await job.ExecuteAsync();
+
+        Assert.Equal(25, backfillService.SelectedBatchSize);
+        Assert.Equal(1, backfillService.ProcessBatchCalls);
+    }
+
+    private sealed class FakeCatalogKeywordBackfillService : ICatalogKeywordBackfillService
+    {
+        public int SelectedBatchSize { get; private set; }
+
+        public int ProcessBatchCalls { get; private set; }
+
+        public Task<IReadOnlyList<CatalogKeywordBackfillCandidate>> SelectCandidatesAsync(
+            int batchSize,
+            CancellationToken cancellationToken = default)
+        {
+            SelectedBatchSize = batchSize;
+            return Task.FromResult<IReadOnlyList<CatalogKeywordBackfillCandidate>>(
+                [new CatalogKeywordBackfillCandidate(Guid.NewGuid(), "movie", 1)]);
+        }
+
+        public Task<CatalogKeywordBackfillBatchResult> ProcessBatchAsync(
+            IReadOnlyList<CatalogKeywordBackfillCandidate> candidates,
+            CancellationToken cancellationToken = default)
+        {
+            ProcessBatchCalls++;
+            return Task.FromResult(new CatalogKeywordBackfillBatchResult(
+                candidates.Count,
+                candidates.Count,
+                0,
+                0,
+                candidates.Count,
+                0));
+        }
+
+        public Task<CatalogKeywordCoverageSnapshot> GetCoverageAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CatalogKeywordCoverageSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     }
 
     private sealed class FakeTmdbChangesSyncService : ITmdbTvChangesSyncService

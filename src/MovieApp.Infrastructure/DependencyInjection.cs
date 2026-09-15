@@ -63,6 +63,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<SearchOptions>, SearchOptionsValidator>();
 
+        services.AddOptions<CatalogKeywordBackfillOptions>()
+            .Bind(configuration.GetSection(CatalogKeywordBackfillOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<CatalogKeywordBackfillOptions>, CatalogKeywordBackfillOptionsValidator>();
+
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SectionName));
 
         services.AddOptions<PasswordResetOptions>()
@@ -120,6 +126,8 @@ public static class DependencyInjection
         services.AddScoped<IMovieRepository, MovieRepository>();
 
         services.AddScoped<IKeywordCatalogRepository, KeywordCatalogRepository>();
+
+        services.AddScoped<ICatalogKeywordBackfillRepository, CatalogKeywordBackfillRepository>();
 
         services.AddScoped<IPersonRepository, PersonRepository>();
 

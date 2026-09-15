@@ -97,4 +97,30 @@ internal static partial class BackgroundJobLogMessages
         int releaseEventsCreated,
         int skippedProviderFailures,
         int skippedNotReleased);
+
+    [LoggerMessage(
+        EventId = 6010,
+        Level = LogLevel.Information,
+        Message = "Catalog keyword backfill completed: no eligible candidates. coverage={Synced}/{Eligible} ({CoveragePercent}%)")]
+    internal static partial void LogCatalogKeywordBackfillNoCandidates(
+        ILogger logger,
+        int synced,
+        int eligible,
+        decimal coveragePercent);
+
+    [LoggerMessage(
+        EventId = 6011,
+        Level = LogLevel.Information,
+        Message = "Catalog keyword backfill completed: selected={Selected} succeeded={Succeeded} failed={Failed} skipped={Skipped} movies={MoviesProcessed} tv={TvShowsProcessed} durationMs={DurationMs} coverageBefore={CoverageBeforePercent}% coverageAfter={CoverageAfterPercent}%")]
+    internal static partial void LogCatalogKeywordBackfillCompleted(
+        ILogger logger,
+        int selected,
+        int succeeded,
+        int failed,
+        int skipped,
+        int moviesProcessed,
+        int tvShowsProcessed,
+        long durationMs,
+        decimal coverageBeforePercent,
+        decimal coverageAfterPercent);
 }
