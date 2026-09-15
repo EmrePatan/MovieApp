@@ -17,4 +17,6 @@ public sealed record PersonFilmographyCredit(
     string Title,
     string? PosterPath,
     string? Character,
-    DateOnly? ReleaseDate);
+    DateOnly? ReleaseDate,
+    decimal Popularity,
+    decimal VoteAverage);

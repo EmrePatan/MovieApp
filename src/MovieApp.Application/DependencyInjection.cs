@@ -43,7 +43,9 @@ public static class DependencyInjection
         services.AddScoped<IGetMovieCreditsService, GetMovieCreditsService>();
         services.AddScoped<IGetMovieWatchProvidersService, GetMovieWatchProvidersService>();
         services.AddScoped<IGetMovieVideosService, GetMovieVideosService>();
+        services.AddScoped<IGetMovieImagesService, GetMovieImagesService>();
         services.AddScoped<IGetPersonByTmdbIdService, GetPersonByTmdbIdService>();
+        services.AddScoped<IGetPersonImagesService, GetPersonImagesService>();
         services.AddScoped<IGetCollectionService, GetCollectionService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
@@ -54,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IGetTvShowCreditsService, GetTvShowCreditsService>();
         services.AddScoped<IGetTvShowWatchProvidersService, GetTvShowWatchProvidersService>();
         services.AddScoped<IGetTvShowVideosService, GetTvShowVideosService>();
+        services.AddScoped<IGetTvShowImagesService, GetTvShowImagesService>();
         services.AddScoped<IGetSeasonService, GetSeasonService>();
         services.AddScoped<IGetEpisodeService, GetEpisodeService>();
 

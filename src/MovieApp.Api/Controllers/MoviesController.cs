@@ -4,8 +4,10 @@ using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Services.Images;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Contracts.Credits;
+using MovieApp.Contracts.Images;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Videos;
 using MovieApp.Contracts.WatchProviders;
@@ -20,7 +22,8 @@ public sealed class MoviesController(
     IGetMovieByTmdbIdService getMovieByTmdbIdService,
     IGetMovieCreditsService getMovieCreditsService,
     IGetMovieWatchProvidersService getMovieWatchProvidersService,
-    IGetMovieVideosService getMovieVideosService) : ControllerBase
+    IGetMovieVideosService getMovieVideosService,
+    IGetMovieImagesService getMovieImagesService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.MovieSearch)]
@@ -133,6 +136,31 @@ public sealed class MoviesController(
         {
             var videos = await getMovieVideosService.GetVideosAsync(id, cancellationToken);
             return Ok(VideosContractMapper.ToResponse(videos));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/images")]
+    [ProducesResponseType(typeof(ImagesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ImagesResponse>> GetImages(
+        Guid id,
+        [FromQuery] string? language,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolvedLanguage = ImageGalleryServiceHelper.ResolveLanguage(
+                language,
+                Request.Headers.AcceptLanguage.ToString());
+            var images = await getMovieImagesService.GetImagesAsync(id, resolvedLanguage, cancellationToken);
+            return Ok(ImagesContractMapper.ToResponse(images));
         }
         catch (NotFoundException exception)
         {

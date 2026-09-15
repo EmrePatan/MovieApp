@@ -40,21 +40,27 @@ public sealed class FakePersonDataProvider : IPersonDataProvider
                     "Interstellar",
                     "/fake/interstellar-poster.jpg",
                     "Cooper",
-                    new DateOnly(2014, 11, 7)),
+                    new DateOnly(2014, 11, 7),
+                    120.5m,
+                    8.6m),
                 new PersonFilmographyCredit(
                     "movie",
                     FakeMovieDataProvider.InterstellarTmdbId,
                     "Interstellar",
                     "/fake/interstellar-poster.jpg",
                     "Cooper",
-                    new DateOnly(2014, 11, 7)),
+                    new DateOnly(2014, 11, 7),
+                    120.5m,
+                    8.6m),
                 new PersonFilmographyCredit(
                     "tv",
                     999001,
                     "Untitled Series",
                     null,
                     "Host",
-                    null)
+                    null,
+                    5.0m,
+                    6.0m)
             ]);
 
     private static PersonProviderDetails CreateCranston() =>
@@ -74,6 +80,8 @@ public sealed class FakePersonDataProvider : IPersonDataProvider
                     "Breaking Bad",
                     "/fake/breaking-bad-poster.jpg",
                     "Walter White",
-                    new DateOnly(2008, 1, 20))
+                    new DateOnly(2008, 1, 20),
+                    95.0m,
+                    9.5m)
             ]);
 }

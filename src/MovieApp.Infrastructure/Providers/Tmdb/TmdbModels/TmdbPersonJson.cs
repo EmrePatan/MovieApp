@@ -41,4 +41,8 @@ internal sealed class TmdbCombinedCreditCastJson
     public string? ReleaseDate { get; init; }
 
     public string? FirstAirDate { get; init; }
+
+    public double Popularity { get; init; }
+
+    public double VoteAverage { get; init; }
 }

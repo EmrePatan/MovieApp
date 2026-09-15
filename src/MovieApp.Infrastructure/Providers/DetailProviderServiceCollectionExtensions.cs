@@ -22,6 +22,7 @@ internal static class DetailProviderServiceCollectionExtensions
         services.AddScoped<FakePersonDataProvider>();
         services.AddScoped<FakeWatchProviderService>();
         services.AddScoped<FakeVideoProvider>();
+        services.AddScoped<FakeImageProvider>();
         services.AddScoped<FakeCollectionDataProvider>();
         services.AddScoped<FakeMovieReleaseDatesProvider>();
 
@@ -32,6 +33,7 @@ internal static class DetailProviderServiceCollectionExtensions
             services.AddScoped<TmdbPersonDataProvider>();
             services.AddScoped<TmdbWatchProviderService>();
             services.AddScoped<TmdbVideoProvider>();
+            services.AddScoped<TmdbImageProvider>();
             services.AddScoped<TmdbCollectionDataProvider>();
             services.AddScoped<TmdbMovieReleaseDatesProvider>();
         }
@@ -60,6 +62,11 @@ internal static class DetailProviderServiceCollectionExtensions
             IsTmdbProvider(movieProviders.Provider)
                 ? serviceProvider.GetRequiredService<TmdbVideoProvider>()
                 : serviceProvider.GetRequiredService<FakeVideoProvider>());
+
+        services.AddScoped<IImageProvider>(serviceProvider =>
+            IsTmdbProvider(movieProviders.Provider)
+                ? serviceProvider.GetRequiredService<TmdbImageProvider>()
+                : serviceProvider.GetRequiredService<FakeImageProvider>());
 
         services.AddScoped<ICollectionDataProvider>(serviceProvider =>
             IsTmdbProvider(movieProviders.Provider)

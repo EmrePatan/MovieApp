@@ -5,8 +5,10 @@ using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.Images;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Contracts.Credits;
+using MovieApp.Contracts.Images;
 using MovieApp.Contracts.TvShows;
 using MovieApp.Contracts.Videos;
 using MovieApp.Contracts.WatchProviders;
@@ -23,7 +25,8 @@ public sealed class TvShowsController(
     IGetEpisodeService getEpisodeService,
     IGetTvShowCreditsService getTvShowCreditsService,
     IGetTvShowWatchProvidersService getTvShowWatchProvidersService,
-    IGetTvShowVideosService getTvShowVideosService) : ControllerBase
+    IGetTvShowVideosService getTvShowVideosService,
+    IGetTvShowImagesService getTvShowImagesService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.TvSearch)]
@@ -136,6 +139,31 @@ public sealed class TvShowsController(
         {
             var videos = await getTvShowVideosService.GetVideosAsync(id, cancellationToken);
             return Ok(VideosContractMapper.ToResponse(videos));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/images")]
+    [ProducesResponseType(typeof(ImagesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ImagesResponse>> GetImages(
+        Guid id,
+        [FromQuery] string? language,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resolvedLanguage = ImageGalleryServiceHelper.ResolveLanguage(
+                language,
+                Request.Headers.AcceptLanguage.ToString());
+            var images = await getTvShowImagesService.GetImagesAsync(id, resolvedLanguage, cancellationToken);
+            return Ok(ImagesContractMapper.ToResponse(images));
         }
         catch (NotFoundException exception)
         {

@@ -55,6 +55,8 @@ internal static class TmdbPersonMapper
             title,
             TmdbMovieMapper.NormalizeImagePath(credit.PosterPath),
             credit.Character.Trim(),
-            releaseDate);
+            releaseDate,
+            Convert.ToDecimal(credit.Popularity),
+            Convert.ToDecimal(credit.VoteAverage));
     }
 }

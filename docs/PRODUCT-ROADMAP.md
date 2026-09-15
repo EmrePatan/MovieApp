@@ -343,7 +343,7 @@ Local similarity recommendations on movie/TV detail screens.
 ## DONE — Person / Cast / Crew
 
 - Person Detail
-- Filmography
+- Filmography (Known For preview on detail, See All full grid with All/Movies/TV filters, popularity-ranked ordering)
 - Cast & Crew 2.0
 - Movie credits, TV aggregate credits
 - Cast/Crew preview and See All browsing
@@ -579,30 +579,26 @@ Staging validation **PASS** (2026-09-15) on materially enriched data (~24.5% key
 
 ---
 
-## NEXT — Media gallery
+## DONE — Media gallery
 
-TMDB image/media endpoints for detail-screen polish:
+Movie / TV / Person galleries backed by lazy, cached TMDB image provider calls:
 
-- Backdrops
-- Posters
-- Logos
+- Movie gallery (`GET /api/movies/{id}/images`) — backdrops + posters
+- TV gallery (`GET /api/tvshows/{id}/images`) — backdrops + posters
+- Person gallery (`GET /api/people/tmdb/{tmdbPersonId}/images`) — profile images
+- Deterministic quality/language-aware ordering, duplicate path removal
+- 24h server-side cache per entity (language-aware for movie/TV)
+- Mobile detail preview rails, full gallery screens with filters, full-screen viewer
 
-Prefer provider + cache initially. Do not automatically persist all image metadata.
-
-Trailers v1 is DONE — do not reimplement trailers.
+Trailers v1 remains DONE — do not reimplement trailers.
 
 ---
 
 ## NEXT — Person search / Person 2.0
 
-**Done today:** Person Detail + Filmography.
-
 **Future:**
 - Search Person
 - Richer biography / profile metadata
-- Known For
-- Person images where useful
-- Improved Movie/TV filmography presentation
 
 Do not mix Person results into catalog Search without deliberate UX.
 
@@ -740,7 +736,8 @@ Before proposing a “new” MovieApp feature, check DONE sections first.
 - Similar content on detail pages
 - Notification Center
 - Push device registration API (implementation — not the same as physical push E2E)
-- Person Detail / Filmography
+- Person Detail / Filmography (Known For preview + full grid)
+- Media gallery (Movie / TV / Person)
 - Following / Upcoming catalog (title-level + TV episode upcoming v1)
 - Account management (profile, email/password change, delete account, statistics dashboard)
 - Keyword ingestion and backfill **infrastructure**

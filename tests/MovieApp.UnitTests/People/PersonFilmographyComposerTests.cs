@@ -8,19 +8,19 @@ namespace MovieApp.UnitTests.People;
 public sealed class PersonFilmographyComposerTests
 {
     [Fact]
-    public async Task DeduplicatesSortsAndResolvesExistingCatalogIdsOnly()
+    public async Task DeduplicatesSortsByPopularityVoteAndResolvesExistingCatalogIdsOnly()
     {
         var movieRepository = new FakeMovieRepository();
         var tvShowRepository = new FakeTvShowRepository();
 
         var credits = new List<PersonFilmographyCredit>
         {
-            new("movie", 10, "Older Film", "/old.jpg", "Hero", new DateOnly(2010, 1, 1)),
-            new("movie", 10, "Older Film", "/old.jpg", "Hero", new DateOnly(2010, 1, 1)),
-            new("tv", 20, "Recent Show", "/recent.jpg", "Lead", new DateOnly(2022, 5, 1)),
-            new("tv", 30, "Undated Show", null, "Guest", null),
-            new("movie", 99, "Missing Movie", null, "Nobody", new DateOnly(2020, 1, 1)),
-            new("movie", 0, "Broken", null, "Nobody", null)
+            new("movie", 10, "Older Film", "/old.jpg", "Hero", new DateOnly(2010, 1, 1), 50m, 7.0m),
+            new("movie", 10, "Older Film", "/old.jpg", "Hero", new DateOnly(2010, 1, 1), 50m, 7.0m),
+            new("tv", 20, "Recent Show", "/recent.jpg", "Lead", new DateOnly(2022, 5, 1), 80m, 8.0m),
+            new("movie", 99, "Missing Movie", null, "Nobody", new DateOnly(2020, 1, 1), 200m, 9.0m),
+            new("tv", 30, "Undated Show", null, "Guest", null, 10m, 6.0m),
+            new("movie", 0, "Broken", null, "Nobody", null, 0m, 0m)
         };
 
         var result = await PersonFilmographyComposer.ComposeAsync(
@@ -30,12 +30,12 @@ public sealed class PersonFilmographyComposerTests
             CancellationToken.None);
 
         Assert.Equal(4, result.Count);
-        Assert.Equal("tv", result[0].MediaType);
-        Assert.Equal(20, result[0].TmdbId);
-        Assert.Equal(tvShowRepository.TvIds[20], result[0].CatalogId);
-        Assert.Equal("Missing Movie", result[1].Title);
-        Assert.Equal(99, result[1].TmdbId);
-        Assert.Null(result[1].CatalogId);
+        Assert.Equal("Missing Movie", result[0].Title);
+        Assert.Equal(99, result[0].TmdbId);
+        Assert.Null(result[0].CatalogId);
+        Assert.Equal("tv", result[1].MediaType);
+        Assert.Equal(20, result[1].TmdbId);
+        Assert.Equal(tvShowRepository.TvIds[20], result[1].CatalogId);
         Assert.Equal("movie", result[2].MediaType);
         Assert.Equal(10, result[2].TmdbId);
         Assert.Equal(movieRepository.MovieIds[10], result[2].CatalogId);

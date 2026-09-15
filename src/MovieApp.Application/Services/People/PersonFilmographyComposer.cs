@@ -16,7 +16,9 @@ internal static class PersonFilmographyComposer
             .Where(IsValidActingCredit)
             .GroupBy(credit => (credit.MediaType, credit.TmdbId))
             .Select(group => group
-                .OrderByDescending(credit => credit.ReleaseDate ?? DateOnly.MinValue)
+                .OrderByDescending(credit => credit.Popularity)
+                .ThenByDescending(credit => credit.VoteAverage)
+                .ThenByDescending(credit => credit.ReleaseDate ?? DateOnly.MinValue)
                 .First())
             .ToList();
 
@@ -40,11 +42,15 @@ internal static class PersonFilmographyComposer
 
         var dated = actingCredits
             .Where(credit => credit.ReleaseDate.HasValue)
-            .OrderByDescending(credit => credit.ReleaseDate);
+            .OrderByDescending(credit => credit.Popularity)
+            .ThenByDescending(credit => credit.VoteAverage)
+            .ThenByDescending(credit => credit.ReleaseDate);
 
         var undated = actingCredits
             .Where(credit => !credit.ReleaseDate.HasValue)
-            .OrderBy(credit => credit.Title, StringComparer.OrdinalIgnoreCase);
+            .OrderByDescending(credit => credit.Popularity)
+            .ThenByDescending(credit => credit.VoteAverage)
+            .ThenBy(credit => credit.Title, StringComparer.OrdinalIgnoreCase);
 
         return dated
             .Concat(undated)

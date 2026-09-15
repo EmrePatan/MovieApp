@@ -2,13 +2,16 @@ using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.People;
+using MovieApp.Contracts.Images;
 using MovieApp.Contracts.People;
 
 namespace MovieApp.Api.Controllers;
 
 [ApiController]
 [Route("api/people")]
-public sealed class PeopleController(IGetPersonByTmdbIdService getPersonByTmdbIdService) : ControllerBase
+public sealed class PeopleController(
+    IGetPersonByTmdbIdService getPersonByTmdbIdService,
+    IGetPersonImagesService getPersonImagesService) : ControllerBase
 {
     [HttpGet("tmdb/{tmdbPersonId:int}")]
     [ProducesResponseType(typeof(PersonDetailResponse), StatusCodes.Status200OK)]
@@ -28,6 +31,27 @@ public sealed class PeopleController(IGetPersonByTmdbIdService getPersonByTmdbId
                 StatusCodes.Status404NotFound,
                 "Person not found.",
                 exception.Message));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid person request.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("tmdb/{tmdbPersonId:int}/images")]
+    [ProducesResponseType(typeof(ImagesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ImagesResponse>> GetImages(
+        int tmdbPersonId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var images = await getPersonImagesService.GetImagesAsync(tmdbPersonId, cancellationToken);
+            return Ok(ImagesContractMapper.ToResponse(images));
         }
         catch (ValidationException exception)
         {
