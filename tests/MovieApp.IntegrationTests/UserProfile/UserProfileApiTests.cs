@@ -231,7 +231,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
 
         var statistics = await response.Content.ReadFromJsonAsync<UserStatisticsResponse>();
         Assert.NotNull(statistics);
-        Assert.Equal(1, statistics.Summary.FavoritesCount);
+        Assert.Equal(2, statistics.Summary.FavoritesCount);
         Assert.Equal(1, statistics.Summary.WatchlistCount);
         Assert.Equal(1, statistics.Summary.RatingsCount);
         Assert.Equal(1, statistics.Summary.ReviewsCount);
