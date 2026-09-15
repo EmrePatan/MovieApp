@@ -32,17 +32,11 @@ public sealed class GetTvShowFollowsService(
             pageSize,
             cancellationToken);
 
-        var tvShowIds = follows.Select(follow => follow.ContentId).Distinct().ToList();
-        var tvShows = new Dictionary<Guid, TvShow>();
-
-        foreach (var tvShowId in tvShowIds)
-        {
-            var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
-            if (tvShow is not null)
-            {
-                tvShows[tvShowId] = tvShow;
-            }
-        }
+        var tvShowIds = follows
+            .Select(follow => follow.ContentId)
+            .Distinct()
+            .ToList();
+        var tvShows = await tvShowRepository.GetByIdsAsync(tvShowIds, cancellationToken);
 
         var totalPages = totalCount == 0
             ? 0

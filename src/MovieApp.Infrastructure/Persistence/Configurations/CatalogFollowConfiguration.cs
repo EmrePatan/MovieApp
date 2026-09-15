@@ -52,6 +52,8 @@ internal sealed class CatalogFollowConfiguration : IEntityTypeConfiguration<Cata
 
         builder.HasIndex(follow => follow.UserId);
 
+        builder.HasIndex(follow => new { follow.UserId, follow.CreatedAt });
+
         builder.HasIndex(follow => new { follow.ContentType, follow.ContentId });
 
         builder.HasIndex(follow => new { follow.UserId, follow.ContentType, follow.ContentId })

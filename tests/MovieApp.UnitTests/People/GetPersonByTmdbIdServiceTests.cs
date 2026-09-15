@@ -42,17 +42,103 @@ public sealed class GetPersonByTmdbIdServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAsync(999999));
     }
 
+    [Fact]
+    public async Task GetAsyncSkipsUpsertWhenNameAndProfilePathAreUnchanged()
+    {
+        var repository = new FakePersonRepository
+        {
+            ExistingPerson = new Person
+            {
+                Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                TmdbId = FakePersonDataProvider.McConaugheyTmdbId,
+                Name = "Matthew McConaughey",
+                ProfilePath = "/fake/cooper.jpg",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
+        };
+        var service = new GetPersonByTmdbIdService(
+            new FakePersonDataProvider(),
+            repository,
+            new NoOpMovieRepository(),
+            new NoOpTvShowRepository());
+
+        var result = await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
+
+        Assert.Equal(0, repository.UpsertCallCount);
+        Assert.Equal(repository.ExistingPerson.Id, result.Id);
+        Assert.Equal(2, result.Filmography.Count);
+    }
+
+    [Fact]
+    public async Task GetAsyncUpsertsWhenNameChanges()
+    {
+        var repository = new FakePersonRepository
+        {
+            ExistingPerson = new Person
+            {
+                Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                TmdbId = FakePersonDataProvider.McConaugheyTmdbId,
+                Name = "Old Name",
+                ProfilePath = "/fake/cooper.jpg",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
+        };
+        var service = new GetPersonByTmdbIdService(
+            new FakePersonDataProvider(),
+            repository,
+            new NoOpMovieRepository(),
+            new NoOpTvShowRepository());
+
+        await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
+
+        Assert.Equal(1, repository.UpsertCallCount);
+    }
+
+    [Fact]
+    public async Task GetAsyncUpsertsWhenProfilePathChanges()
+    {
+        var repository = new FakePersonRepository
+        {
+            ExistingPerson = new Person
+            {
+                Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                TmdbId = FakePersonDataProvider.McConaugheyTmdbId,
+                Name = "Matthew McConaughey",
+                ProfilePath = "/old-profile.jpg",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
+        };
+        var service = new GetPersonByTmdbIdService(
+            new FakePersonDataProvider(),
+            repository,
+            new NoOpMovieRepository(),
+            new NoOpTvShowRepository());
+
+        await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
+
+        Assert.Equal(1, repository.UpsertCallCount);
+    }
+
     private sealed class FakePersonRepository : IPersonRepository
     {
+        public Person? ExistingPerson { get; init; }
+
+        public int UpsertCallCount { get; private set; }
+
         public Task<Person?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Person?>(null);
+            Task.FromResult(ExistingPerson);
 
         public Task<Person> UpsertFromProviderAsync(
             int tmdbId,
             string name,
             string? profilePath,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new Person
+            CancellationToken cancellationToken = default)
+        {
+            UpsertCallCount++;
+            return Task.FromResult(new Person
             {
                 Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
                 TmdbId = tmdbId,
@@ -61,6 +147,7 @@ public sealed class GetPersonByTmdbIdServiceTests
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
+        }
     }
 
     private sealed class NoOpMovieRepository : IMovieRepository

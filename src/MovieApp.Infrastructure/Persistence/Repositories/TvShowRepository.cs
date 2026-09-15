@@ -18,6 +18,23 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             .FirstOrDefaultAsync(tvShow => tvShow.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, TvShow>> GetByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, TvShow>();
+        }
+
+        var tvShows = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => ids.Contains(tvShow.Id))
+            .ToListAsync(cancellationToken);
+
+        return tvShows.ToDictionary(tvShow => tvShow.Id);
+    }
+
     public async Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default)
     {
         return await dbContext.TvShows

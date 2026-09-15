@@ -7,6 +7,11 @@ public interface ITvShowRepository
 {
     Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<Guid, TvShow>> GetByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(

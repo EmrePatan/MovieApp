@@ -34,11 +34,6 @@ public sealed class RecommendationService(
     {
         ValidateSimilarCriteria(criteria);
 
-        if (!await recommendationRepository.MovieExistsAsync(movieId, cancellationToken))
-        {
-            throw new NotFoundException("Movie not found.");
-        }
-
         var cacheKey = RecommendationCacheKeys.SimilarMovie(movieId, criteria.Page, criteria.PageSize);
         var cached = await cacheService.GetAsync<RecommendationCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -82,11 +77,6 @@ public sealed class RecommendationService(
         CancellationToken cancellationToken = default)
     {
         ValidateSimilarCriteria(criteria);
-
-        if (!await recommendationRepository.TvShowExistsAsync(tvShowId, cancellationToken))
-        {
-            throw new NotFoundException("TV show not found.");
-        }
 
         var cacheKey = RecommendationCacheKeys.SimilarTv(tvShowId, criteria.Page, criteria.PageSize);
         var cached = await cacheService.GetAsync<RecommendationCacheEntry>(cacheKey, cancellationToken);
@@ -256,7 +246,7 @@ public sealed class RecommendationService(
         var trending = await discoveryService.GetTrendingAsync(
             new DiscoveryCriteria(SearchContentType.All, 1, sectionSize),
             cancellationToken);
-        var topRated = await discoveryService.GetPopularAsync(
+        var topRated = await discoveryService.GetTopRatedAsync(
             new DiscoveryCriteria(SearchContentType.All, 1, sectionSize),
             cancellationToken);
 

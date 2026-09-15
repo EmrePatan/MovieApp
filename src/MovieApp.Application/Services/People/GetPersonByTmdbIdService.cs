@@ -18,17 +18,22 @@ public sealed class GetPersonByTmdbIdService(
             throw new ValidationException("A valid TMDB person id is required.");
         }
 
+        var existingPerson = await personRepository.GetByTmdbIdAsync(tmdbPersonId, cancellationToken);
         var providerDetails = await personDataProvider.GetPersonAsync(tmdbPersonId, cancellationToken);
         if (providerDetails is null)
         {
             throw new NotFoundException("The requested person was not found.");
         }
 
-        var person = await personRepository.UpsertFromProviderAsync(
-            providerDetails.TmdbId,
-            providerDetails.Name,
-            providerDetails.ProfilePath,
-            cancellationToken);
+        var person = existingPerson is null ||
+                     existingPerson.Name != providerDetails.Name ||
+                     existingPerson.ProfilePath != providerDetails.ProfilePath
+            ? await personRepository.UpsertFromProviderAsync(
+                providerDetails.TmdbId,
+                providerDetails.Name,
+                providerDetails.ProfilePath,
+                cancellationToken)
+            : existingPerson;
 
         var filmography = await PersonFilmographyComposer.ComposeAsync(
             providerDetails.FilmographyCredits,

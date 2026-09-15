@@ -79,16 +79,37 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
                 ReleaseDate = tvShow.FirstAirDate!.Value
             };
 
-        var orderedQuery = movieQuery
-            .Concat(tvQuery)
-            .OrderBy(item => item.ReleaseDate);
+        var movieCount = await movieQuery.CountAsync(cancellationToken);
+        var tvCount = await tvQuery.CountAsync(cancellationToken);
+        var totalCount = movieCount + tvCount;
 
-        var totalCount = await orderedQuery.CountAsync(cancellationToken);
+        var fetchCount = Math.Min(totalCount, ((page - 1) * pageSize) + pageSize);
+        var skip = (page - 1) * pageSize;
 
-        var rows = await orderedQuery
-            .Skip((page - 1) * pageSize)
+        var movieRows = fetchCount == 0
+            ? []
+            : await movieQuery
+                .OrderBy(item => item.ReleaseDate)
+                .ThenBy(item => item.ContentId)
+                .Take(fetchCount)
+                .ToListAsync(cancellationToken);
+
+        var tvRows = fetchCount == 0
+            ? []
+            : await tvQuery
+                .OrderBy(item => item.ReleaseDate)
+                .ThenBy(item => item.ContentId)
+                .Take(fetchCount)
+                .ToListAsync(cancellationToken);
+
+        var rows = movieRows
+            .Concat(tvRows)
+            .OrderBy(item => item.ReleaseDate)
+            .ThenBy(item => item.ContentType)
+            .ThenBy(item => item.ContentId)
+            .Skip(skip)
             .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var items = rows
             .Select(row => new CatalogUpcomingItemResult(
@@ -105,22 +126,25 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
             return (items, totalCount);
         }
 
-        var contentIds = items
+        var movieIds = items
+            .Where(item => item.ContentType == CatalogContentType.Movie)
+            .Select(item => item.ContentId)
+            .ToList();
+        var tvIds = items
+            .Where(item => item.ContentType == CatalogContentType.Tv)
             .Select(item => item.ContentId)
             .ToList();
 
         var followedKeys = await dbContext.CatalogFollows
             .AsNoTracking()
-            .Where(follow => follow.UserId == userId.Value && contentIds.Contains(follow.ContentId))
+            .Where(follow =>
+                follow.UserId == userId.Value &&
+                ((follow.ContentType == CatalogContentType.Movie && movieIds.Contains(follow.ContentId)) ||
+                 (follow.ContentType == CatalogContentType.Tv && tvIds.Contains(follow.ContentId))))
             .Select(follow => new { follow.ContentId, follow.ContentType })
             .ToListAsync(cancellationToken);
 
-        var pageKeySet = items
-            .Select(item => (item.ContentId, item.ContentType))
-            .ToHashSet();
-
         var followedSet = followedKeys
-            .Where(key => pageKeySet.Contains((key.ContentId, key.ContentType)))
             .Select(key => (key.ContentId, key.ContentType))
             .ToHashSet();
 

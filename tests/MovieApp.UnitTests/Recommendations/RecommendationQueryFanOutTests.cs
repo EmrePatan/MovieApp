@@ -141,8 +141,11 @@ public sealed class RecommendationQueryFanOutTests
 
         public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
             DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(EmptyResult(criteria));
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(EmptyResult(criteria));
+        }
 
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
             string genreName,

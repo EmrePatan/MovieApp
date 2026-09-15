@@ -204,6 +204,15 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
         int take,
         CancellationToken cancellationToken = default)
     {
+        var showsWithUnwatchedEpisodes = dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode => episode.Season.SeasonNumber >= 1)
+            .Where(episode => !dbContext.WatchedEpisodes.Any(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                watchedEpisode.EpisodeId == episode.Id))
+            .Select(episode => episode.Season.TvShowId)
+            .Distinct();
+
         var watchedShows = dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode => watchedEpisode.UserId == userId)
@@ -215,12 +224,7 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
             });
 
         var items = await watchedShows
-            .Where(show => dbContext.Episodes.Any(episode =>
-                episode.Season.TvShowId == show.TvShowId &&
-                episode.Season.SeasonNumber >= 1 &&
-                !dbContext.WatchedEpisodes.Any(watchedEpisode =>
-                    watchedEpisode.UserId == userId &&
-                    watchedEpisode.EpisodeId == episode.Id)))
+            .Where(show => showsWithUnwatchedEpisodes.Contains(show.TvShowId))
             .OrderByDescending(show => show.LastWatchedAt)
             .Take(take)
             .Join(
