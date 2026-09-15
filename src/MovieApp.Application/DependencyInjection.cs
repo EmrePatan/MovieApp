@@ -66,6 +66,7 @@ public static class DependencyInjection
 
         services.AddScoped<IRegisterUserService, RegisterUserService>();
         services.AddScoped<ILoginUserService, LoginUserService>();
+        services.AddScoped<ISocialAuthService, SocialAuthService>();
         services.AddScoped<IGetCurrentUserService, GetCurrentUserService>();
         services.AddScoped<IProfileStatisticsCache, ProfileStatisticsCache>();
         services.AddScoped<IUserProfileService, UserProfileService>();

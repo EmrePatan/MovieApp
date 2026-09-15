@@ -37,6 +37,24 @@ public sealed class LoginUserServiceTests
     }
 
     [Fact]
+    public async Task LoginAsyncThrowsAuthenticationExceptionForSocialOnlyUser()
+    {
+        var user = User.CreateFromExternalIdentity(
+            Guid.NewGuid(),
+            "social@example.com",
+            "Social User",
+            DateTime.UtcNow);
+
+        var service = new LoginUserService(
+            new FakeUserRepository(user),
+            new FakePasswordHasher(true),
+            new FakeTokenService());
+
+        await Assert.ThrowsAsync<AuthenticationException>(() =>
+            service.LoginAsync(new LoginUserRequest("social@example.com", "StrongPassword123")));
+    }
+
+    [Fact]
     public async Task LoginAsyncThrowsAuthenticationExceptionForInactiveUser()
     {
         var user = CreateUser();

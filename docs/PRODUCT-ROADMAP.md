@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Home Cold Start Optimization Phase 2)  
+**Last updated:** 2026-09-16 (Social Authentication Phase 1)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -775,6 +775,27 @@ Authentication and account management beyond bare JWT login.
 - Mobile account screens: edit profile, email, password, delete account
 
 **Auth note unchanged:** no refresh-token flow.
+
+---
+
+## IN PROGRESS — Social Authentication Phase 1
+
+Google + Apple unified sign-in/sign-up with secure account linking.
+
+**Shipped in code (backend + mobile):**
+- `UserExternalLogin` persistence with unique `(provider, providerSubject)`
+- `POST /api/auth/social` with server-side Google ID token and Apple identity token verification
+- MovieApp JWT issuance through the existing auth/session pipeline
+- Mobile `Continue with Google` / `Continue with Apple` on Login and Register
+- Safe linking policy: verified-email auto-link only for social-only accounts; password accounts require password sign-in (no takeover via email match)
+
+**Still pending before production-ready provider rollout:**
+- Google Cloud OAuth client IDs (iOS + Android/web) configured for `com.movieapp.mobile`
+- Apple Developer Sign in with Apple capability + Services ID / bundle configuration
+- Real-device/provider E2E validation on iOS and Android dev builds
+- Production/staging env secrets for `Authentication:Social:*` and mobile `EXPO_PUBLIC_GOOGLE_*`
+
+Facebook is **not** in scope for this phase.
 
 ---
 

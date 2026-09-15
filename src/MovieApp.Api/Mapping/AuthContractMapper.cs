@@ -11,6 +11,10 @@ public static class AuthContractMapper
     public static LoginUserRequest ToLoginUserRequest(LoginRequest request) =>
         new(request.Email, request.Password);
 
+    public static Application.Models.Identity.SocialAuthRequest ToSocialAuthRequest(
+        Contracts.Auth.SocialAuthRequest request) =>
+        new(request.Provider, request.IdentityToken);
+
     public static AuthResponse ToAuthResponse(AuthenticationResult result) =>
         new(
             result.AccessToken,

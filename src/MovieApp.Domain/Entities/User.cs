@@ -12,7 +12,7 @@ public sealed class User
 
     public string UserName { get; set; } = string.Empty;
 
-    public string PasswordHash { get; set; } = string.Empty;
+    public string? PasswordHash { get; set; }
 
     public string DisplayName { get; set; } = string.Empty;
 
@@ -48,6 +48,10 @@ public sealed class User
 
     public ICollection<PushDevice> PushDevices { get; set; } = [];
 
+    public ICollection<UserExternalLogin> ExternalLogins { get; set; } = [];
+
+    public bool HasPassword => !string.IsNullOrEmpty(PasswordHash);
+
     public static User Create(
         Guid id,
         string email,
@@ -74,6 +78,33 @@ public sealed class User
             SecurityStamp = Guid.NewGuid(),
             CreatedAt = utcNow,
             UpdatedAt = utcNow
+        };
+    }
+
+    public static User CreateFromExternalIdentity(
+        Guid id,
+        string email,
+        string displayName,
+        DateTime utcNow)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+
+        var normalizedEmail = UserEmailNormalizer.Normalize(email);
+        var userName = CreateUserNameFromEmail(normalizedEmail);
+
+        return new User
+        {
+            Id = id,
+            Email = email.Trim(),
+            NormalizedEmail = normalizedEmail,
+            UserName = userName,
+            PasswordHash = null,
+            DisplayName = displayName.Trim(),
+            IsActive = true,
+            SecurityStamp = Guid.NewGuid(),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
         };
     }
 
@@ -125,6 +156,23 @@ public sealed class User
 
         PasswordHash = passwordHash;
         RotateSecurityStamp(utcNow);
+    }
+
+    public void SetInitialDisplayNameIfEmpty(string? displayName, DateTime utcNow)
+    {
+        if (!IsActive || string.IsNullOrWhiteSpace(displayName) || !string.IsNullOrWhiteSpace(DisplayName))
+        {
+            return;
+        }
+
+        var trimmedDisplayName = displayName.Trim();
+        if (trimmedDisplayName.Length > 100)
+        {
+            trimmedDisplayName = trimmedDisplayName[..100];
+        }
+
+        DisplayName = trimmedDisplayName;
+        UpdatedAt = utcNow;
     }
 
     public void RotateSecurityStamp(DateTime utcNow)

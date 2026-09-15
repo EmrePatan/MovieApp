@@ -37,6 +37,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<User> Users => Set<User>();
 
+    public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
+
     public DbSet<Favorite> Favorites => Set<Favorite>();
 
     public DbSet<Watchlist> Watchlists => Set<Watchlist>();

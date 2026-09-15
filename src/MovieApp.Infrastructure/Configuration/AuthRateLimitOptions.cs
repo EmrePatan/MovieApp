@@ -8,6 +8,10 @@ public sealed class AuthRateLimitOptions
 
     public int LoginWindowMinutes { get; set; } = 1;
 
+    public int SocialPermitLimit { get; set; } = 10;
+
+    public int SocialWindowMinutes { get; set; } = 1;
+
     public int RegisterPermitLimit { get; set; } = 5;
 
     public int RegisterWindowMinutes { get; set; } = 10;

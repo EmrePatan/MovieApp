@@ -144,6 +144,10 @@ Any credential exposed during development or staging must **not** be reused in p
 | PostgreSQL | `PostgreSql:ConnectionString` → `PostgreSql__ConnectionString` (preferred), or `PostgreSql__Host` / `Port` / `Database` / `Username` / `Password` | [ ] | [ ] |
 | Redis | `Redis:ConnectionString` → `Redis__ConnectionString`; `Redis:InstanceName` → `Redis__InstanceName` | [ ] | [ ] |
 | JWT | `Authentication:Jwt:SigningKey` → `Authentication__Jwt__SigningKey`; also `Issuer`, `Audience`, `AccessTokenMinutes` | [ ] | [ ] |
+| Google social auth | `Authentication:Social:Google:ClientIds` → `Authentication__Social__Google__ClientIds__*` (iOS + Android/web OAuth client IDs; no secrets in repo) | [ ] | [ ] |
+| Apple social auth | `Authentication:Social:Apple:ClientIds` → `Authentication__Social__Apple__ClientIds__*` (bundle / Services ID audience values) | [ ] | [ ] |
+| Mobile Google Sign-In | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` in EAS env for each build profile | [ ] | [ ] |
+| Apple Sign in with Apple | Xcode/EAS capability enabled for `com.movieapp.mobile`; Apple Developer Services ID + key configuration complete | [ ] | [ ] |
 | TMDB | `MovieProviders:Provider` = `Tmdb`; `MovieProviders:Tmdb:ApiKey` / `ReadAccessToken` / `BaseUrl` | [ ] | [ ] |
 | Release region | `ReleaseRegion:DefaultRegion` → `ReleaseRegion__DefaultRegion` (non-secret; default `TR`) | [ ] | [ ] |
 | Push notifications | `PushNotifications:Enabled` → `PushNotifications__Enabled`; `MaxAttempts`, `DispatchBatchSize` | [ ] | [ ] |

@@ -51,6 +51,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
 
+        services.AddOptions<SocialAuthOptions>()
+            .Bind(configuration.GetSection(SocialAuthOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<SocialAuthOptions>, SocialAuthOptionsValidator>();
+
         services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
 
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
@@ -156,6 +162,18 @@ public static class DependencyInjection
         services.AddScoped<IEpisodeRepository, EpisodeRepository>();
 
         services.AddScoped<IUserRepository, UserRepository>();
+
+        services.AddScoped<IUserExternalLoginRepository, UserExternalLoginRepository>();
+
+        services.AddMemoryCache();
+
+        services.AddHttpClient(nameof(AppleJwksProvider));
+
+        services.AddSingleton<AppleJwksProvider>();
+
+        services.AddScoped<ISocialIdentityTokenVerifier, GoogleIdTokenVerifier>();
+
+        services.AddScoped<ISocialIdentityTokenVerifier, AppleIdTokenVerifier>();
 
         services.AddScoped<IUserStatisticsRepository, UserStatisticsRepository>();
 

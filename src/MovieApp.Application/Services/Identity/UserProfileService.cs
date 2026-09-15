@@ -80,7 +80,7 @@ public sealed class UserProfileService(
         var user = await GetCurrentUserForUpdateAsync(cancellationToken);
         EnsureCurrentPassword(user, currentPassword);
 
-        if (passwordHasher.VerifyPassword(newPassword, user.PasswordHash))
+        if (user.HasPassword && passwordHasher.VerifyPassword(newPassword, user.PasswordHash!))
         {
             throw new ValidationException("New password must be different from the current password.");
         }
@@ -184,7 +184,7 @@ public sealed class UserProfileService(
 
     private void EnsureCurrentPassword(Domain.Entities.User user, string currentPassword)
     {
-        if (!passwordHasher.VerifyPassword(currentPassword, user.PasswordHash))
+        if (!user.HasPassword || !passwordHasher.VerifyPassword(currentPassword, user.PasswordHash!))
         {
             throw new ValidationException(InvalidCurrentPasswordMessage);
         }

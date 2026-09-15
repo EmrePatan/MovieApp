@@ -28,7 +28,8 @@ public sealed class LoginUserService(
         var normalizedEmail = UserEmailNormalizer.Normalize(request.Email);
         var user = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
 
-        if (user is null || !user.IsActive || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        if (user is null || !user.IsActive || !user.HasPassword ||
+            !passwordHasher.VerifyPassword(request.Password, user.PasswordHash!))
         {
             throw new AuthenticationException(InvalidCredentialsMessage);
         }

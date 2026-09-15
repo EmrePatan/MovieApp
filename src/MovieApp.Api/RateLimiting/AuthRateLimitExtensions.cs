@@ -29,6 +29,15 @@ internal static class AuthRateLimitExtensions
                     options.LoginWindowMinutes);
             });
 
+            rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Social, httpContext =>
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
+                    httpContext,
+                    options.SocialPermitLimit,
+                    options.SocialWindowMinutes);
+            });
+
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Register, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;

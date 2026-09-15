@@ -14,6 +14,7 @@ namespace MovieApp.Api.Controllers;
 public sealed class AuthController(
     IRegisterUserService registerUserService,
     ILoginUserService loginUserService,
+    ISocialAuthService socialAuthService,
     IGetCurrentUserService getCurrentUserService,
     IForgotPasswordService forgotPasswordService,
     IResetPasswordService resetPasswordService) : ControllerBase
@@ -48,6 +49,48 @@ public sealed class AuthController(
             return Conflict(CreateProblemDetails(
                 StatusCodes.Status409Conflict,
                 "Registration conflict.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("social")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Social)]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<AuthResponse>> Social(
+        [FromBody] SocialAuthRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await socialAuthService.AuthenticateAsync(
+                AuthContractMapper.ToSocialAuthRequest(request),
+                cancellationToken);
+
+            return Ok(AuthContractMapper.ToAuthResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid social authentication request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication failed.",
+                exception.Message));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(CreateProblemDetails(
+                StatusCodes.Status409Conflict,
+                "Social authentication conflict.",
                 exception.Message));
         }
     }
