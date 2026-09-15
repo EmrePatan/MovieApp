@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Home Coming Up + Top Rated eligibility fix)  
+**Last updated:** 2026-09-15 (Discovery 2.0 D1.5 navigation IA)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -34,9 +34,16 @@ Do not use vague completion percentages.
 
 Accepted information architecture — do not undo without an explicit product decision.
 
-### Home = personal landing page
+### Primary bottom navigation
+
+**Home | Discover | Library | Profile**
+
+Search is **not** a bottom-tab destination. Search is a global action / entry point available from Home and Discover (and via deep links to the hidden Search route).
+
+### Home = personalized landing / feed
 
 **All users:**
+- Prominent global Search entry near the top
 - Hot This Week hero (up to 5, TMDB weekly trending)
 - Trending Now (10, local catalog sort by vote count)
 - Top Rated (Bayesian-weighted catalog ranking; requires ≥1 valid genre; final combined rail max 3 Animation / 10; may return fewer than requested rather than violate eligibility/diversity)
@@ -48,32 +55,43 @@ Accepted information architecture — do not undo without an explicit product de
 
 **Cold (low signal):**
 - Welcome
-- Explore CTA
+- Explore CTA → Discover tab
 
-### Search tab = Search + premium Explore landing while idle
+Home may still surface useful personalized library-derived sections (e.g. Continue Watching on Home when present) without replacing the Library tab.
 
-**Idle Explore:**
-- Explore by Genre
+### Discover = discovery hub
 
-Search tab remains **Search**. Do **not** add a separate Explore bottom tab.
+First-class bottom tab for finding new content:
+- Global Search entry
+- **Explore with Filters** (D1 Advanced Discover) → `/advanced-discover`
+- Layout prepared for D2–D6 (Streaming Services, Now in Theaters, On TV This Week, World Cinema, Pick Something For Me) — placeholders only until those phases ship
+- Existing real discovery content (Trending, Top Rated, genres, New Releases browse)
 
-### Discover = secondary filtered/browse listing
+Filtered browse listing screens remain reachable from Discover, genres, See All, and deep links.
 
-Reached from Explore, genres, See All, and deep links. Provider-backed browse with filters.
+### Library = personal collection hub
 
-### Profile = account + My Library
+First-class bottom tab for saved, watched, followed, rated, and in-progress content:
+- Collection summary (counts from existing profile statistics)
+- Continue Watching (from existing Home progress data)
+- Destinations: Favorites, Watchlists, Following, Watch History, Coming Up, Ratings & Reviews (via Profile analytics)
 
-**My Library:**
-- Favorites
-- Watchlist
-- Watch History
-- Following
+Status visuals use only domain-backed states (watching/progress, completed where explicitly represented, saved/watchlist). Do **not** invent collection status.
 
-Do **not** create a new Library tab.
+### Profile = account and settings
+
+- Identity / account editing
+- Notification and regional/settings functionality
+- Analytics / ratings insights
+- Compact **Open My Library** shortcut (primary library access lives on the Library tab)
+
+### Search = global action (hidden route)
+
+Existing Search screen, autocomplete, history, and result navigation are preserved at `/(tabs)/search` (hidden from tab bar). Back navigation is origin-aware (Home → Search → Back → Home; Discover → Search → Back → Discover).
 
 ### Important IA decision (do not revert)
 
-Home owns the primary browse rails (Hot This Week hero, Recommended For You, Coming Up, Trending Now, Top Rated, New Releases). Search idle Explore keeps genre entry points only; filtered browse remains in Discover. Do **not** restore the old overloaded Home with Popular, Continue Watching, Because You Watched, and genre fanout rails.
+Home owns the primary browse rails. Discover owns the discovery hub and D1 Advanced Discover entry. Library owns personal collection access. Profile is account/settings-first. Do **not** restore Search as a primary bottom tab or make Profile the main library destination.
 
 ---
 
@@ -142,11 +160,24 @@ Reusable advanced discovery engine for later Discovery 2.0 phases (D2–D6).
 - Redis cache (10 min TTL)
 
 **Mobile:**
-- Search Explore entry: **Advanced Discover** card → `/advanced-discover`
+- Discover hub entry: **Explore with Filters** → `/advanced-discover` (legacy Search idle card retained for deep links)
 - Filters: media type, genres (multi-select), min rating, year/range, runtime presets, original language, origin country, sort
 - Results: existing search cards, loading/empty/error/retry, infinite pagination, movie/TV detail navigation with filter state preserved on return
 
 **Out of scope (subsequent phases):** streaming provider filters, Now in Theaters, TV This Week, World Cinema presets, Pick Something For Me.
+
+## DONE — Discovery 2.0 D1.5 (Navigation IA + Discover Hub + Global Search + Library Hub)
+
+**Mobile only** — no backend changes.
+
+- Bottom navigation: **Home | Discover | Library | Profile**; Search and Watchlist hidden from tab bar (routes preserved)
+- Global Search entry component on Home and Discover → existing Search experience with origin-aware back
+- Discover hub with D1 **Explore with Filters**, future D2–D6 placeholders (non-interactive), and existing Trending / Top Rated / genre browse
+- Library hub reusing profile statistics, Home Continue Watching, and existing Favorites / Watchlists / Following / History / Coming Up destinations
+- Premium library status accents for domain-backed watching (TV episode context) and summary counts; no invented movie playback progress
+- Profile demoted to account/settings with compact Library shortcut
+
+**Next Discovery 2.0 phase:** D2 Streaming Services (backend provider filters + Discover hub entry).
 
 ---
 
