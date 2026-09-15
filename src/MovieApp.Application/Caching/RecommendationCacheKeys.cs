@@ -14,14 +14,14 @@ public static class RecommendationCacheKeys
     public const string HomePrefix = "recommendation-home:";
 
     public static string SimilarMovie(Guid movieId, int page, int pageSize) =>
-        $"{SimilarMoviePrefix}{movieId}:page:{page}:size:{pageSize}:{RecommendationAlgorithmVersion.Current}";
+        $"{SimilarMoviePrefix}{movieId}:page:{page}:size:{pageSize}:{RecommendationAlgorithmVersion.Similar}";
 
     public static string SimilarTv(Guid tvShowId, int page, int pageSize) =>
-        $"{SimilarTvPrefix}{tvShowId}:page:{page}:size:{pageSize}:{RecommendationAlgorithmVersion.Current}";
+        $"{SimilarTvPrefix}{tvShowId}:page:{page}:size:{pageSize}:{RecommendationAlgorithmVersion.Similar}";
 
     public static string User(Guid userId, RecommendationContentType type, int page, int pageSize) =>
-        $"{UserPrefix}{userId}:{type}:{page}:{pageSize}:{RecommendationAlgorithmVersion.Current}";
+        $"{UserPrefix}{userId}:{type}:{page}:{pageSize}:{RecommendationAlgorithmVersion.Personalized}";
 
     public static string Home(Guid userId) =>
-        $"{HomePrefix}{userId}:{RecommendationAlgorithmVersion.Current}";
+        $"{HomePrefix}{userId}:{RecommendationAlgorithmVersion.Personalized}";
 }

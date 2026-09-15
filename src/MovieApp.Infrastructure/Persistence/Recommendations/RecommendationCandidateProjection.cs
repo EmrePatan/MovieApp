@@ -29,4 +29,6 @@ internal sealed class RecommendationCandidateProjection
     public List<string> GenreNames { get; init; } = [];
 
     public List<Guid> PersonIds { get; init; } = [];
+
+    public int? TmdbCollectionId { get; init; }
 }

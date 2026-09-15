@@ -14,6 +14,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         Guid userId,
         CancellationToken cancellationToken)
     {
+        var utcNow = DateTime.UtcNow;
+
         var ratingRows = await dbContext.Ratings
             .AsNoTracking()
             .Where(rating => rating.UserId == userId)
@@ -21,6 +23,7 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 rating.MovieId,
                 rating.TvShowId,
                 rating.Score,
+                rating.UpdatedAt,
                 rating.MovieId != null ? rating.Movie!.Title : null,
                 rating.TvShowId != null ? rating.TvShow!.Title : null))
             .ToListAsync(cancellationToken);
@@ -28,9 +31,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         var favoriteRows = await dbContext.Favorites
             .AsNoTracking()
             .Where(favorite => favorite.UserId == userId)
-            .Select(favorite => new FavoriteRow(
+            .Select(favorite => new TimestampedContentRow(
                 favorite.MovieId,
                 favorite.TvShowId,
+                favorite.CreatedAt,
                 favorite.MovieId != null ? favorite.Movie!.Title : null,
                 favorite.TvShowId != null ? favorite.TvShow!.Title : null))
             .ToListAsync(cancellationToken);
@@ -39,15 +43,16 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .AsNoTracking()
             .Where(item => item.UserId == userId)
             .OrderByDescending(item => item.WatchedAt)
-            .Select(item => new WatchedMovieRow(item.MovieId, item.Movie!.Title))
+            .Select(item => new WatchedMovieRow(item.MovieId, item.Movie!.Title, item.WatchedAt))
             .ToListAsync(cancellationToken);
 
         var watchlistRows = await dbContext.WatchlistItems
             .AsNoTracking()
             .Where(item => item.Watchlist.UserId == userId)
-            .Select(item => new WatchlistRow(
+            .Select(item => new TimestampedContentRow(
                 item.MovieId,
                 item.TvShowId,
+                item.CreatedAt,
                 item.MovieId != null ? item.Movie!.Title : null,
                 item.TvShowId != null ? item.TvShow!.Title : null))
             .ToListAsync(cancellationToken);
@@ -55,7 +60,18 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         var watchedEpisodeRows = await dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(item => item.UserId == userId)
-            .Select(item => item.Episode.Season.TvShowId)
+            .Select(item => new WatchedEpisodeRow(
+                item.Episode.Season.TvShowId,
+                item.WatchedAt))
+            .ToListAsync(cancellationToken);
+
+        var catalogFollowRows = await dbContext.CatalogFollows
+            .AsNoTracking()
+            .Where(follow => follow.UserId == userId)
+            .Select(follow => new CatalogFollowRow(
+                follow.ContentType,
+                follow.ContentId,
+                follow.CreatedAt))
             .ToListAsync(cancellationToken);
 
         var recentQueries = await dbContext.SearchHistories
@@ -113,7 +129,20 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             }
         }
 
-        excludedTvShowIds.UnionWith(await GetFullyWatchedTvShowIdsAsync(watchedEpisodeRows, cancellationToken));
+        foreach (var follow in catalogFollowRows)
+        {
+            if (follow.ContentType == CatalogContentType.Movie)
+            {
+                excludedMovieIds.Add(follow.ContentId);
+            }
+            else if (follow.ContentType == CatalogContentType.Tv)
+            {
+                excludedTvShowIds.Add(follow.ContentId);
+            }
+        }
+
+        var watchedEpisodeTvShowIds = watchedEpisodeRows.Select(row => row.TvShowId).ToList();
+        excludedTvShowIds.UnionWith(await GetFullyWatchedTvShowIdsAsync(watchedEpisodeTvShowIds, cancellationToken));
 
         var seeds = new List<SignalSeed>();
         seeds.AddRange(CreateRatingSeeds(ratingRows));
@@ -121,21 +150,23 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         seeds.AddRange(CreateWatchedMovieSeeds(watchedMovieRows));
         seeds.AddRange(await CreateWatchedTvShowSeedsAsync(watchedEpisodeRows, cancellationToken));
         seeds.AddRange(CreateWatchlistSeeds(watchlistRows));
+        seeds.AddRange(await CreateTvFollowSeedsAsync(catalogFollowRows, cancellationToken));
         seeds.AddRange(await CreateSearchSeedsAsync(recentQueries, cancellationToken));
 
+        var meaningfulInteractionCount = seeds
+            .Where(seed => RecommendationSignalScoring.IsMeaningfulInteractionSignal(seed.SignalType))
+            .Select(seed => (seed.ContentType, seed.ContentId))
+            .Distinct()
+            .Count();
+
+        var collapsedSeeds = CollapseSeeds(seeds);
+
         var movieSignals = await BuildMovieSignalsAsync(
-            seeds.Where(seed => seed.ContentType == "movie").ToList(),
+            collapsedSeeds.Where(seed => seed.ContentType == "movie").ToList(),
             cancellationToken);
         var tvSignals = await BuildTvSignalsAsync(
-            seeds.Where(seed => seed.ContentType == "tv").ToList(),
+            collapsedSeeds.Where(seed => seed.ContentType == "tv").ToList(),
             cancellationToken);
-
-        var meaningfulInteractionCount =
-            ratingRows.Count +
-            favoriteRows.Count +
-            watchedMovieRows.Count +
-            watchedEpisodeRows.Count +
-            watchlistRows.Count;
 
         return new UserRecommendationContext(
             movieSignals.Concat(tvSignals).ToList(),
@@ -155,7 +186,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "movie",
                     UserBehaviorSignalTypes.Rating,
                     rating.MovieTitle!,
-                    rating.Score);
+                    rating.Score,
+                    rating.SignalAtUtc);
             }
 
             if (rating.TvShowId.HasValue)
@@ -165,12 +197,13 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "tv",
                     UserBehaviorSignalTypes.Rating,
                     rating.TvShowTitle!,
-                    rating.Score);
+                    rating.Score,
+                    rating.SignalAtUtc);
             }
         }
     }
 
-    private static IEnumerable<SignalSeed> CreateFavoriteSeeds(IReadOnlyList<FavoriteRow> favoriteRows)
+    private static IEnumerable<SignalSeed> CreateFavoriteSeeds(IReadOnlyList<TimestampedContentRow> favoriteRows)
     {
         foreach (var favorite in favoriteRows)
         {
@@ -181,7 +214,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "movie",
                     UserBehaviorSignalTypes.Favorite,
                     favorite.MovieTitle!,
-                    null);
+                    null,
+                    favorite.SignalAtUtc);
             }
 
             if (favorite.TvShowId.HasValue)
@@ -191,7 +225,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "tv",
                     UserBehaviorSignalTypes.Favorite,
                     favorite.TvShowTitle!,
-                    null);
+                    null,
+                    favorite.SignalAtUtc);
             }
         }
     }
@@ -202,23 +237,35 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             "movie",
             UserBehaviorSignalTypes.Watched,
             item.Title,
-            null));
+            null,
+            item.WatchedAt));
 
     private async Task<IReadOnlyList<SignalSeed>> CreateWatchedTvShowSeedsAsync(
-        IReadOnlyList<Guid> watchedEpisodeTvShowIds,
+        IReadOnlyList<WatchedEpisodeRow> watchedEpisodeRows,
         CancellationToken cancellationToken)
     {
-        var distinctTvShowIds = watchedEpisodeTvShowIds.Distinct().ToList();
-        if (distinctTvShowIds.Count == 0)
+        if (watchedEpisodeRows.Count == 0)
         {
             return [];
         }
 
+        var watchedByShow = watchedEpisodeRows
+            .GroupBy(row => row.TvShowId)
+            .Select(group => new
+            {
+                TvShowId = group.Key,
+                LastWatchedAt = group.Max(row => row.WatchedAt)
+            })
+            .ToList();
+
+        var tvShowIds = watchedByShow.Select(item => item.TvShowId).ToList();
         var tvShowTitles = await dbContext.TvShows
             .AsNoTracking()
-            .Where(tvShow => distinctTvShowIds.Contains(tvShow.Id))
+            .Where(tvShow => tvShowIds.Contains(tvShow.Id))
             .Select(tvShow => new { tvShow.Id, tvShow.Title })
             .ToListAsync(cancellationToken);
+
+        var lastWatchedLookup = watchedByShow.ToDictionary(item => item.TvShowId, item => item.LastWatchedAt);
 
         return tvShowTitles
             .Select(tvShow => new SignalSeed(
@@ -226,11 +273,12 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 "tv",
                 UserBehaviorSignalTypes.Watched,
                 tvShow.Title,
-                null))
+                null,
+                lastWatchedLookup[tvShow.Id]))
             .ToList();
     }
 
-    private static IEnumerable<SignalSeed> CreateWatchlistSeeds(IReadOnlyList<WatchlistRow> watchlistRows)
+    private static IEnumerable<SignalSeed> CreateWatchlistSeeds(IReadOnlyList<TimestampedContentRow> watchlistRows)
     {
         foreach (var watchlistItem in watchlistRows)
         {
@@ -241,7 +289,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "movie",
                     UserBehaviorSignalTypes.Watchlist,
                     watchlistItem.MovieTitle!,
-                    null);
+                    null,
+                    watchlistItem.SignalAtUtc);
             }
 
             if (watchlistItem.TvShowId.HasValue)
@@ -251,9 +300,43 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "tv",
                     UserBehaviorSignalTypes.Watchlist,
                     watchlistItem.TvShowTitle!,
-                    null);
+                    null,
+                    watchlistItem.SignalAtUtc);
             }
         }
+    }
+
+    private async Task<IReadOnlyList<SignalSeed>> CreateTvFollowSeedsAsync(
+        IReadOnlyList<CatalogFollowRow> catalogFollowRows,
+        CancellationToken cancellationToken)
+    {
+        var tvFollows = catalogFollowRows
+            .Where(follow => follow.ContentType == CatalogContentType.Tv)
+            .ToList();
+
+        if (tvFollows.Count == 0)
+        {
+            return [];
+        }
+
+        var tvShowIds = tvFollows.Select(follow => follow.ContentId).ToList();
+        var tvShowTitles = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShowIds.Contains(tvShow.Id))
+            .Select(tvShow => new { tvShow.Id, tvShow.Title })
+            .ToListAsync(cancellationToken);
+
+        var followLookup = tvFollows.ToDictionary(follow => follow.ContentId, follow => follow.FollowedAt);
+
+        return tvShowTitles
+            .Select(tvShow => new SignalSeed(
+                tvShow.Id,
+                "tv",
+                UserBehaviorSignalTypes.TvFollow,
+                tvShow.Title,
+                null,
+                followLookup[tvShow.Id]))
+            .ToList();
     }
 
     private async Task<IReadOnlyList<SignalSeed>> CreateSearchSeedsAsync(
@@ -283,6 +366,7 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "movie",
                     UserBehaviorSignalTypes.Search,
                     movie.Title,
+                    null,
                     null));
 
             if (movieSeed is not null)
@@ -299,6 +383,7 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                     "tv",
                     UserBehaviorSignalTypes.Search,
                     tvShow.Title,
+                    null,
                     null));
 
             if (tvSeed is not null)
@@ -309,6 +394,16 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
 
         return seeds;
     }
+
+    private static List<SignalSeed> CollapseSeeds(IEnumerable<SignalSeed> seeds) =>
+        seeds
+            .GroupBy(seed => (seed.ContentType, seed.ContentId))
+            .Select(group => group
+                .OrderByDescending(seed => RecommendationSignalScoring.GetSignalPriority(seed.SignalType))
+                .ThenByDescending(seed => seed.RatingScore ?? 0)
+                .ThenByDescending(seed => seed.SignalAtUtc ?? DateTime.MinValue)
+                .First())
+            .ToList();
 
     private Task<List<SearchMatchRow>> LoadSearchMatchMoviesAsync(
         IReadOnlyList<string> distinctQueries,
@@ -468,6 +563,7 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             seed.SignalType,
             seed.Title,
             seed.RatingScore,
+            seed.SignalAtUtc,
             genres.Select(genre => genre.GenreId).ToList(),
             genres.ToDictionary(genre => genre.GenreId, genre => genre.GenreName),
             people);
@@ -477,22 +573,25 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         Guid? MovieId,
         Guid? TvShowId,
         int Score,
+        DateTime SignalAtUtc,
         string? MovieTitle,
         string? TvShowTitle);
 
-    private sealed record FavoriteRow(
+    private sealed record TimestampedContentRow(
         Guid? MovieId,
         Guid? TvShowId,
+        DateTime SignalAtUtc,
         string? MovieTitle,
         string? TvShowTitle);
 
-    private sealed record WatchedMovieRow(Guid MovieId, string Title);
+    private sealed record WatchedMovieRow(Guid MovieId, string Title, DateTime WatchedAt);
 
-    private sealed record WatchlistRow(
-        Guid? MovieId,
-        Guid? TvShowId,
-        string? MovieTitle,
-        string? TvShowTitle);
+    private sealed record WatchedEpisodeRow(Guid TvShowId, DateTime WatchedAt);
+
+    private sealed record CatalogFollowRow(
+        CatalogContentType ContentType,
+        Guid ContentId,
+        DateTime FollowedAt);
 
     private sealed record SearchMatchRow(Guid Id, string Title, int VoteCount);
 
@@ -501,7 +600,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         string ContentType,
         string SignalType,
         string Title,
-        int? RatingScore);
+        int? RatingScore,
+        DateTime? SignalAtUtc);
 
     private sealed record GenreRow(Guid ContentId, Guid GenreId, string GenreName);
 

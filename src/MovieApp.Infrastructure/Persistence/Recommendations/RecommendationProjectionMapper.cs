@@ -47,7 +47,8 @@ internal static class RecommendationProjectionMapper
             projection.Year,
             projection.GenreIds,
             ToGenreDictionary(projection.GenreIds, projection.GenreNames),
-            projection.PersonIds);
+            projection.PersonIds,
+            projection.TmdbCollectionId);
 
     private static Dictionary<Guid, string> ToGenreDictionary(
         List<Guid> genreIds,

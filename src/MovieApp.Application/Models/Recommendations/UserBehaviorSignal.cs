@@ -6,6 +6,7 @@ public sealed record UserBehaviorSignal(
     string SignalType,
     string? Title,
     int? RatingScore,
+    DateTime? SignalAtUtc,
     IReadOnlyList<Guid> GenreIds,
     IReadOnlyDictionary<Guid, string> GenreNames,
     IReadOnlyList<Guid> PersonIds);

@@ -229,7 +229,10 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
         int maxCandidates,
         CancellationToken cancellationToken)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var query = dbContext.Movies.AsNoTracking().AsQueryable();
+
+        query = query.Where(movie => movie.ReleaseDate == null || movie.ReleaseDate <= today);
 
         if (preferredGenreIds.Count > 0)
         {
@@ -255,7 +258,10 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
         int maxCandidates,
         CancellationToken cancellationToken)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var query = dbContext.TvShows.AsNoTracking().AsQueryable();
+
+        query = query.Where(tvShow => tvShow.FirstAirDate == null || tvShow.FirstAirDate <= today);
 
         if (preferredGenreIds.Count > 0)
         {
@@ -322,7 +328,8 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
                     .Where(person => person.CreditType == CreditType.Cast)
                     .Select(person => person.PersonId)
                     .Take(MaxCastPeople)
-                    .ToList()
+                    .ToList(),
+                TmdbCollectionId = movie.TmdbCollectionId
             })
             .ToListAsync(cancellationToken);
 

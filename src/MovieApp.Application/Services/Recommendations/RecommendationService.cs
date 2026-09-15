@@ -212,7 +212,11 @@ public sealed class RecommendationService(
         RecommendationCriteria criteria,
         CancellationToken cancellationToken)
     {
-        var genrePreferences = PersonalizedRecommendationEngine.BuildGenrePreferences(context.Signals, _options);
+        var utcNow = DateTime.UtcNow;
+        var genrePreferences = PersonalizedRecommendationEngine.BuildGenrePreferences(
+            context.Signals,
+            _options,
+            utcNow);
         var preferredGenreIds = genrePreferences.Keys.ToList();
 
         var candidates = await recommendationRepository.GetPersonalizedCandidatesAsync(
@@ -227,9 +231,10 @@ public sealed class RecommendationService(
             candidates,
             context.Signals,
             genrePreferences,
-            _options);
+            _options,
+            utcNow);
 
-        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(scored)
+        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(scored, _options)
             .Select(RecommendationMapper.ToRecommendationItem)
             .ToList();
 
@@ -299,12 +304,6 @@ public sealed class RecommendationService(
             sections.Add(CreateSection("because-you-watched", "Because You Watched", becauseYouWatched));
         }
 
-        var basedOnFavorites = await BuildBasedOnFavoritesSectionAsync(context, sectionSize, cancellationToken);
-        if (basedOnFavorites.Count > 0)
-        {
-            sections.Add(CreateSection("similar-to-favorites", "Based On Your Favorites", basedOnFavorites));
-        }
-
         return sections;
     }
 
@@ -325,28 +324,6 @@ public sealed class RecommendationService(
 
         return await BuildSimilarSectionFromSignalsAsync(
             watchedSources,
-            context,
-            sectionSize,
-            cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<RecommendationItem>> BuildBasedOnFavoritesSectionAsync(
-        UserRecommendationContext context,
-        int sectionSize,
-        CancellationToken cancellationToken)
-    {
-        var favoriteSources = context.Signals
-            .Where(signal => signal.SignalType == UserBehaviorSignalTypes.Favorite)
-            .Take(3)
-            .ToList();
-
-        if (favoriteSources.Count == 0)
-        {
-            return [];
-        }
-
-        return await BuildSimilarSectionFromSignalsAsync(
-            favoriteSources,
             context,
             sectionSize,
             cancellationToken);

@@ -14,4 +14,5 @@ public sealed record PersonalizedCandidateProfile(
     int? Year,
     IReadOnlyList<Guid> GenreIds,
     IReadOnlyDictionary<Guid, string> GenreNames,
-    IReadOnlyList<Guid> PersonIds);
+    IReadOnlyList<Guid> PersonIds,
+    int? TmdbCollectionId);

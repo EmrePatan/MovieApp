@@ -11,4 +11,6 @@ public static class UserBehaviorSignalTypes
     public const string Watchlist = "watchlist";
 
     public const string Search = "search";
+
+    public const string TvFollow = "tv-follow";
 }

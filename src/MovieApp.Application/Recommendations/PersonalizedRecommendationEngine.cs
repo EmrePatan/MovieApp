@@ -7,13 +7,14 @@ public static class PersonalizedRecommendationEngine
 {
     public static IReadOnlyDictionary<Guid, (decimal Score, string Name)> BuildGenrePreferences(
         IReadOnlyList<UserBehaviorSignal> signals,
-        RecommendationOptions options)
+        RecommendationOptions options,
+        DateTime utcNow)
     {
         var preferences = new Dictionary<Guid, (decimal Score, string Name)>();
 
         foreach (var signal in signals)
         {
-            var contribution = GetSignalContribution(signal, options);
+            var contribution = RecommendationSignalScoring.GetSignalContribution(signal, options, utcNow);
             if (contribution == 0m)
             {
                 continue;
@@ -53,34 +54,26 @@ public static class PersonalizedRecommendationEngine
         IReadOnlyList<PersonalizedCandidateProfile> candidates,
         IReadOnlyList<UserBehaviorSignal> signals,
         IReadOnlyDictionary<Guid, (decimal Score, string Name)> genrePreferences,
-        RecommendationOptions options)
+        RecommendationOptions options,
+        DateTime utcNow)
     {
         var positiveSignals = signals
-            .Where(signal => GetSignalContribution(signal, options) > 0m)
+            .Where(signal => RecommendationSignalScoring.GetSignalContribution(signal, options, utcNow) > 0m)
             .ToList();
 
-        var preferredPeople = positiveSignals
-            .SelectMany(signal => signal.PersonIds)
-            .Distinct()
-            .ToHashSet();
-
         var maxVoteCount = candidates.Count == 0 ? 1 : Math.Max(1, candidates.Max(candidate => candidate.VoteCount));
-        var currentYear = DateTime.UtcNow.Year;
+        var currentYear = utcNow.Year;
 
         return candidates
             .Select(candidate =>
             {
                 var genreScore = CalculateGenrePreferenceScore(candidate, genrePreferences);
-                var personScore = SimilarityEngine.CalculateOverlapScore(
-                    preferredPeople.ToList(),
-                    candidate.PersonIds);
                 var behaviorScore = CalculateBehaviorSimilarity(candidate, positiveSignals, options);
                 var popularityScore = CalculatePopularityScore(candidate, maxVoteCount);
                 var recencyScore = SimilarityEngine.CalculateYearProximity(currentYear, candidate.Year);
 
                 var score = SimilarityEngine.RoundScore(
                     genreScore * (decimal)options.PersonalizedGenreWeight +
-                    personScore * (decimal)options.PersonalizedPersonWeight +
                     behaviorScore * (decimal)options.PersonalizedBehaviorWeight +
                     popularityScore * (decimal)options.PersonalizedPopularityWeight +
                     recencyScore * (decimal)options.PersonalizedRecencyWeight);
@@ -96,22 +89,50 @@ public static class PersonalizedRecommendationEngine
 
     public static IReadOnlyList<ScoredRecommendation> ApplyDiversity(
         IReadOnlyList<ScoredRecommendation> recommendations,
+        RecommendationOptions options,
         int maxPerGenre = 3)
+    {
+        var passOne = ApplyDiversityPass(recommendations, maxPerGenre, options.DiversityMaxPerCollection);
+        var selectedKeys = passOne
+            .Select(item => (item.Candidate.Id, item.Candidate.Type))
+            .ToHashSet();
+
+        var final = new List<ScoredRecommendation>(passOne);
+
+        foreach (var recommendation in recommendations)
+        {
+            var key = (recommendation.Candidate.Id, recommendation.Candidate.Type);
+            if (selectedKeys.Add(key))
+            {
+                final.Add(recommendation);
+            }
+        }
+
+        return final;
+    }
+
+    private static List<ScoredRecommendation> ApplyDiversityPass(
+        IReadOnlyList<ScoredRecommendation> recommendations,
+        int maxPerGenre,
+        int maxPerCollection)
     {
         var selected = new List<ScoredRecommendation>();
         var genreCounts = new Dictionary<Guid, int>();
+        var collectionCounts = new Dictionary<int, int>();
 
         foreach (var recommendation in recommendations)
         {
             var dominantGenres = recommendation.Candidate.GenreIds.Take(2).ToList();
-            if (dominantGenres.Count == 0)
+            if (dominantGenres.Count > 0 &&
+                dominantGenres.Any(genreId =>
+                    genreCounts.TryGetValue(genreId, out var count) && count >= maxPerGenre))
             {
-                selected.Add(recommendation);
                 continue;
             }
 
-            if (dominantGenres.Any(genreId =>
-                    genreCounts.TryGetValue(genreId, out var count) && count >= maxPerGenre))
+            if (recommendation.Candidate.TmdbCollectionId is int collectionId &&
+                collectionCounts.TryGetValue(collectionId, out var collectionCount) &&
+                collectionCount >= maxPerCollection)
             {
                 continue;
             }
@@ -122,23 +143,15 @@ public static class PersonalizedRecommendationEngine
             {
                 genreCounts[genreId] = genreCounts.GetValueOrDefault(genreId) + 1;
             }
+
+            if (recommendation.Candidate.TmdbCollectionId is int selectedCollectionId)
+            {
+                collectionCounts[selectedCollectionId] =
+                    collectionCounts.GetValueOrDefault(selectedCollectionId) + 1;
+            }
         }
 
         return selected;
-    }
-
-    private static decimal GetSignalContribution(UserBehaviorSignal signal, RecommendationOptions options)
-    {
-        return signal.SignalType switch
-        {
-            UserBehaviorSignalTypes.Rating when signal.RatingScore is not null =>
-                ((signal.RatingScore.Value - 5m) / 5m) * (decimal)options.FavoriteSignalWeight,
-            UserBehaviorSignalTypes.Favorite => (decimal)options.FavoriteSignalWeight,
-            UserBehaviorSignalTypes.Watched => (decimal)options.WatchedSignalWeight,
-            UserBehaviorSignalTypes.Watchlist => (decimal)options.WatchlistSignalWeight,
-            UserBehaviorSignalTypes.Search => (decimal)options.SearchSignalWeight,
-            _ => 0m
-        };
     }
 
     private static decimal CalculateGenrePreferenceScore(
@@ -177,7 +190,7 @@ public static class PersonalizedRecommendationEngine
                 signal.Title ?? string.Empty,
                 signal.GenreIds,
                 signal.GenreNames,
-                signal.PersonIds,
+                [],
                 0m,
                 null);
 
@@ -195,7 +208,7 @@ public static class PersonalizedRecommendationEngine
                 candidate.Year,
                 candidate.GenreIds,
                 candidate.GenreNames,
-                candidate.PersonIds);
+                []);
 
             var score = SimilarityEngine.CalculateScore(sourceProfile, candidateProfile, options);
             bestScore = Math.Max(bestScore, score);

@@ -52,12 +52,16 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
     public async Task PersonalizedUserReceivesRecommendationSections()
     {
         await fixture.ResetAsync();
+        await SeedCatalogAsync();
+        await SeedPagedMovieCatalogAsync();
         var movieId = await SeedMovieAsync();
+        var tvShowId = await SeedTvShowAsync();
+        var secondMovieId = await SeedSecondMovieAsync();
         var token = await RegisterAndGetTokenAsync();
 
         await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
-        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
-        await SendAuthorizedPostAsync($"/api/ratings/movies/{movieId}", token, new CreateRatingRequest(9));
+        await SendAuthorizedPostAsync($"/api/favorites/tvshows/{tvShowId}", token);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{secondMovieId}", token);
 
         var response = await SendAuthorizedGetAsync("/api/home", token);
 
@@ -224,6 +228,23 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var payload = await response.Content.ReadFromJsonAsync<TvShowSearchResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Items);
+        return payload.Items[0].Id;
+    }
+
+    private async Task SeedPagedMovieCatalogAsync()
+    {
+        var response = await _client.GetAsync("/api/movies/search?q=paged-catalog&page=1&pageSize=25");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private async Task<Guid> SeedSecondMovieAsync()
+    {
+        var response = await _client.GetAsync("/api/movies/search?q=paged-catalog&page=1&pageSize=25");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<MovieSearchResponse>();
         Assert.NotNull(payload);
         Assert.NotEmpty(payload.Items);
         return payload.Items[0].Id;

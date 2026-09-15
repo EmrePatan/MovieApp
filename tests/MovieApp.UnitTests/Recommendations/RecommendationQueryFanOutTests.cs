@@ -296,6 +296,7 @@ public sealed class RecommendationQueryFanOutTests
                     UserBehaviorSignalTypes.Watched,
                     $"Source {index}",
                     null,
+                    DateTime.UtcNow,
                     [GenreId],
                     new Dictionary<Guid, string> { [GenreId] = "Action" },
                     []))
@@ -426,7 +427,8 @@ public sealed class RecommendationQueryFanOutTests
                     2020,
                     [GenreId],
                     new Dictionary<Guid, string> { [GenreId] = "Action" },
-                    [])
+                    [],
+                    null)
             ]);
 
         private static SimilaritySourceProfile CreateSourceProfile(Guid movieId) =>

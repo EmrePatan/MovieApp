@@ -13,7 +13,7 @@ public sealed class RecommendationCacheKeysTests
         var key = RecommendationCacheKeys.SimilarMovie(movieId, 1, 20);
 
         Assert.Contains(movieId.ToString(), key);
-        Assert.Contains(RecommendationAlgorithmVersion.Current, key);
+        Assert.Contains(RecommendationAlgorithmVersion.Similar, key);
     }
 
     [Fact]
@@ -35,6 +35,6 @@ public sealed class RecommendationCacheKeysTests
         var key = RecommendationCacheKeys.Home(userId);
 
         Assert.Contains(userId.ToString(), key);
-        Assert.Contains(RecommendationAlgorithmVersion.Current, key);
+        Assert.Contains(RecommendationAlgorithmVersion.Personalized, key);
     }
 }
