@@ -303,6 +303,13 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 
 **Gating:** `BackgroundJobs:TmdbChangesEnabled` registers both movie and TV changes jobs.
 
+## DONE — Discovery 2.0 Final UX/UI Polish Phase 3
+
+**Mobile:**
+- Library grid uses category-aware compact status badges and integrated watching progress on posters
+- Profile removes redundant Open My Library CTA while retaining collection stats; analytics density tightened
+- Movie/TV Detail actions, ratings, season rows, and section headers polished for consistency without behavior changes
+
 ## DONE — Discovery 2.0 Final UX/UI Polish Phase 2
 
 **Mobile:**
