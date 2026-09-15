@@ -20,7 +20,7 @@ public sealed class BackgroundJobsFixture : IAsyncLifetime
         await pushContext.Database.MigrateAsync();
     }
 
-    public async Task ResetFanoutAsync()
+    public static async Task ResetFanoutAsync()
     {
         await using var context = CreateFanoutContext();
         context.UserReleaseNotificationEvents.RemoveRange(context.UserReleaseNotificationEvents);

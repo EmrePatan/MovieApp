@@ -8,7 +8,7 @@ using MovieApp.Domain.Notifications;
 namespace MovieApp.IntegrationTests.ReleaseNotifications;
 
 [CollectionDefinition("ReleaseNotificationFanout")]
-public sealed class ReleaseNotificationFanoutCollection : ICollectionFixture<ReleaseNotificationFanoutFixture>;
+public sealed class ReleaseNotificationFanoutTestsDefinition : ICollectionFixture<ReleaseNotificationFanoutFixture>;
 
 [Collection("ReleaseNotificationFanout")]
 public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificationFanoutFixture fixture)
@@ -18,7 +18,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task EpisodeEventFansOutToEligibleFollower()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (tvShowId, userId, releaseEventId) = await SeedFollowedShowWithEventAsync();
 
@@ -40,7 +40,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task PreferencesAreRespected()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (_, _, releaseEventId) = await SeedFollowedShowWithEventAsync(notifyNewEpisodes: false);
 
@@ -56,7 +56,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task BaselineEventsNeverFanOut()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (_, _, releaseEventId) = await SeedFollowedShowWithEventAsync(
             source: CatalogReleaseEventSource.BaselineAbsorb);
@@ -76,7 +76,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task SameDayEpisodesAggregateIntoOneNotification()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (tvShowId, userId, firstEventId, secondEventId) = await SeedFollowedShowWithTwoEpisodeEventsAsync();
 
@@ -100,7 +100,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task MultipleFollowersReceiveIndependentNotifications()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (tvShowId, userAId, userBId, releaseEventId) = await SeedShowWithTwoFollowersAsync();
 
@@ -126,7 +126,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task ReprocessingIsIdempotent()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (_, _, releaseEventId) = await SeedFollowedShowWithEventAsync();
 
@@ -147,7 +147,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task ConcurrentFanoutDoesNotDuplicateNotifications()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (_, _, releaseEventId) = await SeedFollowedShowWithEventAsync();
 
@@ -168,7 +168,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task NotificationBoundaryUsesDateSemantics()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         var (_, _, releaseEventId) = await SeedFollowedShowWithEventAsync(
             notifyFromUtc: new DateTime(2026, 9, 15, 18, 0, 0, DateTimeKind.Utc));
@@ -185,7 +185,7 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     [Fact]
     public async Task JunctionUserIntegrityStillHolds()
     {
-        await fixture.ResetAsync();
+        await ReleaseNotificationFanoutFixture.ResetAsync();
 
         Guid userAId;
         Guid userBId;

@@ -211,7 +211,7 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
     }
 
     [Fact]
-    public async Task GetUpcomingCatalogAsync_UsesRegionalFutureDateWhenSynced()
+    public async Task GetUpcomingCatalogAsyncUsesRegionalFutureDateWhenSynced()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearUpcomingCatalogDataAsync(context);
@@ -248,7 +248,7 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
     }
 
     [Fact]
-    public async Task GetUpcomingCatalogAsync_ExcludesRegionalReleasedMovieEvenWhenGlobalFuture()
+    public async Task GetUpcomingCatalogAsyncExcludesRegionalReleasedMovieEvenWhenGlobalFuture()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearUpcomingCatalogDataAsync(context);

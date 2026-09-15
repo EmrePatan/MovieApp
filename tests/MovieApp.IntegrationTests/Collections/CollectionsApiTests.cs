@@ -18,7 +18,7 @@ public sealed class CollectionsApiTests(CollectionsApiFixture fixture)
     [Fact]
     public async Task GetByTmdbIdReturnsCollectionAndMaterializesMovies()
     {
-        await fixture.ResetAsync();
+        await CollectionsApiFixture.ResetAsync();
 
         var response = await _client.GetAsync(
             $"/api/collections/{FakeCollectionDataProvider.SpaceOdysseyCollectionId}");
@@ -39,7 +39,7 @@ public sealed class CollectionsApiTests(CollectionsApiFixture fixture)
     [Fact]
     public async Task GetByTmdbIdReturnsNotFoundForUnknownCollection()
     {
-        await fixture.ResetAsync();
+        await CollectionsApiFixture.ResetAsync();
 
         var response = await _client.GetAsync(
             $"/api/collections/{FakeCollectionDataProvider.UnknownCollectionId}");

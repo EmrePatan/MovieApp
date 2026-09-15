@@ -8,7 +8,7 @@ using MovieApp.Contracts.PushDevices;
 namespace MovieApp.IntegrationTests.PushDevices;
 
 [CollectionDefinition("PushDevicesApi")]
-public sealed class PushDevicesApiCollection : ICollectionFixture<PushDevicesFixture>;
+public sealed class PushDevicesApiTestsDefinition : ICollectionFixture<PushDevicesFixture>;
 
 [Collection("PushDevicesApi")]
 public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
@@ -20,7 +20,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task AuthenticatedUserRegistersToken()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync("push-user-a");
         var response = await SendAuthorizedPutAsync(token, ValidTokenA, "ios");
@@ -36,7 +36,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task RepeatedRegistrationIsIdempotent()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync("push-user-repeat");
         await SendAuthorizedPutAsync(token, ValidTokenA, "ios");
@@ -52,7 +52,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task SameTokenCannotRemainActiveForTwoUsers()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var tokenA = await RegisterAndGetTokenAsync("push-user-one");
         var tokenB = await RegisterAndGetTokenAsync("push-user-two");
@@ -72,7 +72,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task TokenCanBeReassociatedSafely()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var tokenA = await RegisterAndGetTokenAsync("push-reassign-a");
         var tokenB = await RegisterAndGetTokenAsync("push-reassign-b");
@@ -90,7 +90,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task UnregisterIsIdempotent()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync("push-unregister");
         await SendAuthorizedPutAsync(token, ValidTokenA, "ios");
@@ -109,7 +109,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task UserCannotUnregisterAnotherUsersToken()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var tokenA = await RegisterAndGetTokenAsync("push-owner");
         var tokenB = await RegisterAndGetTokenAsync("push-intruder");
@@ -125,7 +125,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task InvalidTokenIsRejected()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync("push-invalid");
         var response = await SendAuthorizedPutAsync(token, "bad-token", "ios");
@@ -136,7 +136,7 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
     [Fact]
     public async Task InactiveTokenCanBeReactivated()
     {
-        await fixture.ResetAsync();
+        await PushDevicesFixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync("push-reactivate");
         await SendAuthorizedPutAsync(token, ValidTokenA, "ios");

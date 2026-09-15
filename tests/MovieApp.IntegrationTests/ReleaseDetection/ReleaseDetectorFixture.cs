@@ -11,7 +11,7 @@ public sealed class ReleaseDetectorFixture : IAsyncLifetime
         await context.Database.MigrateAsync();
     }
 
-    public async Task ResetAsync()
+    public static async Task ResetAsync()
     {
         await using var context = CreateContext();
         context.UserReleaseNotificationEvents.RemoveRange(context.UserReleaseNotificationEvents);

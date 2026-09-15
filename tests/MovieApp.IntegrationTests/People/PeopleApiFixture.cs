@@ -13,7 +13,7 @@ public sealed class PeopleApiFixture : IAsyncLifetime
         await context.Database.MigrateAsync();
     }
 
-    public async Task ResetAsync()
+    public static async Task ResetAsync()
     {
         await using var context = CreateContext();
         context.MovieGenres.RemoveRange(context.MovieGenres);

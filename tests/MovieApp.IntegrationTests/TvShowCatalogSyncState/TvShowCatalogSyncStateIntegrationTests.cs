@@ -14,7 +14,7 @@ using MovieApp.Infrastructure.Providers;
 namespace MovieApp.IntegrationTests.TvShowCatalogSyncState;
 
 [CollectionDefinition("TvShowCatalogSyncState")]
-public sealed class TvShowCatalogSyncStateCollection : ICollectionFixture<TvShowCatalogSyncStateFixture>;
+public sealed class TvShowCatalogSyncStateTestsDefinition : ICollectionFixture<TvShowCatalogSyncStateFixture>;
 
 [Collection("TvShowCatalogSyncState")]
 public sealed class TvShowCatalogSyncStateIntegrationTests(TvShowCatalogSyncStateFixture fixture)
@@ -185,7 +185,7 @@ public sealed class TvShowCatalogSyncStateIntegrationTests(TvShowCatalogSyncStat
     }
 
     [Fact]
-    public async Task MarkRefreshed_RejectsOlderTimestampAndKeepsNewerReason()
+    public async Task MarkRefreshedRejectsOlderTimestampAndKeepsNewerReason()
     {
         await fixture.ResetAsync();
 

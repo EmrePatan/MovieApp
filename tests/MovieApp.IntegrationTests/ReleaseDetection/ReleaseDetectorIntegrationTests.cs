@@ -9,17 +9,17 @@ using MovieApp.Infrastructure.Persistence.Repositories;
 namespace MovieApp.IntegrationTests.ReleaseDetection;
 
 [CollectionDefinition("ReleaseDetector")]
-public sealed class ReleaseDetectorCollection : ICollectionFixture<ReleaseDetectorFixture>;
+public sealed class ReleaseDetectorTestsDefinition : ICollectionFixture<ReleaseDetectorFixture>;
 
 [Collection("ReleaseDetector")]
-public sealed class ReleaseDetectorIntegrationTests(ReleaseDetectorFixture fixture)
+public sealed class ReleaseDetectorIntegrationTests
 {
     private static readonly DateOnly Today = new(2026, 9, 15);
 
     [Fact]
     public async Task BaselineAbsorbCreatesHistoricalEventsWithoutNotifications()
     {
-        await fixture.ResetAsync();
+        await ReleaseDetectorFixture.ResetAsync();
 
         var tvShowId = await SeedShowAsync(
             CreateSeason(1, episodes: CreateEpisode(1, new DateOnly(2026, 8, 1))),
@@ -41,7 +41,7 @@ public sealed class ReleaseDetectorIntegrationTests(ReleaseDetectorFixture fixtu
     [Fact]
     public async Task FutureKnownEpisodeCreatesEventWhenBoundaryCrosses()
     {
-        await fixture.ResetAsync();
+        await ReleaseDetectorFixture.ResetAsync();
 
         var tvShowId = await SeedShowAsync(
             CreateSeason(1, episodes: CreateEpisode(5, Today)));
@@ -58,7 +58,7 @@ public sealed class ReleaseDetectorIntegrationTests(ReleaseDetectorFixture fixtu
     [Fact]
     public async Task RepeatedScanIsIdempotent()
     {
-        await fixture.ResetAsync();
+        await ReleaseDetectorFixture.ResetAsync();
 
         var tvShowId = await SeedShowAsync(
             CreateSeason(1, episodes: CreateEpisode(5, Today)));
@@ -77,7 +77,7 @@ public sealed class ReleaseDetectorIntegrationTests(ReleaseDetectorFixture fixtu
     [Fact]
     public async Task SeasonZeroNeverCreatesReleaseEvents()
     {
-        await fixture.ResetAsync();
+        await ReleaseDetectorFixture.ResetAsync();
 
         var tvShowId = await SeedShowAsync(
             CreateSeason(0, airDate: Today, episodeCount: 3, episodes: CreateEpisode(1, Today)));
@@ -93,7 +93,7 @@ public sealed class ReleaseDetectorIntegrationTests(ReleaseDetectorFixture fixtu
     [Fact]
     public async Task ConcurrentScansKeepSingleReleaseEvent()
     {
-        await fixture.ResetAsync();
+        await ReleaseDetectorFixture.ResetAsync();
 
         var tvShowId = await SeedShowAsync(
             CreateSeason(1, episodes: CreateEpisode(1, Today)));
@@ -114,7 +114,7 @@ public sealed class ReleaseDetectorIntegrationTests(ReleaseDetectorFixture fixtu
     [Fact]
     public async Task JunctionRejectsNotificationUserMismatch()
     {
-        await fixture.ResetAsync();
+        await ReleaseDetectorFixture.ResetAsync();
 
         Guid userAId;
         Guid userBId;

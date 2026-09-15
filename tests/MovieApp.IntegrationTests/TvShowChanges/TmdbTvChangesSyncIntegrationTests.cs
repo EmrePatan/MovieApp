@@ -8,7 +8,7 @@ using MovieApp.Infrastructure.Providers;
 namespace MovieApp.IntegrationTests.TvShowChanges;
 
 [CollectionDefinition("TmdbTvChangesSync")]
-public sealed class TmdbTvChangesSyncCollection : ICollectionFixture<TmdbTvChangesSyncFixture>;
+public sealed class TmdbTvChangesSyncTestsDefinition : ICollectionFixture<TmdbTvChangesSyncFixture>;
 
 [Collection("TmdbTvChangesSync")]
 public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture fixture)

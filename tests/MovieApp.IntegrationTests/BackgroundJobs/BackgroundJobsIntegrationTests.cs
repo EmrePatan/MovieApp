@@ -16,36 +16,19 @@ using MovieApp.IntegrationTests.ReleaseNotifications;
 namespace MovieApp.IntegrationTests.BackgroundJobs;
 
 [CollectionDefinition("BackgroundJobs")]
-public sealed class BackgroundJobsCollection : ICollectionFixture<BackgroundJobsFixture>;
+public sealed class BackgroundJobsTestsDefinition : ICollectionFixture<BackgroundJobsFixture>;
 
 [Collection("BackgroundJobs")]
 public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture)
 {
-    private static HangfireRecurringBackgroundJobRegistrar CreateRegistrar(
-        RecordingRecurringJobManager manager,
-        BackgroundJobsOptions backgroundJobsOptions,
-        PushNotificationsOptions pushNotificationsOptions) =>
-        new(
-            manager,
-            Options.Create(backgroundJobsOptions),
-            Options.Create(pushNotificationsOptions),
-            Options.Create(new CatalogKeywordBackfillOptions()),
-            Options.Create(new TvUpcomingEpisodeSyncOptions()));
-
     [Fact]
-    public void DisabledBackgroundJobs_DoNotRegisterRecurringJobs()
+    public void DisabledBackgroundJobsDoNotRegisterRecurringJobs()
     {
         var manager = new RecordingRecurringJobManager();
         var registrar = CreateRegistrar(
             manager,
-            new BackgroundJobsOptions
-            {
-                Enabled = false
-            },
-            new PushNotificationsOptions
-            {
-                Enabled = true
-            });
+            enabled: false,
+            pushEnabled: true);
 
         registrar.RegisterRecurringJobs();
 
@@ -54,30 +37,25 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
     }
 
     [Fact]
-    public void PushDisabledConfiguration_OmitsPushJobs()
+    public void PushDisabledConfigurationOmitsPushJobs()
     {
         var manager = new RecordingRecurringJobManager();
         var registrar = CreateRegistrar(
             manager,
-            new BackgroundJobsOptions
-            {
-                Enabled = true,
-                PushDeliveryEnabled = true
-            },
-            new PushNotificationsOptions
-            {
-                Enabled = false
-            });
+            enabled: true,
+            pushEnabled: false);
 
         registrar.RegisterRecurringJobs();
 
-        Assert.DoesNotContain(manager.AddedOrUpdated, entry => entry.JobId.StartsWith("movieapp:push-"));
+        Assert.DoesNotContain(
+            manager.AddedOrUpdated,
+            entry => entry.JobId.StartsWith("movieapp:push-", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task FanoutDiscovery_ExcludesBaselineAbsorbAndIsBounded()
+    public async Task FanoutDiscoveryExcludesBaselineAbsorbAndIsBounded()
     {
-        await fixture.ResetFanoutAsync();
+        await BackgroundJobsFixture.ResetFanoutAsync();
         await SeedFanoutDiscoveryDataAsync();
 
         await using var context = ReleaseNotificationFanoutFixture.CreateContext();
@@ -91,7 +69,7 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
     }
 
     [Fact]
-    public async Task PreparationDiscovery_IsBounded()
+    public async Task PreparationDiscoveryIsBounded()
     {
         await fixture.ResetPushAsync();
         await SeedPreparationDiscoveryDataAsync(deviceCount: 3);
@@ -105,10 +83,10 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
     }
 
     [Fact]
-    public async Task FanoutJobReprocessing_RemainsIdempotent()
+    public async Task FanoutJobReprocessingRemainsIdempotent()
     {
-        await fixture.ResetFanoutAsync();
-        var releaseEventId = await SeedSingleEligibleFanoutEventAsync();
+        await BackgroundJobsFixture.ResetFanoutAsync();
+        await SeedSingleEligibleFanoutEventAsync();
 
         using var scope = fixture.FanoutFactory.Services.CreateScope();
         var job = scope.ServiceProvider.GetRequiredService<ReleaseNotificationFanoutJob>();
@@ -122,10 +100,10 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
     }
 
     [Fact]
-    public async Task PreparationJobReprocessing_RemainsIdempotent()
+    public async Task PreparationJobReprocessingRemainsIdempotent()
     {
         await fixture.ResetPushAsync();
-        var notificationId = await SeedSingleNotificationWithDeviceAsync();
+        await SeedSingleNotificationWithDeviceAsync();
 
         using var scope = fixture.PushFactory.Services.CreateScope();
         var job = scope.ServiceProvider.GetRequiredService<PushDeliveryPreparationJob>();
@@ -136,6 +114,37 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
         await using var context = PushNotificationDeliveryFixture.CreateContext();
         Assert.Equal(1, await context.PushNotificationDeliveries.CountAsync());
     }
+
+    private static HangfireRecurringBackgroundJobRegistrar CreateRegistrar(
+        RecordingRecurringJobManager manager,
+        bool enabled,
+        bool pushEnabled,
+        bool keywordBackfillEnabled = false,
+        bool tvUpcomingEpisodeSyncEnabled = false) =>
+        new(
+            manager,
+            Options.Create(new BackgroundJobsOptions
+            {
+                Enabled = enabled,
+                TmdbChangesEnabled = true,
+                HotReleaseEnabled = true,
+                TvUpcomingEpisodeSyncEnabled = tvUpcomingEpisodeSyncEnabled,
+                NotificationFanoutEnabled = true,
+                PushDeliveryEnabled = true
+            }),
+            Options.Create(new PushNotificationsOptions
+            {
+                Enabled = pushEnabled
+            }),
+            Options.Create(new CatalogKeywordBackfillOptions
+            {
+                Enabled = keywordBackfillEnabled,
+                RecurringCron = "0 * * * *"
+            }),
+            Options.Create(new TvUpcomingEpisodeSyncOptions
+            {
+                Enabled = tvUpcomingEpisodeSyncEnabled
+            }));
 
     private static async Task SeedFanoutDiscoveryDataAsync()
     {

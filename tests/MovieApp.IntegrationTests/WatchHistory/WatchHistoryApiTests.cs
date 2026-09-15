@@ -350,7 +350,7 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
         await using (var context = CreateContext())
         {
             Assert.Equal(3, await context.Seasons.CountAsync());
-            Assert.True(await context.Episodes.CountAsync() > 0);
+            Assert.True(await context.Episodes.AnyAsync());
         }
     }
 

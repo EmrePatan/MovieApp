@@ -9,7 +9,7 @@ using MovieApp.Domain.Users;
 namespace MovieApp.IntegrationTests.PushNotifications;
 
 [CollectionDefinition("PushNotificationDelivery")]
-public sealed class PushNotificationDeliveryCollection : ICollectionFixture<PushNotificationDeliveryFixture>;
+public sealed class PushNotificationDeliveryTestsDefinition : ICollectionFixture<PushNotificationDeliveryFixture>;
 
 [Collection("PushNotificationDelivery")]
 public sealed class PushNotificationDeliveryIntegrationTests(PushNotificationDeliveryFixture fixture)

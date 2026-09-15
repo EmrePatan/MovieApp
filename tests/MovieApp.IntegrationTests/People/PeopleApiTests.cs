@@ -18,7 +18,7 @@ public sealed class PeopleApiTests(PeopleApiFixture fixture)
     [Fact]
     public async Task GetByTmdbIdReturnsPersonDetailAndPersistsPerson()
     {
-        await fixture.ResetAsync();
+        await PeopleApiFixture.ResetAsync();
 
         var response = await _client.GetAsync($"/api/people/tmdb/{FakePersonDataProvider.McConaugheyTmdbId}");
 
@@ -45,7 +45,7 @@ public sealed class PeopleApiTests(PeopleApiFixture fixture)
     [Fact]
     public async Task GetByTmdbIdReturnsNotFoundForUnknownPerson()
     {
-        await fixture.ResetAsync();
+        await PeopleApiFixture.ResetAsync();
 
         var response = await _client.GetAsync("/api/people/tmdb/999999");
 

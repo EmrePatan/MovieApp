@@ -15,7 +15,7 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
     private readonly HttpClient _client = fixture.Factory.CreateClient();
 
     [Fact]
-    public async Task GetUpcomingCatalog_ReturnsMixedMovieAndTvOrderedByNearestDate()
+    public async Task GetUpcomingCatalogReturnsMixedMovieAndTvOrderedByNearestDate()
     {
         await fixture.ResetAsync();
 
@@ -104,7 +104,7 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
     }
 
     [Fact]
-    public async Task GetUpcomingCatalog_PaginatesWithoutDuplicatesOrGapsAcrossPages()
+    public async Task GetUpcomingCatalogPaginatesWithoutDuplicatesOrGapsAcrossPages()
     {
         await fixture.ResetAsync();
 
@@ -178,7 +178,7 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
     }
 
     [Fact]
-    public async Task GetUpcomingCatalog_UsesDeterministicOrderingForEqualReleaseDates()
+    public async Task GetUpcomingCatalogUsesDeterministicOrderingForEqualReleaseDates()
     {
         await fixture.ResetAsync();
 
@@ -248,7 +248,7 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
     }
 
     [Fact]
-    public async Task GetUpcomingCatalog_WhenAuthenticated_IncludesFollowedTvEpisode()
+    public async Task GetUpcomingCatalogWhenAuthenticatedIncludesFollowedTvEpisode()
     {
         await fixture.ResetAsync();
 
@@ -314,7 +314,7 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
     }
 
     [Fact]
-    public async Task GetUpcomingCatalog_WhenAuthenticated_ReflectsFollowedState()
+    public async Task GetUpcomingCatalogWhenAuthenticatedReflectsFollowedState()
     {
         await fixture.ResetAsync();
 
@@ -357,6 +357,7 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
 
         var payload = await response.Content.ReadFromJsonAsync<CatalogUpcomingResponse>();
         Assert.NotNull(payload);
+        Assert.Equal(2, payload.TotalCount);
         Assert.Equal(2, payload.Items.Count);
         Assert.Equal(tvShowId, payload.Items[0].ContentId);
         Assert.False(payload.Items[0].IsFollowed);

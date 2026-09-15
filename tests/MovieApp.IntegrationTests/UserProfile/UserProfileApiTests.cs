@@ -239,7 +239,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(1, statistics.Summary.EpisodesWatched);
         Assert.Equal(4.0m, statistics.Summary.AverageStarRating);
         Assert.Equal(12, statistics.Activity.Last12Months.Count);
-        Assert.Single(statistics.Ratings.Distribution.Where(item => item.Stars == 4));
+        Assert.Single(statistics.Ratings.Distribution, item => item.Stars == 4);
     }
 
     [Fact]

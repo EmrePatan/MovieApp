@@ -9,7 +9,7 @@ using MovieApp.Infrastructure.Providers;
 namespace MovieApp.IntegrationTests.HotRelease;
 
 [CollectionDefinition("HotRelease")]
-public sealed class HotReleaseCollection : ICollectionFixture<HotReleaseFixture>;
+public sealed class HotReleaseTestsDefinition : ICollectionFixture<HotReleaseFixture>;
 
 [Collection("HotRelease")]
 public sealed class HotReleaseIntegrationTests(HotReleaseFixture fixture)
