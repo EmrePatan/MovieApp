@@ -4,5 +4,5 @@ namespace MovieApp.Application.Caching;
 
 public sealed class CreditsCacheEntry
 {
-    public CreditsResult Result { get; init; } = new([]);
+    public CreditsResult Result { get; init; } = new([], []);
 }

@@ -7,6 +7,8 @@ namespace MovieApp.Infrastructure.Providers.Tmdb;
 
 public sealed class TmdbCreditsProvider(TmdbApiClient apiClient) : ICreditsProvider
 {
+    private static readonly CreditsResult EmptyCredits = new([], []);
+
     public async Task<CreditsResult> GetMovieCreditsAsync(
         int tmdbId,
         CancellationToken cancellationToken = default)
@@ -17,11 +19,11 @@ public sealed class TmdbCreditsProvider(TmdbApiClient apiClient) : ICreditsProvi
                 $"movie/{tmdbId}/credits",
                 cancellationToken);
 
-            return response is null ? new CreditsResult([]) : TmdbCreditsMapper.ToCreditsResult(response);
+            return response is null ? EmptyCredits : TmdbCreditsMapper.ToCreditsResult(response);
         }
         catch (TmdbApiException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            return new CreditsResult([]);
+            return EmptyCredits;
         }
     }
 
@@ -35,11 +37,11 @@ public sealed class TmdbCreditsProvider(TmdbApiClient apiClient) : ICreditsProvi
                 $"tv/{tmdbId}/aggregate_credits",
                 cancellationToken);
 
-            return response is null ? new CreditsResult([]) : TmdbCreditsMapper.ToCreditsResult(response);
+            return response is null ? EmptyCredits : TmdbCreditsMapper.ToCreditsResult(response);
         }
         catch (TmdbApiException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            return new CreditsResult([]);
+            return EmptyCredits;
         }
     }
 }

@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Credits;
+using MovieApp.Application.Services.Credits;
 
 namespace MovieApp.Application.Services.Movies;
 
@@ -12,7 +13,6 @@ public sealed class GetMovieCreditsService(
     ICreditsProvider creditsProvider,
     ICacheService cacheService) : IGetMovieCreditsService
 {
-    private const int MaxCastMembers = 12;
     private static readonly TimeSpan CreditsCacheTtl = TimeSpan.FromHours(24);
 
     public async Task<CreditsResult> GetCreditsAsync(
@@ -27,7 +27,7 @@ public sealed class GetMovieCreditsService(
 
         if (movie.TmdbId is null)
         {
-            return new CreditsResult([]);
+            return new CreditsResult([], []);
         }
 
         var cacheKey = MovieCreditsCacheKeys.Create(movieId);
@@ -37,25 +37,15 @@ public sealed class GetMovieCreditsService(
             return cached.Result;
         }
 
-        var credits = await creditsProvider.GetMovieCreditsAsync(movie.TmdbId.Value, cancellationToken);
-        var trimmed = TrimCast(credits);
+        var credits = CreditsNormalizer.Normalize(
+            await creditsProvider.GetMovieCreditsAsync(movie.TmdbId.Value, cancellationToken));
 
         await cacheService.SetAsync(
             cacheKey,
-            new CreditsCacheEntry { Result = trimmed },
+            new CreditsCacheEntry { Result = credits },
             CreditsCacheTtl,
             cancellationToken);
 
-        return trimmed;
-    }
-
-    private static CreditsResult TrimCast(CreditsResult credits)
-    {
-        var cast = credits.Cast
-            .OrderBy(member => member.Order)
-            .Take(MaxCastMembers)
-            .ToList();
-
-        return new CreditsResult(cast);
+        return credits;
     }
 }

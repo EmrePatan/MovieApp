@@ -5,4 +5,6 @@ public sealed record CastMemberResult(
     string Name,
     string? Character,
     string? ProfileImagePath,
-    int Order);
+    int Order,
+    int? TotalEpisodeCount = null,
+    IReadOnlyList<CastRoleResult>? Roles = null);
