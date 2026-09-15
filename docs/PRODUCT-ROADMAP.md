@@ -303,6 +303,15 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 
 **Gating:** `BackgroundJobs:TmdbChangesEnabled` registers both movie and TV changes jobs.
 
+## DONE — Discovery 2.0 Final UX/UI Polish Phase 2
+
+**Mobile:**
+- Secondary Discovery screens aligned to shared chrome rhythm (back bar, title/subtitle spacing, horizontal padding)
+- Streaming Services filter area compacted; World Cinema redundant collection label removed above results
+- Advanced Discover density polish; filter sheet uses fixed Reset/Show Results footer outside scroll content
+- Discover Hub feature cards and genre section tightened; Discovery chip selected states normalized to gold accent tokens
+- Discovery section actions standardized to **See All** casing
+
 ## DONE — Discovery 2.0 Final UX/UI Polish Phase 1
 
 **Mobile:**
