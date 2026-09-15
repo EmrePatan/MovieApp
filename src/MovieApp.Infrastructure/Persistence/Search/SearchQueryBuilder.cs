@@ -62,7 +62,8 @@ internal static class SearchQueryBuilder
             VoteAverage = movie.VoteAverage,
             VoteCount = movie.VoteCount,
             Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null,
-            TmdbId = movie.TmdbId
+            TmdbId = movie.TmdbId,
+            KnownForDepartment = (string?)null
         });
     }
 
@@ -153,7 +154,8 @@ internal static class SearchQueryBuilder
             VoteAverage = tvShow.VoteAverage,
             VoteCount = tvShow.VoteCount,
             Year = tvShow.FirstAirDate.HasValue ? tvShow.FirstAirDate.Value.Year : null,
-            TmdbId = tvShow.TmdbId
+            TmdbId = tvShow.TmdbId,
+            KnownForDepartment = (string?)null
         });
     }
 

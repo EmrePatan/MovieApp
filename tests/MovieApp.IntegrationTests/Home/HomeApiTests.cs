@@ -42,6 +42,7 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
         Assert.NotNull(payload);
         Assert.False(payload.IsPersonalized);
         Assert.Contains(payload.Sections, section => section.Type == "HotThisWeek");
+        Assert.Contains(payload.Sections, section => section.Type == "Trending");
         Assert.Contains(payload.Sections, section => section.Type == "TopRated");
         Assert.Contains(payload.Sections, section => section.Type == "NewReleases");
         Assert.DoesNotContain(payload.Sections, section => section.Type == "Popular");

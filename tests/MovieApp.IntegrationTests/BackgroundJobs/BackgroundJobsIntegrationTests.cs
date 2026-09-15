@@ -1,8 +1,10 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MovieApp.Api.BackgroundJobs;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Domain.Notifications;
@@ -19,20 +21,31 @@ public sealed class BackgroundJobsCollection : ICollectionFixture<BackgroundJobs
 [Collection("BackgroundJobs")]
 public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture)
 {
+    private static HangfireRecurringBackgroundJobRegistrar CreateRegistrar(
+        RecordingRecurringJobManager manager,
+        BackgroundJobsOptions backgroundJobsOptions,
+        PushNotificationsOptions pushNotificationsOptions) =>
+        new(
+            manager,
+            Options.Create(backgroundJobsOptions),
+            Options.Create(pushNotificationsOptions),
+            Options.Create(new CatalogKeywordBackfillOptions()),
+            Options.Create(new TvUpcomingEpisodeSyncOptions()));
+
     [Fact]
     public void DisabledBackgroundJobs_DoNotRegisterRecurringJobs()
     {
         var manager = new RecordingRecurringJobManager();
-        var registrar = new HangfireRecurringBackgroundJobRegistrar(
+        var registrar = CreateRegistrar(
             manager,
-            Microsoft.Extensions.Options.Options.Create(new Application.Configuration.BackgroundJobsOptions
+            new BackgroundJobsOptions
             {
                 Enabled = false
-            }),
-            Microsoft.Extensions.Options.Options.Create(new Application.Configuration.PushNotificationsOptions
+            },
+            new PushNotificationsOptions
             {
                 Enabled = true
-            }));
+            });
 
         registrar.RegisterRecurringJobs();
 
@@ -44,17 +57,17 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
     public void PushDisabledConfiguration_OmitsPushJobs()
     {
         var manager = new RecordingRecurringJobManager();
-        var registrar = new HangfireRecurringBackgroundJobRegistrar(
+        var registrar = CreateRegistrar(
             manager,
-            Microsoft.Extensions.Options.Options.Create(new Application.Configuration.BackgroundJobsOptions
+            new BackgroundJobsOptions
             {
                 Enabled = true,
                 PushDeliveryEnabled = true
-            }),
-            Microsoft.Extensions.Options.Options.Create(new Application.Configuration.PushNotificationsOptions
+            },
+            new PushNotificationsOptions
             {
                 Enabled = false
-            }));
+            });
 
         registrar.RegisterRecurringJobs();
 
