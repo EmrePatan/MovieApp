@@ -139,6 +139,31 @@ public sealed class PickSomethingServiceTests
     }
 
     [Fact]
+    public async Task PickAsyncDoesNotEmitComedyReasonForNonDominantGenreMatch()
+    {
+        var comedyGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var dramaGenreId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var repository = new StubRecommendationRepository
+        {
+            Context = CreatePersonalizedContextWithComedyPreference(comedyGenreId),
+            Candidates =
+            [
+                CreateCandidate(
+                    CandidateMovieId,
+                    "movie",
+                    "The Arrival",
+                    [dramaGenreId, SciFiGenreId, comedyGenreId])
+            ]
+        };
+        var service = CreateService(repository, new RecordingDiscoveryService(), new AuthenticatedCurrentUser(UserId));
+
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie));
+
+        Assert.NotNull(pick);
+        Assert.DoesNotContain("Comedy", pick.Reason ?? string.Empty);
+    }
+
+    [Fact]
     public async Task PickAsyncKeepsWatchlistTitlesEligibleAndBoostsReason()
     {
         var repository = new StubRecommendationRepository
@@ -233,6 +258,43 @@ public sealed class PickSomethingServiceTests
         IReadOnlyCollection<Guid>? sessionExcludedIds = null) =>
         new(mediaType, sessionExcludedIds?.ToHashSet() ?? new HashSet<Guid>());
 
+    private static UserRecommendationContext CreatePersonalizedContextWithComedyPreference(Guid comedyGenreId)
+    {
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(
+                WatchedMovieId,
+                "movie",
+                UserBehaviorSignalTypes.Favorite,
+                9,
+                DateTime.UtcNow.AddDays(-2),
+                [comedyGenreId],
+                new Dictionary<Guid, string> { [comedyGenreId] = "Comedy" }),
+            CreateSignal(
+                Guid.Parse("11111111-1111-1111-1111-111111111112"),
+                "movie",
+                UserBehaviorSignalTypes.Favorite,
+                9,
+                DateTime.UtcNow.AddDays(-3),
+                [comedyGenreId],
+                new Dictionary<Guid, string> { [comedyGenreId] = "Comedy" }),
+            CreateSignal(
+                Guid.Parse("11111111-1111-1111-1111-111111111113"),
+                "movie",
+                UserBehaviorSignalTypes.Favorite,
+                9,
+                DateTime.UtcNow.AddDays(-4),
+                [comedyGenreId],
+                new Dictionary<Guid, string> { [comedyGenreId] = "Comedy" })
+        };
+
+        return new UserRecommendationContext(
+            signals,
+            new HashSet<Guid> { WatchedMovieId },
+            new HashSet<Guid>(),
+            3);
+    }
+
     private static UserRecommendationContext CreatePersonalizedContext(bool includeWatchlist = false)
     {
         var signals = new List<UserBehaviorSignal>
@@ -268,7 +330,9 @@ public sealed class PickSomethingServiceTests
         string contentType,
         string signalType,
         int? ratingScore,
-        DateTime? signalAtUtc) =>
+        DateTime? signalAtUtc,
+        IReadOnlyList<Guid>? genreIds = null,
+        IReadOnlyDictionary<Guid, string>? genreNames = null) =>
         new(
             contentId,
             contentType,
@@ -276,8 +340,8 @@ public sealed class PickSomethingServiceTests
             $"Title {contentId}",
             ratingScore,
             signalAtUtc,
-            [SciFiGenreId],
-            new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" },
+            genreIds ?? [SciFiGenreId],
+            genreNames ?? new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" },
             []);
 
     private static PersonalizedCandidateProfile CreateCandidate(

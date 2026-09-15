@@ -5,6 +5,8 @@ namespace MovieApp.Application.Recommendations;
 
 public static class PersonalizedRecommendationEngine
 {
+    private const decimal MinGenreReasonScore = 0.25m;
+    private const decimal MinGenrePreferenceScore = 0.35m;
     public static IReadOnlyDictionary<Guid, (decimal Score, string Name)> BuildGenrePreferences(
         IReadOnlyList<UserBehaviorSignal> signals,
         RecommendationOptions options,
@@ -81,7 +83,10 @@ public static class PersonalizedRecommendationEngine
                     popularityScore * (decimal)options.PersonalizedPopularityWeight +
                     recencyScore * (decimal)options.PersonalizedRecencyWeight);
 
-                return new ScoredRecommendation(candidate, score, BuildReason(candidate, genrePreferences, positiveSignals));
+                return new ScoredRecommendation(
+                    candidate,
+                    score,
+                    BuildReason(candidate, genrePreferences, positiveSignals, genreScore));
             })
             .OrderByDescending(item => item.Score)
             .ThenByDescending(item => item.Candidate.VoteCount)
@@ -230,15 +235,20 @@ public static class PersonalizedRecommendationEngine
     private static string? BuildReason(
         PersonalizedCandidateProfile candidate,
         IReadOnlyDictionary<Guid, (decimal Score, string Name)> genrePreferences,
-        IReadOnlyList<UserBehaviorSignal> positiveSignals)
+        IReadOnlyList<UserBehaviorSignal> positiveSignals,
+        decimal genreScore)
     {
         var topGenre = candidate.GenreIds
+            .Take(2)
             .Where(genrePreferences.ContainsKey)
             .Select(genreId => (genreId, genrePreferences[genreId]))
             .OrderByDescending(item => item.Item2.Score)
             .FirstOrDefault();
 
-        if (topGenre != default && !string.IsNullOrWhiteSpace(topGenre.Item2.Name))
+        if (genreScore >= MinGenreReasonScore &&
+            topGenre != default &&
+            topGenre.Item2.Score >= MinGenrePreferenceScore &&
+            !string.IsNullOrWhiteSpace(topGenre.Item2.Name))
         {
             return $"Because you liked {topGenre.Item2.Name}";
         }

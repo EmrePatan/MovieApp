@@ -122,13 +122,35 @@ public sealed class PickSomethingService(
             utcNow);
 
         var diversified = PersonalizedRecommendationEngine.ApplyDiversity(scored, _options);
+        if (!HasConfidentPersonalization(diversified))
+        {
+            return await BuildColdStartPickAsync(criteria, cancellationToken);
+        }
+
         var ranked = ApplyWatchlistPreference(diversified, watchlistMovieIds, watchlistTvShowIds)
             .Select(RecommendationMapper.ToRecommendationItem)
+            .Select(NormalizePickReason)
             .Take(PickSomethingSelector.CandidatePoolSize)
             .ToList();
 
         return PickSomethingSelector.SelectFromBand(ranked);
     }
+
+    private static bool HasConfidentPersonalization(IReadOnlyList<ScoredRecommendation> recommendations)
+    {
+        return recommendations
+            .Take(PickSomethingSelector.SelectionBandSize)
+            .Any(recommendation =>
+                !string.IsNullOrWhiteSpace(recommendation.Reason) &&
+                recommendation.Reason is not "Popular in your favorite genres");
+    }
+
+    private static RecommendationItem NormalizePickReason(RecommendationItem item) =>
+        item.Reason switch
+        {
+            "Popular in your favorite genres" => item with { Reason = ColdStartPopularReason },
+            _ => item
+        };
 
     private static List<ScoredRecommendation> ApplyWatchlistPreference(
         IReadOnlyList<ScoredRecommendation> recommendations,

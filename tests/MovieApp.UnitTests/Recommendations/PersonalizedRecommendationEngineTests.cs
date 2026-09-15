@@ -27,6 +27,77 @@ public sealed class PersonalizedRecommendationEngineTests
     }
 
     [Fact]
+    public void ScoreCandidatesDoesNotUseTertiaryGenreForReason()
+    {
+        var comedyGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var dramaGenreId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var comedyGenre = new Dictionary<Guid, string> { [comedyGenreId] = "Comedy" };
+        var mixedGenreNames = new Dictionary<Guid, string>
+        {
+            [dramaGenreId] = "Drama",
+            [SciFiGenreId] = "Science Fiction",
+            [comedyGenreId] = "Comedy",
+        };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(UserBehaviorSignalTypes.Favorite, null, UtcNow.AddDays(-2), genreIds: [comedyGenreId], genreNames: comedyGenre)
+        };
+        var preferences = PersonalizedRecommendationEngine.BuildGenrePreferences(signals, DefaultOptions, UtcNow);
+        var candidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [dramaGenreId, SciFiGenreId, comedyGenreId],
+            mixedGenreNames,
+            8.5m,
+            1000,
+            null);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [candidate],
+            signals,
+            preferences,
+            new Dictionary<Guid, decimal>(),
+            DefaultOptions,
+            UtcNow);
+
+        Assert.DoesNotContain("Comedy", scored[0].Reason ?? string.Empty);
+    }
+
+    [Fact]
+    public void ScoreCandidatesRequiresMeaningfulGenreOverlapForReason()
+    {
+        var comedyGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var comedyGenre = new Dictionary<Guid, string> { [comedyGenreId] = "Comedy" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(UserBehaviorSignalTypes.Favorite, null, UtcNow.AddDays(-2), genreIds: [comedyGenreId], genreNames: comedyGenre)
+        };
+        var preferences = PersonalizedRecommendationEngine.BuildGenrePreferences(signals, DefaultOptions, UtcNow);
+        var candidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [
+                comedyGenreId,
+                Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                Guid.Parse("55555555-5555-5555-5555-555555555555"),
+                Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                Guid.Parse("77777777-7777-7777-7777-777777777777"),
+            ],
+            comedyGenre,
+            8.5m,
+            1000,
+            null);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [candidate],
+            signals,
+            preferences,
+            new Dictionary<Guid, decimal>(),
+            DefaultOptions,
+            UtcNow);
+
+        Assert.DoesNotContain("Because you liked Comedy", scored[0].Reason ?? string.Empty);
+    }
+
+    [Fact]
     public void ScoreCandidatesRanksGenreAlignedContentHigher()
     {
         var sciFiGenre = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
@@ -356,7 +427,9 @@ public sealed class PersonalizedRecommendationEngineTests
         int? rating,
         DateTime? signalAtUtc,
         decimal catalogVoteAverage = 0m,
-        int? catalogYear = null) =>
+        int? catalogYear = null,
+        IReadOnlyList<Guid>? genreIds = null,
+        IReadOnlyDictionary<Guid, string>? genreNames = null) =>
         new(
             Guid.NewGuid(),
             "movie",
@@ -364,8 +437,8 @@ public sealed class PersonalizedRecommendationEngineTests
             "Interstellar",
             rating,
             signalAtUtc,
-            [SciFiGenreId],
-            new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" },
+            genreIds ?? [SciFiGenreId],
+            genreNames ?? new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" },
             [])
         {
             CatalogVoteAverage = catalogVoteAverage,
