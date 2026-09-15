@@ -444,16 +444,21 @@ Do not assume dashboards exist unless provisioned.
 
 ## 14. Staging release rehearsal (before production)
 
-- [ ] Deploy release candidate to staging
+- [ ] Deploy release candidate to staging (runtime confirms observability build live; exact deployed SHA not exposed by API)
 - [ ] Apply migrations using real workflow (`Staging Database Migrate` or equivalent)
-- [ ] API health passes (`/health`, `/health/ready`)
-- [ ] Smoke test critical API flows
+- [x] API health passes (`/health`, `/health/live`, `/health/ready`) — staging verified 2026-09-15
+- [x] Staging PostgreSQL readiness healthy (`/health/ready` check `postgresql`) — 2026-09-15
+- [x] Staging Redis readiness healthy (`/health/ready` check `redis`) — 2026-09-15
+- [x] Live correlation ID propagation (`X-Correlation-Id` echoed; ProblemDetails `correlationId` matches) — 2026-09-15
+- [x] Public Hangfire dashboard not exposed (`GET /hangfire` → 404) — 2026-09-15
+- [x] Smoke test critical public API flows (search, person search/detail, upcoming default/catalog; auth-gated flows return expected 401) — 2026-09-15
 - [ ] Recurring jobs observed (intentional set only)
 - [x] One keyword backfill batch observed (staging — 2026-09-15: 25/25 succeeded, 4.22% → 8.28%)
 - [x] Keyword coverage measured before/after (staging)
 - [ ] Notification pipeline observed
 - [ ] No unexpected provider-call regression (recommendation = 0 keyword calls)
-- [ ] Logs reviewed
+- [ ] Logs reviewed (operator Render log access not verified from automation environment — 2026-09-15)
+- [ ] Background job operational events observed in staging logs (not observed during smoke window — 2026-09-15)
 
 ---
 
