@@ -303,6 +303,18 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 
 **Gating:** `BackgroundJobs:TmdbChangesEnabled` registers both movie and TV changes jobs.
 
+## DONE — Discovery 2.0
+
+All discovery initiative milestones shipped: D1–D7, supporting tracks (D5.5, D5.6, D7), and Final UX/UI Polish.
+
+## DONE — Discovery 2.0 Final UX/UI Polish
+
+Phases 1–3 plus Home final check complete.
+
+**Home final check (mobile):**
+- Hero height modestly reduced (floor 340→310, cap 520→480, ratio 0.68→0.64) to improve first-viewport balance while preserving immersive hero
+- More Info CTA width tightened (140–160 vs 160–180) without changing global button sizing
+
 ## DONE — Discovery 2.0 Final UX/UI Polish Phase 3
 
 **Mobile:**
