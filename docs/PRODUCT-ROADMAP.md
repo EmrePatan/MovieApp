@@ -303,6 +303,13 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 
 **Gating:** `BackgroundJobs:TmdbChangesEnabled` registers both movie and TV changes jobs.
 
+## DONE — Discovery 2.0 Final UX/UI Polish Phase 1
+
+**Mobile:**
+- Pick Something hero uses backdrop composition when available; poster-only full-bleed cover fallback; themed placeholder when neither exists
+- Profile hero stat relabeled **Watch Activity** with `movies & episodes` caption (aggregate unchanged)
+- Advanced Discover naming standardized across Discover hub and Search landing entry points
+
 ## DONE — Discovery 2.0 D6 (Pick Something For Me)
 
 **Backend:**
