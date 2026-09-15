@@ -18,7 +18,7 @@ public sealed class SocialAuthService(
     private const string ExistingPasswordAccountMessage =
         "An account with this email already exists. Sign in with your password to continue.";
 
-    private readonly IReadOnlyDictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
+    private readonly Dictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
         tokenVerifiers.ToDictionary(verifier => verifier.Provider, StringComparer.Ordinal);
 
     public async Task<AuthenticationResult> AuthenticateAsync(
