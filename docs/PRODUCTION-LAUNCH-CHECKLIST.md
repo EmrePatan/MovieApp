@@ -488,9 +488,9 @@ These are current launch validation gaps, not permanent architecture.
 | `CatalogKeywordBackfillJob` code | Implemented at `6296381` |
 | Staging keyword backfill execution validation | **DONE / PASS** (2026-09-15 — bounded batch 25/25, `failed=0`) |
 | Staging keyword migration `20260915095315_AddCatalogKeywords` | **Manually confirmed present** on staging |
-| Staging keyword coverage (measured) | **51 / 616 synced (8.28%)** after validated run · Movies: 25/332 · TV: 26/284 · 565 unsynced |
-| Controlled staging coverage growth (~25%) | **In progress / next operator step** |
-| Recommendation 2.1 real-data validation | **Next** after ~25% staging coverage |
+| Staging keyword coverage (measured) | **151 / 616 synced (24.51%)** after controlled growth · derived: Movies 73/332 · TV 78/284 · 465 unsynced |
+| Controlled staging coverage growth (~25%) | **DONE** (2026-09-15 — 4 batches, 100/100 succeeded) |
+| Recommendation 2.1 real-data validation | **In progress** — active gate at ~24.5% coverage |
 | Physical iPhone push E2E | **Not complete** |
 | PostgreSQL integration test project | Pre-existing analyzer build issues (CA1707, CA1822, etc.) — must be clean before production rehearsal |
 | Production migration workflow | Staging workflow exists; **production equivalent must be created** before first prod deploy |

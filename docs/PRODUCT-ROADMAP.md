@@ -495,50 +495,47 @@ Delta exactly matches log: movies **+12**, TV **+13**, total **+25**.
 
 ---
 
-## IN PROGRESS — Controlled staging keyword coverage growth
+## DONE — Controlled staging keyword coverage growth
 
 **Status date:** 2026-09-15
 
-Grow staging keyword coverage from **8.28%** toward **~25%** using the existing bounded backfill architecture. Do **not** drain the full catalog or add startup backfill.
+Four additional sequential bounded batches completed after the operational validation checkpoint (**51 / 616 = 8.28%**).
 
-### Target checkpoint
-
-| Metric | Current | Target (~25%) |
-|---|---:|---:|
-| Overall synced | 51 | ~154 |
-| Additional titles required | — | ~103 |
-| Planned bounded batches (`BatchSize=25`) | — | ~4 full batches (+ optional remainder batch to cross 25%) |
-
-Operational simplicity preferred over exact 25.0% (e.g. **151 synced ≈ 24.5%** after four batches is acceptable).
-
-### Safe execution (staging operator procedure)
-
-Keep:
+Configuration (unchanged across all batches):
 
 ```
-CatalogKeywordBackfill__Enabled=true
 CatalogKeywordBackfill__BatchSize=25
 CatalogKeywordBackfill__MaxConcurrency=2
 ```
 
-Run **one bounded batch at a time**. Do **not** overlap manual batches. Do **not** increase `MaxConcurrency` beyond 2 during this phase.
+Batches did **not** overlap.
 
-After **each** batch verify in structured logs (6011): `selected`, `succeeded`, `failed`, `skipped`, `movies`, `tv`, `coverageBefore`, `coverageAfter`.
+| Batch | Succeeded | Movies | TV | Coverage before → after | Duration (ms) |
+|---:|---:|---:|---:|---|---:|
+| 1 | 25/25 | 12 | 13 | 8.28% → 12.34% | 13701 |
+| 2 | 25/25 | 12 | 13 | 12.34% → 16.40% | 12113 |
+| 3 | 25/25 | 12 | 13 | 16.40% → 20.45% | 12415 |
+| 4 | 25/25 | 12 | 13 | 20.45% → 24.51% | 12415 |
 
-**Stop immediately** if:
+**Combined:** 100 selected · 100 succeeded · 0 failed · 0 skipped · `MaxConcurrency=2` unchanged.
 
-- `failed > 0`
-- Log contains `A second operation was started on this context`
-- Log contains `23505` or `IX_keywords_TmdbKeywordId`
-- Repeated provider failures or abnormal TMDB behavior
+### Coverage checkpoint (derived from completion logs)
 
-Re-run coverage SQL after each batch (eligible / synced / unsynced per segment; `keywords`, `movie_keywords`, `tv_show_keywords` row counts).
+| Segment | Eligible | Synced (derived) | Unsynced (derived) | Coverage |
+|---|---:|---:|---:|---:|
+| Movies | 332 | **73** | 259 | ~22.0% |
+| TV | 284 | **78** | 206 | ~27.5% |
+| **Overall** | **616** | **151** | **465** | **24.51%** |
+
+Derived from prior DB checkpoint (movies 25, TV 26) plus batch deltas (+48 movies, +52 TV). **Confirm with one fresh AFTER SQL snapshot before Recommendation 2.1 validation.**
+
+No need to drain the remaining **465** unsynced titles for validation. Full catalog keyword coverage remains **intentionally NOT DONE**.
 
 ---
 
-## NEXT — Recommendation 2.1 real-data validation
+## IN PROGRESS — Recommendation 2.1 real-data validation
 
-**Blocked until** controlled staging keyword coverage reaches **~25%** (see above). Implementation and scoring are **DONE**; this gate is **quality validation on materially enriched staging data**, not infrastructure proof.
+**Active gate** (2026-09-15). Implementation and scoring are **DONE**; this is **quality validation on materially enriched staging data** (~24.5% keyword coverage), not infrastructure proof.
 
 When coverage is sufficient:
 
@@ -768,8 +765,8 @@ When implementation changes either document's truth, update the relevant documen
 ## Current execution order
 
 1. ~~**Finish** staging `CatalogKeywordBackfill` operational validation~~ **DONE (2026-09-15)**
-2. **Controlled staging keyword coverage growth** (~8% → ~25%)
-3. **Recommendation 2.1** real-data validation (after sufficient coverage)
+2. ~~**Controlled staging keyword coverage growth** (~8% → ~25%)~~ **DONE (2026-09-15)**
+3. **Recommendation 2.1** real-data validation **(IN PROGRESS)**
 4. **Regional Release v1** staging validation (migration, release-check, follow, upcoming)
 5. **TV Upcoming Episodes / Airing**
 6. **Media Gallery**
