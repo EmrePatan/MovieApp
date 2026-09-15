@@ -666,11 +666,16 @@ Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODU
 
 ## BEFORE PRODUCTION — PostgreSQL integration suite
 
-**Blocker:** `MovieApp.IntegrationTests` has pre-existing analyzer build failures (CA1707, CA1822, etc.). Unit/Release validation passes; integration project must be clean before production rehearsal.
+**Status (2026-09-15):** Release analyzer/build blockers in `MovieApp.IntegrationTests` are fixed (`1a5fb52`). Local PostgreSQL suite runs end-to-end; **284 / 285** tests pass on `75826f3`.
 
-- Fix analyzer/build blockers without weakening analyzers
-- Run full PostgreSQL integration suite
-- Establish clean production-rehearsal baseline
+**Remaining gate:** `DiscoverBrowseApiTests.BrowseSupportsMovieOnlyModeAndPaginationMetadata` fails — discover browse returns two Fake catalog movies when `pageSize=1` (product pagination defect in single-type browse path). Fix product behavior before marking the full suite DONE.
+
+- [x] Fix analyzer/build blockers without weakening analyzers
+- [x] Run PostgreSQL integration suite locally with Docker Compose
+- [ ] Full suite green (284/285 — browse pagination defect)
+- [ ] Establish clean production-rehearsal baseline
+
+See [INTEGRATION-TESTS.md](./INTEGRATION-TESTS.md).
 
 ---
 

@@ -37,8 +37,9 @@ jobs:
 
       - name: Build Release (backend + unit tests)
         run: dotnet build tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-restore
-        # Builds all src projects via project references. Integration tests are excluded
-        # because Release currently fails on pre-existing CA1822 in AuthRateLimitApiTests.cs.
+
+      - name: Build Release (integration tests)
+        run: dotnet build tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-restore
 
       - name: Run unit tests (Release)
         run: dotnet test tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-build --no-restore --verbosity normal
@@ -48,3 +49,48 @@ jobs:
 
       - name: Build Docker image
         run: docker build -f Dockerfile -t movieapp-api:ci .
+
+  integration-tests:
+    name: Integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: backend
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: movieapp
+          POSTGRES_PASSWORD: movieapp_ci_test
+          POSTGRES_DB: movieapp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U movieapp -d movieapp"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PostgreSql__Password: movieapp_ci_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/Directory.Packages.props
+
+      - name: Restore dependencies
+        run: dotnet restore tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj
+
+      - name: Build Release (integration tests)
+        run: dotnet build tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-restore
+
+      - name: Run integration tests (Release)
+        run: dotnet test tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-build --no-restore --verbosity normal

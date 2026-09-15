@@ -513,7 +513,7 @@ These are current launch validation gaps, not permanent architecture.
 | Controlled staging coverage growth (~25%) | **DONE** (2026-09-15 — 4 batches, 100/100 succeeded) |
 | Recommendation 2.1 real-data validation | **In progress** — active gate at ~24.5% coverage |
 | Physical iPhone push E2E | **Not complete** |
-| PostgreSQL integration test project | Pre-existing analyzer build issues (CA1707, CA1822, etc.) — must be clean before production rehearsal |
+| PostgreSQL integration test project | Release build clean (`1a5fb52`); local run **284/285** — browse pagination product defect remains |
 | Production migration workflow | Staging workflow exists; **production equivalent must be created** before first prod deploy |
 | Hangfire manual keyword trigger | No HTTP endpoint; requires DI enqueuer or recurring enable + log observation |
 

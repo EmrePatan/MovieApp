@@ -62,14 +62,15 @@ GitHub Actions validates every push and pull request to `main`/`master` via `.gi
 The CI pipeline runs:
 
 1. `dotnet restore`
-2. Release build of backend projects and `MovieApp.UnitTests` (integration tests are excluded from this Release build step)
+2. Release build of backend projects, `MovieApp.UnitTests`, and `MovieApp.IntegrationTests`
 3. Release unit tests (`tests/MovieApp.UnitTests`)
 4. Release publish of `MovieApp.Api`
 5. Docker image build (`docker build -f Dockerfile -t movieapp-api:ci .`)
+6. PostgreSQL service-container integration tests (`tests/MovieApp.IntegrationTests`) — see [docs/INTEGRATION-TESTS.md](docs/INTEGRATION-TESTS.md)
 
-CI does **not** deploy anywhere, push container images, require PostgreSQL/Redis/TMDB/SMTP/JWT production secrets, or run EF migrations. Production deployment, cloud hosting, and CD remain later steps. Production secrets stay outside Git.
+CI does **not** deploy anywhere, push container images, require TMDB/SMTP/JWT production secrets, or run EF migrations against staging/production. Production deployment, cloud hosting, and CD remain later steps. Production secrets stay outside Git.
 
-Integration tests remain a local/operator concern until the pre-existing Release analyzer issue in `tests/MovieApp.IntegrationTests/Auth/AuthRateLimitApiTests.cs` (`CA1822`) is resolved separately.
+PostgreSQL/Redis for integration tests use GitHub Actions service containers / local Docker Compose only.
 
 ## Configuration
 
@@ -1076,6 +1077,8 @@ Run a specific project:
 dotnet test tests/MovieApp.UnitTests
 dotnet test tests/MovieApp.IntegrationTests
 ```
+
+Integration tests require local/test PostgreSQL. See [docs/INTEGRATION-TESTS.md](docs/INTEGRATION-TESTS.md) for setup, env vars, and troubleshooting.
 
 ## Dependency Injection
 
