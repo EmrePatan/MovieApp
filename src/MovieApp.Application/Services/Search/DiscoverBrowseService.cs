@@ -13,6 +13,7 @@ using MovieApp.Application.Mapping;
 namespace MovieApp.Application.Services.Search;
 
 public sealed class DiscoverBrowseService(
+    IDiscoveryService discoveryService,
     IMovieDataProvider movieDataProvider,
     ITvShowDataProvider tvShowDataProvider,
     IMovieRepository movieRepository,
@@ -38,6 +39,21 @@ public sealed class DiscoverBrowseService(
         if (cachedEntry is not null)
         {
             return cachedEntry.Result;
+        }
+
+        if (criteria.Mode == DiscoverBrowseMode.NewReleases && !HasSupplementalBrowseFilters(criteria))
+        {
+            var catalogResult = await discoveryService.GetNewReleasesAsync(
+                new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
+                cancellationToken);
+
+            await cacheService.SetAsync(
+                cacheKey,
+                new DiscoveryCacheEntry { Result = catalogResult },
+                BrowseCacheTtl,
+                cancellationToken);
+
+            return catalogResult;
         }
 
         var providerCriteria = await BuildProviderCriteriaAsync(criteria, cancellationToken);
@@ -194,6 +210,14 @@ public sealed class DiscoverBrowseService(
             throw new SearchProviderUnavailableException();
         }
     }
+
+    private static bool HasSupplementalBrowseFilters(DiscoverBrowseCriteria criteria) =>
+        criteria.GenreIds.Count > 0 ||
+        criteria.Year.HasValue ||
+        criteria.MinRating.HasValue ||
+        !string.IsNullOrWhiteSpace(criteria.Language) ||
+        (criteria.Sort.HasValue &&
+         criteria.Sort != DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode));
 
     private static List<SearchItem> MapMovieResults(
         IReadOnlyList<MovieProviderSummary> summaries,

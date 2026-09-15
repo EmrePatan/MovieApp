@@ -72,6 +72,7 @@ public sealed class DiscoverBrowseServiceTests
         var movieRepository = new SummaryMovieRepository();
         var tvRepository = new SummaryTvShowRepository();
         var service = new DiscoverBrowseService(
+            new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
             movieRepository,
@@ -103,19 +104,51 @@ public sealed class DiscoverBrowseServiceTests
     }
 
     [Fact]
-    public async Task BrowseAsyncNewReleasesExcludesFutureDatedFakeCatalogItems()
+    public async Task BrowseAsyncNewReleasesWithoutFiltersUsesCatalogDiscoveryService()
     {
-        var cache = new DiscoverBrowseFakeCacheService(null);
+        var discoveryTracker = new DiscoveryServiceCallTracker();
+        var movieTracker = new MovieDataProviderCallTracker();
         var service = CreateService(
-            cache,
-            new MovieDataProviderCallTracker(),
-            new TvShowDataProviderCallTracker());
+            new DiscoverBrowseFakeCacheService(null),
+            movieTracker,
+            new TvShowDataProviderCallTracker(),
+            discoveryTracker);
 
         var result = await service.BrowseAsync(CreateCriteria(
             SearchContentType.Movie,
             DiscoverBrowseMode.NewReleases));
 
-        Assert.DoesNotContain(result.Items, item => item.Title == "Discover Movie Future");
+        Assert.Equal(1, discoveryTracker.NewReleasesCallCount);
+        Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
+        Assert.Single(result.Items);
+        Assert.Equal("Title", result.Items[0].Title);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncNewReleasesWithFiltersUsesProviderPath()
+    {
+        var discoveryTracker = new DiscoveryServiceCallTracker();
+        var movieTracker = new MovieDataProviderCallTracker();
+        var service = CreateService(
+            new DiscoverBrowseFakeCacheService(null),
+            movieTracker,
+            new TvShowDataProviderCallTracker(),
+            discoveryTracker);
+
+        var result = await service.BrowseAsync(new DiscoverBrowseCriteria(
+            DiscoverBrowseMode.NewReleases,
+            SearchContentType.Movie,
+            [Guid.NewGuid()],
+            null,
+            null,
+            null,
+            null,
+            1,
+            20));
+
+        Assert.Equal(0, discoveryTracker.NewReleasesCallCount);
+        Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
+        Assert.NotEmpty(result.Items);
     }
 
     [Fact]
@@ -140,8 +173,10 @@ public sealed class DiscoverBrowseServiceTests
     private static DiscoverBrowseService CreateService(
         DiscoverBrowseFakeCacheService cache,
         MovieDataProviderCallTracker movieTracker,
-        TvShowDataProviderCallTracker tvTracker) =>
+        TvShowDataProviderCallTracker tvTracker,
+        DiscoveryServiceCallTracker? discoveryTracker = null) =>
         new(
+            discoveryTracker ?? new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
             new SummaryMovieRepository(),
@@ -164,11 +199,11 @@ public sealed class DiscoverBrowseServiceTests
             1,
             20);
 
-    private static SearchItem CreateSearchItem(string type, Guid id) =>
+    private static SearchItem CreateSearchItem(string type, Guid id, string title = "Title") =>
         new(
             id,
             type,
-            "Title",
+            title,
             null,
             "Overview",
             "/poster.jpg",
@@ -292,6 +327,45 @@ public sealed class DiscoverBrowseServiceTests
 
         public Task<MovieApp.Domain.Entities.TvShow> UpsertFromProviderAsync(
             TvShowProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class DiscoveryServiceCallTracker : IDiscoveryService
+    {
+        public int NewReleasesCallCount { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            NewReleasesCallCount++;
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                [CreateSearchItem("movie", Guid.NewGuid())],
+                criteria.Page,
+                criteria.PageSize,
+                1,
+                1));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
+            string genreName,
+            DiscoveryCriteria criteria,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
