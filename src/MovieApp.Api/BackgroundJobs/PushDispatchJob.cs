@@ -9,16 +9,20 @@ public sealed class PushDispatchJob(
     ILogger<PushDispatchJob> logger)
 {
     [AutomaticRetry(Attempts = 0)]
-    public async Task ExecuteAsync()
-    {
-        var result = await dispatchService.DispatchDueAsync();
-
-        BackgroundJobLogMessages.LogPushDispatchCompleted(
+    public Task ExecuteAsync() =>
+        BackgroundJobOperationalRunner.RunAsync(
             logger,
-            result.ClaimedCount,
-            result.SentCount,
-            result.SkippedCount,
-            result.RetryableFailureCount,
-            result.PermanentFailureCount);
-    }
+            RecurringJobIds.PushDispatch,
+            async () =>
+            {
+                var result = await dispatchService.DispatchDueAsync();
+
+                BackgroundJobLogMessages.LogPushDispatchCompleted(
+                    logger,
+                    result.ClaimedCount,
+                    result.SentCount,
+                    result.SkippedCount,
+                    result.RetryableFailureCount,
+                    result.PermanentFailureCount);
+            });
 }

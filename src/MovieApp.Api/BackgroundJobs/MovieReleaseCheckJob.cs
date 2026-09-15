@@ -10,15 +10,19 @@ public sealed class MovieReleaseCheckJob(
 {
     [DisableConcurrentExecution(timeoutInSeconds: 60 * 60)]
     [AutomaticRetry(Attempts = 1)]
-    public async Task ExecuteAsync()
-    {
-        var result = await movieReleaseCheckService.RunAsync();
-
-        BackgroundJobLogMessages.LogMovieReleaseCheckCompleted(
+    public Task ExecuteAsync() =>
+        BackgroundJobOperationalRunner.RunAsync(
             logger,
-            result.MoviesChecked,
-            result.ReleaseEventsCreated,
-            result.SkippedProviderFailures,
-            result.SkippedNotReleased);
-    }
+            RecurringJobIds.MovieRelease,
+            async () =>
+            {
+                var result = await movieReleaseCheckService.RunAsync();
+
+                BackgroundJobLogMessages.LogMovieReleaseCheckCompleted(
+                    logger,
+                    result.MoviesChecked,
+                    result.ReleaseEventsCreated,
+                    result.SkippedProviderFailures,
+                    result.SkippedNotReleased);
+            });
 }

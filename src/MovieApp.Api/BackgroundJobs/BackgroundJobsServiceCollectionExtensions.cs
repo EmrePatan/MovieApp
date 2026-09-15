@@ -18,6 +18,8 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.Configure<TvUpcomingEpisodeSyncOptions>(
             configuration.GetSection(TvUpcomingEpisodeSyncOptions.SectionName));
 
+        services.AddHostedService<RecurringBackgroundJobsStartup>();
+
         var backgroundJobs = configuration
             .GetSection(BackgroundJobsOptions.SectionName)
             .Get<BackgroundJobsOptions>() ?? new BackgroundJobsOptions();
@@ -57,7 +59,6 @@ public static class BackgroundJobsServiceCollectionExtensions
         });
 
         services.AddHangfireServer();
-        services.AddHostedService<RecurringBackgroundJobsStartup>();
 
         services.AddScoped<TmdbTvChangesSyncJob>();
         services.AddScoped<HotReleaseCheckJob>();

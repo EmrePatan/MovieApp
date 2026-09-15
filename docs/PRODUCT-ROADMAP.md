@@ -621,19 +621,21 @@ Do not mix Person results into catalog Search without deliberate UX.
 
 ---
 
-## BEFORE PRODUCTION — Observability / operations
+## BEFORE PRODUCTION — Observability / operations — **DONE (2026-09-15)**
 
-Mandatory before store launch. Need operational visibility for:
+Shipped V1 operational visibility:
 
-- API health, PostgreSQL, Redis
-- Hangfire / job failures
-- TMDB failures and rate behavior during backfill
-- Keyword coverage trend
-- Release detection and notification fanout
-- Push preparation, dispatch, Expo receipts
-- Unexpected 5xx rate
+- `GET /health/live` liveness and safe `GET /health/ready` response writer (no secret leakage)
+- Correlation ID middleware (`X-Correlation-Id` / `X-Request-Id`) with Serilog enrichment and ProblemDetails `correlationId`
+- Background job start/failure/skip structured logs (6000, 6097–6099) via `BackgroundJobOperationalRunner`
+- TMDB HTTP client operational logging (7001–7003) without credentials in log paths
 
-Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODUCTION-LAUNCH-CHECKLIST.md](./PRODUCTION-LAUNCH-CHECKLIST.md) §11.
+Still required before store launch (process/infrastructure, not code):
+
+- Log access path and operator review workflows
+- Manual 5xx / job failure / provider failure monitoring during launch window
+
+Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODUCTION-LAUNCH-CHECKLIST.md](./PRODUCTION-LAUNCH-CHECKLIST.md) §12.
 
 ---
 
@@ -795,7 +797,7 @@ When implementation changes either document's truth, update the relevant documen
 5. ~~**TV Upcoming Episodes / Airing**~~ **DONE (2026-09-15)**
 6. **Media Gallery**
 7. **Person Search / Person 2.0**
-8. **Production observability / operations**
+8. ~~**Production observability / operations**~~ **DONE (2026-09-15)**
 9. **Fix and run** PostgreSQL integration suite
 10. **Production infrastructure** + launch rehearsal
 11. **Physical iPhone Push E2E** when Expo blocker clears

@@ -8,15 +8,19 @@ public sealed class TmdbTvChangesSyncJob(ITmdbTvChangesSyncService syncService, 
 {
     [DisableConcurrentExecution(timeoutInSeconds: 6 * 60 * 60)]
     [AutomaticRetry(Attempts = 3)]
-    public async Task ExecuteAsync()
-    {
-        var result = await syncService.SyncAsync(DateTime.UtcNow);
-
-        BackgroundJobLogMessages.LogTmdbTvChangesSyncCompleted(
+    public Task ExecuteAsync() =>
+        BackgroundJobOperationalRunner.RunAsync(
             logger,
-            result.WindowsProcessed,
-            result.ChangedTmdbIdsObserved,
-            result.FollowedShowsRefreshed,
-            result.LastCompletedEndDate);
-    }
+            RecurringJobIds.TmdbTvChanges,
+            async () =>
+            {
+                var result = await syncService.SyncAsync(DateTime.UtcNow);
+
+                BackgroundJobLogMessages.LogTmdbTvChangesSyncCompleted(
+                    logger,
+                    result.WindowsProcessed,
+                    result.ChangedTmdbIdsObserved,
+                    result.FollowedShowsRefreshed,
+                    result.LastCompletedEndDate);
+            });
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 
@@ -5,7 +6,8 @@ namespace MovieApp.Api.BackgroundJobs;
 
 public sealed class RecurringBackgroundJobsStartup(
     IRecurringBackgroundJobRegistrar registrar,
-    IOptions<BackgroundJobsOptions> backgroundJobsOptions) : IHostedService
+    IOptions<BackgroundJobsOptions> backgroundJobsOptions,
+    ILogger<RecurringBackgroundJobsStartup> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -15,6 +17,7 @@ public sealed class RecurringBackgroundJobsStartup(
         }
         else
         {
+            BackgroundJobLogMessages.LogBackgroundJobsDisabled(logger);
             registrar.RemoveAllRecurringJobs();
         }
 

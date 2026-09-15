@@ -1,7 +1,12 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MovieApp.Api.BackgroundJobs;
 using MovieApp.Api.Cors;
 using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
+using MovieApp.Api.Health;
+using MovieApp.Api.Observability;
 using MovieApp.Api.Security;
 using MovieApp.Application;
 using MovieApp.Infrastructure;
@@ -17,7 +22,8 @@ public static class ApplicationBootstrap
         builder.Host.UseSerilog((context, services, configuration) =>
             configuration
                 .ReadFrom.Configuration(context.Configuration)
-                .ReadFrom.Services(services));
+                .ReadFrom.Services(services)
+                .Enrich.FromLogContext());
 
         builder.Services
             .AddApplication()
@@ -29,6 +35,7 @@ public static class ApplicationBootstrap
     public static void ConfigurePipeline(WebApplication app)
     {
         app.UseExceptionHandler();
+        app.UseMiddleware<CorrelationIdMiddleware>();
 
         if (app.Environment.IsDevelopment())
         {
@@ -42,6 +49,22 @@ public static class ApplicationBootstrap
         app.UseConfiguredForwardedHeaders();
         app.UseSerilogRequestLogging(options =>
         {
+            options.EnrichDiagnosticContext = static (diagnosticContext, httpContext) =>
+            {
+                var correlationId = CorrelationIdAccessor.Get(httpContext);
+                if (!string.IsNullOrWhiteSpace(correlationId))
+                {
+                    diagnosticContext.Set("CorrelationId", correlationId);
+                }
+
+                var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? httpContext.User.FindFirstValue("sub");
+                if (!string.IsNullOrWhiteSpace(userId))
+                {
+                    diagnosticContext.Set("UserId", userId);
+                }
+            };
+
             options.GetLevel = static (httpContext, _, exception) =>
             {
                 if (exception is not null
@@ -66,6 +89,17 @@ public static class ApplicationBootstrap
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
-        app.MapHealthChecks("/health/ready");
+        app.MapHealthChecks(
+            "/health/ready",
+            new HealthCheckOptions
+            {
+                ResponseWriter = HealthCheckResponseWriter.WriteResponse,
+                ResultStatusCodes =
+                {
+                    [HealthStatus.Healthy] = StatusCodes.Status200OK,
+                    [HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+                    [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+                }
+            });
     }
 }

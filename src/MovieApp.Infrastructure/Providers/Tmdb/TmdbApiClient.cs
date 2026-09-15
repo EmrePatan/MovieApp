@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace MovieApp.Infrastructure.Providers.Tmdb;
@@ -23,13 +24,16 @@ public sealed class TmdbApiClient
 
     private readonly HttpClient _httpClient;
     private readonly TmdbOptions _options;
+    private readonly ILogger<TmdbApiClient> _logger;
 
     public TmdbApiClient(
         HttpClient httpClient,
-        IOptions<TmdbOptions> options)
+        IOptions<TmdbOptions> options,
+        ILogger<TmdbApiClient> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<TResponse?> GetAsync<TResponse>(
@@ -38,6 +42,7 @@ public sealed class TmdbApiClient
         where TResponse : class
     {
         var requestUri = BuildRequestUri(relativePath);
+        var logPath = SanitizePathForLogging(relativePath);
 
         for (var attempt = 0; attempt <= RetryDelays.Length; attempt++)
         {
@@ -52,10 +57,12 @@ public sealed class TmdbApiClient
             }
             catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
+                TmdbApiClientLogMessages.LogTransportFailure(_logger, logPath, attempt + 1, exception);
                 throw CreateTransientAvailabilityException("TMDB request timed out.", exception);
             }
             catch (HttpRequestException exception)
             {
+                TmdbApiClientLogMessages.LogTransportFailure(_logger, logPath, attempt + 1, exception);
                 throw CreateTransientAvailabilityException("TMDB service is temporarily unavailable.", exception);
             }
 
@@ -69,14 +76,30 @@ public sealed class TmdbApiClient
                 if (ShouldRetry(response.StatusCode) && attempt < RetryDelays.Length)
                 {
                     var delay = GetRetryDelay(response, attempt);
+                    TmdbApiClientLogMessages.LogRequestRetryScheduled(
+                        _logger,
+                        logPath,
+                        (int)response.StatusCode,
+                        attempt + 1,
+                        (long)delay.TotalMilliseconds);
                     await Task.Delay(delay, cancellationToken);
                     continue;
                 }
 
+                TmdbApiClientLogMessages.LogRequestFailed(
+                    _logger,
+                    logPath,
+                    (int)response.StatusCode,
+                    attempt + 1);
                 throw CreateApiException(response.StatusCode);
             }
         }
 
+        TmdbApiClientLogMessages.LogRequestFailed(
+            _logger,
+            logPath,
+            (int)HttpStatusCode.ServiceUnavailable,
+            RetryDelays.Length + 1);
         throw CreateTransientAvailabilityException("TMDB request failed after retries.");
     }
 
@@ -103,6 +126,17 @@ public sealed class TmdbApiClient
 
         var separator = relativePath.Contains('?', StringComparison.Ordinal) ? '&' : '?';
         return $"{relativePath}{separator}api_key={Uri.EscapeDataString(_options.ApiKey)}";
+    }
+
+    internal static string SanitizePathForLogging(string relativePath)
+    {
+        var queryIndex = relativePath.IndexOf('?', StringComparison.Ordinal);
+        if (queryIndex < 0)
+        {
+            return relativePath;
+        }
+
+        return relativePath[..queryIndex];
     }
 
     private static bool ShouldRetry(HttpStatusCode statusCode) =>

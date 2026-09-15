@@ -15,23 +15,27 @@ public sealed class PushDeliveryPreparationJob(
 {
     [DisableConcurrentExecution(timeoutInSeconds: 5 * 60)]
     [AutomaticRetry(Attempts = 0)]
-    public async Task ExecuteAsync()
-    {
-        var notificationIds = await deliveryRepository.GetNotificationIdsNeedingPreparationAsync(
-            options.Value.PreparationBatchSize);
-
-        if (notificationIds.Count == 0)
-        {
-            BackgroundJobLogMessages.LogPushDeliveryPreparationNoPendingNotifications(logger);
-            return;
-        }
-
-        var result = await preparationService.PrepareAsync(notificationIds);
-
-        BackgroundJobLogMessages.LogPushDeliveryPreparationCompleted(
+    public Task ExecuteAsync() =>
+        BackgroundJobOperationalRunner.RunAsync(
             logger,
-            notificationIds.Count,
-            result.NotificationsProcessed,
-            result.DeliveriesCreated);
-    }
+            RecurringJobIds.PushPreparation,
+            async () =>
+            {
+                var notificationIds = await deliveryRepository.GetNotificationIdsNeedingPreparationAsync(
+                    options.Value.PreparationBatchSize);
+
+                if (notificationIds.Count == 0)
+                {
+                    BackgroundJobLogMessages.LogPushDeliveryPreparationNoPendingNotifications(logger);
+                    return;
+                }
+
+                var result = await preparationService.PrepareAsync(notificationIds);
+
+                BackgroundJobLogMessages.LogPushDeliveryPreparationCompleted(
+                    logger,
+                    notificationIds.Count,
+                    result.NotificationsProcessed,
+                    result.DeliveriesCreated);
+            });
 }

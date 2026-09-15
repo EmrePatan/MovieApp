@@ -1,4 +1,5 @@
 using Hangfire;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 
@@ -9,7 +10,8 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
     IOptions<BackgroundJobsOptions> backgroundJobsOptions,
     IOptions<PushNotificationsOptions> pushNotificationsOptions,
     IOptions<CatalogKeywordBackfillOptions> catalogKeywordBackfillOptions,
-    IOptions<TvUpcomingEpisodeSyncOptions> tvUpcomingEpisodeSyncOptions) : IRecurringBackgroundJobRegistrar
+    IOptions<TvUpcomingEpisodeSyncOptions> tvUpcomingEpisodeSyncOptions,
+    ILogger<HangfireRecurringBackgroundJobRegistrar> logger) : IRecurringBackgroundJobRegistrar
 {
     private static readonly RecurringJobOptions UtcOptions = new()
     {
@@ -23,6 +25,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
 
         if (!backgroundJobs.Enabled)
         {
+            BackgroundJobLogMessages.LogBackgroundJobsDisabled(logger);
             RemoveAllRecurringJobs();
             return;
         }
@@ -37,7 +40,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.TmdbTvChanges);
+            SkipRecurringJob(RecurringJobIds.TmdbTvChanges, "TmdbChangesEnabled=false");
         }
 
         if (backgroundJobs.HotReleaseEnabled)
@@ -50,7 +53,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.HotRelease);
+            SkipRecurringJob(RecurringJobIds.HotRelease, "HotReleaseEnabled=false");
         }
 
         if (backgroundJobs.MovieReleaseEnabled)
@@ -63,7 +66,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.MovieRelease);
+            SkipRecurringJob(RecurringJobIds.MovieRelease, "MovieReleaseEnabled=false");
         }
 
         if (backgroundJobs.NotificationFanoutEnabled)
@@ -76,7 +79,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.ReleaseFanout);
+            SkipRecurringJob(RecurringJobIds.ReleaseFanout, "NotificationFanoutEnabled=false");
         }
 
         var pushJobsEnabled = backgroundJobs.PushDeliveryEnabled && pushNotifications.Enabled;
@@ -103,9 +106,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.PushPreparation);
-            recurringJobManager.RemoveIfExists(RecurringJobIds.PushDispatch);
-            recurringJobManager.RemoveIfExists(RecurringJobIds.PushReceipts);
+            SkipRecurringJob(RecurringJobIds.PushPreparation, "PushDeliveryEnabled=false or PushNotifications:Enabled=false");
+            SkipRecurringJob(RecurringJobIds.PushDispatch, "PushDeliveryEnabled=false or PushNotifications:Enabled=false");
+            SkipRecurringJob(RecurringJobIds.PushReceipts, "PushDeliveryEnabled=false or PushNotifications:Enabled=false");
         }
 
         if (catalogKeywordBackfillOptions.Value.Enabled)
@@ -118,7 +121,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.CatalogKeywordBackfill);
+            SkipRecurringJob(RecurringJobIds.CatalogKeywordBackfill, "CatalogKeywordBackfill:Enabled=false");
         }
 
         if (backgroundJobs.TvUpcomingEpisodeSyncEnabled && tvUpcomingEpisodeSyncOptions.Value.Enabled)
@@ -131,7 +134,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         }
         else
         {
-            recurringJobManager.RemoveIfExists(RecurringJobIds.TvUpcomingEpisodeSync);
+            SkipRecurringJob(
+                RecurringJobIds.TvUpcomingEpisodeSync,
+                "TvUpcomingEpisodeSyncEnabled=false or TvUpcomingEpisodeSync:Enabled=false");
         }
     }
 
@@ -141,5 +146,11 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         {
             recurringJobManager.RemoveIfExists(jobId);
         }
+    }
+
+    private void SkipRecurringJob(string jobId, string reason)
+    {
+        BackgroundJobLogMessages.LogRecurringJobRegistrationSkipped(logger, jobId, reason);
+        recurringJobManager.RemoveIfExists(jobId);
     }
 }

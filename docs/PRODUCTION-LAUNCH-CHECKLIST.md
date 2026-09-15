@@ -47,7 +47,9 @@ Record resource identifiers here (names/URLs only — **never secrets**):
 - [ ] Production API does **not** reference staging PostgreSQL, Redis, or URLs
 - [ ] Production HTTPS URL confirmed
 - [ ] `GET /health` returns 200 (liveness)
+- [ ] `GET /health/live` returns 200 (explicit liveness alias)
 - [ ] `GET /health/ready` returns 200 (PostgreSQL + Redis readiness when configured)
+- [ ] `/health/ready` response does **not** expose connection strings, passwords, or host/port details
 
 ---
 
@@ -404,13 +406,21 @@ Smoke on physical device:
 ### Currently available
 
 - `GET /health` — liveness (no dependency probe)
-- `GET /health/ready` — PostgreSQL + Redis readiness
+- `GET /health/live` — explicit liveness alias (no dependency probe)
+- `GET /health/ready` — PostgreSQL + Redis readiness with safe JSON writer (no secret leakage)
+- Correlation ID middleware (`X-Correlation-Id` echoed; accepts `X-Request-Id`) with Serilog enrichment
+- ProblemDetails include `correlationId` for operator cross-reference
 - Structured Serilog console logging
-- Hangfire job structured log events (including keyword backfill 6010/6011)
+- Hangfire job structured log events (6000 start, 6001–6012 completion, 6097 failure, 6098 skip, 6099 disabled)
+- TMDB HTTP client operational logs (7001–7003) without credentials in log paths
 - Provider/job warning logs in application output
 
 ### Required before production
 
+- [ ] Correlation ID verified end-to-end in production logs (request header → log field → error payload)
+- [ ] `/health/ready` failure output reviewed to confirm no secret leakage in production
+- [ ] Background job start/failure logs visible in production log drain
+- [ ] TMDB failure/retry logs visible during backfill or provider outage rehearsal
 - [ ] Log access path defined (hosting provider dashboard or log drain)
 - [ ] On-call / operator knows where to inspect API logs
 - [ ] Unexpected 5xx rate monitored manually at minimum during launch window
@@ -463,7 +473,7 @@ Do not assume dashboards exist unless provisioned.
 5. [ ] Take production DB backup/snapshot
 6. [ ] Apply EF migrations to production (§2)
 7. [ ] Deploy API image to production
-8. [ ] `GET /health` and `GET /health/ready` pass
+8. [ ] `GET /health`, `GET /health/live`, and `GET /health/ready` pass
 9. [ ] Verify Redis connectivity (cache + distributed locks behave as expected)
 10. [ ] Verify Hangfire (`BackgroundJobs__Enabled=true`)
 11. [ ] Validate recurring jobs intentionally enabled/disabled (§4)

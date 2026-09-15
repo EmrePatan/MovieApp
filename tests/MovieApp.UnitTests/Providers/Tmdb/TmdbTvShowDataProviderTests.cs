@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Infrastructure.Providers.Tmdb;
@@ -249,7 +250,8 @@ public sealed class TmdbTvShowDataProviderTests
 
         var apiClient = new TmdbApiClient(
             httpClient,
-            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }));
+            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }),
+            NullLogger<TmdbApiClient>.Instance);
 
         return new TmdbTvShowDataProvider(apiClient);
     }
