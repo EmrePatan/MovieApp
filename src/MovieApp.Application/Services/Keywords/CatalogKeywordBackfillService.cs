@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
@@ -7,7 +8,7 @@ namespace MovieApp.Application.Services.Keywords;
 
 public sealed class CatalogKeywordBackfillService(
     ICatalogKeywordBackfillRepository backfillRepository,
-    ICatalogKeywordIngestionService keywordIngestionService,
+    IServiceScopeFactory scopeFactory,
     IOptions<CatalogKeywordBackfillOptions> options) : ICatalogKeywordBackfillService
 {
     public async Task<IReadOnlyList<CatalogKeywordBackfillCandidate>> SelectCandidatesAsync(
@@ -81,18 +82,20 @@ public sealed class CatalogKeywordBackfillService(
 
             try
             {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var processor = scope.ServiceProvider.GetRequiredService<ICatalogKeywordBackfillItemProcessor>();
+
                 if (candidate.ContentType == "movie")
                 {
                     Interlocked.Increment(ref moviesProcessed);
-                    var outcome = await ProcessMovieAsync(candidate.CatalogId, cancellationToken);
-                    UpdateCounters(ref succeeded, ref failed, ref skipped, outcome);
                 }
                 else
                 {
                     Interlocked.Increment(ref tvShowsProcessed);
-                    var outcome = await ProcessTvShowAsync(candidate.CatalogId, cancellationToken);
-                    UpdateCounters(ref succeeded, ref failed, ref skipped, outcome);
                 }
+
+                var outcome = await processor.ProcessAsync(candidate, cancellationToken);
+                UpdateCounters(ref succeeded, ref failed, ref skipped, outcome);
             }
             finally
             {
@@ -114,64 +117,23 @@ public sealed class CatalogKeywordBackfillService(
     public Task<CatalogKeywordCoverageSnapshot> GetCoverageAsync(CancellationToken cancellationToken = default) =>
         backfillRepository.GetCoverageAsync(cancellationToken);
 
-    private async Task<ProcessingOutcome> ProcessMovieAsync(Guid movieId, CancellationToken cancellationToken)
-    {
-        if (await backfillRepository.IsMovieKeywordSyncedAsync(movieId, cancellationToken))
-        {
-            return ProcessingOutcome.Skipped;
-        }
-
-        await keywordIngestionService.TryEnrichMovieKeywordsAsync(
-            movieId,
-            refreshKeywords: false,
-            cancellationToken);
-
-        return await backfillRepository.IsMovieKeywordSyncedAsync(movieId, cancellationToken)
-            ? ProcessingOutcome.Succeeded
-            : ProcessingOutcome.Failed;
-    }
-
-    private async Task<ProcessingOutcome> ProcessTvShowAsync(Guid tvShowId, CancellationToken cancellationToken)
-    {
-        if (await backfillRepository.IsTvShowKeywordSyncedAsync(tvShowId, cancellationToken))
-        {
-            return ProcessingOutcome.Skipped;
-        }
-
-        await keywordIngestionService.TryEnrichTvShowKeywordsAsync(
-            tvShowId,
-            refreshKeywords: false,
-            cancellationToken);
-
-        return await backfillRepository.IsTvShowKeywordSyncedAsync(tvShowId, cancellationToken)
-            ? ProcessingOutcome.Succeeded
-            : ProcessingOutcome.Failed;
-    }
-
     private static void UpdateCounters(
         ref int succeeded,
         ref int failed,
         ref int skipped,
-        ProcessingOutcome outcome)
+        CatalogKeywordBackfillItemOutcome outcome)
     {
         switch (outcome)
         {
-            case ProcessingOutcome.Succeeded:
+            case CatalogKeywordBackfillItemOutcome.Succeeded:
                 Interlocked.Increment(ref succeeded);
                 break;
-            case ProcessingOutcome.Failed:
+            case CatalogKeywordBackfillItemOutcome.Failed:
                 Interlocked.Increment(ref failed);
                 break;
-            case ProcessingOutcome.Skipped:
+            case CatalogKeywordBackfillItemOutcome.Skipped:
                 Interlocked.Increment(ref skipped);
                 break;
         }
-    }
-
-    private enum ProcessingOutcome
-    {
-        Succeeded,
-        Failed,
-        Skipped
     }
 }

@@ -123,6 +123,7 @@ public static class DependencyInjection
         services.AddScoped<IDiscoverBrowseService, DiscoverBrowseService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
         services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
+        services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
         services.AddScoped<ICatalogKeywordBackfillService, CatalogKeywordBackfillService>();
         services.AddScoped<ICatalogProviderUpsertService, CatalogProviderUpsertService>();
         services.AddScoped<IGenreService, GenreService>();

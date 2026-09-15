@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
@@ -106,19 +108,59 @@ public sealed class CatalogKeywordBackfillServiceTests
         Assert.Equal(8, ingestion.MovieCalls);
     }
 
+    [Fact]
+    public async Task ProcessBatchAsyncUsesIndependentScopePerConcurrentWorker()
+    {
+        var tracker = new ConcurrentScopeTracker();
+        var services = new ServiceCollection();
+        services.AddSingleton(tracker);
+        services.AddSingleton<FakeBackfillRepository>();
+        services.AddSingleton<ICatalogKeywordBackfillRepository>(provider =>
+            provider.GetRequiredService<FakeBackfillRepository>());
+        services.AddScoped<ICatalogKeywordIngestionService, ScopeTrackingKeywordIngestionService>();
+        services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
+        services.AddScoped<ICatalogKeywordBackfillService, CatalogKeywordBackfillService>();
+        services.AddOptions<CatalogKeywordBackfillOptions>().Configure(options =>
+        {
+            options.BatchSize = 25;
+            options.MaxConcurrency = 2;
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        await using var outerScope = provider.CreateAsyncScope();
+        var service = outerScope.ServiceProvider.GetRequiredService<ICatalogKeywordBackfillService>();
+        var candidates = Enumerable.Range(0, 8)
+            .Select(index => new CatalogKeywordBackfillCandidate(
+                Guid.Parse($"aaaaaaaa-aaaa-aaaa-aaaa-{index:D012}"),
+                "movie",
+                index + 1))
+            .ToList();
+
+        await service.ProcessBatchAsync(candidates);
+
+        Assert.True(tracker.MaxConcurrentDistinctScopedInstances >= 2);
+    }
+
     private static CatalogKeywordBackfillService CreateService(
         FakeBackfillRepository repository,
         ICatalogKeywordIngestionService? ingestion = null,
         int batchSize = 25,
-        int maxConcurrency = 2) =>
-        new(
+        int maxConcurrency = 2)
+    {
+        var processor = new CatalogKeywordBackfillItemProcessor(
             repository,
-            ingestion ?? new TrackingKeywordIngestionService(repository),
+            ingestion ?? new TrackingKeywordIngestionService(repository));
+        var scopeFactory = new SingleProcessorScopeFactory(processor);
+
+        return new CatalogKeywordBackfillService(
+            repository,
+            scopeFactory,
             Options.Create(new CatalogKeywordBackfillOptions
             {
                 BatchSize = batchSize,
                 MaxConcurrency = maxConcurrency
             }));
+    }
 
     private static FakeBackfillRepository CreateRepository(int movieCount = 0, int tvCount = 0)
     {
@@ -130,6 +172,26 @@ public sealed class CatalogKeywordBackfillServiceTests
             Enumerable.Range(0, tvCount)
                 .Select(index => Guid.Parse($"bbbbbbbb-bbbb-bbbb-bbbb-{index:D012}")));
         return repository;
+    }
+
+    private sealed class SingleProcessorScopeFactory(ICatalogKeywordBackfillItemProcessor processor) : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope() => new SingleProcessorScope(processor);
+    }
+
+    private sealed class SingleProcessorScope(ICatalogKeywordBackfillItemProcessor processor) : IServiceScope
+    {
+        public IServiceProvider ServiceProvider { get; } = new SingleProcessorServiceProvider(processor);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class SingleProcessorServiceProvider(ICatalogKeywordBackfillItemProcessor processor) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) =>
+            serviceType == typeof(ICatalogKeywordBackfillItemProcessor) ? processor : null;
     }
 
     private sealed class FakeBackfillRepository : ICatalogKeywordBackfillRepository
@@ -243,5 +305,57 @@ public sealed class CatalogKeywordBackfillServiceTests
             bool refreshKeywords,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class ScopeTrackingKeywordIngestionService(
+        ConcurrentScopeTracker tracker,
+        FakeBackfillRepository repository) : ICatalogKeywordIngestionService
+    {
+        public async Task TryEnrichMovieKeywordsAsync(
+            Guid movieId,
+            bool refreshKeywords,
+            CancellationToken cancellationToken = default)
+        {
+            await tracker.TrackAsync(this, cancellationToken);
+            repository.SyncedMovieIds.Add(movieId);
+        }
+
+        public Task TryEnrichTvShowKeywordsAsync(
+            Guid tvShowId,
+            bool refreshKeywords,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class ConcurrentScopeTracker
+    {
+        private readonly ConcurrentDictionary<int, byte> _activeScopedInstances = new();
+
+        public int MaxConcurrentDistinctScopedInstances { get; private set; }
+
+        public async Task TrackAsync(object scopedInstance, CancellationToken cancellationToken)
+        {
+            var scopedInstanceId = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(scopedInstance);
+            _activeScopedInstances[scopedInstanceId] = 0;
+            UpdateMaxConcurrentDistinctScopedInstances();
+
+            try
+            {
+                await Task.Delay(50, cancellationToken);
+            }
+            finally
+            {
+                _activeScopedInstances.TryRemove(scopedInstanceId, out _);
+            }
+        }
+
+        private void UpdateMaxConcurrentDistinctScopedInstances()
+        {
+            var activeCount = _activeScopedInstances.Count;
+            if (activeCount > MaxConcurrentDistinctScopedInstances)
+            {
+                MaxConcurrentDistinctScopedInstances = activeCount;
+            }
+        }
     }
 }
