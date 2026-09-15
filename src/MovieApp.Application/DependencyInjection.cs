@@ -133,6 +133,7 @@ public static class DependencyInjection
         services.AddScoped<IRecommendationService, RecommendationService>();
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
         services.AddScoped<IHotThisWeekService, HotThisWeekService>();
+        services.AddScoped<IHomeTopRatedService, HomeTopRatedService>();
         services.AddScoped<IHomeService, HomeService>();
 
         services.AddScoped<IGetNotificationsService, GetNotificationsService>();

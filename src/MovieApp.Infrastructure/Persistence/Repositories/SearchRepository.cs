@@ -209,6 +209,59 @@ public sealed class SearchRepository(
         return await averages.AverageAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithGenreAsync(
+        IReadOnlyList<SearchItem> items,
+        Guid genreId,
+        CancellationToken cancellationToken = default)
+    {
+        if (items.Count == 0)
+        {
+            return new HashSet<CatalogContentKey>();
+        }
+
+        var keys = new HashSet<CatalogContentKey>();
+        var movieIds = items
+            .Where(item => item.Type == "movie")
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+        var tvShowIds = items
+            .Where(item => item.Type == "tv")
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+
+        if (movieIds.Count > 0)
+        {
+            var matchingMovieIds = await dbContext.MovieGenres
+                .AsNoTracking()
+                .Where(movieGenre => movieGenre.GenreId == genreId && movieIds.Contains(movieGenre.MovieId))
+                .Select(movieGenre => movieGenre.MovieId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var movieId in matchingMovieIds)
+            {
+                keys.Add(new CatalogContentKey(movieId, "movie"));
+            }
+        }
+
+        if (tvShowIds.Count > 0)
+        {
+            var matchingTvShowIds = await dbContext.TvShowGenres
+                .AsNoTracking()
+                .Where(tvShowGenre => tvShowGenre.GenreId == genreId && tvShowIds.Contains(tvShowGenre.TvShowId))
+                .Select(tvShowGenre => tvShowGenre.TvShowId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var tvShowId in matchingTvShowIds)
+            {
+                keys.Add(new CatalogContentKey(tvShowId, "tv"));
+            }
+        }
+
+        return keys;
+    }
+
     public async Task<PaginatedResult<SearchItem>> GetByGenreAsync(
         string genreName,
         DiscoveryCriteria criteria,

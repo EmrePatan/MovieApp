@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Caching;
 using MovieApp.Infrastructure.Caching;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Home;
@@ -63,7 +64,7 @@ public sealed class HomeServiceTests
 
         Assert.False(result.IsPersonalized);
         Assert.Equal(
-            [HomeSectionType.HotThisWeek, HomeSectionType.TopRated, HomeSectionType.NewReleases],
+            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
             result.Sections.Select(section => section.Type).ToList());
         Assert.True(cache.WasWritten);
     }
@@ -91,11 +92,12 @@ public sealed class HomeServiceTests
             [
                 HomeSectionType.HotThisWeek,
                 HomeSectionType.RecommendedForYou,
+                HomeSectionType.Trending,
                 HomeSectionType.TopRated,
                 HomeSectionType.NewReleases
             ],
             result.Sections.Select(section => section.Type).ToList());
-        Assert.Equal(0, discovery.TrendingCallCount);
+        Assert.Equal(1, discovery.TrendingCallCount);
         Assert.Equal(0, discovery.PopularCallCount);
         Assert.Equal(1, discovery.NewReleasesCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
@@ -210,9 +212,9 @@ public sealed class HomeServiceTests
 
         Assert.False(result.IsPersonalized);
         Assert.Equal(
-            [HomeSectionType.HotThisWeek, HomeSectionType.TopRated, HomeSectionType.NewReleases],
+            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
             result.Sections.Select(section => section.Type).ToList());
-        Assert.Equal(0, discovery.TrendingCallCount);
+        Assert.Equal(1, discovery.TrendingCallCount);
         Assert.Equal(0, discovery.PopularCallCount);
         Assert.Equal(1, discovery.NewReleasesCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
@@ -262,6 +264,71 @@ public sealed class HomeServiceTests
         Assert.Single(hero.Items);
         Assert.Equal(10, recommended.Items.Count);
         Assert.Contains(recommended.Items, item => item.Id == recommendedItems[0].Id);
+    }
+
+    [Fact]
+    public async Task GetHomeAsyncIncludesTrendingNowSectionWithExpectedTitle()
+    {
+        var discovery = new CountingDiscoveryService();
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You",
+                    [CreateRecommendationItem("movie", 1)])
+            ]),
+            discoveryService: discovery);
+
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        var trending = result.Sections.Single(section => section.Type == HomeSectionType.Trending);
+
+        Assert.Equal("Trending Now", trending.Title);
+        Assert.Single(trending.Items);
+        Assert.Equal(1, discovery.TrendingCallCount);
+    }
+
+    [Fact]
+    public async Task GetHomeAsyncKeepsTrendingIndependentFromHotThisWeek()
+    {
+        var discovery = new CountingDiscoveryService();
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: discovery,
+            hotThisWeekService: new FakeHotThisWeekService(
+            [
+                new SearchItem(
+                    Guid.Parse("11111111-1111-1111-1111-000000000099"),
+                    "movie",
+                    "Hot Hero",
+                    null,
+                    null,
+                    null,
+                    null,
+                    new DateOnly(2025, 1, 1),
+                    9m,
+                    1000,
+                    2025)
+            ]));
+
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.Trending);
+        Assert.Equal(1, discovery.TrendingCallCount);
+    }
+
+    [Fact]
+    public async Task GetHomeAsyncOmitsEmptyTrendingSection()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: new EmptyTrendingDiscoveryService());
+
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NewReleases);
     }
 
     [Fact]
@@ -338,6 +405,10 @@ public sealed class HomeServiceTests
             watchHistoryService ?? new FakeWatchHistoryService([]));
         services.AddScoped<IHotThisWeekService>(_ =>
             hotThisWeekService ?? new FakeHotThisWeekService());
+        services.AddSingleton(Options.Create(new TopRatedOptions()));
+        services.AddScoped<IGenreReadRepository>(_ => new PassthroughGenreReadRepository());
+        services.AddScoped<ISearchRepository>(_ => new PassthroughSearchRepository());
+        services.AddScoped<IHomeTopRatedService, HomeTopRatedService>();
         services.AddSingleton<ICacheService>(_ => sharedCache ?? new PassthroughCacheService());
         services.AddSingleton<ISearchRefreshLockService, TestSearchRefreshLockService>();
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
@@ -630,14 +701,22 @@ public sealed class HomeServiceTests
         }
     }
 
-    private sealed class FakeDiscoveryService(bool includeGenre = true) : IDiscoveryService
+    private sealed class EmptyTrendingDiscoveryService : FakeDiscoveryService
     {
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
+        public override Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PaginatedResult<SearchItem>([], 1, criteria.PageSize, 0, 0));
+    }
+
+    private class FakeDiscoveryService(bool includeGenre = true) : IDiscoveryService
+    {
+        public virtual Task<PaginatedResult<SearchItem>> GetPopularAsync(
             DiscoveryCriteria criteria,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult(criteria, "movie", 10));
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+        public virtual Task<PaginatedResult<SearchItem>> GetTrendingAsync(
             DiscoveryCriteria criteria,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult(criteria, "tv", 20));
@@ -765,6 +844,72 @@ public sealed class HomeServiceTests
         public Task<BulkUpdateEpisodeWatchStateResult> BulkUpdateTvShowWatchStateAsync(
             Guid tvShowId,
             bool watched,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class PassthroughGenreReadRepository : IGenreReadRepository
+    {
+        public Task<IReadOnlyList<(Guid Id, string Name)>> GetAllOrderedByNameAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<(Guid Id, string Name)>>([]);
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetNamesByIdsAsync(
+            IReadOnlyList<Guid> genreIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+        public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Guid?>(null);
+    }
+
+    private sealed class PassthroughSearchRepository : ISearchRepository
+    {
+        public Task<PaginatedResult<SearchItem>> SearchAsync(
+            SearchCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
+            string query,
+            int limit,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<decimal> GetCatalogMeanVoteAverageAsync(
+            SearchContentType type,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(6.0m);
+
+        public Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithGenreAsync(
+            IReadOnlyList<SearchItem> items,
+            Guid genreId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
+
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
+            string genreName,
+            DiscoveryCriteria criteria,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

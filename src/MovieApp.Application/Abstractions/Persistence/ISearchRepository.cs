@@ -34,6 +34,11 @@ public interface ISearchRepository
         SearchContentType type,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithGenreAsync(
+        IReadOnlyList<SearchItem> items,
+        Guid genreId,
+        CancellationToken cancellationToken = default);
+
     Task<PaginatedResult<SearchItem>> GetByGenreAsync(
         string genreName,
         DiscoveryCriteria criteria,

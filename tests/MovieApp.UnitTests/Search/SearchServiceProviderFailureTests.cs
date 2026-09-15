@@ -352,6 +352,12 @@ internal static class SearchServiceTestsHelper
             CancellationToken cancellationToken = default) =>
             Task.FromResult(6.0m);
 
+        public Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithGenreAsync(
+            IReadOnlyList<SearchItem> items,
+            Guid genreId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
+
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
             string genreName,
             DiscoveryCriteria criteria,

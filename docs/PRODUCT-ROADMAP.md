@@ -38,6 +38,7 @@ Accepted information architecture — do not undo without an explicit product de
 
 **All users:**
 - Hot This Week hero (up to 5, TMDB weekly trending)
+- Trending Now (10, local catalog sort by vote count)
 - Top Rated (Bayesian-weighted catalog ranking)
 - New Releases
 
@@ -51,7 +52,6 @@ Accepted information architecture — do not undo without an explicit product de
 ### Search tab = Search + premium Explore landing while idle
 
 **Idle Explore:**
-- Trending Now
 - Explore by Genre
 
 Search tab remains **Search**. Do **not** add a separate Explore bottom tab.
@@ -72,7 +72,7 @@ Do **not** create a new Library tab.
 
 ### Important IA decision (do not revert)
 
-Home owns the primary browse rails (Hot This Week hero, Recommended For You, Top Rated, New Releases). Search idle Explore keeps Trending Now and genre entry points; filtered browse remains in Discover. Do **not** restore the old overloaded Home with Popular, Continue Watching, Because You Watched, and genre fanout rails.
+Home owns the primary browse rails (Hot This Week hero, Recommended For You, Trending Now, Top Rated, New Releases). Search idle Explore keeps genre entry points only; filtered browse remains in Discover. Do **not** restore the old overloaded Home with Popular, Continue Watching, Because You Watched, and genre fanout rails.
 
 ---
 
@@ -104,9 +104,10 @@ Home owns the primary browse rails (Hot This Week hero, Recommended For You, Top
 
 - Hot This Week hero from TMDB weekly trending (`/trending/all/week`, movie + TV only, cached)
 - Recommended For You (10, independent from hero; Recommendation 2.1 unchanged)
-- Top Rated (10, Bayesian-weighted catalog ranking; no provider calls)
+- Trending Now on Home (10, reuses existing local catalog trending via `IDiscoveryService.GetTrendingAsync`)
+- Top Rated (10, Bayesian-weighted catalog ranking; no provider calls; Home rail caps Animation catalog genre to 3 via post-ranking diversity)
 - New Releases on Home (10, existing regional-release semantics for movies)
-- Search idle cleanup (Top Rated / New Releases browse rails removed from Search landing)
+- Search idle cleanup (Trending Now moved to Home; Top Rated / New Releases browse rails removed from Search landing)
 
 ## DONE — Discovery / Search / Home
 

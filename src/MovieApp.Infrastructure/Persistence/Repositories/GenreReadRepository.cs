@@ -27,4 +27,20 @@ public sealed class GenreReadRepository(ApplicationDbContext dbContext) : IGenre
             .Where(genre => genreIds.Contains(genre.Id))
             .ToDictionaryAsync(genre => genre.Id, genre => genre.Name, cancellationToken);
     }
+
+    public async Task<Guid?> GetIdByNameAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return await dbContext.Genres
+            .AsNoTracking()
+            .Where(genre => EF.Functions.ILike(genre.Name, name))
+            .Select(genre => (Guid?)genre.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }

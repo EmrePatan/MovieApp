@@ -8,4 +8,8 @@ public interface IGenreReadRepository
     Task<IReadOnlyDictionary<Guid, string>> GetNamesByIdsAsync(
         IReadOnlyList<Guid> genreIds,
         CancellationToken cancellationToken = default);
+
+    Task<Guid?> GetIdByNameAsync(
+        string name,
+        CancellationToken cancellationToken = default);
 }

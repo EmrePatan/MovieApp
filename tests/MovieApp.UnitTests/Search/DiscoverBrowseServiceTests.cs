@@ -306,5 +306,8 @@ public sealed class DiscoverBrowseServiceTests
             IReadOnlyList<Guid> genreIds,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+        public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Guid?>(null);
     }
 }
