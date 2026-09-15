@@ -27,6 +27,7 @@ internal static class DetailProviderServiceCollectionExtensions
         services.AddScoped<FakeMovieReleaseDatesProvider>();
         services.AddScoped<FakeDiscoveryWatchProviderCatalog>();
         services.AddScoped<FakeNowInTheatersMovieCatalog>();
+        services.AddScoped<FakeOnTvThisWeekCatalog>();
 
         if (IsTmdbProvider(movieProviders.Provider))
         {
@@ -40,6 +41,7 @@ internal static class DetailProviderServiceCollectionExtensions
             services.AddScoped<TmdbMovieReleaseDatesProvider>();
             services.AddScoped<TmdbDiscoveryWatchProviderCatalog>();
             services.AddScoped<TmdbNowInTheatersMovieCatalog>();
+            services.AddScoped<TmdbOnTvThisWeekCatalog>();
         }
 
         services.AddScoped<ICreditsProvider>(serviceProvider =>
@@ -91,6 +93,11 @@ internal static class DetailProviderServiceCollectionExtensions
             IsTmdbProvider(movieProviders.Provider)
                 ? serviceProvider.GetRequiredService<TmdbNowInTheatersMovieCatalog>()
                 : serviceProvider.GetRequiredService<FakeNowInTheatersMovieCatalog>());
+
+        services.AddScoped<IOnTvThisWeekCatalog>(serviceProvider =>
+            IsTmdbProvider(movieProviders.Provider)
+                ? serviceProvider.GetRequiredService<TmdbOnTvThisWeekCatalog>()
+                : serviceProvider.GetRequiredService<FakeOnTvThisWeekCatalog>());
 
         return services;
     }

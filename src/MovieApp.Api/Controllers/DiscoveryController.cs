@@ -20,6 +20,7 @@ public sealed class DiscoveryController(
     IAdvancedDiscoverService advancedDiscoverService,
     IDiscoveryWatchProvidersService discoveryWatchProvidersService,
     INowInTheatersService nowInTheatersService,
+    IOnTvThisWeekService onTvThisWeekService,
     IExplorePreviewService explorePreviewService) : ControllerBase
 {
     [HttpGet("explore-preview")]
@@ -179,6 +180,39 @@ public sealed class DiscoveryController(
         }
     }
 
+    [HttpGet("on-tv-this-week")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<SearchResponse>> GetOnTvThisWeek(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var criteria = BuildOnTvThisWeekCriteria(page, pageSize);
+            var result = await onTvThisWeekService.GetOnTvThisWeekAsync(criteria, cancellationToken);
+            return Ok(SearchContractMapper.ToSearchResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid on TV this week request.",
+                exception.Message));
+        }
+        catch (SearchProviderUnavailableException)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                CreateProblemDetails(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "On TV this week is temporarily unavailable.",
+                    "TV airing listings could not be loaded right now. Please try again."));
+        }
+    }
+
     [HttpGet("advanced")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -277,6 +311,21 @@ public sealed class DiscoveryController(
                 "Invalid discovery browse request.",
                 exception.Message));
         }
+    }
+
+    private static OnTvThisWeekCriteria BuildOnTvThisWeekCriteria(int? page, int? pageSize)
+    {
+        var criteria = new OnTvThisWeekCriteria(
+            page ?? SearchPaginationDefaults.DefaultPage,
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+
+        var validation = OnTvThisWeekValidator.Validate(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        return criteria;
     }
 
     private static NowInTheatersCriteria BuildNowInTheatersCriteria(

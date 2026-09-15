@@ -132,6 +132,29 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
     }
 
     [Fact]
+    public async Task OnTvThisWeekReturnsTvOnlyResults()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/discovery/on-tv-this-week?page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Items);
+        Assert.All(payload.Items, item => Assert.Equal("tv", item.Type));
+    }
+
+    [Fact]
+    public async Task OnTvThisWeekInvalidPageSizeReturnsBadRequest()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/discovery/on-tv-this-week?pageSize=0");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task NowInTheatersInvalidReleaseRegionReturnsBadRequest()
     {
         await fixture.ResetAsync();

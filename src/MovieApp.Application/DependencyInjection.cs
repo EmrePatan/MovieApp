@@ -132,6 +132,7 @@ public static class DependencyInjection
         services.AddScoped<IAdvancedDiscoverService, AdvancedDiscoverService>();
         services.AddScoped<IDiscoveryWatchProvidersService, DiscoveryWatchProvidersService>();
         services.AddScoped<INowInTheatersService, NowInTheatersService>();
+        services.AddScoped<IOnTvThisWeekService, OnTvThisWeekService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
         services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
