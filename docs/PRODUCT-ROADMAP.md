@@ -234,6 +234,34 @@ Configured-market movie release semantics using persisted TMDB regional release 
 
 ---
 
+## DONE — Future Release Action Guardrail (v1)
+
+Detail-screen action eligibility for consumption and follow/alert actions.
+
+**Movie consumption (`isReleased`):**
+- Uses regional effective release date via `MovieFollowReleaseDateResolver` + `MovieConsumptionReleaseGuardrail`
+- Future effective release → Watched/Rating hidden
+- Release date == today or past → Watched/Rating available
+- Unknown/null effective release → conservative: consumption available
+
+**Movie follow/alert (`canFollowForRelease`, `canSetReleaseAlert`):**
+- Same effective release date source as regional follow eligibility — no second algorithm
+- Future effective release → Alert/Follow available
+- Release date == today or past → hidden
+- Unknown/null effective release → conservative: available
+
+**TV follow (`canFollow`):**
+- Normalized from persisted `TvShowStatus` enum — no provider calls during detail render
+- Ended / Canceled → Follow hidden
+- Returning Series, In Production, Planned, Pilot, other non-terminal → Follow available
+- Does **not** infer ended from `lastAirDate < today`
+
+**Data:** UI eligibility only — existing `CatalogFollow` rows are not deleted; no cleanup jobs.
+
+**Mobile:** consumes backend eligibility fields; hides (not disables) obsolete actions; action row reflows.
+
+---
+
 ## DONE — TV seasons, episodes & watch progress
 
 Catalog TV depth and per-episode watch tracking (distinct from future Upcoming Episodes / Airing).

@@ -40,7 +40,9 @@ public static class MovieMapper
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList(),
             ToCollectionSummary(movie),
-            IsReleased: true);
+            IsReleased: true,
+            CanFollowForRelease: true,
+            CanSetReleaseAlert: true);
 
     private static MovieCollectionSummaryResult? ToCollectionSummary(Movie movie)
     {

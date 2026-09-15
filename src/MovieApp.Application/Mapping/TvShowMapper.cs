@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.TvShows;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -46,7 +47,8 @@ public static class TvShowMapper
             tvShow.Seasons
                 .OrderBy(season => season.SeasonNumber)
                 .Select(ToSeasonSummaryResult)
-                .ToList());
+                .ToList(),
+            TvShowFollowActionEligibility.CanFollow(tvShow.Status));
 
     public static SeasonSummaryResult ToSeasonSummaryResult(Season season) =>
         new(

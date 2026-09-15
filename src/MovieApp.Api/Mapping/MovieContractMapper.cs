@@ -48,5 +48,7 @@ public static class MovieContractMapper
                     result.Collection.Name,
                     result.Collection.PosterPath,
                     result.Collection.BackdropPath),
-            result.IsReleased);
+            result.IsReleased,
+            result.CanFollowForRelease,
+            result.CanSetReleaseAlert);
 }

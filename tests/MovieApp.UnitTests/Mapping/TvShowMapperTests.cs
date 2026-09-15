@@ -39,6 +39,7 @@ public sealed class TvShowMapperTests
         var result = TvShowMapper.ToDetailsResult(tvShow);
 
         Assert.Equal("Ended", result.Status);
+        Assert.False(result.CanFollow);
         Assert.Single(result.Genres);
         Assert.Single(result.Seasons);
         Assert.Equal(1, result.Seasons[0].SeasonNumber);
