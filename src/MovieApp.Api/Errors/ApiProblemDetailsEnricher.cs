@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using MovieApp.Api.Observability;
 using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.Api.Errors;
@@ -13,6 +14,8 @@ internal static class ApiProblemDetailsEnricher
 
         problemDetails.Status ??= statusCode;
         problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
+        problemDetails.Extensions["correlationId"] =
+            CorrelationIdAccessor.Get(httpContext) ?? httpContext.TraceIdentifier;
         problemDetails.Extensions["code"] = resolvedCode;
         problemDetails.Type = ResolveErrorType(httpContext, resolvedCode);
 

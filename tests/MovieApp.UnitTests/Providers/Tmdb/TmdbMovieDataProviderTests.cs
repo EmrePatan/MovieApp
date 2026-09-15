@@ -104,7 +104,8 @@ public sealed class TmdbMovieDataProviderTests
 
         var apiClient = new TmdbApiClient(
             httpClient,
-            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }));
+            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TmdbApiClient>.Instance);
 
         return new TmdbMovieDataProvider(apiClient);
     }

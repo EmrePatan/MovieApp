@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
@@ -15,27 +15,31 @@ public sealed class ReleaseNotificationFanoutJob(
 {
     [DisableConcurrentExecution(timeoutInSeconds: 5 * 60)]
     [AutomaticRetry(Attempts = 0)]
-    public async Task ExecuteAsync()
-    {
-        var eventIds = await fanoutRepository.GetPendingFanoutEventIdsAsync(
-            options.Value.FanoutBatchSize);
-
-        if (eventIds.Count == 0)
-        {
-            BackgroundJobLogMessages.LogReleaseNotificationFanoutNoPendingEvents(logger);
-            return;
-        }
-
-        var result = await fanoutService.ProcessAsync(eventIds);
-
-        BackgroundJobLogMessages.LogReleaseNotificationFanoutCompleted(
+    public Task ExecuteAsync() =>
+        BackgroundJobOperationalRunner.RunAsync(
             logger,
-            result.EventsProcessed,
-            eventIds.Count,
-            result.NotificationsCreated,
-            result.EventLinksCreated,
-            result.SkippedByPreference,
-            result.SkippedByBoundary,
-            result.SkippedBySource);
-    }
+            RecurringJobIds.ReleaseFanout,
+            async () =>
+            {
+                var eventIds = await fanoutRepository.GetPendingFanoutEventIdsAsync(
+                    options.Value.FanoutBatchSize);
+
+                if (eventIds.Count == 0)
+                {
+                    BackgroundJobLogMessages.LogReleaseNotificationFanoutNoPendingEvents(logger);
+                    return;
+                }
+
+                var result = await fanoutService.ProcessAsync(eventIds);
+
+                BackgroundJobLogMessages.LogReleaseNotificationFanoutCompleted(
+                    logger,
+                    result.EventsProcessed,
+                    eventIds.Count,
+                    result.NotificationsCreated,
+                    result.EventLinksCreated,
+                    result.SkippedByPreference,
+                    result.SkippedByBoundary,
+                    result.SkippedBySource);
+            });
 }

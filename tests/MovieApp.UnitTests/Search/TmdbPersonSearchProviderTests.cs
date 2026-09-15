@@ -65,7 +65,8 @@ public sealed class TmdbPersonSearchProviderTests
 
         var apiClient = new TmdbApiClient(
             httpClient,
-            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }));
+            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TmdbApiClient>.Instance);
 
         return new TmdbPersonDataProvider(apiClient);
     }

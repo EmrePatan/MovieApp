@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Api.Errors;
+using MovieApp.Api.Observability;
 using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.UnitTests.Errors;
@@ -38,6 +39,29 @@ public sealed class ApiProblemDetailsEnricherTests
         Assert.Equal(ApiErrorCodes.InternalError, problemDetails.Extensions["code"]);
         Assert.Equal("https://api.example.com/errors/internal-error", problemDetails.Type);
         Assert.Equal("/api/movies/search", problemDetails.Instance);
+    }
+
+    [Fact]
+    public void EnrichAddsCorrelationIdFromAccessor()
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            TraceIdentifier = "trace-correlation"
+        };
+        CorrelationIdAccessor.Set(httpContext, "operator-correlation-001");
+
+        httpContext.RequestServices = new ServiceCollection()
+            .AddSingleton<IOptions<AppOptions>>(Options.Create(new AppOptions()))
+            .BuildServiceProvider();
+
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status500InternalServerError
+        };
+
+        ApiProblemDetailsEnricher.Enrich(httpContext, problemDetails, ApiErrorCodes.InternalError);
+
+        Assert.Equal("operator-correlation-001", problemDetails.Extensions["correlationId"]);
     }
 
     [Fact]

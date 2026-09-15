@@ -84,7 +84,8 @@ public sealed class TmdbKeywordsProviderTests
 
         var apiClient = new TmdbApiClient(
             httpClient,
-            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }));
+            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TmdbApiClient>.Instance);
 
         return new TmdbKeywordsProvider(apiClient);
     }

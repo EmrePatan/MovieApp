@@ -1,6 +1,7 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Api.BackgroundJobs;
 using MovieApp.Application.Abstractions.Persistence;
@@ -144,7 +145,8 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
             Options.Create(new TvUpcomingEpisodeSyncOptions
             {
                 Enabled = tvUpcomingEpisodeSyncEnabled
-            }));
+            }),
+            NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 
     private static async Task SeedFanoutDiscoveryDataAsync()
     {

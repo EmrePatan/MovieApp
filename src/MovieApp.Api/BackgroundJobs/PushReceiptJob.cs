@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Services.PushNotifications;
 
@@ -9,15 +9,19 @@ public sealed class PushReceiptJob(
     ILogger<PushReceiptJob> logger)
 {
     [AutomaticRetry(Attempts = 0)]
-    public async Task ExecuteAsync()
-    {
-        var result = await receiptService.ProcessReceiptsAsync();
-
-        BackgroundJobLogMessages.LogPushReceiptProcessingCompleted(
+    public Task ExecuteAsync() =>
+        BackgroundJobOperationalRunner.RunAsync(
             logger,
-            result.ProcessedCount,
-            result.DeliveredCount,
-            result.RetryableFailureCount,
-            result.PermanentFailureCount);
-    }
+            RecurringJobIds.PushReceipts,
+            async () =>
+            {
+                var result = await receiptService.ProcessReceiptsAsync();
+
+                BackgroundJobLogMessages.LogPushReceiptProcessingCompleted(
+                    logger,
+                    result.ProcessedCount,
+                    result.DeliveredCount,
+                    result.RetryableFailureCount,
+                    result.PermanentFailureCount);
+            });
 }

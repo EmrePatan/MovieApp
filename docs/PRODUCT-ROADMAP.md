@@ -648,19 +648,23 @@ Trailers v1 remains DONE — do not reimplement trailers.
 
 ---
 
-## BEFORE PRODUCTION — Observability / operations
+## DONE — Observability / operations (V1)
 
-Mandatory before store launch. Need operational visibility for:
+Shipped operational visibility:
 
-- API health, PostgreSQL, Redis
-- Hangfire / job failures
-- TMDB failures and rate behavior during backfill
-- Keyword coverage trend
-- Release detection and notification fanout
-- Push preparation, dispatch, Expo receipts
-- Unexpected 5xx rate
+- `GET /health`, `GET /health/live` — process liveness (no dependency probe)
+- `GET /health/ready` — PostgreSQL + Redis readiness with safe JSON response writer
+- Correlation ID middleware (`X-Correlation-Id` / `X-Request-Id`) with Serilog enrichment and ProblemDetails `correlationId`
+- Background job start/failure/skip structured logs via `BackgroundJobOperationalRunner`
+- TMDB HTTP client operational logging without credentials in log paths
 
-Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODUCTION-LAUNCH-CHECKLIST.md](./PRODUCTION-LAUNCH-CHECKLIST.md) §11.
+Still required before store launch (process/infrastructure, not code):
+
+- Log access path and operator review workflows
+- Manual 5xx / job failure / provider failure monitoring during launch window
+- External uptime monitoring and alert delivery (if provisioned)
+
+Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODUCTION-LAUNCH-CHECKLIST.md](./PRODUCTION-LAUNCH-CHECKLIST.md) §12.
 
 ---
 

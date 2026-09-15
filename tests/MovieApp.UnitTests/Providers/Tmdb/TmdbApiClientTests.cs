@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Infrastructure.Providers.Tmdb;
 
@@ -172,7 +173,8 @@ public sealed class TmdbApiClientTests
 
         return new TmdbApiClient(
             httpClient,
-            Options.Create(options ?? new TmdbOptions { ApiKey = "test-api-key" }));
+            Options.Create(options ?? new TmdbOptions { ApiKey = "test-api-key" }),
+            NullLogger<TmdbApiClient>.Instance);
     }
 
     private sealed class TestResponse

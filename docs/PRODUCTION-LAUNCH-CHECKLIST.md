@@ -46,7 +46,7 @@ Record resource identifiers here (names/URLs only — **never secrets**):
 - [ ] Production API connected to **production** Redis (`Redis__ConnectionString`)
 - [ ] Production API does **not** reference staging PostgreSQL, Redis, or URLs
 - [ ] Production HTTPS URL confirmed
-- [ ] `GET /health` returns 200 (liveness)
+- [ ] `GET /health` and `GET /health/live` return 200 (liveness)
 - [ ] `GET /health/ready` returns 200 (PostgreSQL + Redis readiness when configured)
 
 ---
@@ -403,11 +403,14 @@ Smoke on physical device:
 
 ### Currently available
 
-- `GET /health` — liveness (no dependency probe)
-- `GET /health/ready` — PostgreSQL + Redis readiness
-- Structured Serilog console logging
-- Hangfire job structured log events (including keyword backfill 6010/6011)
-- Provider/job warning logs in application output
+- `GET /health` and `GET /health/live` — process liveness (no dependency probe)
+- `GET /health/ready` — PostgreSQL + Redis readiness with safe JSON writer (no secret leakage)
+- Correlation ID middleware (`X-Correlation-Id` / `X-Request-Id`) echoed on responses
+- ProblemDetails `correlationId` extension on API-owned error responses
+- Structured Serilog console logging with correlation enrichment
+- Background job operational logs: start (6000), completion events, failure (6097), skip (6098–6099)
+- TMDB HTTP client operational logs (7001–7003) with sanitized paths (no `api_key` in logs)
+- Hangfire dashboard **not** mapped publicly
 
 ### Required before production
 
@@ -463,7 +466,7 @@ Do not assume dashboards exist unless provisioned.
 5. [ ] Take production DB backup/snapshot
 6. [ ] Apply EF migrations to production (§2)
 7. [ ] Deploy API image to production
-8. [ ] `GET /health` and `GET /health/ready` pass
+8. [ ] `GET /health/live` and `GET /health/ready` pass
 9. [ ] Verify Redis connectivity (cache + distributed locks behave as expected)
 10. [ ] Verify Hangfire (`BackgroundJobs__Enabled=true`)
 11. [ ] Validate recurring jobs intentionally enabled/disabled (§4)

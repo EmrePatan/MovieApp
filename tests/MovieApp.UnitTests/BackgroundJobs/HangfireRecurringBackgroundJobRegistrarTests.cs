@@ -1,4 +1,5 @@
 using Hangfire;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Api.BackgroundJobs;
 using MovieApp.Application.Configuration;
@@ -176,5 +177,6 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             Options.Create(new TvUpcomingEpisodeSyncOptions
             {
                 Enabled = tvUpcomingEpisodeSyncEnabled
-            }));
+            }),
+            NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 }

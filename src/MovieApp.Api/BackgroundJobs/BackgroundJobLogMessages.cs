@@ -5,6 +5,12 @@ namespace MovieApp.Api.BackgroundJobs;
 internal static partial class BackgroundJobLogMessages
 {
     [LoggerMessage(
+        EventId = 6000,
+        Level = LogLevel.Information,
+        Message = "Background job started: jobId={JobId}")]
+    internal static partial void LogBackgroundJobStarted(ILogger logger, string jobId);
+
+    [LoggerMessage(
         EventId = 6001,
         Level = LogLevel.Information,
         Message = "TMDB TV changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} refreshedShows={RefreshedShows} lastEndDate={LastEndDate}")]
@@ -134,4 +140,28 @@ internal static partial class BackgroundJobLogMessages
         int succeeded,
         int failed,
         int hydrated);
+
+    [LoggerMessage(
+        EventId = 6097,
+        Level = LogLevel.Error,
+        Message = "Background job failed: jobId={JobId}")]
+    internal static partial void LogBackgroundJobFailed(
+        ILogger logger,
+        string jobId,
+        Exception exception);
+
+    [LoggerMessage(
+        EventId = 6098,
+        Level = LogLevel.Information,
+        Message = "Recurring job registration skipped: jobId={JobId} reason={Reason}")]
+    internal static partial void LogRecurringJobRegistrationSkipped(
+        ILogger logger,
+        string jobId,
+        string reason);
+
+    [LoggerMessage(
+        EventId = 6099,
+        Level = LogLevel.Information,
+        Message = "Background jobs disabled; recurring job registration skipped")]
+    internal static partial void LogBackgroundJobsDisabled(ILogger logger);
 }
