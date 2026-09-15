@@ -18,7 +18,9 @@ public sealed class TmdbApiClientLoggingTests
         await Assert.ThrowsAsync<TmdbApiException>(() =>
             client.GetAsync<TestResponse>("search/movie?query=secret&api_key=hidden"));
 
-        var failureLog = Assert.Single(logger.Messages.Where(message => message.Contains("TMDB request failed", StringComparison.Ordinal)));
+        var failureLog = Assert.Single(
+            logger.Messages,
+            message => message.Contains("TMDB request failed", StringComparison.Ordinal));
         Assert.Contains("path=search/movie", failureLog, StringComparison.Ordinal);
         Assert.DoesNotContain("api_key", failureLog, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", failureLog, StringComparison.Ordinal);

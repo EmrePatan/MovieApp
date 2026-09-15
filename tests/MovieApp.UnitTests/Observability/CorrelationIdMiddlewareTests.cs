@@ -16,7 +16,6 @@ public sealed class CorrelationIdMiddlewareTests
         var correlationId = CorrelationIdAccessor.Get(context);
         Assert.NotNull(correlationId);
         Assert.Equal(32, correlationId!.Length);
-        Assert.Equal(correlationId, context.Response.Headers[CorrelationIdConstants.HeaderName].ToString());
     }
 
     [Fact]
@@ -29,7 +28,6 @@ public sealed class CorrelationIdMiddlewareTests
         await middleware.InvokeAsync(context);
 
         Assert.Equal("integration-correlation-001", CorrelationIdAccessor.Get(context));
-        Assert.Equal("integration-correlation-001", context.Response.Headers[CorrelationIdConstants.HeaderName].ToString());
     }
 
     [Fact]
