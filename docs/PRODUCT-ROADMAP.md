@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Discovery 2.0 D5.5 User Regional Preference)  
+**Last updated:** 2026-09-15 (Discovery 2.0 D5.5.1 Filter Navigation + Where-to-Watch Region)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -266,6 +266,19 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
 **Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
+
+## DONE — Discovery 2.0 D5.5.1 (Filter Navigation Fix + Where-to-Watch Region)
+
+**Mobile only** — no backend API/schema changes.
+
+**Discovery filter navigation:**
+- Filter / sort / region / media-type mutations on Advanced Discover, Streaming Services, Now in Theaters, and World Cinema use `router.setParams` to replace current URL state without adding navigation-history entries
+- Real screen navigation (Discover → full screens, result → detail, detail → person) remains normal `push` / `dismissTo` behavior
+- Detail return hrefs still preserve the current filtered route state
+
+**Where to Watch:**
+- Detail-page `WhereToWatchRail` uses User Region (with hydration gating) instead of hardcoded `TR`
+- Opening detail from Streaming Services (or Advanced Discover with active streaming filters) passes temporary `watchRegion` context so Where to Watch matches the exploration region without mutating global User Region
 
 ## DONE — Discovery 2.0 D1.5 (Navigation IA + Discover Hub + Global Search + Library Hub)
 
