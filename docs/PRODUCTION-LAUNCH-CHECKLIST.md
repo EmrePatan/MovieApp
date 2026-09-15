@@ -98,6 +98,22 @@ WHERE "MigrationId" = '20260915095315_AddCatalogKeywords';
 
 **All migrations up to the release SHA must be applied**, not only this one.
 
+### Launch-critical example: regional release schema
+
+Migration `20260915110524_AddMovieRegionalReleases` adds:
+
+- `movie_regional_releases` (`MovieId` + `Region` composite PK)
+- `EffectiveReleaseDate`, `EffectiveReleaseType`, `Certification`, `IsFallbackGlobal`, `SyncedAtUtc`
+- index `IX_movie_regional_releases_Region_EffectiveReleaseDate`
+
+Verify on production:
+
+```sql
+SELECT "MigrationId"
+FROM "__EFMigrationsHistory"
+WHERE "MigrationId" = '20260915110524_AddMovieRegionalReleases';
+```
+
 ---
 
 ## 3. Required secrets / configuration
@@ -114,6 +130,7 @@ Any credential exposed during development or staging must **not** be reused in p
 | Redis | `Redis:ConnectionString` → `Redis__ConnectionString`; `Redis:InstanceName` → `Redis__InstanceName` | [ ] | [ ] |
 | JWT | `Authentication:Jwt:SigningKey` → `Authentication__Jwt__SigningKey`; also `Issuer`, `Audience`, `AccessTokenMinutes` | [ ] | [ ] |
 | TMDB | `MovieProviders:Provider` = `Tmdb`; `MovieProviders:Tmdb:ApiKey` / `ReadAccessToken` / `BaseUrl` | [ ] | [ ] |
+| Release region | `ReleaseRegion:DefaultRegion` → `ReleaseRegion__DefaultRegion` (non-secret; default `TR`) | [ ] | [ ] |
 | Push notifications | `PushNotifications:Enabled` → `PushNotifications__Enabled`; `MaxAttempts`, `DispatchBatchSize` | [ ] | [ ] |
 | Public URL | `App:PublicBaseUrl` → `App__PublicBaseUrl` | [ ] | [ ] |
 | CORS | `Cors:Enabled`, `Cors:AllowedOrigins` → `Cors__Enabled`, `Cors__AllowedOrigins` | [ ] | [ ] |
@@ -234,7 +251,37 @@ Verified from `appsettings.json` and `RecommendationAlgorithmVersion`:
 
 ---
 
-## 7. Release notification pipeline
+## 7. Regional movie release (v1)
+
+`Movie.ReleaseDate` remains TMDB global/primary. Movie Follow / `MovieReleased` / Upcoming movies use configured regional effective dates when successfully synced.
+
+### Prerequisites
+
+- [ ] `20260915110524_AddMovieRegionalReleases` applied on target environment
+- [ ] `ReleaseRegion:DefaultRegion` intentionally configured (production default expected `TR`)
+- [ ] TMDB connectivity validated for `movie/{id}/release_dates`
+- [ ] Do **not** assume staging regional rows exist in production
+
+### Staging / pre-production validation
+
+- [ ] Followed future movie syncs regional metadata via `MovieReleaseCheckJob` (one bounded `release_dates` call per unique movie)
+- [ ] Moved-date safety: stale due date does **not** emit early `MovieReleased` without verification refresh
+- [ ] Provider failure preserves last successful `movie_regional_releases` row and does not emit unverified events
+- [ ] Successful no-TR response persists global fallback (`IsFallbackGlobal=true`) without treating it as TR-confirmed availability
+- [ ] Movie Follow eligibility smoke: global past + regional future allowed; global future + regional past/today rejected
+- [ ] Upcoming smoke: regional future overrides global past; regional released excluded even if global future
+- [ ] Notification semantics validated for configured region (theatrical/digital consumer rule; premiere/limited excluded)
+- [ ] Certification strings observed for data quality; UI display remains deferred
+
+### Invariants
+
+- [ ] No per-user / per-follower / recommendation / Upcoming / Discover-card TMDB release-date calls
+- [ ] Recommendation 2.1 still uses global `Movie.ReleaseDate` for future filtering (provider-free)
+- [ ] Search / Discover / Explore / Home / collections unchanged in v1
+
+---
+
+## 8. Release notification pipeline
 
 Validation chain:
 
@@ -256,11 +303,11 @@ catalog refresh / release detection
 - [ ] Expo ticket recorded
 - [ ] Receipt reaches `Delivered` status
 
-Physical-device E2E is a separate hard gate (§8).
+Physical-device E2E is a separate hard gate (§9).
 
 ---
 
-## 8. Physical push E2E — hard launch gate
+## 9. Physical push E2E — hard launch gate
 
 **Not complete as of this document.** Physical iPhone push E2E must pass before push notifications are declared production-ready.
 
@@ -280,7 +327,7 @@ Physical-device E2E is a separate hard gate (§8).
 
 ---
 
-## 9. Mobile production configuration (separate repo)
+## 10. Mobile production configuration (separate repo)
 
 Mobile repo: `MovieApp.Mobile` — not modified by backend launch checklist, but must be verified before store release.
 
@@ -310,7 +357,7 @@ Smoke on physical device:
 
 ---
 
-## 10. TMDB / provider checks
+## 11. TMDB / provider checks
 
 - [ ] Production TMDB credentials configured
 - [ ] TMDB connectivity validated (search/detail smoke)
@@ -319,11 +366,11 @@ Smoke on physical device:
 - [ ] Recommendation path remains provider-free for keywords
 - [ ] Summary ingestion paths retain intended provider-call budgets (`Search:MaxProviderDetailFetchesPerContentType`, etc.)
 
-**Future roadmap note:** Regional Release / Certification work may change release semantics before store release. Update this checklist if that ships.
+**Regional release note:** v1 adds bounded `release_dates` calls from `MovieReleaseCheckJob` only. Verify provider-call budgets after deploy.
 
 ---
 
-## 11. Observability
+## 12. Observability
 
 ### Currently available
 
@@ -348,7 +395,7 @@ Do not assume dashboards exist unless provisioned.
 
 ---
 
-## 12. Security
+## 13. Security
 
 - [ ] No secrets committed to git
 - [ ] Production credentials differ from staging
@@ -363,7 +410,7 @@ Do not assume dashboards exist unless provisioned.
 
 ---
 
-## 13. Staging release rehearsal (before production)
+## 14. Staging release rehearsal (before production)
 
 - [ ] Deploy release candidate to staging
 - [ ] Apply migrations using real workflow (`Staging Database Migrate` or equivalent)
@@ -378,7 +425,7 @@ Do not assume dashboards exist unless provisioned.
 
 ---
 
-## 14. Production deployment (ordered)
+## 15. Production deployment (ordered)
 
 1. [ ] Freeze release SHA
 2. [ ] Verify CI green on release SHA (`ci.yml`: build, unit tests, Docker image)
@@ -402,7 +449,7 @@ Do not assume dashboards exist unless provisioned.
 
 ---
 
-## 15. Rollback / incident notes
+## 16. Rollback / incident notes
 
 Know before launch:
 
@@ -422,7 +469,7 @@ There is **no** automatic full-stack rollback. Plan forward fixes and backup res
 
 ---
 
-## 16. Current known blockers / open items
+## 17. Current known blockers / open items
 
 **Status date:** 2026-09-15
 

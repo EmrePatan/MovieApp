@@ -62,5 +62,7 @@ public sealed class Movie
 
     public ICollection<CatalogReleaseEvent> CatalogReleaseEvents { get; set; } = [];
 
+    public ICollection<MovieRegionalRelease> RegionalReleases { get; set; } = [];
+
     public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];
 }

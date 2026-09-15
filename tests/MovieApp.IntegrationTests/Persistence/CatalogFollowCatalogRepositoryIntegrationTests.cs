@@ -116,8 +116,8 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
         await context.SaveChangesAsync();
 
         var repository = new CatalogFollowCatalogRepository(context);
-        var page1 = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 4, today);
-        var page2 = await repository.GetUpcomingCatalogAsync(null, page: 2, pageSize: 4, today);
+        var page1 = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 4, today, "TR");
+        var page2 = await repository.GetUpcomingCatalogAsync(null, page: 2, pageSize: 4, today, "TR");
 
         Assert.Equal(10, page1.TotalCount);
         Assert.Equal(4, page1.Items.Count);
@@ -199,8 +199,8 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
         await context.SaveChangesAsync();
 
         var repository = new CatalogFollowCatalogRepository(context);
-        var firstPage = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 10, today);
-        var secondPage = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 10, today);
+        var firstPage = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 10, today, "TR");
+        var secondPage = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 10, today, "TR");
 
         Assert.Equal(
             [movieA, movieB, tvA, tvB],
@@ -208,6 +208,79 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
         Assert.Equal(
             firstPage.Items.Select(item => item.ContentId).ToList(),
             secondPage.Items.Select(item => item.ContentId).ToList());
+    }
+
+    [Fact]
+    public async Task GetUpcomingCatalogAsync_UsesRegionalFutureDateWhenSynced()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        await ClearUpcomingCatalogDataAsync(context);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Regional Future Movie",
+            ReleaseDate = today.AddDays(-5),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.MovieRegionalReleases.Add(new MovieRegionalRelease
+        {
+            MovieId = movieId,
+            Region = "TR",
+            EffectiveReleaseDate = today.AddDays(14),
+            EffectiveReleaseType = Domain.Enums.TmdbReleaseType.Theatrical,
+            IsFallbackGlobal = false,
+            SyncedAtUtc = utcNow
+        });
+        await context.SaveChangesAsync();
+
+        var repository = new CatalogFollowCatalogRepository(context);
+        var (items, totalCount) = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 10, today, "TR");
+
+        Assert.Equal(1, totalCount);
+        Assert.Equal(movieId, items[0].ContentId);
+        Assert.Equal(today.AddDays(14), items[0].ReleaseDate);
+    }
+
+    [Fact]
+    public async Task GetUpcomingCatalogAsync_ExcludesRegionalReleasedMovieEvenWhenGlobalFuture()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        await ClearUpcomingCatalogDataAsync(context);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Regional Released Movie",
+            ReleaseDate = today.AddDays(30),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.MovieRegionalReleases.Add(new MovieRegionalRelease
+        {
+            MovieId = movieId,
+            Region = "TR",
+            EffectiveReleaseDate = today.AddDays(-1),
+            EffectiveReleaseType = Domain.Enums.TmdbReleaseType.Digital,
+            IsFallbackGlobal = false,
+            SyncedAtUtc = utcNow
+        });
+        await context.SaveChangesAsync();
+
+        var repository = new CatalogFollowCatalogRepository(context);
+        var (items, totalCount) = await repository.GetUpcomingCatalogAsync(null, page: 1, pageSize: 10, today, "TR");
+
+        Assert.Equal(0, totalCount);
+        Assert.Empty(items);
     }
 
     [Fact]
@@ -254,7 +327,7 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
         await context.SaveChangesAsync();
 
         var repository = new CatalogFollowCatalogRepository(context);
-        var (items, totalCount) = await repository.GetUpcomingCatalogAsync(userId, page: 1, pageSize: 10, today);
+        var (items, totalCount) = await repository.GetUpcomingCatalogAsync(userId, page: 1, pageSize: 10, today, "TR");
 
         Assert.Equal(2, totalCount);
         Assert.Equal(tvShowId, items[0].ContentId);
@@ -275,6 +348,7 @@ public sealed class CatalogFollowCatalogRepositoryIntegrationTests
     private static async Task ClearUpcomingCatalogDataAsync(ApplicationDbContext context)
     {
         context.CatalogFollows.RemoveRange(context.CatalogFollows);
+        context.MovieRegionalReleases.RemoveRange(context.MovieRegionalReleases);
         context.Movies.RemoveRange(context.Movies);
         context.TvShows.RemoveRange(context.TvShows);
         context.Users.RemoveRange(context.Users);

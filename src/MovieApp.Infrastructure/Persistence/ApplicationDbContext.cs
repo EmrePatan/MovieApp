@@ -9,6 +9,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<Movie> Movies => Set<Movie>();
 
+    public DbSet<MovieRegionalRelease> MovieRegionalReleases => Set<MovieRegionalRelease>();
+
     public DbSet<TvShow> TvShows => Set<TvShow>();
 
     public DbSet<Genre> Genres => Set<Genre>();

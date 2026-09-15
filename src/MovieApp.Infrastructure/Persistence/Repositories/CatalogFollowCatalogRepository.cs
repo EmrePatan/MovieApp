@@ -53,18 +53,27 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
         int page,
         int pageSize,
         DateOnly today,
+        string region,
         CancellationToken cancellationToken = default)
     {
         var movieQuery =
             from movie in dbContext.Movies.AsNoTracking()
-            where movie.ReleaseDate != null && movie.ReleaseDate > today
+            join regionalRelease in dbContext.MovieRegionalReleases.AsNoTracking()
+                on new { MovieId = movie.Id, Region = region }
+                equals new { regionalRelease.MovieId, regionalRelease.Region }
+                into regionalJoin
+            from regionalRelease in regionalJoin.DefaultIfEmpty()
+            let effectiveReleaseDate = regionalRelease != null
+                ? regionalRelease.EffectiveReleaseDate
+                : movie.ReleaseDate
+            where effectiveReleaseDate != null && effectiveReleaseDate > today
             select new
             {
                 ContentId = movie.Id,
                 ContentType = CatalogContentType.Movie,
                 Title = movie.Title,
                 PosterPath = movie.PosterPath,
-                ReleaseDate = movie.ReleaseDate!.Value
+                ReleaseDate = effectiveReleaseDate!.Value
             };
 
         var tvQuery =

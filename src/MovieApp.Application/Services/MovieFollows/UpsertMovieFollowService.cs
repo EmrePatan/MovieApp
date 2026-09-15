@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.MovieFollows;
@@ -12,7 +14,9 @@ namespace MovieApp.Application.Services.MovieFollows;
 public sealed class UpsertMovieFollowService(
     ICurrentUser currentUser,
     ICatalogFollowRepository catalogFollowRepository,
-    IMovieRepository movieRepository) : IUpsertMovieFollowService
+    IMovieRepository movieRepository,
+    IMovieRegionalReleaseRepository movieRegionalReleaseRepository,
+    IOptions<ReleaseRegionOptions> releaseRegionOptions) : IUpsertMovieFollowService
 {
     private const int MaxCreateAttempts = 3;
 
@@ -30,7 +34,14 @@ public sealed class UpsertMovieFollowService(
             throw new NotFoundException("The requested movie was not found.");
         }
 
-        CatalogFollowValidator.ValidateMovieFollowEligibility(movie.ReleaseDate, today);
+        var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
+        var regionalRelease = await movieRegionalReleaseRepository.GetByMovieIdAndRegionAsync(
+            movie.Id,
+            region,
+            cancellationToken);
+        var followReleaseDate = MovieFollowReleaseDateResolver.Resolve(regionalRelease, movie.ReleaseDate);
+
+        CatalogFollowValidator.ValidateMovieFollowEligibility(followReleaseDate, today);
 
         for (var attempt = 0; attempt < MaxCreateAttempts; attempt++)
         {

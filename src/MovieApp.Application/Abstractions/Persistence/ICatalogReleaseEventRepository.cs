@@ -12,4 +12,8 @@ public interface ICatalogReleaseEventRepository
     Task<CatalogReleaseEventInsertResult> TryAddEventsAsync(
         IReadOnlyList<CatalogReleaseEvent> events,
         CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsByDedupeKeyAsync(
+        string dedupeKey,
+        CancellationToken cancellationToken = default);
 }

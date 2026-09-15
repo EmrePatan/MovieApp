@@ -20,6 +20,15 @@ public sealed class CatalogReleaseEventRepository(ApplicationDbContext dbContext
         return dedupeKeys.ToHashSet(StringComparer.Ordinal);
     }
 
+    public async Task<bool> ExistsByDedupeKeyAsync(
+        string dedupeKey,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.CatalogReleaseEvents
+            .AsNoTracking()
+            .AnyAsync(releaseEvent => releaseEvent.DedupeKey == dedupeKey, cancellationToken);
+    }
+
     public async Task<CatalogReleaseEventInsertResult> TryAddEventsAsync(
         IReadOnlyList<CatalogReleaseEvent> events,
         CancellationToken cancellationToken = default)

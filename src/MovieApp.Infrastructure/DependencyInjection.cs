@@ -69,6 +69,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<CatalogKeywordBackfillOptions>, CatalogKeywordBackfillOptionsValidator>();
 
+        services.AddOptions<ReleaseRegionOptions>()
+            .Bind(configuration.GetSection(ReleaseRegionOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<ReleaseRegionOptions>, ReleaseRegionOptionsValidator>();
+
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SectionName));
 
         services.AddOptions<PasswordResetOptions>()
@@ -124,6 +130,8 @@ public static class DependencyInjection
 
 
         services.AddScoped<IMovieRepository, MovieRepository>();
+
+        services.AddScoped<IMovieRegionalReleaseRepository, MovieRegionalReleaseRepository>();
 
         services.AddScoped<IKeywordCatalogRepository, KeywordCatalogRepository>();
 

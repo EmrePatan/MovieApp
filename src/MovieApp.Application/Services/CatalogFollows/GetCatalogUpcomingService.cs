@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.CatalogFollows;
@@ -9,7 +11,8 @@ namespace MovieApp.Application.Services.CatalogFollows;
 
 public sealed class GetCatalogUpcomingService(
     ICurrentUser currentUser,
-    ICatalogFollowCatalogRepository catalogFollowCatalogRepository) : IGetCatalogUpcomingService
+    ICatalogFollowCatalogRepository catalogFollowCatalogRepository,
+    IOptions<ReleaseRegionOptions> releaseRegionOptions) : IGetCatalogUpcomingService
 {
     public async Task<CatalogUpcomingListResult> GetAsync(
         int page,
@@ -29,11 +32,13 @@ public sealed class GetCatalogUpcomingService(
         }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
         var (items, totalCount) = await catalogFollowCatalogRepository.GetUpcomingCatalogAsync(
             userId,
             page,
             pageSize,
             today,
+            region,
             cancellationToken);
 
         var totalPages = totalCount == 0

@@ -1,7 +1,7 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (reconciled with repositories)  
-**Backend baseline:** `b4f2ce67290a05d852788f2e5481cff582e01f16`  
+**Last updated:** 2026-09-15 (regional release v1)  
+**Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** `370423c101c45d847757f0e97a7fe5b0a89fd55d`
 
 ## Related document
@@ -158,6 +158,31 @@ Generic **Catalog Follow** with release-notification pipeline.
 - `isFollowed` support where applicable
 
 **Not implemented:** upcoming episode calendar / per-episode airing schedule (see NEXT).
+
+---
+
+## DONE — Regional release & certification (v1)
+
+Configured-market movie release semantics using persisted TMDB regional release data.
+
+**Shipped (v1):**
+- `ReleaseRegion:DefaultRegion` configuration (default `TR`; not hardcoded in business logic)
+- `movie_regional_releases` persistence (`MovieRegionalRelease`)
+- TMDB `movie/{id}/release_dates` provider abstraction
+- Deterministic effective release resolver (TR theatrical/digital consumer semantics)
+- `MovieReleaseCheck` uses regional effective date for `MovieReleased` events
+- Movie Follow eligibility uses regional effective date when successfully synced
+- Upcoming movies use regional effective date when successfully synced (DB-only)
+- Certification persisted internally; **not** exposed on public API or mobile yet
+
+**Guardrails (v1):**
+- `Movie.ReleaseDate` remains TMDB global/primary `release_date` — semantics unchanged
+- Recommendation 2.1 future filtering still uses global `Movie.ReleaseDate` (provider-free)
+- Search / local New Releases / Explore preview / provider Discover / Home / collections unchanged
+- No per-user / per-follower / recommendation / Upcoming / Discover-card TMDB release-date calls
+- One bounded `release_dates` fetch per unique followed movie per release-check refresh when required
+
+**Deferred:** user-level region preference, public API/mobile certification display, multi-region active population beyond configured default, recommendation future-filter by regional date.
 
 ---
 
@@ -463,22 +488,6 @@ After keyword coverage improves on staging:
 
 ---
 
-## NEXT — Regional release & certification
-
-High-priority next product feature.
-
-**Goal:** Improve movie release semantics using TMDB regional release data.
-
-Investigate: regional release dates, release type (theatrical / digital / physical), TV premiere where relevant, certification, region/country.
-
-**Product value:** Movie Follow / `MovieReleased` notifications should eventually respect the user's intended market/region, not only a single global release date.
-
-**Potential UI:** “In theaters in Türkiye”, digital release, certification/age rating.
-
-**Launch impact:** Will change release-event semantics → must update [PRODUCTION-LAUNCH-CHECKLIST.md](./PRODUCTION-LAUNCH-CHECKLIST.md) when implemented.
-
----
-
 ## NEXT — TV upcoming episodes / airing
 
 Build on TV Follow + New Episode notifications.
@@ -695,7 +704,7 @@ When implementation changes either document's truth, update the relevant documen
 1. **Finish** staging `CatalogKeywordBackfill` operational validation
 2. **Allow** controlled coverage growth if first batch passes
 3. **Recommendation 2.1** real-data validation
-4. **Regional Release & Certification**
+4. **Regional Release v1** staging validation (migration, release-check, follow, upcoming)
 5. **TV Upcoming Episodes / Airing**
 6. **Media Gallery**
 7. **Person Search / Person 2.0**
@@ -706,7 +715,7 @@ When implementation changes either document's truth, update the relevant documen
 12. **Store release readiness**
 13. **App Store / Google Play release**
 
-Steps 4–7 may be reordered if launch scope is frozen earlier, but production gates **8–12 cannot be skipped**.
+Steps 5–7 may be reordered if launch scope is frozen earlier, but production gates **8–12 cannot be skipped**.
 
 ---
 

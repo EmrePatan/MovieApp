@@ -150,6 +150,11 @@ public sealed class ReleaseDetectorTests
             return Task.FromResult(_dedupeKeys);
         }
 
+        public Task<bool> ExistsByDedupeKeyAsync(
+            string dedupeKey,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_dedupeKeys.Contains(dedupeKey));
+
         public Task<CatalogReleaseEventInsertResult> TryAddEventsAsync(
             IReadOnlyList<CatalogReleaseEvent> events,
             CancellationToken cancellationToken = default)

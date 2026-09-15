@@ -28,6 +28,7 @@ using MovieApp.Application.Services.Watchlists;
 using MovieApp.Application.Services.Collections;
 using MovieApp.Application.Services.Notifications;
 using MovieApp.Application.Services.Keywords;
+using MovieApp.Application.Services.RegionalRelease;
 
 namespace MovieApp.Application;
 
@@ -85,6 +86,7 @@ public static class DependencyInjection
         services.AddScoped<IReleaseDetector, ReleaseDetector>();
         services.AddScoped<IReleaseNotificationFanoutService, ReleaseNotificationFanoutService>();
         services.AddScoped<IMovieReleaseFollowCleanupService, MovieReleaseFollowCleanupService>();
+        services.AddScoped<IRegionalEffectiveReleaseResolver, RegionalEffectiveReleaseResolver>();
         services.AddScoped<IMovieReleaseCheckService, MovieReleaseCheckService>();
 
         services.AddScoped<IRegisterPushDeviceService, RegisterPushDeviceService>();

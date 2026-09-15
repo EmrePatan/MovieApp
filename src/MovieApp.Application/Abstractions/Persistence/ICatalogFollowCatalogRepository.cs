@@ -15,5 +15,6 @@ public interface ICatalogFollowCatalogRepository
         int page,
         int pageSize,
         DateOnly today,
+        string region,
         CancellationToken cancellationToken = default);
 }
