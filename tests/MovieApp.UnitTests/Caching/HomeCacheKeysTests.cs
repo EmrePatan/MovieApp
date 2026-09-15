@@ -12,6 +12,6 @@ public sealed class HomeCacheKeysTests
 
         var key = HomeCacheKeys.Create(userId, SearchContentType.All, 10);
 
-        Assert.Equal($"home:{userId}:All:10:v1", key);
+        Assert.Equal($"home:{userId}:All:10:v2", key);
     }
 }

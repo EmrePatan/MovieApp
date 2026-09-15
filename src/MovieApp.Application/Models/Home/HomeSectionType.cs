@@ -2,6 +2,7 @@ namespace MovieApp.Application.Models.Home;
 
 public enum HomeSectionType
 {
+    HotThisWeek,
     RecommendedForYou,
     BecauseYouWatched,
     BasedOnFavorites,

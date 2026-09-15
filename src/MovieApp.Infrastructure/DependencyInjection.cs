@@ -55,6 +55,8 @@ public static class DependencyInjection
 
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
 
+        services.Configure<TopRatedOptions>(configuration.GetSection(TopRatedOptions.SectionName));
+
         services.Configure<PushNotificationsOptions>(configuration.GetSection(PushNotificationsOptions.SectionName));
 
         services.AddOptions<SearchOptions>()
@@ -88,6 +90,8 @@ public static class DependencyInjection
         services.AddMovieDataProviders(configuration);
 
         services.AddTvShowDataProviders(configuration);
+
+        services.AddTrendingWeekDataProviders(configuration);
 
         services.AddDetailProviders(configuration);
 

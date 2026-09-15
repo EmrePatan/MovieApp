@@ -277,12 +277,29 @@ internal static class SearchQueryBuilder
                 .ThenBy(item => item.Title));
     }
 
-    public static IQueryable<SearchItemProjection> ApplyTopRatedSort(IQueryable<SearchItemProjection> query)
+    public static IQueryable<SearchItemProjection> ApplyTopRatedSort(
+        IQueryable<SearchItemProjection> query,
+        decimal catalogMeanVoteAverage,
+        int minimumVoteConfidence)
     {
-        return ApplyDeterministicTieBreak(
-            query
-                .OrderByDescending(item => item.VoteAverage)
-                .ThenByDescending(item => item.VoteCount)
-                .ThenBy(item => item.Title));
+        var minimumVotes = (decimal)minimumVoteConfidence;
+        var catalogMean = catalogMeanVoteAverage;
+
+        return query
+            .Select(item => new RankedSearchItemProjection
+            {
+                Item = item,
+                WeightedRating = TopRatedScoreCalculator.ComputeWeightedRating(
+                    item.VoteAverage,
+                    item.VoteCount,
+                    catalogMean,
+                    minimumVoteConfidence)
+            })
+            .OrderByDescending(entry => entry.WeightedRating)
+            .ThenByDescending(entry => entry.Item.VoteCount)
+            .ThenBy(entry => entry.Item.Title)
+            .ThenBy(entry => entry.Item.Type)
+            .ThenBy(entry => entry.Item.Id)
+            .Select(entry => entry.Item);
     }
 }

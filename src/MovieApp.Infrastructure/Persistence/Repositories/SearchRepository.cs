@@ -1,13 +1,17 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Common;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Infrastructure.Persistence.Search;
-using Microsoft.EntityFrameworkCore;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class SearchRepository(ApplicationDbContext dbContext) : ISearchRepository
+public sealed class SearchRepository(
+    ApplicationDbContext dbContext,
+    IOptions<TopRatedOptions> topRatedOptions) : ISearchRepository
 {
     public async Task<PaginatedResult<SearchItem>> SearchAsync(
         SearchCriteria criteria,
@@ -134,14 +138,75 @@ public sealed class SearchRepository(ApplicationDbContext dbContext) : ISearchRe
     {
         var combinedQuery = SearchQueryBuilder.BuildTopRatedQuery(dbContext, criteria);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
+        var catalogMean = await GetCatalogMeanVoteAverageAsync(criteria.Type, cancellationToken);
+        var minimumVoteConfidence = topRatedOptions.Value.MinimumVoteConfidence;
+        var skip = (criteria.Page - 1) * criteria.PageSize;
 
-        var items = await SearchQueryBuilder
-            .ApplyTopRatedSort(combinedQuery)
-            .Skip((criteria.Page - 1) * criteria.PageSize)
-            .Take(criteria.PageSize)
-            .ToListAsync(cancellationToken);
+        List<SearchItemProjection> items;
+
+        if (UsesDatabaseTopRatedRanking())
+        {
+            items = await SearchQueryBuilder
+                .ApplyTopRatedSort(combinedQuery, catalogMean, minimumVoteConfidence)
+                .Skip(skip)
+                .Take(criteria.PageSize)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            var rankedItems = await combinedQuery.ToListAsync(cancellationToken);
+            items = rankedItems
+                .OrderByDescending(item => TopRatedScoreCalculator.ComputeWeightedRating(
+                    item.VoteAverage,
+                    item.VoteCount,
+                    catalogMean,
+                    minimumVoteConfidence))
+                .ThenByDescending(item => item.VoteCount)
+                .ThenBy(item => item.Title)
+                .ThenBy(item => item.Type)
+                .ThenBy(item => item.Id)
+                .Skip(skip)
+                .Take(criteria.PageSize)
+                .ToList();
+        }
 
         return ToPaginatedResult(items, criteria.Page, criteria.PageSize, totalCount);
+    }
+
+    private bool UsesDatabaseTopRatedRanking() =>
+        dbContext.Database.IsRelational() &&
+        !string.Equals(
+            dbContext.Database.ProviderName,
+            "Microsoft.EntityFrameworkCore.InMemory",
+            StringComparison.Ordinal);
+
+    public async Task<decimal> GetCatalogMeanVoteAverageAsync(
+        SearchContentType type,
+        CancellationToken cancellationToken = default)
+    {
+        var movieAverages = dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movie.VoteCount > 0)
+            .Select(movie => movie.VoteAverage);
+
+        var tvAverages = dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShow.VoteCount > 0)
+            .Select(tvShow => tvShow.VoteAverage);
+
+        IQueryable<decimal> averages = type switch
+        {
+            SearchContentType.Movie => movieAverages,
+            SearchContentType.Tv => tvAverages,
+            _ => movieAverages.Concat(tvAverages)
+        };
+
+        if (!await averages.AnyAsync(cancellationToken))
+        {
+            return 6.0m;
+        }
+
+        return await averages.AverageAsync(cancellationToken);
     }
 
     public async Task<PaginatedResult<SearchItem>> GetByGenreAsync(

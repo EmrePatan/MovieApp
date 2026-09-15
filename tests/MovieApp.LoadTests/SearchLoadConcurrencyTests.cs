@@ -554,6 +554,11 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
+    public Task<decimal> GetCatalogMeanVoteAverageAsync(
+        SearchContentType type,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(6.0m);
+
     public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
         string genreName,
         DiscoveryCriteria criteria,

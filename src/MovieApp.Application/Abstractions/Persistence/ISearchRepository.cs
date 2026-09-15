@@ -30,6 +30,10 @@ public interface ISearchRepository
         DiscoveryCriteria criteria,
         CancellationToken cancellationToken = default);
 
+    Task<decimal> GetCatalogMeanVoteAverageAsync(
+        SearchContentType type,
+        CancellationToken cancellationToken = default);
+
     Task<PaginatedResult<SearchItem>> GetByGenreAsync(
         string genreName,
         DiscoveryCriteria criteria,

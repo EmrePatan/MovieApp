@@ -1,8 +1,8 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (regional release v1)  
+**Last updated:** 2026-09-15 (home composition v2)  
 **Backend baseline:** see latest `origin/master`  
-**Mobile baseline:** `370423c101c45d847757f0e97a7fe5b0a89fd55d`
+**Mobile baseline:** see latest `origin/master`
 
 ## Related document
 
@@ -36,22 +36,22 @@ Accepted information architecture — do not undo without an explicit product de
 
 ### Home = personal landing page
 
+**All users:**
+- Hot This Week hero (up to 5, TMDB weekly trending)
+- Top Rated (Bayesian-weighted catalog ranking)
+- New Releases
+
 **Personalized (warm user):**
-- Hero
-- Recommended For You
-- Because You Watched (when available)
+- Recommended For You (10)
 
 **Cold (low signal):**
 - Welcome
-- Trending Now
 - Explore CTA
 
 ### Search tab = Search + premium Explore landing while idle
 
 **Idle Explore:**
 - Trending Now
-- Top Rated
-- New Releases
 - Explore by Genre
 
 Search tab remains **Search**. Do **not** add a separate Explore bottom tab.
@@ -72,7 +72,7 @@ Do **not** create a new Library tab.
 
 ### Important IA decision (do not revert)
 
-Do **not** restore the old overloaded Home with generic Popular, New Releases, Top Rated, Continue Watching, and genre fanout rails. Generic discovery belongs primarily in Search / Explore / Discover.
+Home owns the primary browse rails (Hot This Week hero, Recommended For You, Top Rated, New Releases). Search idle Explore keeps Trending Now and genre entry points; filtered browse remains in Discover. Do **not** restore the old overloaded Home with Popular, Continue Watching, Because You Watched, and genre fanout rails.
 
 ---
 
@@ -100,13 +100,20 @@ Do **not** restore the old overloaded Home with generic Popular, New Releases, T
 
 ---
 
+## DONE — Home Composition v2
+
+- Hot This Week hero from TMDB weekly trending (`/trending/all/week`, movie + TV only, cached)
+- Recommended For You (10, independent from hero; Recommendation 2.1 unchanged)
+- Top Rated (10, Bayesian-weighted catalog ranking; no provider calls)
+- New Releases on Home (10, existing regional-release semantics for movies)
+- Search idle cleanup (Top Rated / New Releases browse rails removed from Search landing)
+
 ## DONE — Discovery / Search / Home
 
 Premium Home / Search / Explore / Discover information architecture.
 
 - Personalized Home and cold Home
 - Recommended For You
-- Because You Watched
 - Trending, Top Rated, New Releases
 - Explore by Genre
 - Search (movies / TV) and unified `/api/search`
@@ -677,7 +684,6 @@ Restrained backlog — not current execution priority.
 - Alternative Titles / Translations
 - External IDs / IMDb linking
 - TMDB third-party Reviews integration (only if product value justifies — distinct from DONE first-party user reviews)
-- Provider-backed “What’s Hot This Week” if Explore needs it
 - TV Episode Groups if alternate ordering becomes necessary
 - Watchlist multi-select UX polish (checkbox / Done / haptic)
 - Deeper Person imagery / profile polish

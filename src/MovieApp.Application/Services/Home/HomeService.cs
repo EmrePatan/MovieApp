@@ -22,12 +22,13 @@ public sealed class HomeService(
     IOptions<HomeOptions> options) : IHomeService
 {
     private const string RecommendedForYouKey = "recommended-for-you";
-    private const string BecauseYouWatchedKey = "because-you-watched";
 
-    private static readonly HomeSectionType[] PersonalizedSectionOrder =
+    private static readonly HomeSectionType[] HomeSectionOrder =
     [
+        HomeSectionType.HotThisWeek,
         HomeSectionType.RecommendedForYou,
-        HomeSectionType.BecauseYouWatched
+        HomeSectionType.TopRated,
+        HomeSectionType.NewReleases
     ];
 
     private readonly HomeOptions _options = options.Value;
@@ -44,38 +45,73 @@ public sealed class HomeService(
             return cached.Result;
         }
 
-        var recommendationSections = await RunScopedAsync(
+        var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
+        var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
+
+        var recommendationSectionsTask = RunScopedAsync(
             (services, ct) => services
                 .GetRequiredService<IRecommendationService>()
                 .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
             cancellationToken);
 
+        var hotThisWeekTask = RunScopedAsync(
+            (services, ct) => BuildHotThisWeekSectionAsync(
+                services,
+                criteria,
+                heroSize,
+                ct),
+            cancellationToken);
+
+        var topRatedTask = RunScopedAsync(
+            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
+                HomeSectionType.TopRated,
+                "Top Rated",
+                services.GetRequiredService<IDiscoveryService>()
+                    .GetTopRatedAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
+            cancellationToken);
+
+        var newReleasesTask = RunScopedAsync(
+            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
+                HomeSectionType.NewReleases,
+                "New Releases",
+                services.GetRequiredService<IDiscoveryService>()
+                    .GetNewReleasesAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
+            cancellationToken);
+
+        await Task.WhenAll(
+            recommendationSectionsTask,
+            hotThisWeekTask,
+            topRatedTask,
+            newReleasesTask);
+
+        var recommendationSections = await recommendationSectionsTask;
         var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
-        List<HomeSection> orderedSections;
+
+        var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
+        {
+            [HomeSectionType.HotThisWeek] = await hotThisWeekTask,
+            [HomeSectionType.TopRated] = await topRatedTask,
+            [HomeSectionType.NewReleases] = await newReleasesTask
+        };
 
         if (isPersonalized)
         {
-            var sectionsByType = new Dictionary<HomeSectionType, HomeSection>();
-            AddRecommendationSections(sectionsByType, recommendationSections, criteria);
-            orderedSections = BuildOrderedSections(sectionsByType, PersonalizedSectionOrder);
-        }
-        else
-        {
-            var trending = await RunScopedAsync(
-                (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
-                    HomeSectionType.Trending,
-                    "Trending",
-                    services.GetRequiredService<IDiscoveryService>()
-                        .GetTrendingAsync(new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize), ct),
-                    criteria,
-                    ct),
-                cancellationToken);
+            var recommendedSection = BuildRecommendedSection(
+                recommendationSections,
+                criteria,
+                sectionsByType.GetValueOrDefault(HomeSectionType.HotThisWeek));
 
-            orderedSections = trending.Items.Count > 0
-                ? [trending with { DisplayOrder = 1 }]
-                : [];
+            if (recommendedSection is not null)
+            {
+                sectionsByType[HomeSectionType.RecommendedForYou] = recommendedSection;
+            }
         }
 
+        var orderedSections = BuildOrderedSections(sectionsByType, HomeSectionOrder);
         var result = new HomeResult(orderedSections, isPersonalized);
 
         await cacheService.SetAsync(
@@ -87,61 +123,77 @@ public sealed class HomeService(
         return result;
     }
 
+    private static async Task<HomeSection> BuildHotThisWeekSectionAsync(
+        IServiceProvider services,
+        HomeCriteria criteria,
+        int heroSize,
+        CancellationToken cancellationToken)
+    {
+        var items = await services
+            .GetRequiredService<IHotThisWeekService>()
+            .GetItemsAsync(criteria.Type, heroSize, cancellationToken);
+
+        var homeItems = HomeSectionBuilders.DeduplicateItems(
+            items.Select(HomeMapper.FromSearchItem),
+            heroSize);
+
+        return new HomeSection(
+            HomeSectionType.HotThisWeek,
+            "Hot This Week",
+            HomeSectionBuilders.FilterByType(homeItems, criteria.Type),
+            0);
+    }
+
+    private static HomeSection? BuildRecommendedSection(
+        IReadOnlyList<RecommendationSection> recommendationSections,
+        HomeCriteria criteria,
+        HomeSection? hotThisWeekSection)
+    {
+        var recommended = recommendationSections
+            .FirstOrDefault(section => section.Key == RecommendedForYouKey);
+
+        if (recommended is null)
+        {
+            return null;
+        }
+
+        var items = HomeSectionBuilders.DeduplicateItems(
+            recommended.Items.Select(HomeMapper.FromRecommendationItem),
+            criteria.SectionSize);
+
+        var heroIds = hotThisWeekSection?.Items
+            .Select(item => item.Id)
+            .ToHashSet() ?? [];
+
+        if (heroIds.Count > 0)
+        {
+            var withoutHero = items.Where(item => !heroIds.Contains(item.Id)).ToList();
+            if (withoutHero.Count >= criteria.SectionSize)
+            {
+                items = withoutHero.Take(criteria.SectionSize).ToList();
+            }
+        }
+
+        var filteredItems = HomeSectionBuilders.FilterByType(items, criteria.Type);
+
+        if (filteredItems.Count == 0)
+        {
+            return null;
+        }
+
+        return new HomeSection(
+            HomeSectionType.RecommendedForYou,
+            recommended.Title,
+            filteredItems,
+            0);
+    }
+
     private async Task<T> RunScopedAsync<T>(
         Func<IServiceProvider, CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
         return await operation(scope.ServiceProvider, cancellationToken);
-    }
-
-    private static void AddRecommendationSections(
-        Dictionary<HomeSectionType, HomeSection> sectionsByType,
-        IReadOnlyList<RecommendationSection> recommendationSections,
-        HomeCriteria criteria)
-    {
-        foreach (var section in recommendationSections)
-        {
-            if (!TryMapRecommendationSection(section, criteria, out var homeSection))
-            {
-                continue;
-            }
-
-            sectionsByType[homeSection.Type] = homeSection;
-        }
-    }
-
-    private static bool TryMapRecommendationSection(
-        RecommendationSection section,
-        HomeCriteria criteria,
-        out HomeSection homeSection)
-    {
-        homeSection = CreateEmptySection(HomeSectionType.RecommendedForYou, section.Title);
-
-        var sectionType = section.Key switch
-        {
-            RecommendedForYouKey => HomeSectionType.RecommendedForYou,
-            BecauseYouWatchedKey => HomeSectionType.BecauseYouWatched,
-            _ => (HomeSectionType?)null
-        };
-
-        if (sectionType is null)
-        {
-            return false;
-        }
-
-        var items = HomeSectionBuilders.DeduplicateItems(
-            section.Items.Select(HomeMapper.FromRecommendationItem),
-            criteria.SectionSize);
-        var filteredItems = HomeSectionBuilders.FilterByType(items, criteria.Type);
-
-        if (filteredItems.Count == 0)
-        {
-            return false;
-        }
-
-        homeSection = new HomeSection(sectionType.Value, section.Title, filteredItems, 0);
-        return true;
     }
 
     private static List<HomeSection> BuildOrderedSections(
@@ -163,9 +215,6 @@ public sealed class HomeService(
 
         return orderedSections;
     }
-
-    private static HomeSection CreateEmptySection(HomeSectionType type, string title) =>
-        new(type, title, [], 0);
 
     private void ValidateCriteria(HomeCriteria criteria)
     {

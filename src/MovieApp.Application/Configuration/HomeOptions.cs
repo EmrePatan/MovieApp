@@ -6,7 +6,11 @@ public sealed class HomeOptions
 
     public int DefaultSectionSize { get; set; } = 10;
 
+    public int HeroSectionSize { get; set; } = 5;
+
     public int MaximumSectionSize { get; set; } = 20;
+
+    public int HotThisWeekCacheTtlMinutes { get; set; } = 30;
 
     public int CacheTtlMinutes { get; set; } = 5;
 
