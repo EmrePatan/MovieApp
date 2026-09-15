@@ -15,6 +15,23 @@ using MovieApp.Infrastructure.Caching;
 
 namespace MovieApp.LoadTests;
 
+internal static class LoadTestSearchItemFactory
+{
+    internal static SearchItem Create(string type) =>
+        new(
+            Guid.NewGuid(),
+            type,
+            "Result",
+            null,
+            "Overview",
+            "/poster.jpg",
+            null,
+            new DateOnly(2020, 1, 1),
+            8.0m,
+            100,
+            2020);
+}
+
 [Trait("Category", "Load")]
 public sealed class SearchLoadConcurrencyTests
 {
@@ -431,7 +448,8 @@ internal sealed class LoadTestEnvironment
                 CacheDuration = TimeSpan.FromHours(1),
                 ProviderRefreshInterval = TimeSpan.FromHours(24),
                 ProviderRefreshLockDuration = TimeSpan.FromSeconds(30)
-            }));
+            }),
+            NullLogger<SearchService>.Instance);
 
         return new LoadTestEnvironment(
             service,
@@ -486,7 +504,7 @@ internal sealed class LoadTestProviderIngestionService(int delayMs, bool provide
             true,
             providerSucceeds
                 ? new PaginatedResult<SearchItem>(
-                    [CreateItem("movie"), CreateItem("tv")],
+                    [LoadTestSearchItemFactory.Create("movie"), LoadTestSearchItemFactory.Create("tv")],
                     criteria.Page,
                     criteria.PageSize,
                     2,
@@ -516,7 +534,7 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
         if (simulatePostIngestionPopulation && _searchCount > 1 && totalCount == 0)
         {
             return Task.FromResult(new PaginatedResult<SearchItem>(
-                [CreateItem("movie"), CreateItem("tv")],
+                [LoadTestSearchItemFactory.Create("movie"), LoadTestSearchItemFactory.Create("tv")],
                 criteria.Page,
                 criteria.PageSize,
                 2,
@@ -524,7 +542,7 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
         }
 
         return Task.FromResult(new PaginatedResult<SearchItem>(
-            totalCount == 0 ? [] : [CreateItem("movie")],
+            totalCount == 0 ? [] : [LoadTestSearchItemFactory.Create("movie")],
             criteria.Page,
             criteria.PageSize,
             totalCount,
@@ -579,19 +597,6 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-    private static SearchItem CreateItem(string type) =>
-        new(
-            Guid.NewGuid(),
-            type,
-            "Result",
-            null,
-            "Overview",
-            "/poster.jpg",
-            null,
-            new DateOnly(2020, 1, 1),
-            8.0m,
-            100,
-            2020);
 }
 
 internal sealed class LoadTestRefreshRepository : ISearchProviderRefreshRepository
