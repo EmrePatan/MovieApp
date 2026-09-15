@@ -15,4 +15,7 @@ public sealed record AdvancedDiscoverProviderCriteria(
     int? MaxRuntimeMinutes,
     string? OriginalLanguage,
     string? OriginCountry,
+    string? WatchRegion,
+    IReadOnlyList<int> WatchProviderIds,
+    IReadOnlyList<WatchMonetizationType> WatchMonetizationTypes,
     AdvancedDiscoverSort Sort);

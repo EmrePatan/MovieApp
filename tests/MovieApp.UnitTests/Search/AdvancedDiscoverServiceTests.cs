@@ -137,6 +137,9 @@ public sealed class AdvancedDiscoverServiceTests
             null,
             null,
             null,
+            null,
+            [],
+            [],
             AdvancedDiscoverSort.PopularityDesc,
             1,
             20);

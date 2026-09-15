@@ -80,7 +80,51 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             parameters.Add(
                 $"with_origin_country={Uri.EscapeDataString(criteria.OriginCountry.Trim().ToUpperInvariant())}");
         }
+
+        AppendWatchFilters(parameters, criteria);
     }
+
+    private static void AppendWatchFilters(List<string> parameters, AdvancedDiscoverProviderCriteria criteria)
+    {
+        var hasProviders = criteria.WatchProviderIds.Count > 0;
+        var hasMonetization = criteria.WatchMonetizationTypes.Count > 0;
+
+        if (!hasProviders && !hasMonetization)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(criteria.WatchRegion))
+        {
+            return;
+        }
+
+        parameters.Add(
+            $"watch_region={Uri.EscapeDataString(criteria.WatchRegion.Trim().ToUpperInvariant())}");
+
+        if (hasProviders)
+        {
+            parameters.Add(
+                $"with_watch_providers={string.Join('|', criteria.WatchProviderIds.OrderBy(id => id))}");
+        }
+
+        if (hasMonetization)
+        {
+            parameters.Add(
+                $"with_watch_monetization_types={string.Join('|', criteria.WatchMonetizationTypes.Select(MapMonetizationType))}");
+        }
+    }
+
+    internal static string MapMonetizationType(WatchMonetizationType monetizationType) =>
+        monetizationType switch
+        {
+            WatchMonetizationType.Stream => "flatrate",
+            WatchMonetizationType.Free => "free",
+            WatchMonetizationType.Ads => "ads",
+            WatchMonetizationType.Rent => "rent",
+            WatchMonetizationType.Buy => "buy",
+            _ => "flatrate"
+        };
 
     private static void AppendMovieYearFilters(List<string> parameters, AdvancedDiscoverProviderCriteria criteria)
     {

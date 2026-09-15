@@ -59,6 +59,32 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         Assert.Contains("sort_by=vote_average.desc", query);
     }
 
+    [Fact]
+    public void BuildMovieQueryMapsWatchRegionProvidersAndMonetizationWithOrDelimiter()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            watchRegion: "TR",
+            watchProviderIds: [337, 8],
+            watchMonetizationTypes: [WatchMonetizationType.Stream, WatchMonetizationType.Free]));
+
+        Assert.Contains("watch_region=TR", query);
+        Assert.Contains("with_watch_providers=8|337", query);
+        Assert.Contains("with_watch_monetization_types=flatrate|free", query);
+    }
+
+    [Fact]
+    public void BuildMovieQueryKeepsOriginCountryIndependentFromWatchRegion()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            originCountry: "KR",
+            watchRegion: "TR",
+            watchProviderIds: [8],
+            watchMonetizationTypes: [WatchMonetizationType.Stream]));
+
+        Assert.Contains("with_origin_country=KR", query);
+        Assert.Contains("watch_region=TR", query);
+    }
+
     [Theory]
     [InlineData(AdvancedDiscoverSort.PopularityDesc, "popularity.desc")]
     [InlineData(AdvancedDiscoverSort.RatingDesc, "vote_average.desc")]
@@ -84,6 +110,9 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         int? maxRuntimeMinutes = null,
         string? originalLanguage = null,
         string? originCountry = null,
+        string? watchRegion = null,
+        IReadOnlyList<int>? watchProviderIds = null,
+        IReadOnlyList<WatchMonetizationType>? watchMonetizationTypes = null,
         AdvancedDiscoverSort sort = AdvancedDiscoverSort.PopularityDesc) =>
         new(
             page,
@@ -98,5 +127,8 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
             maxRuntimeMinutes,
             originalLanguage,
             originCountry,
+            watchRegion,
+            watchProviderIds ?? [],
+            watchMonetizationTypes ?? [],
             sort);
 }

@@ -11,6 +11,14 @@ public static class AdvancedDiscoverCacheKeys
             ? "none"
             : string.Join('-', criteria.GenreIds.OrderBy(id => id));
 
+        var providerSegment = criteria.WatchProviderIds.Count == 0
+            ? "wp"
+            : string.Join('-', criteria.WatchProviderIds.OrderBy(id => id));
+
+        var monetizationSegment = criteria.WatchMonetizationTypes.Count == 0
+            ? "wm"
+            : string.Join('-', criteria.WatchMonetizationTypes.OrderBy(type => type));
+
         return string.Join(
             ':',
             "advanced-discover",
@@ -26,6 +34,9 @@ public static class AdvancedDiscoverCacheKeys
             criteria.MaxRuntimeMinutes?.ToString(CultureInfo.InvariantCulture) ?? "rtmax",
             criteria.OriginalLanguage?.Trim().ToLowerInvariant() ?? "lang",
             criteria.OriginCountry?.Trim().ToUpperInvariant() ?? "country",
+            criteria.WatchRegion?.Trim().ToUpperInvariant() ?? "wr",
+            providerSegment,
+            monetizationSegment,
             criteria.Sort.ToString(),
             criteria.Page.ToString(CultureInfo.InvariantCulture),
             criteria.PageSize.ToString(CultureInfo.InvariantCulture));

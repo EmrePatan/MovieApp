@@ -3,8 +3,10 @@ using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
+using MovieApp.Contracts.Discovery;
 using MovieApp.Contracts.Search;
 
 namespace MovieApp.Api.Controllers;
@@ -15,6 +17,7 @@ public sealed class DiscoveryController(
     IDiscoveryService discoveryService,
     IDiscoverBrowseService discoverBrowseService,
     IAdvancedDiscoverService advancedDiscoverService,
+    IDiscoveryWatchProvidersService discoveryWatchProvidersService,
     IExplorePreviewService explorePreviewService) : ControllerBase
 {
     [HttpGet("explore-preview")]
@@ -92,6 +95,54 @@ public sealed class DiscoveryController(
         }
     }
 
+    [HttpGet("watch-providers")]
+    [ProducesResponseType(typeof(DiscoveryWatchProvidersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<DiscoveryWatchProvidersResponse>> GetWatchProviders(
+        [FromQuery(Name = "mediaType")] string mediaType,
+        [FromQuery] string watchRegion,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var mediaTypeValidation = AdvancedDiscoverValidator.ValidateMediaType(mediaType);
+            if (!mediaTypeValidation.IsValid)
+            {
+                throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+            }
+
+            _ = AdvancedSearchValidator.TryParseType(mediaType, out var contentType);
+
+            var providers = await discoveryWatchProvidersService.GetWatchProvidersAsync(
+                contentType,
+                watchRegion,
+                cancellationToken);
+
+            var normalizedRegion = WatchProviderRegionValidator.Normalize(watchRegion);
+            return Ok(DiscoveryContractMapper.ToWatchProvidersResponse(
+                normalizedRegion,
+                contentType.ToString().ToLowerInvariant(),
+                providers));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid watch provider request.",
+                exception.Message));
+        }
+        catch (SearchProviderUnavailableException)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                CreateProblemDetails(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Watch providers are temporarily unavailable.",
+                    "Streaming provider data could not be loaded right now. Please try again."));
+        }
+    }
+
     [HttpGet("advanced")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -111,6 +162,9 @@ public sealed class DiscoveryController(
         [FromQuery] int? maxRuntimeMinutes,
         [FromQuery] string? originalLanguage,
         [FromQuery(Name = "originCountry")] string? originCountry,
+        [FromQuery] string? watchRegion,
+        [FromQuery] string[]? watchProviderId,
+        [FromQuery] string[]? watchMonetizationType,
         [FromQuery] string? sort,
         CancellationToken cancellationToken)
     {
@@ -131,6 +185,9 @@ public sealed class DiscoveryController(
                 maxRuntimeMinutes,
                 originalLanguage,
                 originCountry,
+                watchRegion,
+                watchProviderId,
+                watchMonetizationType,
                 sort);
 
             var result = await advancedDiscoverService.DiscoverAsync(criteria, cancellationToken);
@@ -201,6 +258,9 @@ public sealed class DiscoveryController(
         int? maxRuntimeMinutes,
         string? originalLanguage,
         string? originCountry,
+        string? watchRegion,
+        string[]? watchProviderId,
+        string[]? watchMonetizationType,
         string? sort)
     {
         var mediaTypeValidation = AdvancedDiscoverValidator.ValidateMediaType(mediaType);
@@ -213,6 +273,13 @@ public sealed class DiscoveryController(
         if (!sortValidation.IsValid)
         {
             throw new ValidationException(sortValidation.ErrorMessage!);
+        }
+
+        var monetizationValidation =
+            AdvancedDiscoverValidator.ValidateWatchMonetizationTypeValues(watchMonetizationType);
+        if (!monetizationValidation.IsValid)
+        {
+            throw new ValidationException(monetizationValidation.ErrorMessage!);
         }
 
         _ = AdvancedSearchValidator.TryParseType(mediaType, out var contentType);
@@ -231,6 +298,11 @@ public sealed class DiscoveryController(
             maxRuntimeMinutes,
             originalLanguage,
             originCountry,
+            string.IsNullOrWhiteSpace(watchRegion)
+                ? null
+                : WatchProviderRegionValidator.Normalize(watchRegion),
+            AdvancedDiscoverValidator.ParseWatchProviderIds(watchProviderId),
+            AdvancedDiscoverValidator.ParseWatchMonetizationTypes(watchMonetizationType),
             discoverSort,
             page ?? SearchPaginationDefaults.DefaultPage,
             pageSize ?? SearchPaginationDefaults.DefaultPageSize);

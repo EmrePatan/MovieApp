@@ -122,6 +122,9 @@ public sealed class AdvancedDiscoverValidatorTests
             maxRuntimeMinutes,
             null,
             originCountry,
+            null,
+            [],
+            [],
             AdvancedDiscoverSort.PopularityDesc,
             page,
             pageSize);

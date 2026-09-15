@@ -92,6 +92,11 @@ public sealed class AdvancedDiscoverService(
             criteria.MaxRuntimeMinutes,
             criteria.OriginalLanguage?.Trim().ToLowerInvariant(),
             criteria.OriginCountry?.Trim().ToUpperInvariant(),
+            string.IsNullOrWhiteSpace(criteria.WatchRegion)
+                ? null
+                : WatchProviderRegionValidator.Normalize(criteria.WatchRegion),
+            criteria.WatchProviderIds,
+            criteria.WatchMonetizationTypes,
             criteria.Sort);
     }
 

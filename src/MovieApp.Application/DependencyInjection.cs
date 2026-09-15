@@ -9,6 +9,7 @@ using MovieApp.Application.Services.Movies;
 using MovieApp.Application.Services.People;
 using MovieApp.Application.Services.Ratings;
 using MovieApp.Application.Services.Recommendations;
+using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Application.Services.TvShows;
@@ -129,6 +130,7 @@ public static class DependencyInjection
         services.AddScoped<IDiscoveryService, DiscoveryService>();
         services.AddScoped<IDiscoverBrowseService, DiscoverBrowseService>();
         services.AddScoped<IAdvancedDiscoverService, AdvancedDiscoverService>();
+        services.AddScoped<IDiscoveryWatchProvidersService, DiscoveryWatchProvidersService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
         services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
