@@ -285,21 +285,12 @@ internal static class SearchQueryBuilder
         var minimumVotes = (decimal)minimumVoteConfidence;
         var catalogMean = catalogMeanVoteAverage;
 
-        return query
-            .Select(item => new RankedSearchItemProjection
-            {
-                Item = item,
-                WeightedRating = TopRatedScoreCalculator.ComputeWeightedRating(
-                    item.VoteAverage,
-                    item.VoteCount,
-                    catalogMean,
-                    minimumVoteConfidence)
-            })
-            .OrderByDescending(entry => entry.WeightedRating)
-            .ThenByDescending(entry => entry.Item.VoteCount)
-            .ThenBy(entry => entry.Item.Title)
-            .ThenBy(entry => entry.Item.Type)
-            .ThenBy(entry => entry.Item.Id)
-            .Select(entry => entry.Item);
+        return ApplyDeterministicTieBreak(
+            query
+                .OrderByDescending(item =>
+                    ((decimal)item.VoteCount / (item.VoteCount + minimumVotes)) * item.VoteAverage
+                    + (minimumVotes / (item.VoteCount + minimumVotes)) * catalogMean)
+                .ThenByDescending(item => item.VoteCount)
+                .ThenBy(item => item.Title));
     }
 }

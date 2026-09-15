@@ -1,12 +1,5 @@
 namespace MovieApp.Infrastructure.Persistence.Search;
 
-internal sealed class RankedSearchItemProjection
-{
-    public SearchItemProjection Item { get; init; } = null!;
-
-    public decimal WeightedRating { get; init; }
-}
-
 internal sealed class SearchItemProjection
 {
     public Guid Id { get; init; }
