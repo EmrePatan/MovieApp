@@ -13,8 +13,36 @@ namespace MovieApp.Api.Controllers;
 [Route("api/discovery")]
 public sealed class DiscoveryController(
     IDiscoveryService discoveryService,
-    IDiscoverBrowseService discoverBrowseService) : ControllerBase
+    IDiscoverBrowseService discoverBrowseService,
+    IExplorePreviewService explorePreviewService) : ControllerBase
 {
+    [HttpGet("explore-preview")]
+    [ProducesResponseType(typeof(ExplorePreviewResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ExplorePreviewResponse>> GetExplorePreview(
+        [FromQuery] int? sectionSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var criteria = new ExplorePreviewCriteria(
+                sectionSize ?? SearchPaginationDefaults.DefaultPageSize);
+            var result = await explorePreviewService.GetPreviewAsync(criteria, cancellationToken);
+
+            return Ok(new ExplorePreviewResponse(
+                SearchContractMapper.ToSearchResponse(result.Trending),
+                SearchContractMapper.ToSearchResponse(result.TopRated),
+                SearchContractMapper.ToSearchResponse(result.NewReleases)));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid explore preview request.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("popular")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

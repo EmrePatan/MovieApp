@@ -7,11 +7,10 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Home;
-using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Recommendations;
-using MovieApp.Application.Services.WatchHistory;
+using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.Home;
@@ -24,27 +23,11 @@ public sealed class HomeService(
 {
     private const string RecommendedForYouKey = "recommended-for-you";
     private const string BecauseYouWatchedKey = "because-you-watched";
-    private const string BasedOnFavoritesKey = "similar-to-favorites";
 
     private static readonly HomeSectionType[] PersonalizedSectionOrder =
     [
-        HomeSectionType.ContinueWatching,
         HomeSectionType.RecommendedForYou,
-        HomeSectionType.BecauseYouWatched,
-        HomeSectionType.BasedOnFavorites,
-        HomeSectionType.Trending,
-        HomeSectionType.Popular,
-        HomeSectionType.NewReleases,
-        HomeSectionType.TopRated
-    ];
-
-    private static readonly HomeSectionType[] ColdStartSectionOrder =
-    [
-        HomeSectionType.ContinueWatching,
-        HomeSectionType.Trending,
-        HomeSectionType.Popular,
-        HomeSectionType.NewReleases,
-        HomeSectionType.TopRated
+        HomeSectionType.BecauseYouWatched
     ];
 
     private readonly HomeOptions _options = options.Value;
@@ -61,48 +44,37 @@ public sealed class HomeService(
             return cached.Result;
         }
 
-        var recommendationSectionsTask = RunScopedAsync(
+        var recommendationSections = await RunScopedAsync(
             (services, ct) => services
                 .GetRequiredService<IRecommendationService>()
                 .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
             cancellationToken);
-        var continueWatchingTask = RunScopedAsync(
-            (services, ct) => BuildContinueWatchingSectionAsync(
-                services.GetRequiredService<IWatchHistoryService>(),
-                criteria,
-                ct),
-            cancellationToken);
-        var globalSectionsTask = RunScopedAsync(
-            (services, ct) => services
-                .GetRequiredService<IHomeGlobalSectionsProvider>()
-                .GetOrLoadAsync(criteria, ct),
-            cancellationToken);
 
-        await Task.WhenAll(
-            recommendationSectionsTask,
-            continueWatchingTask,
-            globalSectionsTask);
-
-        var recommendationSections = await recommendationSectionsTask;
         var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
-        var globalSections = await globalSectionsTask;
-
-        var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
-        {
-            [HomeSectionType.ContinueWatching] = await continueWatchingTask,
-            [HomeSectionType.Trending] = globalSections.Trending,
-            [HomeSectionType.Popular] = globalSections.Popular,
-            [HomeSectionType.NewReleases] = globalSections.NewReleases,
-            [HomeSectionType.TopRated] = globalSections.TopRated
-        };
+        List<HomeSection> orderedSections;
 
         if (isPersonalized)
         {
+            var sectionsByType = new Dictionary<HomeSectionType, HomeSection>();
             AddRecommendationSections(sectionsByType, recommendationSections, criteria);
+            orderedSections = BuildOrderedSections(sectionsByType, PersonalizedSectionOrder);
         }
+        else
+        {
+            var trending = await RunScopedAsync(
+                (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
+                    HomeSectionType.Trending,
+                    "Trending",
+                    services.GetRequiredService<IDiscoveryService>()
+                        .GetTrendingAsync(new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize), ct),
+                    criteria,
+                    ct),
+                cancellationToken);
 
-        var sectionOrder = isPersonalized ? PersonalizedSectionOrder : ColdStartSectionOrder;
-        var orderedSections = BuildOrderedSections(sectionsByType, globalSections.GenreSections, sectionOrder);
+            orderedSections = trending.Items.Count > 0
+                ? [trending with { DisplayOrder = 1 }]
+                : [];
+        }
 
         var result = new HomeResult(orderedSections, isPersonalized);
 
@@ -121,28 +93,6 @@ public sealed class HomeService(
     {
         using var scope = scopeFactory.CreateScope();
         return await operation(scope.ServiceProvider, cancellationToken);
-    }
-
-    private static async Task<HomeSection> BuildContinueWatchingSectionAsync(
-        IWatchHistoryService watchHistoryService,
-        HomeCriteria criteria,
-        CancellationToken cancellationToken)
-    {
-        if (criteria.Type == SearchContentType.Movie)
-        {
-            return CreateEmptySection(HomeSectionType.ContinueWatching, "Continue Watching");
-        }
-
-        var items = await watchHistoryService.GetContinueWatchingAsync(criteria.SectionSize, cancellationToken);
-        var homeItems = HomeSectionBuilders.DeduplicateItems(
-            items.Select(HomeMapper.FromContinueWatchingItem),
-            criteria.SectionSize);
-
-        return new HomeSection(
-            HomeSectionType.ContinueWatching,
-            "Continue Watching",
-            homeItems,
-            0);
     }
 
     private static void AddRecommendationSections(
@@ -172,7 +122,6 @@ public sealed class HomeService(
         {
             RecommendedForYouKey => HomeSectionType.RecommendedForYou,
             BecauseYouWatchedKey => HomeSectionType.BecauseYouWatched,
-            BasedOnFavoritesKey => HomeSectionType.BasedOnFavorites,
             _ => (HomeSectionType?)null
         };
 
@@ -197,7 +146,6 @@ public sealed class HomeService(
 
     private static List<HomeSection> BuildOrderedSections(
         Dictionary<HomeSectionType, HomeSection> sectionsByType,
-        IReadOnlyList<HomeSection> genreSections,
         HomeSectionType[] sectionOrder)
     {
         var orderedSections = new List<HomeSection>();
@@ -211,11 +159,6 @@ public sealed class HomeService(
             }
 
             orderedSections.Add(section with { DisplayOrder = displayOrder++ });
-        }
-
-        foreach (var genreSection in genreSections)
-        {
-            orderedSections.Add(genreSection with { DisplayOrder = displayOrder++ });
         }
 
         return orderedSections;

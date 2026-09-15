@@ -120,6 +120,7 @@ public static class DependencyInjection
         services.AddScoped<IAutocompleteService, AutocompleteService>();
         services.AddScoped<IDiscoveryService, DiscoveryService>();
         services.AddScoped<IDiscoverBrowseService, DiscoverBrowseService>();
+        services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<ISearchHistoryService, SearchHistoryService>();
         services.AddScoped<IRecommendationService, RecommendationService>();

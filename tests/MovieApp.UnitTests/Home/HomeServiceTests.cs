@@ -62,21 +62,14 @@ public sealed class HomeServiceTests
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 2));
 
         Assert.False(result.IsPersonalized);
-        Assert.Equal(
-            [
-                HomeSectionType.Trending,
-                HomeSectionType.Popular,
-                HomeSectionType.NewReleases,
-                HomeSectionType.TopRated,
-                HomeSectionType.Genre
-            ],
-            result.Sections.Select(section => section.Type).ToList());
+        Assert.Equal([HomeSectionType.Trending], result.Sections.Select(section => section.Type).ToList());
         Assert.True(cache.WasWritten);
     }
 
     [Fact]
     public async Task GetHomeAsyncBuildsPersonalizedSectionsInOrder()
     {
+        var discovery = new CountingDiscoveryService();
         var service = CreateService(
             recommendationService: new FakeRecommendationService(
             [
@@ -87,37 +80,19 @@ public sealed class HomeServiceTests
                 new RecommendationSection("similar-to-favorites", "Based On Your Favorites",
                     [CreateRecommendationItem("movie", 3)])
             ]),
-            discoveryService: new FakeDiscoveryService(),
-            watchHistoryService: new FakeWatchHistoryService(
-            [
-                new ContinueWatchingItemResult(
-                    Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                    "Breaking Bad",
-                    null,
-                    null,
-                    null,
-                    new DateOnly(2008, 1, 20),
-                    9.5m,
-                    1000,
-                    DateTime.UtcNow)
-            ]));
+            discoveryService: discovery);
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
 
         Assert.True(result.IsPersonalized);
         Assert.Equal(
-            [
-                HomeSectionType.ContinueWatching,
-                HomeSectionType.RecommendedForYou,
-                HomeSectionType.BecauseYouWatched,
-                HomeSectionType.BasedOnFavorites,
-                HomeSectionType.Trending,
-                HomeSectionType.Popular,
-                HomeSectionType.NewReleases,
-                HomeSectionType.TopRated,
-                HomeSectionType.Genre
-            ],
+            [HomeSectionType.RecommendedForYou, HomeSectionType.BecauseYouWatched],
             result.Sections.Select(section => section.Type).ToList());
+        Assert.Equal(0, discovery.TrendingCallCount);
+        Assert.Equal(0, discovery.PopularCallCount);
+        Assert.Equal(0, discovery.NewReleasesCallCount);
+        Assert.Equal(0, discovery.TopRatedCallCount);
+        Assert.Equal(0, discovery.GenreCallCount);
     }
 
     [Fact]
@@ -137,8 +112,7 @@ public sealed class HomeServiceTests
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.BecauseYouWatched);
-        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.BasedOnFavorites);
-        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ContinueWatching);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
     }
 
     [Fact]
@@ -170,7 +144,6 @@ public sealed class HomeServiceTests
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.Movie, 5));
 
-        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ContinueWatching);
         Assert.All(
             result.Sections.SelectMany(section => section.Items),
             item => Assert.Equal("movie", item.ContentType));
@@ -219,29 +192,22 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
-    public async Task GetHomeAsyncReusesGlobalSectionsAcrossUsers()
+    public async Task GetHomeAsyncColdStartOnlyLoadsTrendingDiscovery()
     {
-        var sharedCache = new SharedHomeCacheService();
         var discovery = new CountingDiscoveryService();
-        var firstUserService = CreateService(
-            cache: sharedCache,
-            discoveryService: discovery,
-            userId: Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
-        var secondUserService = CreateService(
-            cache: sharedCache,
-            discoveryService: discovery,
-            userId: Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: discovery);
 
-        await firstUserService.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
-        await secondUserService.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
 
+        Assert.False(result.IsPersonalized);
+        Assert.Equal([HomeSectionType.Trending], result.Sections.Select(section => section.Type).ToList());
         Assert.Equal(1, discovery.TrendingCallCount);
-        Assert.Equal(1, discovery.PopularCallCount);
-        Assert.Equal(1, discovery.NewReleasesCallCount);
-        Assert.Equal(1, discovery.TopRatedCallCount);
-        Assert.Equal(1, discovery.GenreCallCount);
-        Assert.Equal(2, sharedCache.HomeSetCount);
-        Assert.Equal(1, sharedCache.GlobalSetCount);
+        Assert.Equal(0, discovery.PopularCallCount);
+        Assert.Equal(0, discovery.NewReleasesCallCount);
+        Assert.Equal(0, discovery.TopRatedCallCount);
+        Assert.Equal(0, discovery.GenreCallCount);
     }
 
     private static HomeService CreateService(

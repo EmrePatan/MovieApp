@@ -42,9 +42,9 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
         Assert.NotNull(payload);
         Assert.False(payload.IsPersonalized);
         Assert.Contains(payload.Sections, section => section.Type == "Trending");
-        Assert.Contains(payload.Sections, section => section.Type == "Popular");
-        Assert.Contains(payload.Sections, section => section.Type == "NewReleases");
-        Assert.Contains(payload.Sections, section => section.Type == "TopRated");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "Popular");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "NewReleases");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "TopRated");
         Assert.DoesNotContain(payload.Sections, section => section.Type == "RecommendedForYou");
     }
 
@@ -148,7 +148,7 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
     }
 
     [Fact]
-    public async Task ContinueWatchingIncludesPartiallyWatchedTvShow()
+    public async Task ContinueWatchingIsExcludedFromHomeResponse()
     {
         await fixture.ResetAsync();
         var token = await RegisterAndGetTokenAsync();
@@ -163,23 +163,24 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
 
         var payload = await response.Content.ReadFromJsonAsync<HomeResponse>();
         Assert.NotNull(payload);
-
-        var continueWatching = payload.Sections.SingleOrDefault(section => section.Type == "ContinueWatching");
-        Assert.NotNull(continueWatching);
-        Assert.Contains(continueWatching.Items, item => item.Id == tvShowId);
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "ContinueWatching");
     }
 
     [Fact]
     public async Task HomeResponsesAreIsolatedPerUser()
     {
         await fixture.ResetAsync();
+        await SeedCatalogAsync();
+        await SeedPagedMovieCatalogAsync();
         var movieId = await SeedMovieAsync();
+        var tvShowId = await SeedTvShowAsync();
+        var secondMovieId = await SeedSecondMovieAsync();
         var tokenA = await RegisterAndGetTokenAsync();
         var tokenB = await RegisterAndGetTokenAsync();
 
         await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", tokenA);
-        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", tokenA);
-        await SendAuthorizedPostAsync($"/api/ratings/movies/{movieId}", tokenA, new CreateRatingRequest(9));
+        await SendAuthorizedPostAsync($"/api/favorites/tvshows/{tvShowId}", tokenA);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{secondMovieId}", tokenA);
 
         var personalizedResponse = await SendAuthorizedGetAsync("/api/home", tokenA);
         var coldStartResponse = await SendAuthorizedGetAsync("/api/home", tokenB);
