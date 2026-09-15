@@ -1,7 +1,8 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15  
-**Backend baseline:** `e563d312630b08491c20569d5f462a045dd47cab`
+**Last updated:** 2026-09-15 (reconciled with repositories)  
+**Backend baseline:** `b4f2ce67290a05d852788f2e5481cff582e01f16`  
+**Mobile baseline:** `370423c101c45d847757f0e97a7fe5b0a89fd55d`
 
 ## Related document
 
@@ -108,7 +109,9 @@ Premium Home / Search / Explore / Discover information architecture.
 - Because You Watched
 - Trending, Top Rated, New Releases
 - Explore by Genre
-- Search (movies / TV)
+- Search (movies / TV) and unified `/api/search`
+- Search autocomplete
+- Genre catalog API for filters
 - Search history
 - Discover browse with content-type, genre, year, rating, language, and sort filters
 - Provider-backed Discover browse
@@ -136,6 +139,7 @@ Generic **Catalog Follow** with release-notification pipeline.
 - Fanout → delivery preparation → Expo dispatch → Expo ticket → receipt processing
 - Notification dedupe / idempotency
 - Notification center (inbox, unread, mark read, mark all read)
+- Push device registration API (`/api/push-devices`) and mobile token registration
 - Push tap ownership validation
 
 **Distinctions (do not conflate):**
@@ -154,6 +158,22 @@ Generic **Catalog Follow** with release-notification pipeline.
 - `isFollowed` support where applicable
 
 **Not implemented:** upcoming episode calendar / per-episode airing schedule (see NEXT).
+
+---
+
+## DONE — TV seasons, episodes & watch progress
+
+Catalog TV depth and per-episode watch tracking (distinct from future Upcoming Episodes / Airing).
+
+- TV season list and season detail
+- Episode detail screens
+- Mark watched / unwatched for movies and episodes
+- Bulk season/episode watch updates
+- Watched episodes list and recent watch history
+- TV show watch progress and season-level watched state
+- Mobile routes under `app/(tabs)/tv/[id]/season/...`
+
+**Not the same as NEXT:** episode airing calendar, “Coming This Week”, or followed-show schedule intelligence.
 
 ---
 
@@ -223,6 +243,19 @@ Keyword affinity added to personalized recommendations.
 
 ---
 
+## DONE — Similar content (detail-page)
+
+Local similarity recommendations on movie/TV detail screens.
+
+- `/api/recommendations` similar-movie and similar-TV endpoints
+- Similarity algorithm version **`v1`** (genre/cast/rating/year — separate from personalized home `v3`)
+- Mobile `SimilarContentSection` on movie and TV detail
+- Provider-free at request time (local catalog data)
+
+**Distinction:** This is **not** Home “Recommended For You” (Recommendation 2.0/2.1) and **not** “Because You Watched” similarity sections.
+
+---
+
 ## DONE — Catalog keyword backfill infrastructure
 
 `CatalogKeywordBackfillJob` implemented and accepted in code.
@@ -287,6 +320,50 @@ Collections remain navigation/context, **not** positive recommendation taste sig
 
 ---
 
+## DONE — Where to Watch
+
+Streaming availability on movie and TV detail.
+
+- Movie and TV watch-provider endpoints
+- TMDB watch-provider integration (`IWatchProviderService`)
+- Region-aware requests with validation/normalization
+- Provider + cache based (**no DB persistence** — same pattern as trailers)
+- Mobile `WhereToWatchRail` on movie and TV detail
+
+Do **not** propose Where to Watch as future work.
+
+---
+
+## DONE — User reviews (first-party)
+
+MovieApp-authored user reviews — **not** TMDB third-party reviews.
+
+- Create / update / delete user review per movie or TV show
+- Fetch current user review and paginated title reviews
+- Mobile review composer, review list, and detail integration
+- Distinct from backlog item **“TMDB Reviews integration”** (external critic/user reviews from TMDB)
+
+Ratings (star scores) remain separate and are already part of core user-state.
+
+---
+
+## DONE — Account / identity
+
+Authentication and account management beyond bare JWT login.
+
+- Registration and login
+- Forgot password and reset password flows
+- Current user profile read/update
+- Email change (re-auth required)
+- Password change (re-auth required)
+- Account deletion
+- Profile analytics / statistics dashboard (`/api/users/me/statistics` + mobile `ProfileAnalyticsDashboard`)
+- Mobile account screens: edit profile, email, password, delete account
+
+**Auth note unchanged:** no refresh-token flow.
+
+---
+
 ## DONE — Notification center
 
 - Notification inbox
@@ -311,6 +388,7 @@ Profile surfaces account + My Library in this order at a high level:
 
 Also done:
 - Dedicated Following screen
+- Profile analytics / statistics dashboard (watch activity insights)
 - Counts / subtitles
 - Pagination and invalidation fixes
 
@@ -529,7 +607,7 @@ Restrained backlog — not current execution priority.
 
 - Alternative Titles / Translations
 - External IDs / IMDb linking
-- TMDB Reviews integration (only if product value justifies)
+- TMDB third-party Reviews integration (only if product value justifies — distinct from DONE first-party user reviews)
 - Provider-backed “What’s Hot This Week” if Explore needs it
 - TV Episode Groups if alternate ordering becomes necessary
 - Watchlist multi-select UX polish (checkbox / Done / haptic)
@@ -561,6 +639,7 @@ Prevents scope creep. May be reconsidered later.
 
 - **Render Free** services may sleep; Hangfire cron is not guaranteed while sleeping. Manual bounded execution may be required on staging.
 - **Staging PostgreSQL Free** instance has a known expiry: **2026-10-12**. Resolve before that date if staging must remain available. This is staging-only — not production infrastructure.
+- **No Hangfire dashboard** is mapped today; there is **no secure public/admin HTTP trigger** for operational jobs (e.g. keyword backfill enqueue). Manual operations require DI/Hangfire host access or temporary env-driven recurring enablement.
 - Staging API example: `https://movieapp-fpkg.onrender.com` (no secrets in this document).
 
 ---
@@ -570,13 +649,18 @@ Prevents scope creep. May be reconsidered later.
 Before proposing a “new” MovieApp feature, check DONE sections first.
 
 **Already shipped — do not roadmap again:**
-- Where to Watch (if present in current product)
+- Where to Watch
+- User reviews (first-party MovieApp reviews)
 - Trailers
 - Collections
 - Cast & Crew
+- TV season/episode browsing and watch-progress tracking
+- Similar content on detail pages
 - Notification Center
+- Push device registration API (implementation — not the same as physical push E2E)
 - Person Detail / Filmography
 - Following / Upcoming catalog (title-level)
+- Account management (profile, email/password change, delete account, statistics dashboard)
 - Keyword ingestion and backfill **infrastructure**
 - Recommendation 2.0 and 2.1
 
