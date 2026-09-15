@@ -14,6 +14,7 @@ namespace MovieApp.Api.Controllers;
 public sealed class DiscoveryController(
     IDiscoveryService discoveryService,
     IDiscoverBrowseService discoverBrowseService,
+    IAdvancedDiscoverService advancedDiscoverService,
     IExplorePreviewService explorePreviewService) : ControllerBase
 {
     [HttpGet("explore-preview")]
@@ -91,6 +92,59 @@ public sealed class DiscoveryController(
         }
     }
 
+    [HttpGet("advanced")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<SearchResponse>> AdvancedDiscover(
+        [FromQuery(Name = "mediaType")] string mediaType,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string[]? genreId,
+        [FromQuery] int? year,
+        [FromQuery] int? yearFrom,
+        [FromQuery] int? yearTo,
+        [FromQuery] decimal? minRating,
+        [FromQuery] decimal? maxRating,
+        [FromQuery] int? minVoteCount,
+        [FromQuery] int? minRuntimeMinutes,
+        [FromQuery] int? maxRuntimeMinutes,
+        [FromQuery] string? originalLanguage,
+        [FromQuery(Name = "originCountry")] string? originCountry,
+        [FromQuery] string? sort,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var criteria = BuildAdvancedDiscoverCriteria(
+                mediaType,
+                page,
+                pageSize,
+                genreId,
+                year,
+                yearFrom,
+                yearTo,
+                minRating,
+                maxRating,
+                minVoteCount,
+                minRuntimeMinutes,
+                maxRuntimeMinutes,
+                originalLanguage,
+                originCountry,
+                sort);
+
+            var result = await advancedDiscoverService.DiscoverAsync(criteria, cancellationToken);
+            return Ok(SearchContractMapper.ToSearchResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid advanced discover request.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("browse")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -130,6 +184,64 @@ public sealed class DiscoveryController(
                 "Invalid discovery browse request.",
                 exception.Message));
         }
+    }
+
+    private static AdvancedDiscoverCriteria BuildAdvancedDiscoverCriteria(
+        string mediaType,
+        int? page,
+        int? pageSize,
+        string[]? genreId,
+        int? year,
+        int? yearFrom,
+        int? yearTo,
+        decimal? minRating,
+        decimal? maxRating,
+        int? minVoteCount,
+        int? minRuntimeMinutes,
+        int? maxRuntimeMinutes,
+        string? originalLanguage,
+        string? originCountry,
+        string? sort)
+    {
+        var mediaTypeValidation = AdvancedDiscoverValidator.ValidateMediaType(mediaType);
+        if (!mediaTypeValidation.IsValid)
+        {
+            throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+        }
+
+        var sortValidation = AdvancedDiscoverValidator.ValidateSort(sort);
+        if (!sortValidation.IsValid)
+        {
+            throw new ValidationException(sortValidation.ErrorMessage!);
+        }
+
+        _ = AdvancedSearchValidator.TryParseType(mediaType, out var contentType);
+        _ = AdvancedDiscoverValidator.TryParseSort(sort, out var discoverSort);
+
+        var criteria = new AdvancedDiscoverCriteria(
+            contentType,
+            AdvancedDiscoverValidator.ParseGenreIds(genreId),
+            year,
+            yearFrom,
+            yearTo,
+            minRating,
+            maxRating,
+            minVoteCount,
+            minRuntimeMinutes,
+            maxRuntimeMinutes,
+            originalLanguage,
+            originCountry,
+            discoverSort,
+            page ?? SearchPaginationDefaults.DefaultPage,
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+
+        var validation = AdvancedDiscoverValidator.Validate(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        return criteria;
     }
 
     private static DiscoveryCriteria BuildDiscoveryCriteria(int? page, int? pageSize, string? type)

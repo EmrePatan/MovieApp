@@ -71,6 +71,37 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
             response.TotalPages);
     }
 
+    public async Task<MovieProviderSearchResult> AdvancedDiscoverMoviesAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(criteria);
+        var response = await apiClient.GetAsync<TmdbMovieSearchResponseJson>(
+            $"discover/movie?{query}",
+            cancellationToken);
+
+        if (response is null)
+        {
+            return new MovieProviderSearchResult(
+                [],
+                criteria.Page,
+                TmdbSearchDefaults.ResultsPerPage,
+                0,
+                0);
+        }
+
+        var results = response.Results
+            .Select(TmdbMovieMapper.ToSummary)
+            .ToList();
+
+        return new MovieProviderSearchResult(
+            results,
+            response.Page == 0 ? criteria.Page : response.Page,
+            TmdbSearchDefaults.ResultsPerPage,
+            response.TotalResults,
+            response.TotalPages);
+    }
+
     public async Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
         CancellationToken cancellationToken = default)

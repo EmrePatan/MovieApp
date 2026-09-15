@@ -14,6 +14,11 @@ public interface ITvShowDataProvider
         DiscoverProviderCriteria criteria,
         CancellationToken cancellationToken = default);
 
+    Task<TvShowProviderSearchResult> AdvancedDiscoverTvShowsAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
         CancellationToken cancellationToken = default);

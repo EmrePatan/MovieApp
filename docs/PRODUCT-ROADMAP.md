@@ -127,6 +127,27 @@ Premium Home / Search / Explore / Discover information architecture.
 - Local Explore preview
 - Pagination and caching at a high level (Home TTL, recommendation cache, search provider refresh controls)
 
+## DONE — Discovery 2.0 D1 (Advanced Discover Core)
+
+Reusable advanced discovery engine for later Discovery 2.0 phases (D2–D6).
+
+**Backend (`GET /api/discovery/advanced`):**
+- Typed MovieApp contract (not raw TMDB query strings)
+- `mediaType`: `movie` | `tv` (required; no `all`)
+- Filters: genres, year or year range, min/max rating, min vote count, min/max runtime, original language, **origin country** (`with_origin_country`; distinct from future release/watch region semantics)
+- Sorts: `popularity_desc`, `rating_desc`, `newest`, `oldest`
+- Adult content excluded (`include_adult=false`)
+- Provider abstraction via `AdvancedDiscoverMoviesAsync` / `AdvancedDiscoverTvShowsAsync` on existing TMDB providers
+- Results reuse `SearchResponse` / `SearchItem`; lazy summary ingestion via `EnsureFromSummariesAsync` for detail navigation
+- Redis cache (10 min TTL)
+
+**Mobile:**
+- Search Explore entry: **Advanced Discover** card → `/advanced-discover`
+- Filters: media type, genres (multi-select), min rating, year/range, runtime presets, original language, origin country, sort
+- Results: existing search cards, loading/empty/error/retry, infinite pagination, movie/TV detail navigation with filter state preserved on return
+
+**Out of scope (subsequent phases):** streaming provider filters, Now in Theaters, TV This Week, World Cinema presets, Pick Something For Me.
+
 ---
 
 ## DONE — Follow / release notifications
@@ -794,6 +815,7 @@ Before proposing a “new” MovieApp feature, check DONE sections first.
 - Account management (profile, email/password change, delete account, statistics dashboard)
 - Keyword ingestion and backfill **infrastructure**
 - Recommendation 2.0 and 2.1
+- Discovery 2.0 D1 (Advanced Discover Core)
 
 Extend this list when new capabilities ship.
 

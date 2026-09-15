@@ -77,6 +77,22 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
         return Task.FromResult(FakeDiscoverCatalog.DiscoverTvShows(criteria, pageSize: 20));
     }
 
+    public Task<TvShowProviderSearchResult> AdvancedDiscoverTvShowsAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        callTracker.RecordAdvancedDiscoverTvShows();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (callTracker.FailAdvancedDiscoverTvShows)
+        {
+            throw new InvalidOperationException("Simulated advanced discover provider failure.");
+        }
+
+        var mapped = FakeDiscoverCatalog.MapAdvancedToDiscoverCriteria(criteria);
+        return Task.FromResult(FakeDiscoverCatalog.DiscoverTvShows(mapped, pageSize: 20));
+    }
+
     public Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
         CancellationToken cancellationToken = default)

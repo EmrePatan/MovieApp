@@ -130,6 +130,22 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
         return Task.FromResult(FakeDiscoverCatalog.DiscoverMovies(criteria, pageSize: 20));
     }
 
+    public Task<MovieProviderSearchResult> AdvancedDiscoverMoviesAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        callTracker.RecordAdvancedDiscoverMovies();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (callTracker.FailAdvancedDiscoverMovies)
+        {
+            throw new InvalidOperationException("Simulated advanced discover provider failure.");
+        }
+
+        var mapped = FakeDiscoverCatalog.MapAdvancedToDiscoverCriteria(criteria);
+        return Task.FromResult(FakeDiscoverCatalog.DiscoverMovies(mapped, pageSize: 20));
+    }
+
     public Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
         CancellationToken cancellationToken = default)

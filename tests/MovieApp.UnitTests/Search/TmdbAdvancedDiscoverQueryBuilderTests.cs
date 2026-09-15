@@ -1,0 +1,102 @@
+using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.Search;
+using MovieApp.Infrastructure.Providers.Tmdb;
+
+namespace MovieApp.UnitTests.Search;
+
+public sealed class TmdbAdvancedDiscoverQueryBuilderTests
+{
+    [Fact]
+    public void BuildMovieQueryIncludesAdultFalseAndMovieDateFields()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            yearFrom: 2020,
+            yearTo: 2024,
+            sort: AdvancedDiscoverSort.Newest));
+
+        Assert.Contains("include_adult=false", query);
+        Assert.Contains("primary_release_date.gte=2020-01-01", query);
+        Assert.Contains("primary_release_date.lte=2024-12-31", query);
+        Assert.Contains("sort_by=primary_release_date.desc", query);
+        Assert.DoesNotContain("first_air_date", query);
+    }
+
+    [Fact]
+    public void BuildTvQueryUsesTvDateAndSortFields()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(CreateCriteria(
+            year: 2023,
+            sort: AdvancedDiscoverSort.Oldest));
+
+        Assert.Contains("include_adult=false", query);
+        Assert.Contains("first_air_date_year=2023", query);
+        Assert.Contains("sort_by=first_air_date.asc", query);
+        Assert.DoesNotContain("primary_release", query);
+    }
+
+    [Fact]
+    public void BuildMovieQueryMapsGenreRatingVoteRuntimeLanguageAndOriginCountry()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            genreTmdbIds: [28, 12],
+            minRating: 7.5m,
+            maxRating: 9m,
+            minVoteCount: 500,
+            minRuntimeMinutes: 90,
+            maxRuntimeMinutes: 150,
+            originalLanguage: "en",
+            originCountry: "US",
+            sort: AdvancedDiscoverSort.RatingDesc));
+
+        Assert.Contains("with_genres=28,12", query);
+        Assert.Contains("vote_average.gte=7.5", query);
+        Assert.Contains("vote_average.lte=9", query);
+        Assert.Contains("vote_count.gte=500", query);
+        Assert.Contains("with_runtime.gte=90", query);
+        Assert.Contains("with_runtime.lte=150", query);
+        Assert.Contains("with_original_language=en", query);
+        Assert.Contains("with_origin_country=US", query);
+        Assert.Contains("sort_by=vote_average.desc", query);
+    }
+
+    [Theory]
+    [InlineData(AdvancedDiscoverSort.PopularityDesc, "popularity.desc")]
+    [InlineData(AdvancedDiscoverSort.RatingDesc, "vote_average.desc")]
+    [InlineData(AdvancedDiscoverSort.Newest, "primary_release_date.desc")]
+    [InlineData(AdvancedDiscoverSort.Oldest, "primary_release_date.asc")]
+    public void BuildMovieQueryMapsSupportedSorts(AdvancedDiscoverSort sort, string expectedSortBy)
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(sort: sort));
+
+        Assert.Contains($"sort_by={expectedSortBy}", query);
+    }
+
+    private static AdvancedDiscoverProviderCriteria CreateCriteria(
+        int page = 1,
+        IReadOnlyList<int>? genreTmdbIds = null,
+        int? year = null,
+        int? yearFrom = null,
+        int? yearTo = null,
+        decimal? minRating = null,
+        decimal? maxRating = null,
+        int? minVoteCount = null,
+        int? minRuntimeMinutes = null,
+        int? maxRuntimeMinutes = null,
+        string? originalLanguage = null,
+        string? originCountry = null,
+        AdvancedDiscoverSort sort = AdvancedDiscoverSort.PopularityDesc) =>
+        new(
+            page,
+            genreTmdbIds ?? [],
+            year,
+            yearFrom,
+            yearTo,
+            minRating,
+            maxRating,
+            minVoteCount,
+            minRuntimeMinutes,
+            maxRuntimeMinutes,
+            originalLanguage,
+            originCountry,
+            sort);
+}

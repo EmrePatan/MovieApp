@@ -14,6 +14,11 @@ public interface IMovieDataProvider
         DiscoverProviderCriteria criteria,
         CancellationToken cancellationToken = default);
 
+    Task<MovieProviderSearchResult> AdvancedDiscoverMoviesAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
         CancellationToken cancellationToken = default);

@@ -254,6 +254,23 @@ internal static class FakeDiscoverCatalog
             VoteAverage: voteAverage,
             VoteCount: voteCount);
 
+    public static DiscoverProviderCriteria MapAdvancedToDiscoverCriteria(
+        AdvancedDiscoverProviderCriteria criteria) =>
+        new(
+            DiscoverBrowseMode.Trending,
+            criteria.Page,
+            criteria.GenreTmdbIds,
+            criteria.Year ?? criteria.YearFrom,
+            criteria.MinRating,
+            criteria.OriginalLanguage,
+            criteria.Sort switch
+            {
+                AdvancedDiscoverSort.RatingDesc => DiscoverBrowseSort.RatingDesc,
+                AdvancedDiscoverSort.Newest => DiscoverBrowseSort.ReleaseDesc,
+                AdvancedDiscoverSort.Oldest => DiscoverBrowseSort.ReleaseAsc,
+                _ => DiscoverBrowseSort.PopularityDesc
+            });
+
     private static TvShowProviderSummary CreateTvSummary(
         int tmdbId,
         string title,
