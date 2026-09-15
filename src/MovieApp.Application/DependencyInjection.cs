@@ -116,6 +116,8 @@ public static class DependencyInjection
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAutocompleteService, AutocompleteService>();
         services.AddScoped<IDiscoveryService, DiscoveryService>();
+        services.AddScoped<IDiscoverBrowseService, DiscoverBrowseService>();
+        services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<ISearchHistoryService, SearchHistoryService>();
         services.AddScoped<IRecommendationService, RecommendationService>();
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();

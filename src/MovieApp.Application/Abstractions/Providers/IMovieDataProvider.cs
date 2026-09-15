@@ -10,6 +10,10 @@ public interface IMovieDataProvider
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+        DiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default);
+
     Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
         CancellationToken cancellationToken = default);

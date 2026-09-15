@@ -10,6 +10,10 @@ public interface ITvShowDataProvider
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+        DiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default);
+
     Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
         CancellationToken cancellationToken = default);

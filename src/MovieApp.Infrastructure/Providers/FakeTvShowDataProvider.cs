@@ -62,6 +62,21 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
         return Task.FromResult(CreatePagedResult([summary], page, pageSize));
     }
 
+    public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+        DiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        callTracker.RecordDiscoverTvShows();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (callTracker.FailDiscoverTvShows)
+        {
+            throw new InvalidOperationException("Simulated discover provider failure.");
+        }
+
+        return Task.FromResult(FakeDiscoverCatalog.DiscoverTvShows(criteria, pageSize: 20));
+    }
+
     public Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
         CancellationToken cancellationToken = default)

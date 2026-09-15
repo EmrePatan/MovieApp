@@ -66,6 +66,11 @@ public sealed class SearchMoviesServiceBatchPersistenceTests
                 summaries.Count,
                 1));
 
+        public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
             CancellationToken cancellationToken = default)

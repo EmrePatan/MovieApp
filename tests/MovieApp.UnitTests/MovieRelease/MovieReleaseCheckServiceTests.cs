@@ -237,6 +237,11 @@ public sealed class MovieReleaseCheckServiceTests
         public Task<MovieProviderSearchResult> SearchMoviesAsync(string query, int page, int pageSize, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<MovieProviderDetails?> GetMovieAsync(string externalId, CancellationToken cancellationToken = default)
         {
             _getMovieCallCount++;

@@ -460,6 +460,11 @@ public sealed class TvShowFollowBaselineServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<TvShowProviderDetails?> GetTvShowAsync(string externalId, CancellationToken cancellationToken = default)
         {
             GetTvShowCallCount++;

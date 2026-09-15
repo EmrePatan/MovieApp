@@ -115,6 +115,21 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
         return Task.FromResult(CreatePagedResult([ToSummary(InterstellarDetails)], page, pageSize));
     }
 
+    public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+        DiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        callTracker.RecordDiscoverMovies();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (callTracker.FailDiscoverMovies)
+        {
+            throw new InvalidOperationException("Simulated discover provider failure.");
+        }
+
+        return Task.FromResult(FakeDiscoverCatalog.DiscoverMovies(criteria, pageSize: 20));
+    }
+
     public Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
         CancellationToken cancellationToken = default)

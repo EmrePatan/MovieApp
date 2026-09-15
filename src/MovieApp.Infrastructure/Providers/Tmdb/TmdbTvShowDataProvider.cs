@@ -41,6 +41,37 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
             response.TotalPages);
     }
 
+    public async Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+        DiscoverProviderCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var query = TmdbDiscoverQueryBuilder.BuildTvQuery(criteria);
+        var response = await apiClient.GetAsync<TmdbTvSearchResponseJson>(
+            $"discover/tv?{query}",
+            cancellationToken);
+
+        if (response is null)
+        {
+            return new TvShowProviderSearchResult(
+                [],
+                criteria.Page,
+                TmdbSearchDefaults.ResultsPerPage,
+                0,
+                0);
+        }
+
+        var results = response.Results
+            .Select(TmdbTvShowMapper.ToSummary)
+            .ToList();
+
+        return new TvShowProviderSearchResult(
+            results,
+            response.Page == 0 ? criteria.Page : response.Page,
+            TmdbSearchDefaults.ResultsPerPage,
+            response.TotalResults,
+            response.TotalPages);
+    }
+
     public async Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
         CancellationToken cancellationToken = default)

@@ -11,7 +11,9 @@ namespace MovieApp.Api.Controllers;
 
 [ApiController]
 [Route("api/discovery")]
-public sealed class DiscoveryController(IDiscoveryService discoveryService) : ControllerBase
+public sealed class DiscoveryController(
+    IDiscoveryService discoveryService,
+    IDiscoverBrowseService discoverBrowseService) : ControllerBase
 {
     [HttpGet("popular")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
@@ -61,6 +63,47 @@ public sealed class DiscoveryController(IDiscoveryService discoveryService) : Co
         }
     }
 
+    [HttpGet("browse")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<SearchResponse>> Browse(
+        [FromQuery] string mode,
+        [FromQuery] string? type,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string[]? genreId,
+        [FromQuery] int? year,
+        [FromQuery] decimal? minRating,
+        [FromQuery] string? language,
+        [FromQuery] string? sort,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var criteria = BuildBrowseCriteria(
+                mode,
+                type,
+                page,
+                pageSize,
+                genreId,
+                year,
+                minRating,
+                language,
+                sort);
+
+            var result = await discoverBrowseService.BrowseAsync(criteria, cancellationToken);
+            return Ok(SearchContractMapper.ToSearchResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid discovery browse request.",
+                exception.Message));
+        }
+    }
+
     private static DiscoveryCriteria BuildDiscoveryCriteria(int? page, int? pageSize, string? type)
     {
         var typeValidation = AdvancedSearchValidator.ValidateType(type);
@@ -75,6 +118,59 @@ public sealed class DiscoveryController(IDiscoveryService discoveryService) : Co
             contentType,
             page ?? SearchPaginationDefaults.DefaultPage,
             pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+    }
+
+    private static DiscoverBrowseCriteria BuildBrowseCriteria(
+        string mode,
+        string? type,
+        int? page,
+        int? pageSize,
+        string[]? genreId,
+        int? year,
+        decimal? minRating,
+        string? language,
+        string? sort)
+    {
+        var modeValidation = DiscoverBrowseValidator.ValidateMode(mode);
+        if (!modeValidation.IsValid)
+        {
+            throw new ValidationException(modeValidation.ErrorMessage!);
+        }
+
+        var typeValidation = AdvancedSearchValidator.ValidateType(type);
+        if (!typeValidation.IsValid)
+        {
+            throw new ValidationException(typeValidation.ErrorMessage!);
+        }
+
+        var sortValidation = DiscoverBrowseValidator.ValidateSort(sort);
+        if (!sortValidation.IsValid)
+        {
+            throw new ValidationException(sortValidation.ErrorMessage!);
+        }
+
+        _ = DiscoverBrowseValidator.TryParseMode(mode, out var browseMode);
+        _ = AdvancedSearchValidator.TryParseType(type, out var contentType);
+        _ = DiscoverBrowseValidator.TryParseSort(sort, out var browseSort);
+
+        var criteria = new DiscoverBrowseCriteria(
+            browseMode,
+            contentType,
+            DiscoverBrowseValidator.ParseGenreIds(genreId, null),
+            year,
+            minRating,
+            language,
+            browseSort,
+            page ?? SearchPaginationDefaults.DefaultPage,
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+
+        var validation = DiscoverBrowseValidator.Validate(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        return criteria;
     }
 
     private static ProblemDetails CreateProblemDetails(int statusCode, string title, string detail) =>
