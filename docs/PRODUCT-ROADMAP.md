@@ -203,7 +203,7 @@ Home presentation layer over existing followed-TV upcoming episode catalog data 
 5. Top Rated
 6. New Releases
 
-**Semantics:** authenticated user; followed TV only; `AirDate > today`; null `AirDate` excluded; at most one next episode per followed show; nearest air date first; See All → existing `/upcoming`.
+**Semantics:** authenticated user; personalized followed content only — future followed movies (release alert), followed TV premieres, and one next future episode per followed show (`AirDate > today`); null `AirDate` excluded; nearest air date first; Home See All and Profile → Coming Up use `/api/catalog/upcoming?scope=followed`; generic catalog discovery remains available via default `scope=catalog`.
 
 **Mobile:** `HomeComingUpSection` / `HomeComingUpCard` on Home; card shows poster, show title, `Sxx Exx`, episode name, air date, relative label; tap → TV detail.
 

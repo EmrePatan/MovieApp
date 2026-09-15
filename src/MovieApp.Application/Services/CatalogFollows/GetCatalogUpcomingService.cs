@@ -17,6 +17,7 @@ public sealed class GetCatalogUpcomingService(
     public async Task<CatalogUpcomingListResult> GetAsync(
         int page,
         int pageSize,
+        CatalogUpcomingScope scope = CatalogUpcomingScope.Catalog,
         CancellationToken cancellationToken = default)
     {
         var validationResult = SearchPaginationValidator.Validate(page, pageSize);
@@ -25,26 +26,65 @@ public sealed class GetCatalogUpcomingService(
             throw new ValidationException(validationResult.ErrorMessage!);
         }
 
-        Guid? userId = null;
-        if (currentUser.IsAuthenticated)
-        {
-            userId = CurrentUserGuard.RequireUserId(currentUser);
-        }
-
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
-        var (items, totalCount) = await catalogFollowCatalogRepository.GetUpcomingCatalogAsync(
-            userId,
-            page,
-            pageSize,
-            today,
-            region,
-            cancellationToken);
+
+        (IReadOnlyList<CatalogUpcomingItemResult> items, int totalCount) result = scope switch
+        {
+            CatalogUpcomingScope.Followed => await GetFollowedAsync(page, pageSize, today, region, cancellationToken),
+            _ => await GetCatalogAsync(page, pageSize, today, region, cancellationToken)
+        };
+
+        var (items, totalCount) = result;
 
         var totalPages = totalCount == 0
             ? 0
             : (int)Math.Ceiling(totalCount / (double)pageSize);
 
         return new CatalogUpcomingListResult(items, page, pageSize, totalCount, totalPages);
+    }
+
+    private async Task<(IReadOnlyList<CatalogUpcomingItemResult> Items, int TotalCount)> GetCatalogAsync(
+        int page,
+        int pageSize,
+        DateOnly today,
+        string region,
+        CancellationToken cancellationToken)
+    {
+        Guid? userId = null;
+        if (currentUser.IsAuthenticated)
+        {
+            userId = CurrentUserGuard.RequireUserId(currentUser);
+        }
+
+        return await catalogFollowCatalogRepository.GetUpcomingCatalogAsync(
+            userId,
+            page,
+            pageSize,
+            today,
+            region,
+            cancellationToken);
+    }
+
+    private async Task<(IReadOnlyList<CatalogUpcomingItemResult> Items, int TotalCount)> GetFollowedAsync(
+        int page,
+        int pageSize,
+        DateOnly today,
+        string region,
+        CancellationToken cancellationToken)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            throw new AuthenticationException("Authentication is required for followed upcoming catalog.");
+        }
+
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        return await catalogFollowCatalogRepository.GetFollowedUpcomingCatalogAsync(
+            userId,
+            page,
+            pageSize,
+            today,
+            region,
+            cancellationToken);
     }
 }

@@ -85,6 +85,15 @@ public sealed class GetHomeComingUpServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<(IReadOnlyList<CatalogUpcomingItemResult> Items, int TotalCount)> GetFollowedUpcomingCatalogAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            DateOnly today,
+            string region,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedUpcomingForHomeAsync(
             Guid userId,
             DateOnly today,

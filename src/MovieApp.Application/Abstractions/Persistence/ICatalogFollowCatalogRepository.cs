@@ -18,6 +18,14 @@ public interface ICatalogFollowCatalogRepository
         string region,
         CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<CatalogUpcomingItemResult> Items, int TotalCount)> GetFollowedUpcomingCatalogAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        DateOnly today,
+        string region,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedUpcomingForHomeAsync(
         Guid userId,
         DateOnly today,

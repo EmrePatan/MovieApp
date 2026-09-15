@@ -193,6 +193,27 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
         return (items, totalCount);
     }
 
+    public async Task<(IReadOnlyList<CatalogUpcomingItemResult> Items, int TotalCount)> GetFollowedUpcomingCatalogAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        DateOnly today,
+        string region,
+        CancellationToken cancellationToken = default)
+    {
+        var orderedRows = await LoadFollowedUpcomingRowsAsync(userId, today, region, cancellationToken);
+        var totalCount = orderedRows.Count;
+        var skip = (page - 1) * pageSize;
+
+        var items = orderedRows
+            .Skip(skip)
+            .Take(pageSize)
+            .Select(ToFollowedUpcomingItemResult)
+            .ToList();
+
+        return (items, totalCount);
+    }
+
     public async Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedUpcomingForHomeAsync(
         Guid userId,
         DateOnly today,
@@ -205,6 +226,20 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
             return [];
         }
 
+        var orderedRows = await LoadFollowedUpcomingRowsAsync(userId, today, region, cancellationToken);
+
+        return orderedRows
+            .Take(limit)
+            .Select(ToFollowedUpcomingItemResult)
+            .ToList();
+    }
+
+    private async Task<List<UpcomingCatalogRow>> LoadFollowedUpcomingRowsAsync(
+        Guid userId,
+        DateOnly today,
+        string region,
+        CancellationToken cancellationToken)
+    {
         var movieRows = await (
             from follow in dbContext.CatalogFollows.AsNoTracking()
             where follow.UserId == userId && follow.ContentType == CatalogContentType.Movie
@@ -243,7 +278,7 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
 
         var episodeRows = await GetFollowedTvNextEpisodeRowsAsync(userId, today, cancellationToken);
 
-        var rows = movieRows
+        return movieRows
             .Select(row => ToMovieReleaseRow(row.Id, row.Title, row.PosterPath, row.ReleaseDate))
             .Concat(tvPremiereRows.Select(row =>
                 ToTvShowPremiereRow(row.Id, row.Title, row.PosterPath, row.ReleaseDate)))
@@ -253,23 +288,22 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
             .ThenBy(row => row.ContentType)
             .ThenBy(row => row.ContentId)
             .ThenBy(row => row.EpisodeId)
-            .Take(limit)
-            .Select(row => new CatalogUpcomingItemResult(
-                row.ContentId,
-                row.ContentType,
-                row.UpcomingKind,
-                row.Title,
-                row.PosterPath,
-                row.ReleaseDate,
-                true,
-                row.EpisodeId,
-                row.SeasonNumber,
-                row.EpisodeNumber,
-                row.EpisodeName))
             .ToList();
-
-        return rows;
     }
+
+    private static CatalogUpcomingItemResult ToFollowedUpcomingItemResult(UpcomingCatalogRow row) =>
+        new(
+            row.ContentId,
+            row.ContentType,
+            row.UpcomingKind,
+            row.Title,
+            row.PosterPath,
+            row.ReleaseDate,
+            true,
+            row.EpisodeId,
+            row.SeasonNumber,
+            row.EpisodeNumber,
+            row.EpisodeName);
 
     private async Task<IReadOnlyList<UpcomingCatalogRow>> GetFollowedTvNextEpisodeRowsAsync(
         Guid userId,

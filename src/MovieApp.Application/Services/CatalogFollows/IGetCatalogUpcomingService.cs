@@ -7,5 +7,6 @@ public interface IGetCatalogUpcomingService
     Task<CatalogUpcomingListResult> GetAsync(
         int page,
         int pageSize,
+        CatalogUpcomingScope scope = CatalogUpcomingScope.Catalog,
         CancellationToken cancellationToken = default);
 }
