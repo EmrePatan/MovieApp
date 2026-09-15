@@ -9,4 +9,9 @@ public sealed record HomeItem(
     string? BackdropUrl,
     DateOnly? ReleaseDate,
     decimal VoteAverage,
-    int VoteCount);
+    int VoteCount,
+    string? UpcomingKind = null,
+    Guid? EpisodeId = null,
+    int? SeasonNumber = null,
+    int? EpisodeNumber = null,
+    string? EpisodeName = null);

@@ -262,6 +262,60 @@ public sealed class SearchRepository(
         return keys;
     }
 
+    public async Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithAnyGenreAsync(
+        IReadOnlyList<SearchItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        if (items.Count == 0)
+        {
+            return new HashSet<CatalogContentKey>();
+        }
+
+        var keys = new HashSet<CatalogContentKey>();
+        var movieIds = items
+            .Where(item => item.Type == "movie")
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+        var tvShowIds = items
+            .Where(item => item.Type == "tv")
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+
+        if (movieIds.Count > 0)
+        {
+            var matchingMovieIds = await dbContext.MovieGenres
+                .AsNoTracking()
+                .Where(movieGenre => movieIds.Contains(movieGenre.MovieId))
+                .Select(movieGenre => movieGenre.MovieId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var movieId in matchingMovieIds)
+            {
+                keys.Add(new CatalogContentKey(movieId, "movie"));
+            }
+        }
+
+        if (tvShowIds.Count > 0)
+        {
+            var matchingTvShowIds = await dbContext.TvShowGenres
+                .AsNoTracking()
+                .Where(tvShowGenre => tvShowIds.Contains(tvShowGenre.TvShowId))
+                .Select(tvShowGenre => tvShowGenre.TvShowId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var tvShowId in matchingTvShowIds)
+            {
+                keys.Add(new CatalogContentKey(tvShowId, "tv"));
+            }
+        }
+
+        return keys;
+    }
+
     public async Task<PaginatedResult<SearchItem>> GetByGenreAsync(
         string genreName,
         DiscoveryCriteria criteria,

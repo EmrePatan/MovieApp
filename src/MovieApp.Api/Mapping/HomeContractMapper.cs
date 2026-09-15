@@ -27,5 +27,10 @@ public static class HomeContractMapper
             item.BackdropUrl,
             item.ReleaseDate,
             item.VoteAverage,
-            item.VoteCount);
+            item.VoteCount,
+            item.UpcomingKind,
+            item.EpisodeId,
+            item.SeasonNumber,
+            item.EpisodeNumber,
+            item.EpisodeName);
 }

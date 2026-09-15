@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
@@ -42,4 +43,21 @@ internal static class HomeMapper
             item.FirstAirDate,
             item.VoteAverage,
             item.VoteCount);
+
+    public static HomeItem FromUpcomingItem(CatalogUpcomingItemResult item) =>
+        new(
+            item.ContentId,
+            "tv",
+            item.Title,
+            null,
+            item.PosterPath,
+            null,
+            item.ReleaseDate,
+            0m,
+            0,
+            item.UpcomingKind.ToString(),
+            item.EpisodeId,
+            item.SeasonNumber,
+            item.EpisodeNumber,
+            item.EpisodeName);
 }

@@ -193,6 +193,38 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedTvUpcomingEpisodesAsync(
+        Guid userId,
+        DateOnly today,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit <= 0)
+        {
+            return [];
+        }
+
+        var rows = await GetFollowedTvNextEpisodeRowsAsync(userId, today, cancellationToken);
+
+        return rows
+            .OrderBy(row => row.ReleaseDate)
+            .ThenBy(row => row.ContentId)
+            .Take(limit)
+            .Select(row => new CatalogUpcomingItemResult(
+                row.ContentId,
+                row.ContentType,
+                row.UpcomingKind,
+                row.Title,
+                row.PosterPath,
+                row.ReleaseDate,
+                true,
+                row.EpisodeId,
+                row.SeasonNumber,
+                row.EpisodeNumber,
+                row.EpisodeName))
+            .ToList();
+    }
+
     private async Task<IReadOnlyList<UpcomingCatalogRow>> GetFollowedTvNextEpisodeRowsAsync(
         Guid userId,
         DateOnly today,

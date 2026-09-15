@@ -578,6 +578,11 @@ public sealed class SearchServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
 
+        public Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithAnyGenreAsync(
+            IReadOnlyList<SearchItem> items,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
+
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
             string genreName,
             DiscoveryCriteria criteria,

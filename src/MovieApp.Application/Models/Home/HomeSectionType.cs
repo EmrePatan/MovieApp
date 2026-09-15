@@ -4,6 +4,7 @@ public enum HomeSectionType
 {
     HotThisWeek,
     RecommendedForYou,
+    ComingUp,
     BecauseYouWatched,
     BasedOnFavorites,
     ContinueWatching,

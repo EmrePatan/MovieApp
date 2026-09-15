@@ -70,6 +70,70 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
+    public async Task GetHomeAsyncIncludesComingUpBetweenRecommendedAndTrendingWhenEpisodesExist()
+    {
+        var comingUpItems = new List<Application.Models.CatalogFollows.CatalogUpcomingItemResult>
+        {
+            new(
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                MovieApp.Domain.Enums.CatalogContentType.Tv,
+                MovieApp.Application.Models.CatalogFollows.CatalogUpcomingKind.TvEpisode,
+                "Followed Show",
+                "/poster.jpg",
+                new DateOnly(2026, 9, 20),
+                true,
+                Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                1,
+                2,
+                "Next")
+        };
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You",
+                    [CreateRecommendationItem("movie", 1)])
+            ]),
+            discoveryService: new FakeDiscoveryService(),
+            comingUpService: new FakeHomeComingUpService(comingUpItems));
+
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.Equal(
+            [
+                HomeSectionType.HotThisWeek,
+                HomeSectionType.RecommendedForYou,
+                HomeSectionType.ComingUp,
+                HomeSectionType.Trending,
+                HomeSectionType.TopRated,
+                HomeSectionType.NewReleases
+            ],
+            result.Sections.Select(section => section.Type).ToList());
+
+        var comingUp = result.Sections.Single(section => section.Type == HomeSectionType.ComingUp);
+        Assert.Equal("Coming Up", comingUp.Title);
+        Assert.Equal("Next", comingUp.Items[0].EpisodeName);
+        Assert.Equal(2, comingUp.Items[0].EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task GetHomeAsyncOmitsComingUpWhenNoEpisodesExist()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You",
+                    [CreateRecommendationItem("movie", 1)])
+            ]),
+            discoveryService: new FakeDiscoveryService(),
+            comingUpService: new FakeHomeComingUpService([]));
+
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ComingUp);
+    }
+
+    [Fact]
     public async Task GetHomeAsyncBuildsPersonalizedSectionsInOrder()
     {
         var discovery = new CountingDiscoveryService();
@@ -357,6 +421,7 @@ public sealed class HomeServiceTests
         IDiscoveryService? discoveryService = null,
         IWatchHistoryService? watchHistoryService = null,
         IHotThisWeekService? hotThisWeekService = null,
+        IGetHomeComingUpService? comingUpService = null,
         HomeOptions? options = null,
         Guid? userId = null)
     {
@@ -374,6 +439,7 @@ public sealed class HomeServiceTests
                 discoveryService,
                 watchHistoryService,
                 hotThisWeekService,
+                comingUpService,
                 cache,
                 homeOptions),
             cache ?? new FakeCacheService(),
@@ -385,6 +451,7 @@ public sealed class HomeServiceTests
         IDiscoveryService? discoveryService = null,
         IWatchHistoryService? watchHistoryService = null,
         IHotThisWeekService? hotThisWeekService = null,
+        IGetHomeComingUpService? comingUpService = null,
         ICacheService? sharedCache = null,
         HomeOptions? options = null)
     {
@@ -409,6 +476,8 @@ public sealed class HomeServiceTests
         services.AddScoped<IGenreReadRepository>(_ => new PassthroughGenreReadRepository());
         services.AddScoped<ISearchRepository>(_ => new PassthroughSearchRepository());
         services.AddScoped<IHomeTopRatedService, HomeTopRatedService>();
+        services.AddScoped<IGetHomeComingUpService>(_ =>
+            comingUpService ?? new FakeHomeComingUpService());
         services.AddSingleton<ICacheService>(_ => sharedCache ?? new PassthroughCacheService());
         services.AddSingleton<ISearchRefreshLockService, TestSearchRefreshLockService>();
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
@@ -907,11 +976,28 @@ public sealed class HomeServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
 
+        public Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithAnyGenreAsync(
+            IReadOnlyList<SearchItem> items,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<CatalogContentKey>>(
+                items.Select(item => new CatalogContentKey(item.Id, item.Type)).ToHashSet());
+
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
             string genreName,
             DiscoveryCriteria criteria,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FakeHomeComingUpService(
+        IReadOnlyList<Application.Models.CatalogFollows.CatalogUpcomingItemResult>? items = null)
+        : IGetHomeComingUpService
+    {
+        public Task<IReadOnlyList<Application.Models.CatalogFollows.CatalogUpcomingItemResult>> GetItemsAsync(
+            int limit,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Application.Models.CatalogFollows.CatalogUpcomingItemResult>>(
+                (items ?? []).Take(limit).ToList());
     }
 
     private sealed class FakeHotThisWeekService(IReadOnlyList<SearchItem>? items = null) : IHotThisWeekService

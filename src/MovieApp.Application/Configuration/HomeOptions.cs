@@ -8,6 +8,8 @@ public sealed class HomeOptions
 
     public int HeroSectionSize { get; set; } = 5;
 
+    public int ComingUpSectionSize { get; set; } = 5;
+
     public int MaximumSectionSize { get; set; } = 20;
 
     public int HotThisWeekCacheTtlMinutes { get; set; } = 30;

@@ -11,6 +11,71 @@ namespace MovieApp.UnitTests.Search;
 public sealed class TopRatedGenreMembershipTests
 {
     [Fact]
+    public async Task GetContentKeysWithAnyGenreAsyncReturnsTitlesWithAtLeastOneGenre()
+    {
+        await using var context = CreateContext();
+        var utcNow = DateTime.UtcNow;
+        var animationGenreId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var dramaGenreId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var animatedMovieId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        var dramaMovieId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        var genreLessMovieId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+
+        context.Genres.AddRange(
+            new Genre { Id = animationGenreId, Name = "Animation", CreatedAt = utcNow },
+            new Genre { Id = dramaGenreId, Name = "Drama", CreatedAt = utcNow });
+
+        context.Movies.AddRange(
+            new Movie
+            {
+                Id = animatedMovieId,
+                Title = "Animated Film",
+                VoteAverage = 8m,
+                VoteCount = 100,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            },
+            new Movie
+            {
+                Id = dramaMovieId,
+                Title = "Drama Film",
+                VoteAverage = 8m,
+                VoteCount = 100,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            },
+            new Movie
+            {
+                Id = genreLessMovieId,
+                Title = "Genreless Film",
+                VoteAverage = 10m,
+                VoteCount = 10_000,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+
+        context.MovieGenres.AddRange(
+            new MovieGenre { MovieId = animatedMovieId, GenreId = animationGenreId },
+            new MovieGenre { MovieId = dramaMovieId, GenreId = dramaGenreId });
+        await context.SaveChangesAsync();
+
+        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()));
+        var items = new List<SearchItem>
+        {
+            new(animatedMovieId, "movie", "Animated Film", null, null, null, null, null, 8m, 100, null),
+            new(dramaMovieId, "movie", "Drama Film", null, null, null, null, null, 8m, 100, null),
+            new(genreLessMovieId, "movie", "Genreless Film", null, null, null, null, null, 10m, 10_000, null)
+        };
+
+        var keys = await repository.GetContentKeysWithAnyGenreAsync(items);
+
+        Assert.Equal(2, keys.Count);
+        Assert.Contains(new CatalogContentKey(animatedMovieId, "movie"), keys);
+        Assert.Contains(new CatalogContentKey(dramaMovieId, "movie"), keys);
+        Assert.DoesNotContain(new CatalogContentKey(genreLessMovieId, "movie"), keys);
+    }
+
+    [Fact]
     public async Task GetContentKeysWithGenreAsyncReturnsCatalogGenreMatches()
     {
         await using var context = CreateContext();

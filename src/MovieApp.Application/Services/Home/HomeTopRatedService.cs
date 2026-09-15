@@ -35,22 +35,35 @@ public sealed class HomeTopRatedService(
             return rankedCandidates;
         }
 
+        var genreQualifiedKeys = await searchRepository.GetContentKeysWithAnyGenreAsync(
+            rankedCandidates,
+            cancellationToken);
+
+        var eligibleCandidates = rankedCandidates
+            .Where(item => genreQualifiedKeys.Contains(new CatalogContentKey(item.Id, item.Type)))
+            .ToList();
+
+        if (eligibleCandidates.Count == 0)
+        {
+            return [];
+        }
+
         var animationGenreId = await genreReadRepository.GetIdByNameAsync(
             _options.HomeRailAnimationGenreName,
             cancellationToken);
 
         if (animationGenreId is null)
         {
-            return rankedCandidates.Take(sectionSize).ToList();
+            return eligibleCandidates.Take(sectionSize).ToList();
         }
 
         var animationContentKeys = await searchRepository.GetContentKeysWithGenreAsync(
-            rankedCandidates,
+            eligibleCandidates,
             animationGenreId.Value,
             cancellationToken);
 
         return TopRatedDiversityGuardrail.ApplyAnimationCap(
-            rankedCandidates,
+            eligibleCandidates,
             animationContentKeys,
             _options.HomeRailMaxAnimationItems,
             sectionSize);

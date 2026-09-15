@@ -27,6 +27,7 @@ public sealed class HomeService(
     [
         HomeSectionType.HotThisWeek,
         HomeSectionType.RecommendedForYou,
+        HomeSectionType.ComingUp,
         HomeSectionType.Trending,
         HomeSectionType.TopRated,
         HomeSectionType.NewReleases
@@ -63,6 +64,10 @@ public sealed class HomeService(
                 ct),
             cancellationToken);
 
+        var comingUpTask = RunScopedAsync(
+            (services, ct) => BuildComingUpSectionAsync(services, ct),
+            cancellationToken);
+
         var trendingTask = RunScopedAsync(
             (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
                 HomeSectionType.Trending,
@@ -90,6 +95,7 @@ public sealed class HomeService(
         await Task.WhenAll(
             recommendationSectionsTask,
             hotThisWeekTask,
+            comingUpTask,
             trendingTask,
             topRatedTask,
             newReleasesTask);
@@ -97,6 +103,7 @@ public sealed class HomeService(
         var recommendationSections = await recommendationSectionsTask;
         var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
 
+        var comingUpSection = await comingUpTask;
         var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
         {
             [HomeSectionType.HotThisWeek] = await hotThisWeekTask,
@@ -104,6 +111,11 @@ public sealed class HomeService(
             [HomeSectionType.TopRated] = await topRatedTask,
             [HomeSectionType.NewReleases] = await newReleasesTask
         };
+
+        if (comingUpSection.Items.Count > 0)
+        {
+            sectionsByType[HomeSectionType.ComingUp] = comingUpSection;
+        }
 
         if (isPersonalized)
         {
@@ -128,6 +140,25 @@ public sealed class HomeService(
             cancellationToken);
 
         return result;
+    }
+
+    private async Task<HomeSection> BuildComingUpSectionAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var items = await services
+            .GetRequiredService<IGetHomeComingUpService>()
+            .GetItemsAsync(_options.ComingUpSectionSize, cancellationToken);
+
+        var homeItems = items
+            .Select(HomeMapper.FromUpcomingItem)
+            .ToList();
+
+        return new HomeSection(
+            HomeSectionType.ComingUp,
+            "Coming Up",
+            homeItems,
+            0);
     }
 
     private static async Task<HomeSection> BuildTopRatedSectionAsync(

@@ -217,6 +217,47 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
     }
 
     [Fact]
+    public async Task GetFollowedTvUpcomingEpisodesAsync_LimitsResultsToRequestedCount()
+    {
+        await using var context = CreateContext();
+        for (var index = 0; index < 7; index++)
+        {
+            await SeedTvShowWithEpisodesAsync(
+                context,
+                followUserId: UserId,
+                title: $"Show {index}",
+                episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(index + 1), name: $"E{index}")]);
+        }
+
+        var repository = new CatalogFollowCatalogRepository(context);
+        var items = await repository.GetFollowedTvUpcomingEpisodesAsync(UserId, Today, 5);
+
+        Assert.Equal(5, items.Count);
+        Assert.All(items, item => Assert.Equal(CatalogUpcomingKind.TvEpisode, item.UpcomingKind));
+    }
+
+    [Fact]
+    public async Task GetFollowedTvUpcomingEpisodesAsync_OrdersNearestAirDateFirst()
+    {
+        await using var context = CreateContext();
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Later",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(10), name: "Later")]);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Sooner",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(2), name: "Sooner")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedTvUpcomingEpisodesAsync(UserId, Today, 5);
+
+        Assert.Equal(["Sooner", "Later"], items.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
     public async Task GetUpcomingCatalogAsync_ReturnsNextEpisodeForMultipleFollowedShowsInOneQuery()
     {
         await using var context = CreateContext();

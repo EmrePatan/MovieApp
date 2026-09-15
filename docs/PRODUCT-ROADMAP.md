@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (TV upcoming episodes v1)  
+**Last updated:** 2026-09-15 (Home Coming Up + Top Rated eligibility fix)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -39,11 +39,12 @@ Accepted information architecture — do not undo without an explicit product de
 **All users:**
 - Hot This Week hero (up to 5, TMDB weekly trending)
 - Trending Now (10, local catalog sort by vote count)
-- Top Rated (Bayesian-weighted catalog ranking)
+- Top Rated (Bayesian-weighted catalog ranking; requires ≥1 valid genre; final combined rail max 3 Animation / 10; may return fewer than requested rather than violate eligibility/diversity)
 - New Releases
 
 **Personalized (warm user):**
 - Recommended For You (10)
+- Coming Up (up to 5 followed TV upcoming episodes; omitted when empty)
 
 **Cold (low signal):**
 - Welcome
@@ -72,7 +73,7 @@ Do **not** create a new Library tab.
 
 ### Important IA decision (do not revert)
 
-Home owns the primary browse rails (Hot This Week hero, Recommended For You, Trending Now, Top Rated, New Releases). Search idle Explore keeps genre entry points only; filtered browse remains in Discover. Do **not** restore the old overloaded Home with Popular, Continue Watching, Because You Watched, and genre fanout rails.
+Home owns the primary browse rails (Hot This Week hero, Recommended For You, Coming Up, Trending Now, Top Rated, New Releases). Search idle Explore keeps genre entry points only; filtered browse remains in Discover. Do **not** restore the old overloaded Home with Popular, Continue Watching, Because You Watched, and genre fanout rails.
 
 ---
 
@@ -105,7 +106,7 @@ Home owns the primary browse rails (Hot This Week hero, Recommended For You, Tre
 - Hot This Week hero from TMDB weekly trending (`/trending/all/week`, movie + TV only, cached)
 - Recommended For You (10, independent from hero; Recommendation 2.1 unchanged)
 - Trending Now on Home (10, reuses existing local catalog trending via `IDiscoveryService.GetTrendingAsync`)
-- Top Rated (10, Bayesian-weighted catalog ranking; no provider calls; Home rail caps Animation catalog genre to 3 via post-ranking diversity)
+- Top Rated (10, Bayesian-weighted catalog ranking; no provider calls; requires ≥1 valid genre; final combined Home rail caps Animation catalog genre to max 3 via post-ranking diversity; may return fewer than 10 rather than violate eligibility/diversity)
 - New Releases on Home (10, existing regional-release semantics for movies)
 - Search idle cleanup (Trending Now moved to Home; Top Rated / New Releases browse rails removed from Search landing)
 
@@ -189,6 +190,22 @@ Follow-first per-episode upcoming intelligence on top of existing Catalog Follow
 **Mobile:** Profile → My Library → Upcoming screen (`/upcoming`); `UpcomingCard` episode UX (`Sxx Exx`, episode title, relative air date).
 
 **Migration:** `20260915134637_AddTvUpcomingEpisodeSync` (create only — do not assume applied on staging until deliberately migrated).
+
+## DONE — Home Coming Up (v1)
+
+Home presentation layer over existing followed-TV upcoming episode catalog data (no new provider pipeline).
+
+**Home composition order:**
+1. Hot This Week hero
+2. Recommended For You (personalized only)
+3. Coming Up (up to 5 followed TV upcoming episodes; DB-only; omitted when empty)
+4. Trending Now
+5. Top Rated
+6. New Releases
+
+**Semantics:** authenticated user; followed TV only; `AirDate > today`; null `AirDate` excluded; at most one next episode per followed show; nearest air date first; See All → existing `/upcoming`.
+
+**Mobile:** `HomeComingUpSection` / `HomeComingUpCard` on Home; card shows poster, show title, `Sxx Exx`, episode name, air date, relative label; tap → TV detail.
 
 ---
 
