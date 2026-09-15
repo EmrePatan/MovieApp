@@ -116,7 +116,9 @@ public sealed class PersonalizedRecommendationEngineTests
 
         Assert.Equal(6, diversified.Count);
         Assert.Equal(2, diversified.Take(2).Count(item => item.Candidate.GenreIds.Contains(SciFiGenreId)));
-        Assert.True(diversified.Skip(2).Any(item => item.Candidate.GenreIds.Contains(SciFiGenreId)));
+        Assert.Contains(
+            diversified.Skip(2),
+            item => item.Candidate.GenreIds.Contains(SciFiGenreId));
     }
 
     [Fact]
