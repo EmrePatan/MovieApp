@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Common;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Validation;
 
 namespace MovieApp.Infrastructure.Providers;
 
@@ -19,6 +20,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
     public const int DuplicateImdbMovieOneTmdbId = 930001;
     public const int DuplicateImdbMovieTwoTmdbId = 930002;
     public const string DuplicateImdbMovieImdbId = "tt9300001";
+    public const string PosterlessExternalId = "fake-tmdb-900050";
+    public const int PosterlessTmdbId = 900050;
+    public const string PosterlessTitle = "Posterless Title";
+
+    private const string InterstellarTitleToken = "interstellar";
 
     private static readonly MovieProviderDetails InterstellarDetails = new(
         ExternalId: InterstellarExternalId,
@@ -36,6 +42,23 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
         VoteAverage: 8.7m,
         VoteCount: 25000,
         Genres: ["Adventure", "Drama", "Science Fiction"]);
+
+    private static readonly MovieProviderDetails PosterlessDetails = new(
+        ExternalId: PosterlessExternalId,
+        TmdbId: PosterlessTmdbId,
+        TvdbId: null,
+        ImdbId: "tt9000050",
+        Title: PosterlessTitle,
+        OriginalTitle: PosterlessTitle,
+        Overview: "A catalog item used to verify null poster handling.",
+        ReleaseDate: new DateOnly(2015, 5, 1),
+        RuntimeMinutes: 100,
+        PosterPath: null,
+        BackdropPath: null,
+        OriginalLanguage: "en",
+        VoteAverage: 5.0m,
+        VoteCount: 10,
+        Genres: ["Drama"]);
 
     private static readonly IReadOnlyList<MovieProviderSummary> PagedCatalogSummaries =
         Enumerable.Range(1, PagedCatalogMovieCount)
@@ -79,24 +102,17 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult(CreatePagedResult(CreateDuplicateImdbSummaries(), page, pageSize));
         }
 
-        if (!normalizedQuery.Contains("interstellar", StringComparison.Ordinal))
+        if (MatchesCatalogTitle(normalizedQuery, QueryNormalizer.Normalize(PosterlessTitle)))
+        {
+            return Task.FromResult(CreatePagedResult([ToSummary(PosterlessDetails)], page, pageSize));
+        }
+
+        if (!MatchesCatalogTitle(normalizedQuery, InterstellarTitleToken))
         {
             return Task.FromResult(CreatePagedResult([], page, pageSize));
         }
 
-        var summary = new MovieProviderSummary(
-            InterstellarDetails.ExternalId,
-            InterstellarDetails.TmdbId,
-            InterstellarDetails.TvdbId,
-            InterstellarDetails.ImdbId,
-            InterstellarDetails.Title,
-            InterstellarDetails.Overview,
-            InterstellarDetails.ReleaseDate,
-            InterstellarDetails.PosterPath,
-            InterstellarDetails.VoteAverage,
-            InterstellarDetails.VoteCount);
-
-        return Task.FromResult(CreatePagedResult([summary], page, pageSize));
+        return Task.FromResult(CreatePagedResult([ToSummary(InterstellarDetails)], page, pageSize));
     }
 
     public Task<MovieProviderDetails?> GetMovieAsync(
@@ -106,6 +122,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
         if (string.Equals(externalId, InterstellarExternalId, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<MovieProviderDetails?>(InterstellarDetails);
+        }
+
+        if (string.Equals(externalId, PosterlessExternalId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<MovieProviderDetails?>(PosterlessDetails);
         }
 
         if (TryParsePagedCatalogExternalId(externalId, out var index))
@@ -125,6 +146,23 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
 
         return Task.FromResult<MovieProviderDetails?>(null);
     }
+
+    private static bool MatchesCatalogTitle(string normalizedQuery, string normalizedTitle) =>
+        normalizedQuery.Length >= AdvancedSearchValidator.MinimumQueryLength &&
+        normalizedTitle.Contains(normalizedQuery, StringComparison.Ordinal);
+
+    private static MovieProviderSummary ToSummary(MovieProviderDetails details) =>
+        new(
+            details.ExternalId,
+            details.TmdbId,
+            details.TvdbId,
+            details.ImdbId,
+            details.Title,
+            details.Overview,
+            details.ReleaseDate,
+            details.PosterPath,
+            details.VoteAverage,
+            details.VoteCount);
 
     private static MovieProviderSearchResult CreatePagedResult(
         IReadOnlyList<MovieProviderSummary> allResults,

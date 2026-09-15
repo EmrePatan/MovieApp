@@ -6,6 +6,20 @@ namespace MovieApp.UnitTests.Providers;
 public sealed class FakeTvShowDataProviderTests
 {
     [Fact]
+    public async Task SearchTvShowsAsyncReturnsBreakingBadForPartialQuery()
+    {
+        var provider = new FakeTvShowDataProvider(new TvShowDataProviderCallTracker());
+
+        var result = await provider.SearchTvShowsAsync(
+            "break",
+            SearchPaginationDefaults.DefaultPage,
+            SearchPaginationDefaults.DefaultPageSize);
+
+        Assert.Single(result.Results);
+        Assert.Equal("Breaking Bad", result.Results[0].Title);
+    }
+
+    [Fact]
     public async Task SearchTvShowsAsyncReturnsBreakingBadForNormalizedQuery()
     {
         var provider = new FakeTvShowDataProvider(new TvShowDataProviderCallTracker());

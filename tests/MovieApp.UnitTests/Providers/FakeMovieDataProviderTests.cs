@@ -6,6 +6,35 @@ namespace MovieApp.UnitTests.Providers;
 public sealed class FakeMovieDataProviderTests
 {
     [Fact]
+    public async Task SearchMoviesAsyncReturnsInterstellarForPartialQuery()
+    {
+        var provider = new FakeMovieDataProvider(new MovieDataProviderCallTracker());
+
+        var result = await provider.SearchMoviesAsync(
+            "inter",
+            MovieSearchPagination.DefaultPage,
+            MovieSearchPagination.DefaultPageSize);
+
+        Assert.Single(result.Results);
+        Assert.Equal("Interstellar", result.Results[0].Title);
+    }
+
+    [Fact]
+    public async Task SearchMoviesAsyncReturnsPosterlessTitleWithNullPosterPath()
+    {
+        var provider = new FakeMovieDataProvider(new MovieDataProviderCallTracker());
+
+        var result = await provider.SearchMoviesAsync(
+            "posterless",
+            MovieSearchPagination.DefaultPage,
+            MovieSearchPagination.DefaultPageSize);
+
+        Assert.Single(result.Results);
+        Assert.Equal(FakeMovieDataProvider.PosterlessTitle, result.Results[0].Title);
+        Assert.Null(result.Results[0].PosterPath);
+    }
+
+    [Fact]
     public async Task SearchMoviesAsyncReturnsInterstellarForNormalizedQuery()
     {
         var provider = new FakeMovieDataProvider(new MovieDataProviderCallTracker());

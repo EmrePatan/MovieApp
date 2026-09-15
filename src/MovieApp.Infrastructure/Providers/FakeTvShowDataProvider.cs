@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Common;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Validation;
 
 namespace MovieApp.Infrastructure.Providers;
 
@@ -12,6 +13,8 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
     public const string BreakingBadImdbId = "tt9003747";
     public const string PagedCatalogQueryToken = "paged-catalog";
     public const int PagedCatalogTvShowCount = 25;
+
+    private const string BreakingBadTitleToken = "breaking bad";
 
     private static readonly TvShowProviderDetails BreakingBadDetails = CreateBreakingBadDetails();
 
@@ -50,8 +53,7 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
             return Task.FromResult(CreatePagedResult(PagedCatalogSummaries, page, pageSize));
         }
 
-        if (!normalizedQuery.Contains("breaking", StringComparison.Ordinal) &&
-            !normalizedQuery.Contains("breaking bad", StringComparison.Ordinal))
+        if (!MatchesCatalogTitle(normalizedQuery, BreakingBadTitleToken))
         {
             return Task.FromResult(CreatePagedResult([], page, pageSize));
         }
@@ -226,6 +228,10 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
             StillPath: $"/fake/breaking-bad-s{seasonNumber}e{episodeNumber}.jpg",
             VoteAverage: voteAverage,
             VoteCount: voteCount);
+
+    private static bool MatchesCatalogTitle(string normalizedQuery, string normalizedTitle) =>
+        normalizedQuery.Length >= AdvancedSearchValidator.MinimumQueryLength &&
+        normalizedTitle.Contains(normalizedQuery, StringComparison.Ordinal);
 
     private static TvShowProviderSummary ToSummary(TvShowProviderDetails details) =>
         new(

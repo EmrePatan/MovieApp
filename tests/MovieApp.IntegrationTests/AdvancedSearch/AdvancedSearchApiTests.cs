@@ -67,20 +67,6 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
     {
         await fixture.ResetAsync();
 
-        await using var context = CreateContext();
-        var movieId = Guid.NewGuid();
-        context.Movies.Add(new MovieApp.Domain.Entities.Movie
-        {
-            Id = movieId,
-            Title = "Posterless Title",
-            PosterPath = null,
-            VoteAverage = 5,
-            VoteCount = 10,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-        });
-        await context.SaveChangesAsync();
-
         var response = await _client.GetAsync("/api/search/autocomplete?q=posterless");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
