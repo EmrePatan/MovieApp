@@ -23,4 +23,8 @@ internal sealed class SearchItemProjection
     public int VoteCount { get; init; }
 
     public int? Year { get; init; }
+
+    public int? TmdbId { get; init; }
+
+    public string? KnownForDepartment { get; init; }
 }

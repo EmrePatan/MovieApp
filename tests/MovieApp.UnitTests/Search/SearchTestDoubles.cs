@@ -5,6 +5,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
+using MovieApp.Infrastructure.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -189,6 +190,21 @@ internal static class SearchTestDoubles
             12000,
             1994);
 
+        private static readonly SearchItem PersonItem = new(
+            Guid.NewGuid(),
+            "person",
+            "Keanu Reeves",
+            null,
+            null,
+            "/keanu.jpg",
+            null,
+            null,
+            85m,
+            0,
+            null,
+            FakePersonDataProvider.KeanuReevesTmdbId,
+            "Acting");
+
         private int _ingestCount;
 
         public int IngestCount => _ingestCount;
@@ -224,22 +240,32 @@ internal static class SearchTestDoubles
 
             var movieRequired = criteria.Type is SearchContentType.Movie or SearchContentType.All;
             var tvRequired = criteria.Type is SearchContentType.Tv or SearchContentType.All;
+            var personRequiredForSuccess = criteria.Type is SearchContentType.Person;
+            var personAttempted = criteria.Type is SearchContentType.Person ||
+                (criteria.Type is SearchContentType.All && criteria.Page == 1);
             var movieSucceeded = movieRequired && MovieSucceeds;
             var tvSucceeded = tvRequired && TvSucceeds;
+            var personSucceeded = !personAttempted || !personRequiredForSuccess || MovieSucceeds;
 
             PaginatedResult<SearchItem>? result = null;
-            if (movieSucceeded || tvSucceeded)
+            if (movieSucceeded || tvSucceeded || personSucceeded)
             {
-                result = CreateProviderResult(criteria, movieSucceeded, tvSucceeded);
+                var includePerson = personSucceeded &&
+                    (criteria.Type is SearchContentType.Person ||
+                     (criteria.Type is SearchContentType.All && criteria.Page == 1));
+                result = CreateProviderResult(criteria, movieSucceeded, tvSucceeded, includePerson);
             }
 
             return new UnifiedSearchProviderIngestionResult(
                 movieRequired,
                 tvRequired,
+                personRequiredForSuccess,
                 movieRequired,
                 tvRequired,
+                personAttempted,
                 movieSucceeded,
                 tvSucceeded,
+                personSucceeded,
                 result);
         }
 
@@ -267,7 +293,8 @@ internal static class SearchTestDoubles
         private static PaginatedResult<SearchItem> CreateProviderResult(
             SearchCriteria criteria,
             bool includeMovie,
-            bool includeTv)
+            bool includeTv,
+            bool includePerson)
         {
             var title = QueryTitle(criteria.Query);
             var items = new List<SearchItem>();
@@ -282,11 +309,18 @@ internal static class SearchTestDoubles
                 items.Add(TvItem with { Id = Guid.NewGuid(), Title = title });
             }
 
+            if (includePerson)
+            {
+                items.Add(PersonItem with { Id = Guid.NewGuid(), Title = title });
+            }
+
             var totalCount = criteria.Type switch
             {
                 SearchContentType.Movie => includeMovie ? Math.Max(items.Count, 2) : 0,
                 SearchContentType.Tv => includeTv ? Math.Max(items.Count, 2) : 0,
-                _ => (includeMovie ? 2 : 0) + (includeTv ? 2 : 0)
+                SearchContentType.Person => includePerson ? Math.Max(items.Count, 1) : 0,
+                _ => (includeMovie ? 2 : 0) + (includeTv ? 2 : 0) +
+                     (includePerson && criteria.Page == 1 ? 1 : 0)
             };
 
             return new PaginatedResult<SearchItem>(
@@ -349,7 +383,10 @@ internal static class SearchTestDoubles
             return Task.FromResult(new UnifiedSearchProviderIngestionResult(
                 true,
                 true,
+                false,
                 true,
+                true,
+                false,
                 true,
                 true,
                 true,

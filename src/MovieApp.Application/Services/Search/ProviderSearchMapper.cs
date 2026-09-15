@@ -19,7 +19,8 @@ internal static class ProviderSearchMapper
             summary.ReleaseDate,
             summary.VoteAverage,
             summary.VoteCount,
-            summary.ReleaseDate?.Year);
+            summary.ReleaseDate?.Year,
+            summary.TmdbId);
 
     public static SearchItem ToSearchItem(TvShowProviderSummary summary, Guid id) =>
         new(
@@ -33,17 +34,36 @@ internal static class ProviderSearchMapper
             summary.FirstAirDate,
             summary.VoteAverage,
             summary.VoteCount,
-            summary.FirstAirDate?.Year);
+            summary.FirstAirDate?.Year,
+            summary.TmdbId);
+
+    public static SearchItem ToSearchItem(PersonProviderSummary summary, Guid id) =>
+        new(
+            id,
+            "person",
+            summary.Name,
+            null,
+            null,
+            summary.ProfilePath,
+            null,
+            null,
+            summary.Popularity,
+            0,
+            null,
+            summary.TmdbId,
+            summary.KnownForDepartment);
 
     public static SearchSuggestion ToSuggestion(SearchItem item) =>
-        new(item.Id, item.Type, item.Title, item.PosterUrl);
+        new(item.Id, item.Type, item.Title, item.PosterUrl, item.TmdbId, item.KnownForDepartment);
 
     public static PaginatedResult<SearchItem> MergeProviderResults(
         SearchCriteria criteria,
         MovieProviderSearchResult? movieResult,
         TvShowProviderSearchResult? tvResult,
+        PersonProviderSearchResult? personResult,
         IReadOnlyDictionary<int, Guid> movieIds,
-        IReadOnlyDictionary<int, Guid> tvIds)
+        IReadOnlyDictionary<int, Guid> tvIds,
+        IReadOnlyDictionary<int, Guid> personIds)
     {
         var items = new List<SearchItem>();
 
@@ -75,6 +95,19 @@ internal static class ProviderSearchMapper
             }
         }
 
+        if (personResult is not null)
+        {
+            foreach (var summary in personResult.Results)
+            {
+                if (!personIds.TryGetValue(summary.TmdbId, out var id))
+                {
+                    continue;
+                }
+
+                items.Add(ToSearchItem(summary, id));
+            }
+        }
+
         var normalizedQuery = string.IsNullOrWhiteSpace(criteria.Query)
             ? null
             : QueryNormalizer.Normalize(criteria.Query);
@@ -93,11 +126,17 @@ internal static class ProviderSearchMapper
                 tvResult?.Page ?? criteria.Page,
                 tvResult?.PageSize ?? criteria.PageSize,
                 tvResult?.TotalCount ?? 0),
-            _ => CreatePaginatedResult(
-                sortedItems.Take(criteria.PageSize).ToList(),
-                criteria.Page,
-                criteria.PageSize,
-                (movieResult?.TotalCount ?? 0) + (tvResult?.TotalCount ?? 0))
+            SearchContentType.Person => CreatePaginatedResult(
+                sortedItems,
+                personResult?.Page ?? criteria.Page,
+                personResult?.PageSize ?? criteria.PageSize,
+                personResult?.TotalCount ?? 0),
+            _ => CreateAllPaginatedResult(
+                sortedItems,
+                criteria,
+                movieResult?.TotalCount ?? 0,
+                tvResult?.TotalCount ?? 0,
+                personResult?.TotalCount ?? 0)
         };
     }
 
@@ -105,8 +144,10 @@ internal static class ProviderSearchMapper
         string query,
         MovieProviderSearchResult? movieResult,
         TvShowProviderSearchResult? tvResult,
+        PersonProviderSearchResult? personResult,
         IReadOnlyDictionary<int, Guid> movieIds,
         IReadOnlyDictionary<int, Guid> tvIds,
+        IReadOnlyDictionary<int, Guid> personIds,
         int limit)
     {
         var items = new List<SearchItem>();
@@ -139,12 +180,72 @@ internal static class ProviderSearchMapper
             }
         }
 
+        if (personResult is not null)
+        {
+            foreach (var summary in personResult.Results)
+            {
+                if (!personIds.TryGetValue(summary.TmdbId, out var id))
+                {
+                    continue;
+                }
+
+                items.Add(ToSearchItem(summary, id));
+            }
+        }
+
         var normalizedQuery = QueryNormalizer.Normalize(query);
 
         return ApplyRelevanceSort(items, normalizedQuery)
             .Take(limit)
             .Select(ToSuggestion)
             .ToList();
+    }
+
+    private static PaginatedResult<SearchItem> CreateAllPaginatedResult(
+        IReadOnlyList<SearchItem> sortedItems,
+        SearchCriteria criteria,
+        int movieTotalCount,
+        int tvTotalCount,
+        int personTotalCount)
+    {
+        var personLimit = criteria.Page == 1 ? PersonSearchDefaults.MaxMixedResults : 0;
+        var limitedItems = LimitMixedPersonResults(sortedItems, personLimit)
+            .Take(criteria.PageSize)
+            .ToList();
+
+        var personContribution = criteria.Page == 1
+            ? Math.Min(personTotalCount, PersonSearchDefaults.MaxMixedResults)
+            : 0;
+
+        return CreatePaginatedResult(
+            limitedItems,
+            criteria.Page,
+            criteria.PageSize,
+            movieTotalCount + tvTotalCount + personContribution);
+    }
+
+    private static IEnumerable<SearchItem> LimitMixedPersonResults(
+        IReadOnlyList<SearchItem> sortedItems,
+        int personLimit)
+    {
+        var personCount = 0;
+
+        foreach (var item in sortedItems)
+        {
+            if (item.Type != "person")
+            {
+                yield return item;
+                continue;
+            }
+
+            if (personCount >= personLimit)
+            {
+                continue;
+            }
+
+            personCount++;
+            yield return item;
+        }
     }
 
     private static PaginatedResult<SearchItem> CreatePaginatedResult(

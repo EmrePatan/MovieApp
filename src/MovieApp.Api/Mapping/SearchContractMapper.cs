@@ -16,23 +16,6 @@ public static class SearchContractMapper
             result.HasNextPage,
             result.HasPreviousPage);
 
-    public static SearchAutocompleteResponse ToAutocompleteResponse(IReadOnlyList<SearchSuggestion> items) =>
-        new(items.Select(item => new SearchAutocompleteItemResponse(
-            item.Id,
-            item.Type,
-            item.Title,
-            item.PosterUrl)).ToList());
-
-    public static SearchHistoryResponse ToSearchHistoryResponse(PaginatedResult<SearchHistoryItem> result) =>
-        new(
-            result.Items.Select(item => new SearchHistoryItemResponse(item.Id, item.Query, item.SearchedAt)).ToList(),
-            result.Page,
-            result.PageSize,
-            result.TotalCount,
-            result.TotalPages,
-            result.HasNextPage,
-            result.HasPreviousPage);
-
     private static SearchItemResponse ToSearchItemResponse(SearchItem item) =>
         new(
             item.Id,
@@ -45,5 +28,26 @@ public static class SearchContractMapper
             item.ReleaseDate,
             item.VoteAverage,
             item.VoteCount,
-            item.Year);
+            item.Year,
+            item.TmdbId,
+            item.KnownForDepartment);
+
+    public static SearchAutocompleteResponse ToAutocompleteResponse(IReadOnlyList<SearchSuggestion> items) =>
+        new(items.Select(item => new SearchAutocompleteItemResponse(
+            item.Id,
+            item.Type,
+            item.Title,
+            item.PosterUrl,
+            item.TmdbId,
+            item.KnownForDepartment)).ToList());
+
+    public static SearchHistoryResponse ToSearchHistoryResponse(PaginatedResult<SearchHistoryItem> result) =>
+        new(
+            result.Items.Select(item => new SearchHistoryItemResponse(item.Id, item.Query, item.SearchedAt)).ToList(),
+            result.Page,
+            result.PageSize,
+            result.TotalCount,
+            result.TotalPages,
+            result.HasNextPage,
+            result.HasPreviousPage);
 }

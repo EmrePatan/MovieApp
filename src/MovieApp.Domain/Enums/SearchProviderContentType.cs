@@ -4,5 +4,6 @@ public enum SearchProviderContentType
 {
     All,
     Movie,
-    Tv
+    Tv,
+    Person
 }

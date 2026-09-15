@@ -61,7 +61,39 @@ internal static class SearchQueryBuilder
             ReleaseDate = movie.ReleaseDate,
             VoteAverage = movie.VoteAverage,
             VoteCount = movie.VoteCount,
-            Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null
+            Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null,
+            TmdbId = movie.TmdbId
+        });
+    }
+
+    public static IQueryable<SearchItemProjection> BuildPersonQuery(
+        ApplicationDbContext dbContext,
+        SearchCriteria criteria,
+        string? normalizedQuery)
+    {
+        var query = dbContext.People.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(normalizedQuery))
+        {
+            query = query.Where(person =>
+                EF.Functions.ILike(person.Name, $"%{normalizedQuery}%"));
+        }
+
+        return query.Select(person => new SearchItemProjection
+        {
+            Id = person.Id,
+            Type = "person",
+            Title = person.Name,
+            OriginalTitle = null,
+            Overview = null,
+            PosterUrl = person.ProfilePath,
+            BackdropUrl = null,
+            ReleaseDate = null,
+            VoteAverage = 0,
+            VoteCount = 0,
+            Year = null,
+            TmdbId = person.TmdbId,
+            KnownForDepartment = null
         });
     }
 
@@ -120,7 +152,8 @@ internal static class SearchQueryBuilder
             ReleaseDate = tvShow.FirstAirDate,
             VoteAverage = tvShow.VoteAverage,
             VoteCount = tvShow.VoteCount,
-            Year = tvShow.FirstAirDate.HasValue ? tvShow.FirstAirDate.Value.Year : null
+            Year = tvShow.FirstAirDate.HasValue ? tvShow.FirstAirDate.Value.Year : null,
+            TmdbId = tvShow.TmdbId
         });
     }
 
@@ -134,8 +167,10 @@ internal static class SearchQueryBuilder
         {
             SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, normalizedQuery, genreName),
             SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, normalizedQuery, genreName),
+            SearchContentType.Person => BuildPersonQuery(dbContext, criteria, normalizedQuery),
             _ => BuildMovieQuery(dbContext, criteria, normalizedQuery, genreName)
                 .Concat(BuildTvShowQuery(dbContext, criteria, normalizedQuery, genreName))
+                .Concat(BuildPersonQuery(dbContext, criteria, normalizedQuery))
         };
     }
 

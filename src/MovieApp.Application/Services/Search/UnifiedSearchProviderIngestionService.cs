@@ -10,8 +10,10 @@ namespace MovieApp.Application.Services.Search;
 public sealed class UnifiedSearchProviderIngestionService(
     IMovieDataProvider movieDataProvider,
     ITvShowDataProvider tvShowDataProvider,
+    IPersonDataProvider personDataProvider,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
+    IPersonRepository personRepository,
     ILogger<UnifiedSearchProviderIngestionService> logger) : IUnifiedSearchProviderIngestionService
 {
     public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(
@@ -26,25 +28,37 @@ public sealed class UnifiedSearchProviderIngestionService(
         var query = QueryNormalizer.CollapseWhitespace(criteria.Query);
         var movieRequired = criteria.Type is SearchContentType.Movie or SearchContentType.All;
         var tvRequired = criteria.Type is SearchContentType.Tv or SearchContentType.All;
+        var personRequired = criteria.Type is SearchContentType.Person ||
+            (criteria.Type is SearchContentType.All && criteria.Page == 1);
+        var personRequiredForSuccess = criteria.Type is SearchContentType.Person;
 
         MovieProviderSearchResult? movieSearchResult = null;
         TvShowProviderSearchResult? tvSearchResult = null;
+        PersonProviderSearchResult? personSearchResult = null;
         var movieAttempted = false;
         var movieSucceeded = false;
         var tvAttempted = false;
         var tvSucceeded = false;
+        var personAttempted = false;
+        var personSucceeded = false;
 
-        if (movieRequired && tvRequired)
+        if (criteria.Type == SearchContentType.All)
         {
-            movieAttempted = true;
-            tvAttempted = true;
+            movieAttempted = movieRequired;
+            tvAttempted = tvRequired;
+            personAttempted = personRequired;
 
             var movieTask = SearchMoviesSafeAsync(query, criteria, cancellationToken);
             var tvTask = SearchTvShowsSafeAsync(query, criteria, cancellationToken);
-            await Task.WhenAll(movieTask, tvTask);
+            var personTask = personRequired
+                ? SearchPersonsSafeAsync(query, criteria, cancellationToken)
+                : Task.FromResult<(PersonProviderSearchResult?, bool)>((null, true));
+
+            await Task.WhenAll(movieTask, tvTask, personTask);
 
             (movieSearchResult, movieSucceeded) = await movieTask;
             (tvSearchResult, tvSucceeded) = await tvTask;
+            (personSearchResult, personSucceeded) = await personTask;
         }
         else if (movieRequired)
         {
@@ -56,14 +70,22 @@ public sealed class UnifiedSearchProviderIngestionService(
             tvAttempted = true;
             (tvSearchResult, tvSucceeded) = await SearchTvShowsSafeAsync(query, criteria, cancellationToken);
         }
+        else if (personRequired)
+        {
+            personAttempted = true;
+            (personSearchResult, personSucceeded) = await SearchPersonsSafeAsync(query, criteria, cancellationToken);
+        }
 
         var ingestionResult = new UnifiedSearchProviderIngestionResult(
             movieRequired,
             tvRequired,
+            personRequiredForSuccess,
             movieAttempted,
             tvAttempted,
+            personAttempted,
             movieSucceeded,
-            tvSucceeded);
+            tvSucceeded,
+            personSucceeded);
 
         if (!ingestionResult.IsFullySuccessful)
         {
@@ -72,6 +94,7 @@ public sealed class UnifiedSearchProviderIngestionService(
 
         IReadOnlyDictionary<int, Guid> movieIds = new Dictionary<int, Guid>();
         IReadOnlyDictionary<int, Guid> tvIds = new Dictionary<int, Guid>();
+        IReadOnlyDictionary<int, Guid> personIds = new Dictionary<int, Guid>();
 
         if (movieSearchResult is not null)
         {
@@ -87,12 +110,21 @@ public sealed class UnifiedSearchProviderIngestionService(
                 cancellationToken);
         }
 
+        if (personSearchResult is not null)
+        {
+            personIds = await personRepository.EnsureFromSummariesAsync(
+                personSearchResult.Results,
+                cancellationToken);
+        }
+
         var result = ProviderSearchMapper.MergeProviderResults(
             criteria,
             movieSearchResult,
             tvSearchResult,
+            personSearchResult,
             movieIds,
-            tvIds);
+            tvIds,
+            personIds);
 
         UnifiedSearchProviderIngestionLogMessages.LogProviderSearchSucceeded(
             logger,
@@ -121,11 +153,17 @@ public sealed class UnifiedSearchProviderIngestionService(
             1,
             limit,
             cancellationToken);
+        var personSearchTask = personDataProvider.SearchPersonsAsync(
+            collapsedQuery,
+            1,
+            limit,
+            cancellationToken);
 
-        await Task.WhenAll(movieSearchTask, tvSearchTask);
+        await Task.WhenAll(movieSearchTask, tvSearchTask, personSearchTask);
 
         var movieSearchResult = await movieSearchTask;
         var tvSearchResult = await tvSearchTask;
+        var personSearchResult = await personSearchTask;
 
         var movieIds = await movieRepository.EnsureFromSummariesAsync(
             movieSearchResult.Results,
@@ -135,12 +173,18 @@ public sealed class UnifiedSearchProviderIngestionService(
             tvSearchResult.Results,
             cancellationToken);
 
+        var personIds = await personRepository.EnsureFromSummariesAsync(
+            personSearchResult.Results,
+            cancellationToken);
+
         var suggestions = ProviderSearchMapper.MergeAutocompleteSuggestions(
             query,
             movieSearchResult,
             tvSearchResult,
+            personSearchResult,
             movieIds,
             tvIds,
+            personIds,
             limit);
 
         UnifiedSearchProviderIngestionLogMessages.LogAutocompleteProviderSucceeded(
@@ -193,6 +237,35 @@ public sealed class UnifiedSearchProviderIngestionService(
         catch (Exception exception)
         {
             UnifiedSearchProviderIngestionLogMessages.LogTvSearchFailed(
+                logger,
+                query,
+                criteria.Page,
+                exception);
+            return (null, false);
+        }
+    }
+
+    private async Task<(PersonProviderSearchResult? Result, bool Succeeded)> SearchPersonsSafeAsync(
+        string query,
+        SearchCriteria criteria,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pageSize = criteria.Type == SearchContentType.All
+                ? PersonSearchDefaults.MaxMixedResults
+                : criteria.PageSize;
+
+            var result = await personDataProvider.SearchPersonsAsync(
+                query,
+                criteria.Page,
+                pageSize,
+                cancellationToken);
+            return (result, true);
+        }
+        catch (Exception exception)
+        {
+            UnifiedSearchProviderIngestionLogMessages.LogPersonSearchFailed(
                 logger,
                 query,
                 criteria.Page,

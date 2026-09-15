@@ -53,4 +53,14 @@ internal static partial class UnifiedSearchProviderIngestionLogMessages
         ILogger logger,
         string query,
         int suggestionCount);
+
+    [LoggerMessage(
+        EventId = 6,
+        Level = LogLevel.Warning,
+        Message = "Unified search person provider search failed for query {Query} page {Page}.")]
+    internal static partial void LogPersonSearchFailed(
+        ILogger logger,
+        string query,
+        int page,
+        Exception exception);
 }

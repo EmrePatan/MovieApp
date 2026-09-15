@@ -7,6 +7,41 @@ public sealed class FakePersonDataProvider : IPersonDataProvider
 {
     public const int McConaugheyTmdbId = 1001;
     public const int CranstonTmdbId = 2001;
+    public const int KeanuReevesTmdbId = 3001;
+    public const int ChristopherNolanTmdbId = 3002;
+    public const int ScarlettJohanssonTmdbId = 3003;
+
+    private static readonly IReadOnlyList<PersonProviderSummary> SearchCatalog =
+    [
+        new(KeanuReevesTmdbId, "Keanu Reeves", "/fake/keanu.jpg", "Acting", 85.4m),
+        new(ChristopherNolanTmdbId, "Christopher Nolan", "/fake/nolan.jpg", "Directing", 72.1m),
+        new(ScarlettJohanssonTmdbId, "Scarlett Johansson", "/fake/scarlett.jpg", "Acting", 68.9m),
+        new(McConaugheyTmdbId, "Matthew McConaughey", "/fake/cooper.jpg", "Acting", 55.2m),
+        new(CranstonTmdbId, "Bryan Cranston", "/fake/walter.jpg", "Acting", 49.7m)
+    ];
+
+    public Task<PersonProviderSearchResult> SearchPersonsAsync(
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedQuery = query.Trim();
+        var matches = SearchCatalog
+            .Where(summary => summary.Name.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var skip = Math.Max(0, (page - 1) * pageSize);
+        var pageItems = matches.Skip(skip).Take(pageSize).ToList();
+        var totalPages = matches.Count == 0 ? 0 : (int)Math.Ceiling(matches.Count / (double)pageSize);
+
+        return Task.FromResult(new PersonProviderSearchResult(
+            pageItems,
+            page,
+            pageSize,
+            matches.Count,
+            totalPages));
+    }
 
     public Task<PersonProviderDetails?> GetPersonAsync(int tmdbPersonId, CancellationToken cancellationToken = default)
     {
@@ -20,8 +55,42 @@ public sealed class FakePersonDataProvider : IPersonDataProvider
             return Task.FromResult<PersonProviderDetails?>(CreateCranston());
         }
 
+        if (tmdbPersonId == KeanuReevesTmdbId)
+        {
+            return Task.FromResult<PersonProviderDetails?>(CreateKeanu());
+        }
+
+        if (tmdbPersonId == ChristopherNolanTmdbId)
+        {
+            return Task.FromResult<PersonProviderDetails?>(CreateNolan());
+        }
+
         return Task.FromResult<PersonProviderDetails?>(null);
     }
+
+    private static PersonProviderDetails CreateKeanu() =>
+        new(
+            KeanuReevesTmdbId,
+            "Keanu Reeves",
+            "/fake/keanu.jpg",
+            "A Canadian actor known for action and sci-fi roles.",
+            new DateOnly(1964, 9, 2),
+            null,
+            "Beirut, Lebanon",
+            "Acting",
+            []);
+
+    private static PersonProviderDetails CreateNolan() =>
+        new(
+            ChristopherNolanTmdbId,
+            "Christopher Nolan",
+            "/fake/nolan.jpg",
+            "A British-American filmmaker known for complex narratives.",
+            new DateOnly(1970, 7, 30),
+            null,
+            "London, England, UK",
+            "Directing",
+            []);
 
     private static PersonProviderDetails CreateMcConaughey() =>
         new(

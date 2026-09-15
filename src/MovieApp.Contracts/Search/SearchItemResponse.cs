@@ -11,4 +11,6 @@ public sealed record SearchItemResponse(
     DateOnly? ReleaseDate,
     decimal VoteAverage,
     int VoteCount,
-    int? Year);
+    int? Year,
+    int? TmdbId = null,
+    string? KnownForDepartment = null);

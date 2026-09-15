@@ -68,7 +68,7 @@ public sealed class SearchServiceTests
 
         Assert.Equal(1, providerIngestion.IngestCount);
         Assert.Equal(0, repository.SearchCount);
-        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(3, result.Items.Count);
         Assert.Equal(1, cache.SetCount);
     }
 
@@ -84,7 +84,7 @@ public sealed class SearchServiceTests
 
         Assert.Equal(1, providerIngestion.IngestCount);
         Assert.Equal(0, repository.SearchCount);
-        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(3, result.Items.Count);
         Assert.Equal(1, cache.SetCount);
     }
 

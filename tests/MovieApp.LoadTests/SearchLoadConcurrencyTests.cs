@@ -477,10 +477,13 @@ internal sealed class LoadTestProviderIngestionService(int delayMs, bool provide
         return new UnifiedSearchProviderIngestionResult(
             true,
             true,
+            false,
             true,
             true,
+            false,
             providerSucceeds,
             providerSucceeds,
+            true,
             providerSucceeds
                 ? new PaginatedResult<SearchItem>(
                     [CreateItem("movie"), CreateItem("tv")],

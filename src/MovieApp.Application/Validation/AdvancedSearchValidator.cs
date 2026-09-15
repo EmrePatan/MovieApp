@@ -49,7 +49,7 @@ public static class AdvancedSearchValidator
 
         return TryParseType(type, out _)
             ? SearchQueryValidationResult.Success()
-            : SearchQueryValidationResult.Failure("Type must be one of: movie, tv, all.");
+            : SearchQueryValidationResult.Failure("Type must be one of: movie, tv, person, all.");
     }
 
     public static SearchQueryValidationResult ValidateSort(string? sort)
@@ -143,6 +143,9 @@ public static class AdvancedSearchValidator
                 return true;
             case "tv":
                 contentType = SearchContentType.Tv;
+                return true;
+            case "person":
+                contentType = SearchContentType.Person;
                 return true;
             case "all":
                 contentType = SearchContentType.All;

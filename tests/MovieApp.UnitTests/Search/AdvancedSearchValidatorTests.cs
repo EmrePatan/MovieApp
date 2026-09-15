@@ -74,6 +74,7 @@ public sealed class AdvancedSearchValidatorTests
     [Theory]
     [InlineData("movie", SearchContentType.Movie)]
     [InlineData("tv", SearchContentType.Tv)]
+    [InlineData("person", SearchContentType.Person)]
     [InlineData("all", SearchContentType.All)]
     public void TryParseTypeParsesKnownValues(string value, SearchContentType expected)
     {

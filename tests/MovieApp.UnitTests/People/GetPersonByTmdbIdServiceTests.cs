@@ -148,6 +148,12 @@ public sealed class GetPersonByTmdbIdServiceTests
                 UpdatedAt = DateTime.UtcNow
             });
         }
+
+        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+            IReadOnlyList<PersonProviderSummary> summaries,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(
+                summaries.ToDictionary(summary => summary.TmdbId, _ => Guid.NewGuid()));
     }
 
     private sealed class NoOpMovieRepository : IMovieRepository

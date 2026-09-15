@@ -5,6 +5,14 @@ namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 
 internal static class TmdbPersonMapper
 {
+    public static PersonProviderSummary ToSummary(TmdbPersonSearchResultJson result) =>
+        new(
+            result.Id,
+            string.IsNullOrWhiteSpace(result.Name) ? string.Empty : result.Name.Trim(),
+            TmdbMovieMapper.NormalizeImagePath(result.ProfilePath),
+            string.IsNullOrWhiteSpace(result.KnownForDepartment) ? null : result.KnownForDepartment.Trim(),
+            Convert.ToDecimal(result.Popularity));
+
     public static PersonProviderDetails ToPersonProviderDetails(
         TmdbPersonJson person,
         TmdbCombinedCreditsResponseJson combinedCredits) =>

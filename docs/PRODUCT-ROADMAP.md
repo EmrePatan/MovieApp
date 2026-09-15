@@ -366,7 +366,16 @@ Local similarity recommendations on movie/TV detail screens.
 - Cast/Crew preview and See All browsing
 - Lazy ingestion when selecting a catalog title from filmography
 
-**Not done:** Person Search (see NEXT). Person results are not part of catalog Search today.
+**Done:** Person Search — unified search and autocomplete include person results via TMDB `search/person` (max 3 persons on All page 1).
+
+---
+
+## DONE — Person search / Person 2.0
+
+- Unified search type `person` and mixed All results (max 3 persons on page 1)
+- TMDB person provider search with popularity-based relevance ranking
+- Autocomplete includes persons with `tmdbId` and `knownForDepartment`
+- Lazy person persistence via `EnsureFromSummariesAsync`
 
 ---
 
@@ -611,16 +620,6 @@ Trailers v1 remains DONE — do not reimplement trailers.
 
 ---
 
-## NEXT — Person search / Person 2.0
-
-**Future:**
-- Search Person
-- Richer biography / profile metadata
-
-Do not mix Person results into catalog Search without deliberate UX.
-
----
-
 ## BEFORE PRODUCTION — Observability / operations
 
 Mandatory before store launch. Need operational visibility for:
@@ -793,8 +792,8 @@ When implementation changes either document's truth, update the relevant documen
 3. **Recommendation 2.1** real-data validation **(IN PROGRESS)**
 4. **Regional Release v1** staging validation (migration, release-check, follow, upcoming)
 5. ~~**TV Upcoming Episodes / Airing**~~ **DONE (2026-09-15)**
-6. **Media Gallery**
-7. **Person Search / Person 2.0**
+6. ~~**Media Gallery**~~ **DONE**
+7. ~~**Person Search / Person 2.0**~~ **DONE**
 8. **Production observability / operations**
 9. **Fix and run** PostgreSQL integration suite
 10. **Production infrastructure** + launch rehearsal

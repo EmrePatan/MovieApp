@@ -83,6 +83,7 @@ public sealed class SearchProviderRefreshRepository(ApplicationDbContext dbConte
         {
             SearchContentType.Movie => SearchProviderContentType.Movie,
             SearchContentType.Tv => SearchProviderContentType.Tv,
+            SearchContentType.Person => SearchProviderContentType.Person,
             _ => SearchProviderContentType.All
         };
 }

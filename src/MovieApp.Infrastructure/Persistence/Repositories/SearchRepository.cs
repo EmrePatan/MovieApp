@@ -58,7 +58,13 @@ public sealed class SearchRepository(
             .ToListAsync(cancellationToken);
 
         return projections
-            .Select(item => new SearchSuggestion(item.Id, item.Type, item.Title, item.PosterUrl))
+            .Select(item => new SearchSuggestion(
+                item.Id,
+                item.Type,
+                item.Title,
+                item.PosterUrl,
+                item.TmdbId,
+                item.KnownForDepartment))
             .ToList();
     }
 
@@ -372,5 +378,7 @@ public sealed class SearchRepository(
             projection.ReleaseDate,
             projection.VoteAverage,
             projection.VoteCount,
-            projection.Year);
+            projection.Year,
+            projection.TmdbId,
+            projection.KnownForDepartment);
 }
