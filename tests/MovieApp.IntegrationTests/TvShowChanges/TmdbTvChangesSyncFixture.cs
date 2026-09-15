@@ -23,6 +23,11 @@ public sealed class TmdbTvChangesSyncFixture : IAsyncLifetime
         context.CatalogReleaseEvents.RemoveRange(context.CatalogReleaseEvents);
         context.TvShowCatalogSyncStates.RemoveRange(context.TvShowCatalogSyncStates);
         context.TmdbTvChangesSyncCheckpoints.RemoveRange(context.TmdbTvChangesSyncCheckpoints);
+        context.WatchedEpisodes.RemoveRange(context.WatchedEpisodes);
+        context.WatchedMovies.RemoveRange(context.WatchedMovies);
+        context.WatchlistItems.RemoveRange(context.WatchlistItems);
+        context.Watchlists.RemoveRange(context.Watchlists);
+        context.Favorites.RemoveRange(context.Favorites);
         context.CatalogFollows.RemoveRange(context.CatalogFollows);
         context.Episodes.RemoveRange(context.Episodes);
         context.Seasons.RemoveRange(context.Seasons);

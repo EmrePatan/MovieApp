@@ -7,6 +7,7 @@ using MovieApp.Contracts.Library;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.TvShows;
 using MovieApp.Contracts.Watchlists;
+using MovieApp.Infrastructure.Providers;
 
 namespace MovieApp.IntegrationTests.Library;
 
@@ -203,8 +204,7 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         await fixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync();
-        var firstMovieId = await SeedMovieAsync();
-        var secondMovieId = await SeedSecondMovieAsync();
+        var (firstMovieId, secondMovieId) = await SeedTwoDistinctMoviesAsync();
 
         await SendAuthorizedPostAsync($"/api/favorites/movies/{firstMovieId}", token);
         await SendAuthorizedPostAsync($"/api/favorites/movies/{secondMovieId}", token);
@@ -252,13 +252,14 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         return payload.Items[0].Id;
     }
 
-    private async Task<Guid> SeedSecondMovieAsync()
+    private async Task<(Guid FirstMovieId, Guid SecondMovieId)> SeedTwoDistinctMoviesAsync()
     {
-        var response = await _client.GetAsync("/api/movies/search?q=Inception");
+        var response = await _client.GetAsync(
+            $"/api/movies/search?q={FakeMovieDataProvider.PagedCatalogQueryToken}&page=1&pageSize=2");
         var payload = await response.Content.ReadFromJsonAsync<MovieSearchResponse>();
         Assert.NotNull(payload);
-        Assert.NotEmpty(payload.Items);
-        return payload.Items[0].Id;
+        Assert.True(payload.Items.Count >= 2, "Expected at least two catalog movies for pagination coverage.");
+        return (payload.Items[0].Id, payload.Items[1].Id);
     }
 
     private async Task<Guid> SeedTvShowAsync()

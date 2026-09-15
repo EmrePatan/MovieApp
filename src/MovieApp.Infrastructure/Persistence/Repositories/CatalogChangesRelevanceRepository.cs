@@ -19,7 +19,9 @@ public sealed class CatalogChangesRelevanceRepository(ApplicationDbContext dbCon
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        return rows.ToDictionary(row => row.TmdbId!.Value, row => row.Id);
+        return rows
+            .GroupBy(row => row.TmdbId!.Value)
+            .ToDictionary(group => group.Key, group => group.First().Id);
     }
 
     public async Task<IReadOnlyDictionary<int, Guid>> GetRelevantTvShowIdsByTmdbIdAsync(
@@ -34,7 +36,9 @@ public sealed class CatalogChangesRelevanceRepository(ApplicationDbContext dbCon
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        return rows.ToDictionary(row => row.TmdbId!.Value, row => row.Id);
+        return rows
+            .GroupBy(row => row.TmdbId!.Value)
+            .ToDictionary(group => group.Key, group => group.First().Id);
     }
 
     private IQueryable<Guid> BuildRelevantMovieIdsQuery() =>
