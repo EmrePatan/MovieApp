@@ -670,11 +670,11 @@ Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODU
 
 ## BEFORE PRODUCTION — PostgreSQL integration suite
 
-**Status (2026-09-15):** **DONE** — Release IntegrationTests build is analyzer-clean; local PostgreSQL suite is fully green (**291 / 291**). Discover browse pagination is enforced at the merger boundary; Search/Home/Recommendation EF paths use deterministic ordering before `Take`/`Skip` and split-query projections where multiple collections are loaded.
+**Status (2026-09-15):** **DONE** — Release IntegrationTests build is analyzer-clean; local PostgreSQL suite is fully green (**308 / 308**). Discover browse pagination is enforced at the merger boundary; Search/Home/Recommendation EF paths use deterministic ordering before `Take`/`Skip` and split-query projections where multiple collections are loaded.
 
 - [x] Fix analyzer/build blockers without weakening analyzers
 - [x] Run PostgreSQL integration suite locally with Docker Compose
-- [x] Full suite green (291/291)
+- [x] Full suite green (308/308)
 - [x] Runtime EF query-quality cleanup (row limiting + multi-collection projections)
 - [ ] Establish clean production-rehearsal baseline
 
