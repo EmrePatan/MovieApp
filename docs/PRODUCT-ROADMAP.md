@@ -666,13 +666,12 @@ Do not claim dashboards or APM exist unless provisioned. Detailed checks: [PRODU
 
 ## BEFORE PRODUCTION — PostgreSQL integration suite
 
-**Status (2026-09-15):** Release analyzer/build blockers in `MovieApp.IntegrationTests` are fixed (`1a5fb52`). Local PostgreSQL suite runs end-to-end; **284 / 285** tests pass on `75826f3`.
-
-**Remaining gate:** `DiscoverBrowseApiTests.BrowseSupportsMovieOnlyModeAndPaginationMetadata` fails — discover browse returns two Fake catalog movies when `pageSize=1` (product pagination defect in single-type browse path). Fix product behavior before marking the full suite DONE.
+**Status (2026-09-15):** **DONE** — Release IntegrationTests build is analyzer-clean; local PostgreSQL suite is fully green (**291 / 291**). Discover browse pagination is enforced at the merger boundary; Search/Home/Recommendation EF paths use deterministic ordering before `Take`/`Skip` and split-query projections where multiple collections are loaded.
 
 - [x] Fix analyzer/build blockers without weakening analyzers
 - [x] Run PostgreSQL integration suite locally with Docker Compose
-- [ ] Full suite green (284/285 — browse pagination defect)
+- [x] Full suite green (291/291)
+- [x] Runtime EF query-quality cleanup (row limiting + multi-collection projections)
 - [ ] Establish clean production-rehearsal baseline
 
 See [INTEGRATION-TESTS.md](./INTEGRATION-TESTS.md).
