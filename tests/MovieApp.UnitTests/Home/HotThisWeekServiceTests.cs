@@ -1,13 +1,11 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
-using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Configuration;
-using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
-using MovieApp.Domain.Entities;
+using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
@@ -30,10 +28,11 @@ public sealed class HotThisWeekServiceTests
     }
 
     [Fact]
-    public async Task GetItemsAsyncCachesTrendingResults()
+    public async Task GetItemsAsyncCachesCatalogTrendingResults()
     {
         var cache = new TrackingCacheService();
-        var service = CreateService(cache, new FakeTrendingWeekDataProvider());
+        var discovery = new RecordingDiscoveryService(CreateTrendingItems());
+        var service = CreateService(cache, discovery);
 
         var first = await service.GetItemsAsync(SearchContentType.All, 5);
         var second = await service.GetItemsAsync(SearchContentType.All, 5);
@@ -42,28 +41,117 @@ public sealed class HotThisWeekServiceTests
         Assert.Equal(first.Select(item => item.Id), second.Select(item => item.Id));
         Assert.Equal(2, cache.GetCount);
         Assert.Equal(1, cache.SetCount);
+        Assert.Equal(1, discovery.TrendingCallCount);
     }
 
     [Fact]
-    public async Task GetItemsAsyncReturnsEmptyWhenProviderFails()
+    public async Task GetItemsAsyncDoesNotInvokeTmdbTrendingProvider()
     {
-        var service = CreateService(new TrackingCacheService(), new ThrowingTrendingWeekDataProvider());
+        var discovery = new RecordingDiscoveryService(CreateTrendingItems());
+        var service = CreateService(new TrackingCacheService(), discovery);
+
+        var items = await service.GetItemsAsync(SearchContentType.All, 5);
+
+        Assert.Equal(3, items.Count);
+        Assert.Equal(1, discovery.TrendingCallCount);
+    }
+
+    [Fact]
+    public async Task GetItemsAsyncPopulatesHeroFromCatalogTrending()
+    {
+        var discovery = new RecordingDiscoveryService(CreateTrendingItems());
+        var service = CreateService(new TrackingCacheService(), discovery);
+
+        var items = await service.GetItemsAsync(SearchContentType.All, 2);
+
+        Assert.Equal(
+            ["Trending Movie One", "Trending Show One"],
+            items.Select(item => item.Title).ToList());
+        Assert.Equal(["movie", "tv"], items.Select(item => item.Type).ToList());
+    }
+
+    [Fact]
+    public async Task GetItemsAsyncReturnsEmptyWhenCatalogTrendingIsEmpty()
+    {
+        var discovery = new RecordingDiscoveryService([]);
+        var service = CreateService(new TrackingCacheService(), discovery);
 
         var items = await service.GetItemsAsync(SearchContentType.All, 5);
 
         Assert.Empty(items);
+        Assert.Equal(1, discovery.TrendingCallCount);
     }
 
     private static HotThisWeekService CreateService(
         ICacheService cache,
-        ITrendingWeekDataProvider provider) =>
+        IDiscoveryService discovery) =>
         new(
-            provider,
-            new SummaryMovieRepository(),
-            new SummaryTvShowRepository(),
+            discovery,
             cache,
-            Options.Create(new HomeOptions { HotThisWeekCacheTtlMinutes = 30 }),
-            NullLogger<HotThisWeekService>.Instance);
+            Options.Create(new HomeOptions { HotThisWeekCacheTtlMinutes = 30 }));
+
+    private static IReadOnlyList<SearchItem> CreateTrendingItems() =>
+    [
+        CreateSearchItem("movie", Guid.Parse("11111111-1111-1111-1111-111111111101"), "Trending Movie One"),
+        CreateSearchItem("tv", Guid.Parse("22222222-2222-2222-2222-222222222201"), "Trending Show One"),
+        CreateSearchItem("movie", Guid.Parse("11111111-1111-1111-1111-111111111102"), "Trending Movie Two"),
+    ];
+
+    private static SearchItem CreateSearchItem(string type, Guid id, string title) =>
+        new(id, type, title, null, null, "/poster.jpg", null, null, 8m, 100, null);
+
+    private sealed class RecordingDiscoveryService(IReadOnlyList<SearchItem> trendingItems) : IDiscoveryService
+    {
+        public int TrendingCallCount { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            TrendingCallCount++;
+
+            var items = trendingItems
+                .Where(item => MatchesType(item, criteria.Type))
+                .Take(criteria.PageSize)
+                .ToList();
+
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                items,
+                criteria.Page,
+                criteria.PageSize,
+                items.Count,
+                items.Count == 0 ? 0 : 1));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
+            string genreName,
+            DiscoveryCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        private static bool MatchesType(SearchItem item, SearchContentType type) =>
+            type switch
+            {
+                SearchContentType.Movie => item.Type == "movie",
+                SearchContentType.Tv => item.Type == "tv",
+                _ => item.Type is "movie" or "tv"
+            };
+    }
 
     private sealed class TrackingCacheService : ICacheService
     {
@@ -94,67 +182,6 @@ public sealed class HotThisWeekServiceTests
         {
             _entries.Remove(key);
             return Task.CompletedTask;
-        }
-    }
-
-    private sealed class ThrowingTrendingWeekDataProvider : ITrendingWeekDataProvider
-    {
-        public Task<IReadOnlyList<TrendingWeekProviderItem>> GetTrendingWeekAsync(
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("provider unavailable");
-    }
-
-    private sealed class SummaryMovieRepository : IMovieRepository
-    {
-        public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Movie> UpsertFromProviderAsync(
-            MovieProviderDetails details,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
-            IReadOnlyList<MovieProviderSummary> summaries,
-            CancellationToken cancellationToken = default)
-        {
-            var ids = summaries
-                .Where(summary => summary.TmdbId.HasValue)
-                .ToDictionary(
-                    summary => summary.TmdbId!.Value,
-                    summary => Guid.Parse($"11111111-1111-1111-1111-{summary.TmdbId!.Value:D012}"));
-
-            return Task.FromResult<IReadOnlyDictionary<int, Guid>>(ids);
-        }
-    }
-
-    private sealed class SummaryTvShowRepository : ITvShowRepository
-    {
-        public Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShow> UpsertFromProviderAsync(
-            TvShowProviderDetails details,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
-            IReadOnlyList<TvShowProviderSummary> summaries,
-            CancellationToken cancellationToken = default)
-        {
-            var ids = summaries
-                .Where(summary => summary.TmdbId.HasValue)
-                .ToDictionary(
-                    summary => summary.TmdbId!.Value,
-                    summary => Guid.Parse($"22222222-2222-2222-2222-{summary.TmdbId!.Value:D012}"));
-
-            return Task.FromResult<IReadOnlyDictionary<int, Guid>>(ids);
         }
     }
 }

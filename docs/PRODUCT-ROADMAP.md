@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Home Cold Start Optimization Phase 1)  
+**Last updated:** 2026-09-15 (Home Cold Start Optimization Phase 2)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -266,6 +266,13 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
 **Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
+
+## DONE — Home Cold Start Optimization Phase 2
+
+**Backend:**
+- HotThisWeek on Home now uses catalog trending (`IDiscoveryService.GetTrendingAsync`) only
+- Removed TMDB `trending/all/week` and synchronous catalog ingestion from `/api/home` critical path
+- HotThisWeek cache key bumped to **v2**
 
 ## DONE — Home Cold Start Optimization Phase 1
 
