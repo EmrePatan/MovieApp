@@ -8,6 +8,7 @@ using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Contracts.Credits;
 using MovieApp.Contracts.TvShows;
+using MovieApp.Contracts.Videos;
 using MovieApp.Contracts.WatchProviders;
 
 namespace MovieApp.Api.Controllers;
@@ -21,7 +22,8 @@ public sealed class TvShowsController(
     IGetSeasonService getSeasonService,
     IGetEpisodeService getEpisodeService,
     IGetTvShowCreditsService getTvShowCreditsService,
-    IGetTvShowWatchProvidersService getTvShowWatchProvidersService) : ControllerBase
+    IGetTvShowWatchProvidersService getTvShowWatchProvidersService,
+    IGetTvShowVideosService getTvShowVideosService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.TvSearch)]
@@ -113,6 +115,27 @@ public sealed class TvShowsController(
         {
             var credits = await getTvShowCreditsService.GetCreditsAsync(id, cancellationToken);
             return Ok(CreditsContractMapper.ToResponse(credits));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/videos")]
+    [ProducesResponseType(typeof(VideosResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<VideosResponse>> GetVideos(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var videos = await getTvShowVideosService.GetVideosAsync(id, cancellationToken);
+            return Ok(VideosContractMapper.ToResponse(videos));
         }
         catch (NotFoundException exception)
         {

@@ -7,6 +7,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Contracts.Credits;
 using MovieApp.Contracts.Movies;
+using MovieApp.Contracts.Videos;
 using MovieApp.Contracts.WatchProviders;
 
 namespace MovieApp.Api.Controllers;
@@ -18,7 +19,8 @@ public sealed class MoviesController(
     IGetMovieByIdService getMovieByIdService,
     IGetMovieByTmdbIdService getMovieByTmdbIdService,
     IGetMovieCreditsService getMovieCreditsService,
-    IGetMovieWatchProvidersService getMovieWatchProvidersService) : ControllerBase
+    IGetMovieWatchProvidersService getMovieWatchProvidersService,
+    IGetMovieVideosService getMovieVideosService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.MovieSearch)]
@@ -110,6 +112,27 @@ public sealed class MoviesController(
         {
             var credits = await getMovieCreditsService.GetCreditsAsync(id, cancellationToken);
             return Ok(CreditsContractMapper.ToResponse(credits));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/videos")]
+    [ProducesResponseType(typeof(VideosResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<VideosResponse>> GetVideos(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var videos = await getMovieVideosService.GetVideosAsync(id, cancellationToken);
+            return Ok(VideosContractMapper.ToResponse(videos));
         }
         catch (NotFoundException exception)
         {
