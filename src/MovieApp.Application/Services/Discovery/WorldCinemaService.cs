@@ -1,0 +1,81 @@
+using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Caching;
+using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Discovery;
+using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Search;
+using MovieApp.Application.Validation;
+
+namespace MovieApp.Application.Services.Discovery;
+
+public sealed class WorldCinemaService(
+    IAdvancedDiscoverService advancedDiscoverService,
+    ICacheService cacheService) : IWorldCinemaService
+{
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
+    private const int TopRatedMinimumVoteCount = 50;
+
+    public async Task<PaginatedResult<SearchItem>> GetWorldCinemaAsync(
+        WorldCinemaCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = WorldCinemaValidator.Validate(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        var cacheKey = WorldCinemaCacheKeys.Create(criteria);
+        var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
+        if (cachedEntry is not null)
+        {
+            return cachedEntry.Result;
+        }
+
+        PaginatedResult<SearchItem> result;
+        try
+        {
+            result = await advancedDiscoverService.DiscoverAsync(
+                ToAdvancedDiscoverCriteria(criteria),
+                cancellationToken);
+        }
+        catch (SearchProviderUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new SearchProviderUnavailableException();
+        }
+
+        await cacheService.SetAsync(
+            cacheKey,
+            new DiscoveryCacheEntry { Result = result },
+            CacheTtl,
+            cancellationToken);
+
+        return result;
+    }
+
+    internal static AdvancedDiscoverCriteria ToAdvancedDiscoverCriteria(WorldCinemaCriteria criteria) =>
+        new(
+            criteria.MediaType,
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            criteria.Sort == AdvancedDiscoverSort.RatingDesc ? TopRatedMinimumVoteCount : null,
+            null,
+            null,
+            null,
+            criteria.OriginCountry.Trim().ToUpperInvariant(),
+            null,
+            [],
+            [],
+            criteria.Sort,
+            criteria.Page,
+            criteria.PageSize);
+}

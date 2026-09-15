@@ -21,6 +21,7 @@ public sealed class DiscoveryController(
     IDiscoveryWatchProvidersService discoveryWatchProvidersService,
     INowInTheatersService nowInTheatersService,
     IOnTvThisWeekService onTvThisWeekService,
+    IWorldCinemaService worldCinemaService,
     IExplorePreviewService explorePreviewService) : ControllerBase
 {
     [HttpGet("explore-preview")]
@@ -180,6 +181,42 @@ public sealed class DiscoveryController(
         }
     }
 
+    [HttpGet("world-cinema")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<SearchResponse>> GetWorldCinema(
+        [FromQuery(Name = "mediaType")] string? mediaType,
+        [FromQuery(Name = "originCountry")] string? originCountry,
+        [FromQuery] string? sort,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var criteria = BuildWorldCinemaCriteria(mediaType, originCountry, sort, page, pageSize);
+            var result = await worldCinemaService.GetWorldCinemaAsync(criteria, cancellationToken);
+            return Ok(SearchContractMapper.ToSearchResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid world cinema request.",
+                exception.Message));
+        }
+        catch (SearchProviderUnavailableException)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                CreateProblemDetails(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "World cinema is temporarily unavailable.",
+                    "World cinema listings could not be loaded right now. Please try again."));
+        }
+    }
+
     [HttpGet("on-tv-this-week")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -311,6 +348,50 @@ public sealed class DiscoveryController(
                 "Invalid discovery browse request.",
                 exception.Message));
         }
+    }
+
+    private static WorldCinemaCriteria BuildWorldCinemaCriteria(
+        string? mediaType,
+        string? originCountry,
+        string? sort,
+        int? page,
+        int? pageSize)
+    {
+        var mediaTypeValidation = WorldCinemaValidator.ValidateMediaTypeValue(mediaType ?? "movie");
+        if (!mediaTypeValidation.IsValid)
+        {
+            throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+        }
+
+        var originCountryValidation = WorldCinemaValidator.ValidateRequiredOriginCountry(originCountry);
+        if (!originCountryValidation.IsValid)
+        {
+            throw new ValidationException(originCountryValidation.ErrorMessage!);
+        }
+
+        var sortValidation = WorldCinemaValidator.ValidateSortValue(sort);
+        if (!sortValidation.IsValid)
+        {
+            throw new ValidationException(sortValidation.ErrorMessage!);
+        }
+
+        _ = AdvancedSearchValidator.TryParseType(mediaType ?? "movie", out var contentType);
+        _ = AdvancedDiscoverValidator.TryParseSort(sort, out var discoverSort);
+
+        var criteria = new WorldCinemaCriteria(
+            contentType,
+            originCountry!.Trim(),
+            discoverSort,
+            page ?? SearchPaginationDefaults.DefaultPage,
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+
+        var validation = WorldCinemaValidator.Validate(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        return criteria;
     }
 
     private static OnTvThisWeekCriteria BuildOnTvThisWeekCriteria(int? page, int? pageSize)

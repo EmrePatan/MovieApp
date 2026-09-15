@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Discovery 2.0 D4 On TV This Week)  
+**Last updated:** 2026-09-15 (Discovery 2.0 D5 World Cinema)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -64,7 +64,7 @@ Home may still surface useful personalized library-derived sections (e.g. Contin
 First-class bottom tab for finding new content:
 - Global Search entry
 - **Explore with Filters** (D1 Advanced Discover) → `/advanced-discover`
-- Layout prepared for D5–D6 (World Cinema, Pick Something For Me) — placeholders only until those phases ship; D2 Streaming Services, D3 Now in Theaters, and D4 On TV This Week are live
+- Layout prepared for D6 (Pick Something For Me) — placeholder only until that phase ships; D2 Streaming Services, D3 Now in Theaters, D4 On TV This Week, and D5 World Cinema are live
 - Existing real discovery content (Trending, Top Rated, genres, New Releases browse)
 
 Filtered browse listing screens remain reachable from Discover, genres, See All, and deep links.
@@ -183,7 +183,7 @@ Provider-first discovery by **watch region** and streaming availability, reusing
 - Lazy summary ingestion unchanged (`EnsureFromSummariesAsync`); no schema change
 
 **Mobile:**
-- Discover hub **Streaming Services** entry active → `/streaming-discover` (D5–D6 remain coming-soon placeholders)
+- Discover hub **Streaming Services** entry active → `/streaming-discover` (D6 remains coming-soon placeholder)
 - Provider-first screen: watch region, multi-select providers (logos + names), Movies/TV toggle, availability types (Stream/Free/With Ads/Rent/Buy), optional min rating + sort, results via existing search cards with pagination and detail navigation
 - Advanced Discover filter sheet extended with optional Streaming section (watch region, providers, availability); D1 URLs remain valid
 - JustWatch attribution on Streaming Services screen (aligned with Where to Watch)
@@ -223,9 +223,30 @@ General TV discovery for shows with episodes airing soon — **not** personalize
 **Mobile:**
 - Discover hub **On TV This Week** preview carousel with See All, contained loading/error/empty states (failure isolated from other sections)
 - Full screen `/on-tv-this-week` with infinite pagination, pull-to-refresh, TV detail navigation with return-state preservation; TV only (no Movies/TV toggle, no region selector)
-- D5 World Cinema and D6 Pick Something For Me remain coming-soon placeholders
+- D6 Pick Something For Me remains coming-soon placeholder
 
-**Next Discovery 2.0 phase:** D5 World Cinema.
+## DONE — Discovery 2.0 D5 (World Cinema)
+
+Origin-country discovery for movies and TV — **content origin**, not streaming or theatrical availability.
+
+**Semantics:**
+- `originCountry` = ISO 3166-1 alpha-2 content origin (`with_origin_country` via D1 Advanced Discover)
+- Distinct from `watchRegion` (D2 streaming availability) and `releaseRegion` (D3 theatrical availability)
+- Not inferred from `originalLanguage` alone
+
+**Backend:**
+- `GET /api/discovery/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc&page=1&pageSize=20` — standard `SearchResponse`; unauthenticated
+- TMDB source: **`discover/movie`** or **`discover/tv`** with `with_origin_country={ISO_CODE}` (reuses D1 query translation)
+- Default sort `popularity_desc`; `rating_desc` applies existing `minVoteCount=50` quality guardrail
+- Cache key `discovery-world-cinema:{mediaType}:{originCountry}:{sort}:{page}:{pageSize}:v1`; TTL 30 minutes
+- Lazy summary ingestion via `EnsureFromSummariesAsync`; no schema change
+
+**Mobile:**
+- Discover hub **World Cinema** section: curated cinema chips (KR, JP, FR, IT, ES, IN, TR), default featured **Korean Cinema**, preview carousel, Explore action
+- Full screen `/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc` with Movies/TV toggle, `OriginCountrySelector`, compact sort (Popular / Top Rated / Newest), infinite pagination, pull-to-refresh, detail navigation with return-state preservation
+- D6 Pick Something For Me remains coming-soon placeholder
+
+**Next Discovery 2.0 phase:** D6 Pick Something For Me.
 
 ## DONE — Discovery 2.0 D1.5 (Navigation IA + Discover Hub + Global Search + Library Hub)
 
@@ -233,7 +254,7 @@ General TV discovery for shows with episodes airing soon — **not** personalize
 
 - Bottom navigation: **Home | Discover | Library | Profile**; Search and Watchlist hidden from tab bar (routes preserved)
 - Global Search entry component on Home and Discover → existing Search experience with origin-aware back
-- Discover hub with D1 **Explore with Filters**, D2 **Streaming Services**, D3 **Now in Theaters** preview, D4 **On TV This Week** preview, future D5–D6 placeholders (non-interactive), and existing Trending / Top Rated / genre browse
+- Discover hub with D1 **Explore with Filters**, D2 **Streaming Services**, D5 **World Cinema** preview, D3 **Now in Theaters** preview, D4 **On TV This Week** preview, future D6 placeholder (non-interactive), and existing Trending / Top Rated / genre browse
 - Library hub reusing profile statistics, Home Continue Watching, and existing Favorites / Watchlists / Following / History / Coming Up destinations
 - Premium library status accents for domain-backed watching (TV episode context) and summary counts; no invented movie playback progress
 - Profile demoted to account/settings with compact Library shortcut

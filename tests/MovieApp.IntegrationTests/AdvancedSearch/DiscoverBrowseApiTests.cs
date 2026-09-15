@@ -155,6 +155,59 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
     }
 
     [Fact]
+    public async Task WorldCinemaReturnsMovieResultsForOriginCountry()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync(
+            "/api/discovery/world-cinema?mediaType=movie&originCountry=KR&page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Items);
+        Assert.All(payload.Items, item => Assert.Equal("movie", item.Type));
+    }
+
+    [Fact]
+    public async Task WorldCinemaReturnsTvResultsForOriginCountry()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync(
+            "/api/discovery/world-cinema?mediaType=tv&originCountry=JP&page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Items);
+        Assert.All(payload.Items, item => Assert.Equal("tv", item.Type));
+    }
+
+    [Fact]
+    public async Task WorldCinemaMissingOriginCountryReturnsBadRequest()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/discovery/world-cinema?mediaType=movie");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdvancedDiscoverOriginCountryStillWorksAfterWorldCinema()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync(
+            "/api/discovery/advanced?mediaType=movie&originCountry=KR&page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Items);
+    }
+
+    [Fact]
     public async Task NowInTheatersInvalidReleaseRegionReturnsBadRequest()
     {
         await fixture.ResetAsync();
