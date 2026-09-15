@@ -236,7 +236,7 @@ Staging only — grow from **8.28%** toward **~25%** (~103 additional titles, ~4
 
 ### Recommendation invariant
 
-Recommendation execution must remain **0 TMDB keyword provider calls**. Backfill improves coverage asynchronously; recommendation cache expires naturally (personalized cache version `v3`).
+Recommendation execution must remain **0 TMDB keyword provider calls**. Backfill improves coverage asynchronously; recommendation cache expires naturally (personalized cache version `v4`).
 
 ---
 
@@ -249,9 +249,10 @@ Verified from `appsettings.json` and `RecommendationAlgorithmVersion`:
 | Data source | Local persisted keywords only |
 | Genre weight (primary semantic) | `Recommendations:PersonalizedGenreWeight` = **0.45** |
 | Keyword weight (secondary) | `Recommendations:PersonalizedKeywordWeight` = **0.15** |
-| Personalized cache version | **`v3`** (`RecommendationAlgorithmVersion.Personalized`) |
+| Personalized cache version | **`v4`** (`RecommendationAlgorithmVersion.Personalized`) |
 | Provider calls at recommendation time | **0** keyword calls |
 | Missing keyword metadata | Neutral (no penalty) |
+| Personalized behavior source metadata | Interacted source catalog `VoteAverage` + year; cast/person overlap excluded |
 | Backfill role | Improves coverage asynchronously; does not change scoring formula |
 
 - [ ] Production config preserves accepted weights above (unless intentionally changed in a new release)

@@ -522,8 +522,17 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(item => new KeywordRow(item.MovieId, item.KeywordId))
             .ToListAsync(cancellationToken);
 
+        var catalogRows = await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movieIds.Contains(movie.Id))
+            .Select(movie => new CatalogMetadataRow(
+                movie.Id,
+                movie.VoteAverage,
+                movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : (int?)null))
+            .ToListAsync(cancellationToken);
+
         return seeds
-            .Select(seed => CreateSignal(seed, genreRows, personRows, keywordRows))
+            .Select(seed => CreateSignal(seed, genreRows, personRows, keywordRows, catalogRows))
             .ToList();
     }
 
@@ -556,8 +565,17 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(item => new KeywordRow(item.TvShowId, item.KeywordId))
             .ToListAsync(cancellationToken);
 
+        var catalogRows = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShowIds.Contains(tvShow.Id))
+            .Select(tvShow => new CatalogMetadataRow(
+                tvShow.Id,
+                tvShow.VoteAverage,
+                tvShow.FirstAirDate.HasValue ? tvShow.FirstAirDate.Value.Year : (int?)null))
+            .ToListAsync(cancellationToken);
+
         return seeds
-            .Select(seed => CreateSignal(seed, genreRows, personRows, keywordRows))
+            .Select(seed => CreateSignal(seed, genreRows, personRows, keywordRows, catalogRows))
             .ToList();
     }
 
@@ -565,7 +583,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         SignalSeed seed,
         List<GenreRow> genreRows,
         List<PersonRow> personRows,
-        List<KeywordRow> keywordRows)
+        List<KeywordRow> keywordRows,
+        List<CatalogMetadataRow> catalogRows)
     {
         var genres = genreRows.Where(row => row.ContentId == seed.ContentId).ToList();
         var people = personRows.FirstOrDefault(row => row.ContentId == seed.ContentId)?.PersonIds ?? [];
@@ -574,6 +593,7 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(row => row.KeywordId)
             .Distinct()
             .ToList();
+        var catalog = catalogRows.FirstOrDefault(row => row.ContentId == seed.ContentId);
 
         return new UserBehaviorSignal(
             seed.ContentId,
@@ -586,6 +606,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             genres.ToDictionary(genre => genre.GenreId, genre => genre.GenreName),
             people)
         {
+            CatalogVoteAverage = catalog?.VoteAverage ?? 0m,
+            CatalogYear = catalog?.Year,
             KeywordIds = keywords
         };
     }
@@ -629,4 +651,6 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
     private sealed record PersonRow(Guid ContentId, List<Guid> PersonIds);
 
     private sealed record KeywordRow(Guid ContentId, Guid KeywordId);
+
+    private sealed record CatalogMetadataRow(Guid ContentId, decimal VoteAverage, int? Year);
 }

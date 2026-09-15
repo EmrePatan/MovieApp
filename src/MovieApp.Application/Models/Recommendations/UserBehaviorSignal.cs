@@ -11,5 +11,9 @@ public sealed record UserBehaviorSignal(
     IReadOnlyDictionary<Guid, string> GenreNames,
     IReadOnlyList<Guid> PersonIds)
 {
+    public decimal CatalogVoteAverage { get; init; }
+
+    public int? CatalogYear { get; init; }
+
     public IReadOnlyList<Guid> KeywordIds { get; init; } = [];
 }

@@ -124,6 +124,206 @@ public sealed class PersonalizedRecommendationEngineTests
     }
 
     [Fact]
+    public void ScoreCandidatesPrefersCloserCatalogVoteAverageForBehavior()
+    {
+        var sciFiGenre = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(
+                UserBehaviorSignalTypes.Favorite,
+                null,
+                UtcNow.AddDays(-2),
+                catalogVoteAverage: 8.0m,
+                catalogYear: 2014)
+        };
+
+        var closeVoteCandidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [SciFiGenreId],
+            sciFiGenre,
+            8.5m,
+            1000,
+            null,
+            year: 2014);
+        var distantVoteCandidate = CreateCandidate(
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            [SciFiGenreId],
+            sciFiGenre,
+            2.0m,
+            1000,
+            null,
+            year: 2014);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [closeVoteCandidate, distantVoteCandidate],
+            signals,
+            new Dictionary<Guid, (decimal Score, string Name)>(),
+            new Dictionary<Guid, decimal>(),
+            BehaviorOnlyOptions(),
+            UtcNow);
+
+        Assert.Equal(closeVoteCandidate.Id, scored[0].Candidate.Id);
+        Assert.True(scored[0].Score > scored[1].Score);
+    }
+
+    [Fact]
+    public void ScoreCandidatesUsesSourceCatalogYearForBehavior()
+    {
+        var sciFiGenre = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(
+                UserBehaviorSignalTypes.Favorite,
+                null,
+                UtcNow.AddDays(-2),
+                catalogVoteAverage: 8.0m,
+                catalogYear: 2014)
+        };
+
+        var closeYearCandidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [SciFiGenreId],
+            sciFiGenre,
+            8.0m,
+            1000,
+            null,
+            year: 2015);
+        var distantYearCandidate = CreateCandidate(
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            [SciFiGenreId],
+            sciFiGenre,
+            8.0m,
+            1000,
+            null,
+            year: 1960);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [closeYearCandidate, distantYearCandidate],
+            signals,
+            new Dictionary<Guid, (decimal Score, string Name)>(),
+            new Dictionary<Guid, decimal>(),
+            BehaviorOnlyOptions(),
+            UtcNow);
+
+        Assert.Equal(closeYearCandidate.Id, scored[0].Candidate.Id);
+        Assert.True(scored[0].Score > scored[1].Score);
+    }
+
+    [Fact]
+    public void ScoreCandidatesDoesNotUseUserRatingScoreAsCatalogVoteAverage()
+    {
+        var sciFiGenre = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(
+                UserBehaviorSignalTypes.Rating,
+                10,
+                UtcNow.AddDays(-2),
+                catalogVoteAverage: 4.0m,
+                catalogYear: 2014)
+        };
+
+        var catalogCloseCandidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [SciFiGenreId],
+            sciFiGenre,
+            4.5m,
+            1000,
+            null,
+            year: 2014);
+        var userRatingCloseCandidate = CreateCandidate(
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            [SciFiGenreId],
+            sciFiGenre,
+            9.5m,
+            1000,
+            null,
+            year: 2014);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [catalogCloseCandidate, userRatingCloseCandidate],
+            signals,
+            new Dictionary<Guid, (decimal Score, string Name)>(),
+            new Dictionary<Guid, decimal>(),
+            BehaviorOnlyOptions(),
+            UtcNow);
+
+        Assert.Equal(catalogCloseCandidate.Id, scored[0].Candidate.Id);
+    }
+
+    [Fact]
+    public void ScoreCandidatesTreatsMissingSourceYearAsNeutralForBehavior()
+    {
+        var sciFiGenre = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(
+                UserBehaviorSignalTypes.Favorite,
+                null,
+                UtcNow.AddDays(-2),
+                catalogVoteAverage: 8.0m,
+                catalogYear: null)
+        };
+
+        var recentYearCandidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [SciFiGenreId],
+            sciFiGenre,
+            8.0m,
+            1000,
+            null,
+            year: 2024);
+        var oldYearCandidate = CreateCandidate(
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            [SciFiGenreId],
+            sciFiGenre,
+            8.0m,
+            1000,
+            null,
+            year: 1970);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [recentYearCandidate, oldYearCandidate],
+            signals,
+            new Dictionary<Guid, (decimal Score, string Name)>(),
+            new Dictionary<Guid, decimal>(),
+            BehaviorOnlyOptions(),
+            UtcNow);
+
+        Assert.Equal(recentYearCandidate.Id, scored[0].Candidate.Id);
+        Assert.Equal(scored[0].Score, scored[1].Score);
+    }
+
+    [Fact]
+    public void ScoreCandidatesHandlesMissingCatalogMetadataSafely()
+    {
+        var sciFiGenre = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(UserBehaviorSignalTypes.Favorite, null, UtcNow.AddDays(-2))
+        };
+
+        var candidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [SciFiGenreId],
+            sciFiGenre,
+            8.0m,
+            1000,
+            null);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [candidate],
+            signals,
+            new Dictionary<Guid, (decimal Score, string Name)>(),
+            new Dictionary<Guid, decimal>(),
+            BehaviorOnlyOptions(),
+            UtcNow);
+
+        Assert.Single(scored);
+        Assert.True(scored[0].Score >= 0m);
+    }
+
+    [Fact]
     public void ApplyDiversityLimitsSameCollectionAndFillsRemainingRankedCandidates()
     {
         var collectionId = 42;
@@ -141,10 +341,22 @@ public sealed class PersonalizedRecommendationEngineTests
         Assert.Equal(3, diversified.Skip(2).Count(item => item.Candidate.TmdbCollectionId == collectionId));
     }
 
+    private static RecommendationOptions BehaviorOnlyOptions() =>
+        new()
+        {
+            PersonalizedGenreWeight = 0,
+            PersonalizedKeywordWeight = 0,
+            PersonalizedBehaviorWeight = 1,
+            PersonalizedPopularityWeight = 0,
+            PersonalizedRecencyWeight = 0
+        };
+
     private static UserBehaviorSignal CreateSignal(
         string signalType,
         int? rating,
-        DateTime? signalAtUtc) =>
+        DateTime? signalAtUtc,
+        decimal catalogVoteAverage = 0m,
+        int? catalogYear = null) =>
         new(
             Guid.NewGuid(),
             "movie",
@@ -154,7 +366,11 @@ public sealed class PersonalizedRecommendationEngineTests
             signalAtUtc,
             [SciFiGenreId],
             new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" },
-            []);
+            [])
+        {
+            CatalogVoteAverage = catalogVoteAverage,
+            CatalogYear = catalogYear
+        };
 
     private static PersonalizedCandidateProfile CreateCandidate(
         Guid id,
@@ -163,7 +379,8 @@ public sealed class PersonalizedRecommendationEngineTests
         decimal voteAverage,
         int voteCount,
         int? tmdbCollectionId,
-        IReadOnlyList<Guid>? personIds = null) =>
+        IReadOnlyList<Guid>? personIds = null,
+        int year = 2014) =>
         new(
             id,
             "movie",
@@ -172,10 +389,10 @@ public sealed class PersonalizedRecommendationEngineTests
             null,
             null,
             null,
-            new DateOnly(2014, 1, 1),
+            new DateOnly(year, 1, 1),
             voteAverage,
             voteCount,
-            2014,
+            year,
             genreIds,
             genreNames,
             personIds ?? [],

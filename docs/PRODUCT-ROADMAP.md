@@ -260,6 +260,7 @@ Keyword affinity added to personalized recommendations.
 - Persisted DB keyword data only
 - Cross-type Movie ↔ TV keyword affinity
 - Missing keyword metadata is neutral
+- Personalized behavior similarity compares interacted catalog titles to candidates using source catalog `VoteAverage` and release/air year (cast/person overlap remains excluded)
 - Source and candidate normalization, bounded 0..1
 - **0 TMDB/provider calls** during recommendation execution
 - No public API / mobile contract change for keywords
@@ -533,21 +534,17 @@ No need to drain the remaining **465** unsynced titles for validation. Full cata
 
 ---
 
-## IN PROGRESS — Recommendation 2.1 real-data validation
+## DONE — Recommendation 2.1 real-data validation (keyword affinity)
 
-**Active gate** (2026-09-15). Implementation and scoring are **DONE**; this is **quality validation on materially enriched staging data** (~24.5% keyword coverage), not infrastructure proof.
+Staging validation **PASS** (2026-09-15) on materially enriched data (~24.5% keyword coverage):
 
-When coverage is sufficient:
+- Keyword affinity works end-to-end and materially affects ranking
+- Shared-keyword contributions observed on real Home recommendations
+- Genre remains stronger than keyword influence (`0.45` > `0.15`) as designed
 
-- Inspect real Recommended For You results
-- Verify keyword affinity improves semantic relevance where expected
-- Compare sparse vs enriched catalog behavior
-- Confirm genre remains stronger than keyword influence (`0.45` > `0.15`)
-- Inspect cross-type recommendations and diversity
+**Follow-up fix (post-validation):** personalized behavior similarity now uses interacted source catalog `VoteAverage` and year when scoring via `SimilarityEngine` (previously hardcoded `0` / `null`, which inverted rating similarity). Cast/person overlap remains intentionally excluded. Personalized cache version bumped to **`v4`**.
 
-**Do not auto-tune** `0.45` / `0.15`. Only tune after real-data evidence. **NO CHANGE** is a valid outcome.
-
-**Not in scope:** Recommendation 2.2, coefficient changes, new recommendation architecture.
+**Not in scope:** Recommendation 2.2, coefficient auto-tuning, new recommendation architecture.
 
 ---
 

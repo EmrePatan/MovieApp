@@ -194,8 +194,8 @@ public static class PersonalizedRecommendationEngine
                 signal.GenreIds,
                 signal.GenreNames,
                 [],
-                0m,
-                null);
+                signal.CatalogVoteAverage,
+                signal.CatalogYear);
 
             var candidateProfile = new SimilarityCandidateProfile(
                 candidate.Id,

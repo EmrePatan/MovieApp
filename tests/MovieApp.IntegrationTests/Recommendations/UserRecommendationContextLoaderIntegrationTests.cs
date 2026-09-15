@@ -150,6 +150,35 @@ public sealed class UserRecommendationContextLoaderIntegrationTests
     }
 
     [Fact]
+    public async Task FavoriteSignalIncludesCatalogVoteAverageAndYear()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var userId = Guid.NewGuid();
+        var movie = CreateMovie(tmdbId: NextTmdbId());
+        context.Movies.Add(movie);
+        await SeedUserAsync(context, userId);
+
+        context.Favorites.Add(new Favorite
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            MovieId = movie.Id,
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var repository = new RecommendationRepository(context);
+        var recommendationContext = await repository.GetUserRecommendationContextAsync(userId);
+
+        var signal = Assert.Single(
+            recommendationContext.Signals,
+            item => item.ContentId == movie.Id && item.SignalType == UserBehaviorSignalTypes.Favorite);
+
+        Assert.Equal(movie.VoteAverage, signal.CatalogVoteAverage);
+        Assert.Equal(movie.ReleaseDate?.Year, signal.CatalogYear);
+    }
+
+    [Fact]
     public async Task ContextLoadingIsIsolatedPerUser()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
