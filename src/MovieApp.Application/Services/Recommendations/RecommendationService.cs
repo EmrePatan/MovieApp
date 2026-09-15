@@ -217,6 +217,10 @@ public sealed class RecommendationService(
             context.Signals,
             _options,
             utcNow);
+        var keywordPreferences = KeywordAffinityScorer.BuildKeywordPreferences(
+            context.Signals,
+            _options,
+            utcNow);
         var preferredGenreIds = genrePreferences.Keys.ToList();
 
         var candidates = await recommendationRepository.GetPersonalizedCandidatesAsync(
@@ -231,6 +235,7 @@ public sealed class RecommendationService(
             candidates,
             context.Signals,
             genrePreferences,
+            keywordPreferences,
             _options,
             utcNow);
 

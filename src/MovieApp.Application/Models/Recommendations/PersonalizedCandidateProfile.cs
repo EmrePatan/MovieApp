@@ -15,4 +15,7 @@ public sealed record PersonalizedCandidateProfile(
     IReadOnlyList<Guid> GenreIds,
     IReadOnlyDictionary<Guid, string> GenreNames,
     IReadOnlyList<Guid> PersonIds,
-    int? TmdbCollectionId);
+    int? TmdbCollectionId)
+{
+    public IReadOnlyList<Guid> KeywordIds { get; init; } = [];
+}

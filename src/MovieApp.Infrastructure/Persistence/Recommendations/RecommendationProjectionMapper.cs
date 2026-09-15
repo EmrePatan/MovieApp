@@ -32,8 +32,11 @@ internal static class RecommendationProjectionMapper
             ToGenreDictionary(projection.GenreIds, projection.GenreNames),
             projection.PersonIds);
 
-    internal static PersonalizedCandidateProfile ToPersonalizedCandidateProfile(RecommendationCandidateProjection projection) =>
-        new(
+    internal static PersonalizedCandidateProfile ToPersonalizedCandidateProfile(
+        RecommendationCandidateProjection projection,
+        IReadOnlyList<Guid>? keywordIds = null)
+    {
+        var profile = new PersonalizedCandidateProfile(
             projection.Id,
             projection.Type,
             projection.Title,
@@ -49,6 +52,14 @@ internal static class RecommendationProjectionMapper
             ToGenreDictionary(projection.GenreIds, projection.GenreNames),
             projection.PersonIds,
             projection.TmdbCollectionId);
+
+        if (keywordIds is { Count: > 0 })
+        {
+            return profile with { KeywordIds = keywordIds };
+        }
+
+        return profile;
+    }
 
     private static Dictionary<Guid, string> ToGenreDictionary(
         List<Guid> genreIds,

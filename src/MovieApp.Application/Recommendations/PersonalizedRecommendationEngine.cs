@@ -54,6 +54,7 @@ public static class PersonalizedRecommendationEngine
         IReadOnlyList<PersonalizedCandidateProfile> candidates,
         IReadOnlyList<UserBehaviorSignal> signals,
         IReadOnlyDictionary<Guid, (decimal Score, string Name)> genrePreferences,
+        IReadOnlyDictionary<Guid, decimal> keywordPreferences,
         RecommendationOptions options,
         DateTime utcNow)
     {
@@ -68,12 +69,14 @@ public static class PersonalizedRecommendationEngine
             .Select(candidate =>
             {
                 var genreScore = CalculateGenrePreferenceScore(candidate, genrePreferences);
+                var keywordScore = KeywordAffinityScorer.CalculateKeywordScore(candidate, keywordPreferences);
                 var behaviorScore = CalculateBehaviorSimilarity(candidate, positiveSignals, options);
                 var popularityScore = CalculatePopularityScore(candidate, maxVoteCount);
                 var recencyScore = SimilarityEngine.CalculateYearProximity(currentYear, candidate.Year);
 
                 var score = SimilarityEngine.RoundScore(
                     genreScore * (decimal)options.PersonalizedGenreWeight +
+                    keywordScore * (decimal)options.PersonalizedKeywordWeight +
                     behaviorScore * (decimal)options.PersonalizedBehaviorWeight +
                     popularityScore * (decimal)options.PersonalizedPopularityWeight +
                     recencyScore * (decimal)options.PersonalizedRecencyWeight);

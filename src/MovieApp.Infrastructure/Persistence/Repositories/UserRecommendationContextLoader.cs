@@ -516,8 +516,14 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(group => new PersonRow(group.Key, group.Select(person => person.PersonId).Take(MaxCastPeople).ToList()))
             .ToListAsync(cancellationToken);
 
+        var keywordRows = await dbContext.MovieKeywords
+            .AsNoTracking()
+            .Where(item => movieIds.Contains(item.MovieId))
+            .Select(item => new KeywordRow(item.MovieId, item.KeywordId))
+            .ToListAsync(cancellationToken);
+
         return seeds
-            .Select(seed => CreateSignal(seed, genreRows, personRows))
+            .Select(seed => CreateSignal(seed, genreRows, personRows, keywordRows))
             .ToList();
     }
 
@@ -544,18 +550,30 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(group => new PersonRow(group.Key, group.Select(person => person.PersonId).Take(MaxCastPeople).ToList()))
             .ToListAsync(cancellationToken);
 
+        var keywordRows = await dbContext.TvShowKeywords
+            .AsNoTracking()
+            .Where(item => tvShowIds.Contains(item.TvShowId))
+            .Select(item => new KeywordRow(item.TvShowId, item.KeywordId))
+            .ToListAsync(cancellationToken);
+
         return seeds
-            .Select(seed => CreateSignal(seed, genreRows, personRows))
+            .Select(seed => CreateSignal(seed, genreRows, personRows, keywordRows))
             .ToList();
     }
 
     private static UserBehaviorSignal CreateSignal(
         SignalSeed seed,
         List<GenreRow> genreRows,
-        List<PersonRow> personRows)
+        List<PersonRow> personRows,
+        List<KeywordRow> keywordRows)
     {
         var genres = genreRows.Where(row => row.ContentId == seed.ContentId).ToList();
         var people = personRows.FirstOrDefault(row => row.ContentId == seed.ContentId)?.PersonIds ?? [];
+        var keywords = keywordRows
+            .Where(row => row.ContentId == seed.ContentId)
+            .Select(row => row.KeywordId)
+            .Distinct()
+            .ToList();
 
         return new UserBehaviorSignal(
             seed.ContentId,
@@ -566,7 +584,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             seed.SignalAtUtc,
             genres.Select(genre => genre.GenreId).ToList(),
             genres.ToDictionary(genre => genre.GenreId, genre => genre.GenreName),
-            people);
+            people)
+        {
+            KeywordIds = keywords
+        };
     }
 
     private sealed record RatingRow(
@@ -606,4 +627,6 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
     private sealed record GenreRow(Guid ContentId, Guid GenreId, string GenreName);
 
     private sealed record PersonRow(Guid ContentId, List<Guid> PersonIds);
+
+    private sealed record KeywordRow(Guid ContentId, Guid KeywordId);
 }

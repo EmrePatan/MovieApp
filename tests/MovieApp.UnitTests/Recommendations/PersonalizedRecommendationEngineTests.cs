@@ -46,6 +46,7 @@ public sealed class PersonalizedRecommendationEngineTests
             candidates,
             signals,
             preferences,
+            new Dictionary<Guid, decimal>(),
             DefaultOptions,
             UtcNow);
 
@@ -93,6 +94,7 @@ public sealed class PersonalizedRecommendationEngineTests
             [withPerson, withoutPerson],
             signals,
             preferences,
+            new Dictionary<Guid, decimal>(),
             DefaultOptions,
             UtcNow);
 

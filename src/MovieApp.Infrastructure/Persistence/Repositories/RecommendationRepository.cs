@@ -205,22 +205,46 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
     {
         var candidates = new List<PersonalizedCandidateProfile>();
 
+        List<Guid> movieIds = [];
+        List<Guid> tvShowIds = [];
+
         if (type is RecommendationContentType.All or RecommendationContentType.Movie)
         {
-            var movieIds = await GetCandidateMovieIdsAsync(preferredGenreIds, excludedMovieIds, maxCandidates, cancellationToken);
+            movieIds = await GetCandidateMovieIdsAsync(preferredGenreIds, excludedMovieIds, maxCandidates, cancellationToken);
             var movieProjections = await LoadMovieProjectionsAsync(movieIds, cancellationToken);
-            candidates.AddRange(movieProjections.Select(RecommendationProjectionMapper.ToPersonalizedCandidateProfile));
+            candidates.AddRange(movieProjections.Select(projection =>
+                RecommendationProjectionMapper.ToPersonalizedCandidateProfile(projection)));
         }
 
         if (type is RecommendationContentType.All or RecommendationContentType.Tv)
         {
             var remaining = Math.Max(0, maxCandidates - candidates.Count);
-            var tvShowIds = await GetCandidateTvShowIdsAsync(preferredGenreIds, excludedTvShowIds, remaining, cancellationToken);
+            tvShowIds = await GetCandidateTvShowIdsAsync(preferredGenreIds, excludedTvShowIds, remaining, cancellationToken);
             var tvProjections = await LoadTvShowProjectionsAsync(tvShowIds, cancellationToken);
-            candidates.AddRange(tvProjections.Select(RecommendationProjectionMapper.ToPersonalizedCandidateProfile));
+            candidates.AddRange(tvProjections.Select(projection =>
+                RecommendationProjectionMapper.ToPersonalizedCandidateProfile(projection)));
         }
 
-        return candidates;
+        if (candidates.Count == 0)
+        {
+            return candidates;
+        }
+
+        var movieKeywordLookup = await LoadMovieKeywordIdsByCatalogIdsAsync(movieIds, cancellationToken);
+        var tvKeywordLookup = await LoadTvShowKeywordIdsByCatalogIdsAsync(tvShowIds, cancellationToken);
+
+        return candidates
+            .Select(candidate =>
+            {
+                var keywordIds = candidate.Type == "movie"
+                    ? movieKeywordLookup.GetValueOrDefault(candidate.Id)
+                    : tvKeywordLookup.GetValueOrDefault(candidate.Id);
+
+                return keywordIds is null || keywordIds.Count == 0
+                    ? candidate
+                    : candidate with { KeywordIds = keywordIds };
+            })
+            .ToList();
     }
 
     private async Task<List<Guid>> GetCandidateMovieIdsAsync(
@@ -372,5 +396,49 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
             .ToListAsync(cancellationToken);
 
         return tvShows;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>> LoadMovieKeywordIdsByCatalogIdsAsync(
+        List<Guid> movieIds,
+        CancellationToken cancellationToken)
+    {
+        if (movieIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<Guid>>();
+        }
+
+        var rows = await dbContext.MovieKeywords
+            .AsNoTracking()
+            .Where(item => movieIds.Contains(item.MovieId))
+            .Select(item => new { item.MovieId, item.KeywordId })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.MovieId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<Guid>)group.Select(row => row.KeywordId).Distinct().ToList());
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>> LoadTvShowKeywordIdsByCatalogIdsAsync(
+        List<Guid> tvShowIds,
+        CancellationToken cancellationToken)
+    {
+        if (tvShowIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<Guid>>();
+        }
+
+        var rows = await dbContext.TvShowKeywords
+            .AsNoTracking()
+            .Where(item => tvShowIds.Contains(item.TvShowId))
+            .Select(item => new { item.TvShowId, item.KeywordId })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.TvShowId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<Guid>)group.Select(row => row.KeywordId).Distinct().ToList());
     }
 }

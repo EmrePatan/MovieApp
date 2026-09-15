@@ -9,4 +9,7 @@ public sealed record UserBehaviorSignal(
     DateTime? SignalAtUtc,
     IReadOnlyList<Guid> GenreIds,
     IReadOnlyDictionary<Guid, string> GenreNames,
-    IReadOnlyList<Guid> PersonIds);
+    IReadOnlyList<Guid> PersonIds)
+{
+    public IReadOnlyList<Guid> KeywordIds { get; init; } = [];
+}

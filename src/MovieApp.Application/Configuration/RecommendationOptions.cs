@@ -20,6 +20,8 @@ public sealed class RecommendationOptions
 
     public double PersonalizedGenreWeight { get; set; } = 0.50;
 
+    public double PersonalizedKeywordWeight { get; set; } = 0.15;
+
     public double PersonalizedPersonWeight { get; set; }
 
     public double PersonalizedBehaviorWeight { get; set; } = 0.25;

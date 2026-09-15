@@ -61,6 +61,18 @@ public sealed class RecommendationQueryFanOutTests
     }
 
     [Fact]
+    public void RecommendationServiceDoesNotDependOnKeywordsProvider()
+    {
+        var parameterTypes = typeof(RecommendationService)
+            .GetConstructors()
+            .Single()
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType);
+
+        Assert.DoesNotContain(parameterTypes, type => type.Name.Contains("KeywordsProvider", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SimilarityBatchCallsDoNotScaleWithSignalCount()
     {
         var repository = new CountingRecommendationRepository();
