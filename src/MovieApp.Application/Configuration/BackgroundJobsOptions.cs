@@ -12,6 +12,8 @@ public sealed class BackgroundJobsOptions
 
     public bool MovieReleaseEnabled { get; set; } = true;
 
+    public bool TvUpcomingEpisodeSyncEnabled { get; set; } = true;
+
     public bool NotificationFanoutEnabled { get; set; } = true;
 
     public bool PushDeliveryEnabled { get; set; } = true;

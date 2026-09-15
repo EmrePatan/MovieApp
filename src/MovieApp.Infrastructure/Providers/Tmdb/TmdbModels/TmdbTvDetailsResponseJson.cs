@@ -30,6 +30,8 @@ internal sealed class TmdbTvDetailsResponseJson
 
     public List<TmdbTvSeasonSummaryJson> Seasons { get; set; } = [];
 
+    public TmdbNextEpisodeToAirJson? NextEpisodeToAir { get; set; }
+
     public TmdbExternalIdsJson? ExternalIds { get; set; }
 }
 

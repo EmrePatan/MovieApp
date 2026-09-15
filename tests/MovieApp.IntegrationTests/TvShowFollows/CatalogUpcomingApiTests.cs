@@ -93,10 +93,12 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
         Assert.Equal(2, payload.Items.Count);
         Assert.Equal(tvShowId, payload.Items[0].ContentId);
         Assert.Equal("Tv", payload.Items[0].ContentType);
+        Assert.Equal("TvShowPremiere", payload.Items[0].UpcomingKind);
         Assert.Equal(today.AddDays(5), payload.Items[0].ReleaseDate);
         Assert.False(payload.Items[0].IsFollowed);
         Assert.Equal(movieId, payload.Items[1].ContentId);
         Assert.Equal("Movie", payload.Items[1].ContentType);
+        Assert.Equal("MovieRelease", payload.Items[1].UpcomingKind);
         Assert.Equal(today.AddDays(10), payload.Items[1].ReleaseDate);
         Assert.False(payload.Items[1].IsFollowed);
     }
@@ -243,6 +245,72 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
         Assert.Equal(
             firstPayload.Items.Select(item => item.ContentId).ToList(),
             secondPayload.Items.Select(item => item.ContentId).ToList());
+    }
+
+    [Fact]
+    public async Task GetUpcomingCatalog_WhenAuthenticated_IncludesFollowedTvEpisode()
+    {
+        await fixture.ResetAsync();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var tvShowId = Guid.NewGuid();
+        var seasonId = Guid.NewGuid();
+        var episodeId = Guid.NewGuid();
+        var token = await RegisterAndGetTokenAsync("upcoming-episode-user");
+
+        await using (var context = TvShowFollowsApiFixture.CreateContext())
+        {
+            var utcNow = DateTime.UtcNow;
+            context.TvShows.Add(new TvShow
+            {
+                Id = tvShowId,
+                Title = "Followed Airing Show",
+                PosterPath = "/followed-show.jpg",
+                FirstAirDate = today.AddYears(-1),
+                Status = TvShowStatus.ReturningSeries,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+            context.Seasons.Add(new Season
+            {
+                Id = seasonId,
+                TvShowId = tvShowId,
+                SeasonNumber = 2,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+            context.Episodes.Add(new Episode
+            {
+                Id = episodeId,
+                SeasonId = seasonId,
+                EpisodeNumber = 3,
+                Name = "The Next One",
+                AirDate = today.AddDays(4),
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+
+            var user = await context.Users.SingleAsync(user => user.UserName == "upcoming-episode-user");
+            context.CatalogFollows.Add(CatalogFollow.CreateTvFollow(user.Id, tvShowId, true, true, utcNow));
+            await context.SaveChangesAsync();
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/catalog/upcoming?page=1&pageSize=10");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<CatalogUpcomingResponse>();
+        Assert.NotNull(payload);
+        var episode = Assert.Single(payload.Items);
+        Assert.Equal("TvEpisode", episode.UpcomingKind);
+        Assert.Equal(tvShowId, episode.ContentId);
+        Assert.Equal(episodeId, episode.EpisodeId);
+        Assert.Equal(2, episode.SeasonNumber);
+        Assert.Equal(3, episode.EpisodeNumber);
+        Assert.Equal("The Next One", episode.EpisodeName);
+        Assert.True(episode.IsFollowed);
     }
 
     [Fact]

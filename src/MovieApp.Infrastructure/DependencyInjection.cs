@@ -71,6 +71,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<CatalogKeywordBackfillOptions>, CatalogKeywordBackfillOptionsValidator>();
 
+        services.AddOptions<TvUpcomingEpisodeSyncOptions>()
+            .Bind(configuration.GetSection(TvUpcomingEpisodeSyncOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<TvUpcomingEpisodeSyncOptions>, TvUpcomingEpisodeSyncOptionsValidator>();
+
         services.AddOptions<ReleaseRegionOptions>()
             .Bind(configuration.GetSection(ReleaseRegionOptions.SectionName))
             .ValidateOnStart();
@@ -160,6 +166,7 @@ public static class DependencyInjection
         services.AddScoped<ITvShowFollowRepository, TvShowFollowRepository>();
 
         services.AddScoped<ICatalogFollowCatalogRepository, CatalogFollowCatalogRepository>();
+        services.AddScoped<ITvUpcomingEpisodeSyncRepository, TvUpcomingEpisodeSyncRepository>();
 
         services.AddScoped<ITvShowCatalogSyncStateRepository, TvShowCatalogSyncStateRepository>();
 

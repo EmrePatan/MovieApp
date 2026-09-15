@@ -113,11 +113,46 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         Assert.Contains(RecurringJobIds.CatalogKeywordBackfill, manager.Removed);
     }
 
+    [Fact]
+    public void RegisterRecurringJobs_WhenTvUpcomingEpisodeSyncEnabled_RegistersTvUpcomingEpisodeSyncJob()
+    {
+        var manager = new FakeRecurringJobManager();
+        var registrar = CreateRegistrar(
+            manager,
+            enabled: true,
+            pushEnabled: true,
+            tvUpcomingEpisodeSyncEnabled: true);
+
+        registrar.RegisterRecurringJobs();
+
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.TvUpcomingEpisodeSync &&
+                     entry.Cron == Cron.Hourly());
+    }
+
+    [Fact]
+    public void RegisterRecurringJobs_WhenTvUpcomingEpisodeSyncDisabled_RemovesTvUpcomingEpisodeSyncJob()
+    {
+        var manager = new FakeRecurringJobManager();
+        var registrar = CreateRegistrar(
+            manager,
+            enabled: true,
+            pushEnabled: true,
+            tvUpcomingEpisodeSyncEnabled: false);
+
+        registrar.RegisterRecurringJobs();
+
+        Assert.DoesNotContain(manager.AddedOrUpdated, entry => entry.JobId == RecurringJobIds.TvUpcomingEpisodeSync);
+        Assert.Contains(RecurringJobIds.TvUpcomingEpisodeSync, manager.Removed);
+    }
+
     private static HangfireRecurringBackgroundJobRegistrar CreateRegistrar(
         FakeRecurringJobManager manager,
         bool enabled,
         bool pushEnabled,
-        bool keywordBackfillEnabled = false) =>
+        bool keywordBackfillEnabled = false,
+        bool tvUpcomingEpisodeSyncEnabled = false) =>
         new(
             manager,
             Options.Create(new BackgroundJobsOptions
@@ -125,6 +160,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
                 Enabled = enabled,
                 TmdbChangesEnabled = true,
                 HotReleaseEnabled = true,
+                TvUpcomingEpisodeSyncEnabled = tvUpcomingEpisodeSyncEnabled,
                 NotificationFanoutEnabled = true,
                 PushDeliveryEnabled = true
             }),
@@ -136,5 +172,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             {
                 Enabled = keywordBackfillEnabled,
                 RecurringCron = "0 * * * *"
+            }),
+            Options.Create(new TvUpcomingEpisodeSyncOptions
+            {
+                Enabled = tvUpcomingEpisodeSyncEnabled
             }));
 }

@@ -14,6 +14,8 @@ public sealed class TvShowCatalogSyncState
 
     public DateTime? NextHotCheckAtUtc { get; set; }
 
+    public DateTime? LastUpcomingEpisodeSyncAtUtc { get; set; }
+
     public DateTime UpdatedAtUtc { get; set; }
 
     public TvShow TvShow { get; set; } = null!;

@@ -67,31 +67,46 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
                 ? regionalRelease.EffectiveReleaseDate
                 : movie.ReleaseDate
             where effectiveReleaseDate != null && effectiveReleaseDate > today
-            select new
-            {
-                ContentId = movie.Id,
-                ContentType = CatalogContentType.Movie,
-                Title = movie.Title,
-                PosterPath = movie.PosterPath,
-                ReleaseDate = effectiveReleaseDate!.Value
-            };
+            select new UpcomingCatalogRow(
+                movie.Id,
+                CatalogContentType.Movie,
+                CatalogUpcomingKind.MovieRelease,
+                movie.Title,
+                movie.PosterPath,
+                effectiveReleaseDate!.Value,
+                null,
+                null,
+                null,
+                null);
 
         var tvQuery =
             from tvShow in dbContext.TvShows.AsNoTracking()
             where tvShow.FirstAirDate != null && tvShow.FirstAirDate > today
-            select new
-            {
-                ContentId = tvShow.Id,
-                ContentType = CatalogContentType.Tv,
-                Title = tvShow.Title,
-                PosterPath = tvShow.PosterPath,
-                ReleaseDate = tvShow.FirstAirDate!.Value
-            };
+            select new UpcomingCatalogRow(
+                tvShow.Id,
+                CatalogContentType.Tv,
+                CatalogUpcomingKind.TvShowPremiere,
+                tvShow.Title,
+                tvShow.PosterPath,
+                tvShow.FirstAirDate!.Value,
+                null,
+                null,
+                null,
+                null);
 
         var movieCount = await movieQuery.CountAsync(cancellationToken);
         var tvCount = await tvQuery.CountAsync(cancellationToken);
-        var totalCount = movieCount + tvCount;
 
+        IReadOnlyList<UpcomingCatalogRow> episodeRows = [];
+        var episodeCount = 0;
+
+        if (userId.HasValue)
+        {
+            episodeRows = await GetFollowedTvNextEpisodeRowsAsync(userId.Value, today, cancellationToken);
+            episodeCount = episodeRows.Count;
+        }
+
+        var totalCount = movieCount + tvCount + episodeCount;
         var fetchCount = Math.Min(totalCount, ((page - 1) * pageSize) + pageSize);
         var skip = (page - 1) * pageSize;
 
@@ -111,11 +126,20 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
                 .Take(fetchCount)
                 .ToListAsync(cancellationToken);
 
+        var orderedEpisodeRows = episodeRows
+            .OrderBy(item => item.ReleaseDate)
+            .ThenBy(item => item.ContentId)
+            .Take(fetchCount)
+            .ToList();
+
         var rows = movieRows
             .Concat(tvRows)
+            .Concat(orderedEpisodeRows)
             .OrderBy(item => item.ReleaseDate)
+            .ThenBy(item => item.UpcomingKind)
             .ThenBy(item => item.ContentType)
             .ThenBy(item => item.ContentId)
+            .ThenBy(item => item.EpisodeId)
             .Skip(skip)
             .Take(pageSize)
             .ToList();
@@ -124,10 +148,15 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
             .Select(row => new CatalogUpcomingItemResult(
                 row.ContentId,
                 row.ContentType,
+                row.UpcomingKind,
                 row.Title,
                 row.PosterPath,
                 row.ReleaseDate,
-                false))
+                row.UpcomingKind == CatalogUpcomingKind.TvEpisode,
+                row.EpisodeId,
+                row.SeasonNumber,
+                row.EpisodeNumber,
+                row.EpisodeName))
             .ToList();
 
         if (!userId.HasValue || items.Count == 0)
@@ -140,7 +169,7 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
             .Select(item => item.ContentId)
             .ToList();
         var tvIds = items
-            .Where(item => item.ContentType == CatalogContentType.Tv)
+            .Where(item => item.ContentType == CatalogContentType.Tv && item.UpcomingKind != CatalogUpcomingKind.TvEpisode)
             .Select(item => item.ContentId)
             .ToList();
 
@@ -160,10 +189,59 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
         items = items
             .Select(item => item with
             {
-                IsFollowed = followedSet.Contains((item.ContentId, item.ContentType))
+                IsFollowed = item.UpcomingKind == CatalogUpcomingKind.TvEpisode ||
+                             followedSet.Contains((item.ContentId, item.ContentType))
             })
             .ToList();
 
         return (items, totalCount);
     }
+
+    private async Task<IReadOnlyList<UpcomingCatalogRow>> GetFollowedTvNextEpisodeRowsAsync(
+        Guid userId,
+        DateOnly today,
+        CancellationToken cancellationToken = default)
+    {
+        var futureEpisodes = await (
+            from follow in dbContext.CatalogFollows.AsNoTracking()
+            where follow.UserId == userId && follow.ContentType == CatalogContentType.Tv
+            join tvShow in dbContext.TvShows.AsNoTracking() on follow.ContentId equals tvShow.Id
+            join season in dbContext.Seasons.AsNoTracking() on tvShow.Id equals season.TvShowId
+            join episode in dbContext.Episodes.AsNoTracking() on season.Id equals episode.SeasonId
+            where episode.AirDate != null && episode.AirDate > today
+            select new UpcomingCatalogRow(
+                tvShow.Id,
+                CatalogContentType.Tv,
+                CatalogUpcomingKind.TvEpisode,
+                tvShow.Title,
+                tvShow.PosterPath,
+                episode.AirDate!.Value,
+                episode.Id,
+                season.SeasonNumber,
+                episode.EpisodeNumber,
+                episode.Name))
+            .ToListAsync(cancellationToken);
+
+        return futureEpisodes
+            .GroupBy(row => row.ContentId)
+            .Select(group => group
+                .OrderBy(row => row.ReleaseDate)
+                .ThenBy(row => row.SeasonNumber)
+                .ThenBy(row => row.EpisodeNumber)
+                .ThenBy(row => row.EpisodeId)
+                .First())
+            .ToList();
+    }
+
+    private sealed record UpcomingCatalogRow(
+        Guid ContentId,
+        CatalogContentType ContentType,
+        CatalogUpcomingKind UpcomingKind,
+        string Title,
+        string? PosterPath,
+        DateOnly ReleaseDate,
+        Guid? EpisodeId,
+        int? SeasonNumber,
+        int? EpisodeNumber,
+        string? EpisodeName);
 }

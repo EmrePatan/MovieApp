@@ -17,4 +17,5 @@ public sealed record TvShowProviderDetails(
     int VoteCount,
     string Status,
     IReadOnlyList<string> Genres,
-    IReadOnlyList<SeasonProviderSummary> Seasons);
+    IReadOnlyList<SeasonProviderSummary> Seasons,
+    NextEpisodeToAirProviderSummary? NextEpisodeToAir = null);

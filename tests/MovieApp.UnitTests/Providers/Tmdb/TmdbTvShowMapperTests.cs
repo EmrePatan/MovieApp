@@ -80,6 +80,31 @@ public sealed class TmdbTvShowMapperTests
     }
 
     [Fact]
+    public void ToDetailsMapsNextEpisodeToAir()
+    {
+        var details = TmdbTvShowMapper.ToDetails(new TmdbTvDetailsResponseJson
+        {
+            Id = 1399,
+            Name = "Game of Thrones",
+            NextEpisodeToAir = new TmdbNextEpisodeToAirJson
+            {
+                Id = 63056,
+                Name = "Winter Is Coming",
+                SeasonNumber = 1,
+                EpisodeNumber = 1,
+                AirDate = "2011-04-17"
+            }
+        });
+
+        Assert.NotNull(details.NextEpisodeToAir);
+        Assert.Equal(63056, details.NextEpisodeToAir.TmdbId);
+        Assert.Equal(1, details.NextEpisodeToAir.SeasonNumber);
+        Assert.Equal(1, details.NextEpisodeToAir.EpisodeNumber);
+        Assert.Equal("Winter Is Coming", details.NextEpisodeToAir.Name);
+        Assert.Equal(new DateOnly(2011, 4, 17), details.NextEpisodeToAir.AirDate);
+    }
+
+    [Fact]
     public void ToSeasonDetailsMapsEpisodes()
     {
         var season = TmdbTvShowMapper.ToSeasonDetails(

@@ -134,6 +134,47 @@ public sealed class TvShowCatalogSyncStateRepository(ApplicationDbContext dbCont
             cancellationToken,
             updatedAtUtc);
 
+    public async Task MarkUpcomingEpisodeSyncAsync(
+        Guid tvShowId,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 1; attempt <= MaxUpsertAttempts; attempt++)
+        {
+            var state = await dbContext.TvShowCatalogSyncStates
+                .FirstOrDefaultAsync(existing => existing.TvShowId == tvShowId, cancellationToken);
+
+            if (state is null)
+            {
+                state = new TvShowCatalogSyncState
+                {
+                    TvShowId = tvShowId,
+                    LastUpcomingEpisodeSyncAtUtc = syncedAtUtc,
+                    UpdatedAtUtc = syncedAtUtc
+                };
+                dbContext.TvShowCatalogSyncStates.Add(state);
+            }
+            else
+            {
+                state.LastUpcomingEpisodeSyncAtUtc = syncedAtUtc;
+                state.UpdatedAtUtc = syncedAtUtc;
+            }
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateException) when (attempt < MaxUpsertAttempts)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Failed to mark upcoming episode sync for TV show '{tvShowId}'.");
+    }
+
     internal static bool ShouldApplyRefresh(DateTime? existingRefreshedAtUtc, DateTime incomingRefreshedAtUtc) =>
         !existingRefreshedAtUtc.HasValue || incomingRefreshedAtUtc >= existingRefreshedAtUtc.Value;
 

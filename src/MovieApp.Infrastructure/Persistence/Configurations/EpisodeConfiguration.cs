@@ -44,6 +44,8 @@ internal sealed class EpisodeConfiguration : IEntityTypeConfiguration<Episode>
         builder.HasIndex(episode => new { episode.SeasonId, episode.EpisodeNumber })
             .IsUnique();
 
+        builder.HasIndex(episode => episode.AirDate);
+
         builder.HasIndex(episode => episode.TmdbId).AsUniqueExternalIdIndex("TmdbId");
         builder.HasIndex(episode => episode.TvdbId).AsUniqueExternalIdIndex("TvdbId");
         builder.HasIndex(episode => episode.ImdbId).AsUniqueExternalIdIndex("ImdbId");

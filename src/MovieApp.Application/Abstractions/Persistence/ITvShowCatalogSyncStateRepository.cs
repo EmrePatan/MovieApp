@@ -40,4 +40,9 @@ public interface ITvShowCatalogSyncStateRepository
         DateTime? nextHotCheckAtUtc,
         DateTime updatedAtUtc,
         CancellationToken cancellationToken = default);
+
+    Task MarkUpcomingEpisodeSyncAsync(
+        Guid tvShowId,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken = default);
 }

@@ -8,7 +8,8 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
     IRecurringJobManager recurringJobManager,
     IOptions<BackgroundJobsOptions> backgroundJobsOptions,
     IOptions<PushNotificationsOptions> pushNotificationsOptions,
-    IOptions<CatalogKeywordBackfillOptions> catalogKeywordBackfillOptions) : IRecurringBackgroundJobRegistrar
+    IOptions<CatalogKeywordBackfillOptions> catalogKeywordBackfillOptions,
+    IOptions<TvUpcomingEpisodeSyncOptions> tvUpcomingEpisodeSyncOptions) : IRecurringBackgroundJobRegistrar
 {
     private static readonly RecurringJobOptions UtcOptions = new()
     {
@@ -118,6 +119,19 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         else
         {
             recurringJobManager.RemoveIfExists(RecurringJobIds.CatalogKeywordBackfill);
+        }
+
+        if (backgroundJobs.TvUpcomingEpisodeSyncEnabled && tvUpcomingEpisodeSyncOptions.Value.Enabled)
+        {
+            recurringJobManager.AddOrUpdate<TvUpcomingEpisodeSyncJob>(
+                RecurringJobIds.TvUpcomingEpisodeSync,
+                job => job.ExecuteAsync(),
+                Cron.Hourly(),
+                UtcOptions);
+        }
+        else
+        {
+            recurringJobManager.RemoveIfExists(RecurringJobIds.TvUpcomingEpisodeSync);
         }
     }
 

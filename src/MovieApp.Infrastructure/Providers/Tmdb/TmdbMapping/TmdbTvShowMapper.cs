@@ -51,7 +51,23 @@ internal static class TmdbTvShowMapper
                 .Where(genre => !string.IsNullOrWhiteSpace(genre.Name))
                 .Select(genre => genre.Name!)
                 .ToList(),
-            Seasons: seasons);
+            Seasons: seasons,
+            NextEpisodeToAir: ToNextEpisodeToAir(details.NextEpisodeToAir));
+    }
+
+    private static NextEpisodeToAirProviderSummary? ToNextEpisodeToAir(TmdbNextEpisodeToAirJson? nextEpisode)
+    {
+        if (nextEpisode is null)
+        {
+            return null;
+        }
+
+        return new NextEpisodeToAirProviderSummary(
+            nextEpisode.Id,
+            nextEpisode.SeasonNumber,
+            nextEpisode.EpisodeNumber,
+            nextEpisode.Name,
+            TmdbMovieMapper.ParseReleaseDate(nextEpisode.AirDate));
     }
 
     internal static SeasonProviderDetails ToSeasonDetails(

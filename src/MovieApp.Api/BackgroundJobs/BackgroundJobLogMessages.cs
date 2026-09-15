@@ -123,4 +123,15 @@ internal static partial class BackgroundJobLogMessages
         long durationMs,
         decimal coverageBeforePercent,
         decimal coverageAfterPercent);
+
+    [LoggerMessage(
+        EventId = 6012,
+        Level = LogLevel.Information,
+        Message = "TV upcoming episode sync completed: selected={Selected} succeeded={Succeeded} failed={Failed} hydrated={Hydrated}")]
+    internal static partial void LogTvUpcomingEpisodeSyncCompleted(
+        ILogger logger,
+        int selected,
+        int succeeded,
+        int failed,
+        int hydrated);
 }

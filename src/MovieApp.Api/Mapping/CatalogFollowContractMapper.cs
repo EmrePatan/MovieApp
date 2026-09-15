@@ -39,10 +39,24 @@ public static class CatalogFollowContractMapper
         new(
             item.ContentId,
             ToContentTypeString(item.ContentType),
+            ToUpcomingKindString(item.UpcomingKind),
             item.Title,
             item.PosterPath,
             item.ReleaseDate,
-            item.IsFollowed);
+            item.IsFollowed,
+            item.EpisodeId,
+            item.SeasonNumber,
+            item.EpisodeNumber,
+            item.EpisodeName);
+
+    private static string ToUpcomingKindString(CatalogUpcomingKind upcomingKind) =>
+        upcomingKind switch
+        {
+            CatalogUpcomingKind.MovieRelease => "MovieRelease",
+            CatalogUpcomingKind.TvShowPremiere => "TvShowPremiere",
+            CatalogUpcomingKind.TvEpisode => "TvEpisode",
+            _ => upcomingKind.ToString()
+        };
 
     private static string ToContentTypeString(CatalogContentType contentType) =>
         contentType switch

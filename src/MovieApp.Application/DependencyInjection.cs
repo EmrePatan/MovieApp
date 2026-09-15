@@ -29,6 +29,7 @@ using MovieApp.Application.Services.Collections;
 using MovieApp.Application.Services.Notifications;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.RegionalRelease;
+using MovieApp.Application.Services.TvUpcomingEpisodes;
 
 namespace MovieApp.Application;
 
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddScoped<IRemoveMovieFollowService, RemoveMovieFollowService>();
         services.AddScoped<IGetCatalogFollowsService, GetCatalogFollowsService>();
         services.AddScoped<IGetCatalogUpcomingService, GetCatalogUpcomingService>();
+        services.AddScoped<ITvUpcomingEpisodeSyncService, TvUpcomingEpisodeSyncService>();
 
         services.AddScoped<IReleaseDetector, ReleaseDetector>();
         services.AddScoped<IReleaseNotificationFanoutService, ReleaseNotificationFanoutService>();

@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (home composition v2)  
+**Last updated:** 2026-09-15 (TV upcoming episodes v1)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -165,7 +165,30 @@ Generic **Catalog Follow** with release-notification pipeline.
 - TV future `FirstAirDate`
 - `isFollowed` support where applicable
 
-**Not implemented:** upcoming episode calendar / per-episode airing schedule (see NEXT).
+---
+
+## DONE — TV Upcoming Episodes / Airing (v1)
+
+Follow-first per-episode upcoming intelligence on top of existing Catalog Follow + release notifications.
+
+**API (`GET /api/catalog/upcoming`):**
+- Discriminated `upcomingKind`: `MovieRelease`, `TvShowPremiere`, `TvEpisode`
+- Authenticated users: one next future episode per followed TV show (`AirDate > UTC today`)
+- Ordering per show: `AirDate` ASC → `SeasonNumber` ASC → `EpisodeNumber` ASC → episode `Id` ASC
+- Null air date excluded; airing today is **not** future; unfollowed shows absent; unfollow does not delete catalog episodes
+- Movies and TV premieres (`FirstAirDate`) unchanged for anonymous and authenticated callers
+
+**Freshness (followed shows only):**
+- `TvUpcomingEpisodeSyncJob` (`movieapp:tv-upcoming-episode-sync`, hourly UTC) reads TMDB `tv/{id}` `next_episode_to_air`
+- When `air_date` present: bounded `GetSeasonAsync` hydrate + episode upsert
+- `TvShowCatalogSyncState.LastUpcomingEpisodeSyncAtUtc`; default TTL **6h** (`TvUpcomingEpisodeSync:FreshnessTtlHours`)
+- Provider failure preserves last data and does not advance sync timestamp; successful empty sync still marks timestamp
+
+**Notifications:** **IMPLEMENTED** via existing `HotReleaseCheckJob` + `ReleaseDetector` + fanout (episode dedupe already exists). No second notification system.
+
+**Mobile:** Profile → My Library → Upcoming screen (`/upcoming`); `UpcomingCard` episode UX (`Sxx Exx`, episode title, relative air date).
+
+**Migration:** `20260915134637_AddTvUpcomingEpisodeSync` (create only — do not assume applied on staging until deliberately migrated).
 
 ---
 
@@ -556,23 +579,6 @@ Staging validation **PASS** (2026-09-15) on materially enriched data (~24.5% key
 
 ---
 
-## NEXT — TV upcoming episodes / airing
-
-Build on TV Follow + New Episode notifications.
-
-**Potential surfaces:**
-- Upcoming Episodes
-- Coming This Week
-- Next episode on TV detail
-- Season/episode air dates
-- Followed-show upcoming schedule
-
-Must respect existing IA — do not re-overload Home.
-
-**Not implemented today.** Generic Upcoming catalog (title-level) is DONE; episode calendar is not.
-
----
-
 ## NEXT — Media gallery
 
 TMDB image/media endpoints for detail-screen polish:
@@ -735,7 +741,7 @@ Before proposing a “new” MovieApp feature, check DONE sections first.
 - Notification Center
 - Push device registration API (implementation — not the same as physical push E2E)
 - Person Detail / Filmography
-- Following / Upcoming catalog (title-level)
+- Following / Upcoming catalog (title-level + TV episode upcoming v1)
 - Account management (profile, email/password change, delete account, statistics dashboard)
 - Keyword ingestion and backfill **infrastructure**
 - Recommendation 2.0 and 2.1
@@ -772,7 +778,7 @@ When implementation changes either document's truth, update the relevant documen
 2. ~~**Controlled staging keyword coverage growth** (~8% → ~25%)~~ **DONE (2026-09-15)**
 3. **Recommendation 2.1** real-data validation **(IN PROGRESS)**
 4. **Regional Release v1** staging validation (migration, release-check, follow, upcoming)
-5. **TV Upcoming Episodes / Airing**
+5. ~~**TV Upcoming Episodes / Airing**~~ **DONE (2026-09-15)**
 6. **Media Gallery**
 7. **Person Search / Person 2.0**
 8. **Production observability / operations**
@@ -782,7 +788,7 @@ When implementation changes either document's truth, update the relevant documen
 12. **Store release readiness**
 13. **App Store / Google Play release**
 
-Steps 5–7 may be reordered if launch scope is frozen earlier, but production gates **8–12 cannot be skipped**.
+Steps 6–7 may be reordered if launch scope is frozen earlier, but production gates **8–12 cannot be skipped**.
 
 ---
 

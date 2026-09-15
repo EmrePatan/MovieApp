@@ -98,6 +98,21 @@ WHERE "MigrationId" = '20260915095315_AddCatalogKeywords';
 
 **All migrations up to the release SHA must be applied**, not only this one.
 
+### Launch-critical example: TV upcoming episode sync schema
+
+Migration `20260915134637_AddTvUpcomingEpisodeSync` adds:
+
+- `tv_show_catalog_sync_states.LastUpcomingEpisodeSyncAtUtc`
+- index `IX_episodes_AirDate`
+
+Verify on production:
+
+```sql
+SELECT "MigrationId"
+FROM "__EFMigrationsHistory"
+WHERE "MigrationId" = '20260915134637_AddTvUpcomingEpisodeSync';
+```
+
 ### Launch-critical example: regional release schema
 
 Migration `20260915110524_AddMovieRegionalReleases` adds:
@@ -145,7 +160,11 @@ Any credential exposed during development or staging must **not** be reused in p
 | `BackgroundJobs:TmdbChangesEnabled` | `true` | |
 | `BackgroundJobs:HotReleaseEnabled` | `true` | |
 | `BackgroundJobs:MovieReleaseEnabled` | `true` (class default) | |
+| `BackgroundJobs:TvUpcomingEpisodeSyncEnabled` | `true` (class default) | |
 | `BackgroundJobs:NotificationFanoutEnabled` | `true` | |
+| `TvUpcomingEpisodeSync:Enabled` | `false` | Requires `BackgroundJobs:Enabled` and master flag above |
+| `TvUpcomingEpisodeSync:BatchSize` | `25` | |
+| `TvUpcomingEpisodeSync:FreshnessTtlHours` | `6` | |
 | `BackgroundJobs:PushDeliveryEnabled` | `true` | Requires `PushNotifications:Enabled` for push jobs |
 
 ---
@@ -168,6 +187,7 @@ Master gate: `BackgroundJobs:Enabled`. If false, **all** recurring jobs are remo
 | `PushDispatchJob` | `movieapp:push-dispatch` | Every 5 minutes | same | Dispatch to Expo |
 | `PushReceiptJob` | `movieapp:push-receipts` | Every 15 minutes | same | Process Expo receipts |
 | `CatalogKeywordBackfillJob` | `movieapp:catalog-keyword-backfill` | `CatalogKeywordBackfill:RecurringCron` (default `0 * * * *`) | `CatalogKeywordBackfill:Enabled` | Bounded keyword metadata backfill |
+| `TvUpcomingEpisodeSyncJob` | `movieapp:tv-upcoming-episode-sync` | Hourly | `BackgroundJobs:TvUpcomingEpisodeSyncEnabled` **and** `TvUpcomingEpisodeSync:Enabled` | TMDB `next_episode_to_air` refresh for followed TV shows |
 
 Per-job launch checklist:
 
