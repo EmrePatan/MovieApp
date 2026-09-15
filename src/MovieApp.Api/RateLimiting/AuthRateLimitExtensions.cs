@@ -56,6 +56,10 @@ internal static class AuthRateLimitExtensions
                     options.ResetPasswordWindowMinutes);
             });
 
+            rateLimiterOptions.AddPolicy(
+                ProductMetricsRateLimitPolicies.Increment,
+                httpContext => CreateInMemoryFixedWindowPolicy(httpContext, 120, 1));
+
             ProductionRateLimitPolicyRegistration.AddPolicies(rateLimiterOptions, configuration);
         });
 

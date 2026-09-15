@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Discovery 2.0 D5.5.2 Region UX Cleanup)  
+**Last updated:** 2026-09-15 (Discovery 2.0 D5.5.3 Product Metrics Foundation)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -266,6 +266,18 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
 **Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
+
+## DONE — Discovery 2.0 D5.5.3 (Product Metrics Foundation)
+
+**Backend:**
+- Daily aggregate table `product_metric_daily` (`date`, `metric_name`, `count`) with unique `(date, metric_name)`
+- Atomic PostgreSQL upsert increment via `POST /api/product-metrics/increment`
+- Strict server-side metric allow-list; no user/content/session/IP metadata stored
+
+**Mobile:**
+- Best-effort `trackProductMetric()` abstraction with focus-based screen instrumentation for shipped Discovery features
+- `content_detail_opened` tracked when opening catalog detail from Discover contexts
+- Metric failures never block navigation
 
 ## DONE — Discovery 2.0 D5.5.2 (Region UX Cleanup)
 

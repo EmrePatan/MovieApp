@@ -31,6 +31,7 @@ using MovieApp.Application.Services.Notifications;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.RegionalRelease;
 using MovieApp.Application.Services.TvUpcomingEpisodes;
+using MovieApp.Application.Services.ProductMetrics;
 
 namespace MovieApp.Application;
 
@@ -152,6 +153,7 @@ public static class DependencyInjection
         services.AddScoped<IGetUnreadNotificationCountService, GetUnreadNotificationCountService>();
         services.AddScoped<IMarkNotificationReadService, MarkNotificationReadService>();
         services.AddScoped<IMarkAllNotificationsReadService, MarkAllNotificationsReadService>();
+        services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
 
         return services;
     }

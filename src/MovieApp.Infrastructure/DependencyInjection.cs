@@ -183,6 +183,7 @@ public static class DependencyInjection
         services.AddScoped<IPushDeviceRepository, PushDeviceRepository>();
 
         services.AddScoped<IPushNotificationDeliveryRepository, PushNotificationDeliveryRepository>();
+        services.AddScoped<IProductMetricDailyRepository, ProductMetricDailyRepository>();
         services.AddScoped<IUserReleaseNotificationRepository, UserReleaseNotificationRepository>();
 
         services.AddExpoPushClient();

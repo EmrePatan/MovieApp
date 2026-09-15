@@ -73,6 +73,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries => Set<PushNotificationDelivery>();
 
+    public DbSet<ProductMetricDaily> ProductMetricDaily => Set<ProductMetricDaily>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
