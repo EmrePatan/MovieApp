@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Discovery 2.0 D5 World Cinema)  
+**Last updated:** 2026-09-15 (Discovery 2.0 D5.5 User Regional Preference)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -246,7 +246,26 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - Full screen `/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc` with Movies/TV toggle, `OriginCountrySelector`, compact sort (Popular / Top Rated / Newest), infinite pagination, pull-to-refresh, detail navigation with return-state preservation
 - D6 Pick Something For Me remains coming-soon placeholder
 
-**Next Discovery 2.0 phase:** D6 Pick Something For Me.
+## DONE — Discovery 2.0 D5.5 (User Regional Preference)
+
+**Mobile only** — no backend API/schema changes.
+
+**Central preference:**
+- One **User Region** preference drives default `watchRegion` (D2) and `releaseRegion` (D3)
+- Priority: saved preference → device locale region subtag → `TR` fallback
+- Persisted locally (SecureStore); works unauthenticated; no GPS/location permission
+
+**Behavior:**
+- Streaming Services and Now in Theaters default to User Region on first open and in Discover hub previews
+- `WatchRegionSelector` / `ReleaseRegionSelector` remain **temporary screen overrides** (URL state); they do not change global User Region
+- Explicit URL `watchRegion` / `releaseRegion` wins over User Region
+- Advanced Discover injects `watchRegion` only when streaming filters are active; defaults to User Region when unset
+- `originCountry` (D5 World Cinema) and D4 On TV This Week remain independent / region-neutral
+
+**Settings:**
+- Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
+
+**Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
 
 ## DONE — Discovery 2.0 D1.5 (Navigation IA + Discover Hub + Global Search + Library Hub)
 
