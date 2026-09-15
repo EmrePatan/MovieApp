@@ -332,6 +332,7 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
 
         var movies = await dbContext.Movies
             .AsNoTracking()
+            .AsSplitQuery()
             .Where(movie => movieIds.Contains(movie.Id))
             .Select(movie => new RecommendationCandidateProjection
             {
@@ -350,6 +351,7 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
                 GenreNames = movie.MovieGenres.Select(genre => genre.Genre.Name).ToList(),
                 PersonIds = movie.MoviePeople
                     .Where(person => person.CreditType == CreditType.Cast)
+                    .OrderBy(person => person.PersonId)
                     .Select(person => person.PersonId)
                     .Take(MaxCastPeople)
                     .ToList(),
@@ -371,6 +373,7 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
 
         var tvShows = await dbContext.TvShows
             .AsNoTracking()
+            .AsSplitQuery()
             .Where(tvShow => tvShowIds.Contains(tvShow.Id))
             .Select(tvShow => new RecommendationCandidateProjection
             {
@@ -389,6 +392,7 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
                 GenreNames = tvShow.TvShowGenres.Select(genre => genre.Genre.Name).ToList(),
                 PersonIds = tvShow.TvShowPeople
                     .Where(person => person.CreditType == CreditType.Cast)
+                    .OrderBy(person => person.PersonId)
                     .Select(person => person.PersonId)
                     .Take(MaxCastPeople)
                     .ToList()

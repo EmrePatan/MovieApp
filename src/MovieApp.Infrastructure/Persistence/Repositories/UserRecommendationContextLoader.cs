@@ -513,7 +513,12 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .AsNoTracking()
             .Where(item => movieIds.Contains(item.MovieId) && item.CreditType == CreditType.Cast)
             .GroupBy(item => item.MovieId)
-            .Select(group => new PersonRow(group.Key, group.Select(person => person.PersonId).Take(MaxCastPeople).ToList()))
+            .Select(group => new PersonRow(
+                group.Key,
+                group.OrderBy(person => person.PersonId)
+                    .Select(person => person.PersonId)
+                    .Take(MaxCastPeople)
+                    .ToList()))
             .ToListAsync(cancellationToken);
 
         var keywordRows = await dbContext.MovieKeywords
@@ -556,7 +561,12 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .AsNoTracking()
             .Where(item => tvShowIds.Contains(item.TvShowId) && item.CreditType == CreditType.Cast)
             .GroupBy(item => item.TvShowId)
-            .Select(group => new PersonRow(group.Key, group.Select(person => person.PersonId).Take(MaxCastPeople).ToList()))
+            .Select(group => new PersonRow(
+                group.Key,
+                group.OrderBy(person => person.PersonId)
+                    .Select(person => person.PersonId)
+                    .Take(MaxCastPeople)
+                    .ToList()))
             .ToListAsync(cancellationToken);
 
         var keywordRows = await dbContext.TvShowKeywords
