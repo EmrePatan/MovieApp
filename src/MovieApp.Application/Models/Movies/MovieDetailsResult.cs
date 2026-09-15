@@ -18,4 +18,5 @@ public sealed record MovieDetailsResult(
     decimal VoteAverage,
     int VoteCount,
     IReadOnlyList<string> Genres,
-    MovieCollectionSummaryResult? Collection);
+    MovieCollectionSummaryResult? Collection,
+    bool IsReleased);

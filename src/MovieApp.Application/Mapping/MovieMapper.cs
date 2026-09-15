@@ -39,7 +39,8 @@ public static class MovieMapper
                 .Select(movieGenre => movieGenre.Genre.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList(),
-            ToCollectionSummary(movie));
+            ToCollectionSummary(movie),
+            IsReleased: true);
 
     private static MovieCollectionSummaryResult? ToCollectionSummary(Movie movie)
     {

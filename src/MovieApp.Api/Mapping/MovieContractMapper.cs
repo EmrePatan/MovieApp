@@ -47,5 +47,6 @@ public static class MovieContractMapper
                     result.Collection.TmdbId,
                     result.Collection.Name,
                     result.Collection.PosterPath,
-                    result.Collection.BackdropPath));
+                    result.Collection.BackdropPath),
+            result.IsReleased);
 }
