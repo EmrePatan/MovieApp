@@ -179,7 +179,8 @@ Master gate: `BackgroundJobs:Enabled`. If false, **all** recurring jobs are remo
 
 | Job class | Recurring job ID | Cadence (UTC) | Registration gate | Purpose |
 |---|---|---|---|---|
-| `TmdbTvChangesSyncJob` | `movieapp:tmdb-tv-changes` | Every 6 hours | `BackgroundJobs:TmdbChangesEnabled` | TMDB TV changes discovery / catalog refresh signal |
+| `TmdbTvChangesSyncJob` | `movieapp:tmdb-tv-changes` | Every 6 hours | `BackgroundJobs:TmdbChangesEnabled` | TMDB TV changes → user-relevant local catalog refresh |
+| `TmdbMovieChangesSyncJob` | `movieapp:tmdb-movie-changes` | Every 6 hours | `BackgroundJobs:TmdbChangesEnabled` | TMDB movie changes → user-relevant local catalog refresh |
 | `HotReleaseCheckJob` | `movieapp:hot-release` | Hourly | `BackgroundJobs:HotReleaseEnabled` | Imminent/airing TV release boundary checks |
 | `MovieReleaseCheckJob` | `movieapp:movie-release` | Hourly | `BackgroundJobs:MovieReleaseEnabled` | Movie release detection |
 | `ReleaseNotificationFanoutJob` | `movieapp:release-fanout` | Every 5 minutes | `BackgroundJobs:NotificationFanoutEnabled` | Fan out release events to user notifications |

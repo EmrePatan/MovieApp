@@ -31,11 +31,32 @@ public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture f
 
         var result = await syncService.SyncAsync(SyncInstant);
 
-        Assert.Equal(0, result.FollowedShowsRefreshed);
+        Assert.Equal(0, result.RelevantTargets);
+        Assert.Equal(0, result.Refreshed);
         Assert.Equal(0, tracker.GetTvShowCallCount);
 
         await using var context = TmdbTvChangesSyncFixture.CreateContext();
         Assert.Equal(0, await context.TvShowCatalogSyncStates.CountAsync());
+    }
+
+    [Fact]
+    public async Task ChangedFavoriteTvShowIsRefreshedOnce()
+    {
+        await fixture.ResetAsync();
+
+        var tvShowId = await SeedTvShowAsync(FakeTvShowDataProvider.BreakingBadTmdbId, fullyHydrated: true);
+        await SeedFavoriteTvShowAsync(tvShowId);
+        ConfigureChangesWindow(fixture, [FakeTvShowDataProvider.BreakingBadTmdbId]);
+
+        using var scope = fixture.Factory.Services.CreateScope();
+        var syncService = scope.ServiceProvider.GetRequiredService<ITmdbTvChangesSyncService>();
+        var tracker = scope.ServiceProvider.GetRequiredService<TvShowDataProviderCallTracker>();
+
+        var result = await syncService.SyncAsync(SyncInstant);
+
+        Assert.Equal(1, result.RelevantTargets);
+        Assert.Equal(1, result.Refreshed);
+        Assert.Equal(1, tracker.GetTvShowCallCount);
     }
 
     [Fact]
@@ -53,7 +74,8 @@ public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture f
 
         var result = await syncService.SyncAsync(SyncInstant);
 
-        Assert.Equal(1, result.FollowedShowsRefreshed);
+        Assert.Equal(1, result.RelevantTargets);
+        Assert.Equal(1, result.Refreshed);
         Assert.Equal(1, tracker.GetTvShowCallCount);
 
         await using var context = TmdbTvChangesSyncFixture.CreateContext();
@@ -78,7 +100,8 @@ public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture f
 
         var result = await syncService.SyncAsync(SyncInstant);
 
-        Assert.Equal(1, result.FollowedShowsRefreshed);
+        Assert.Equal(1, result.RelevantTargets);
+        Assert.Equal(1, result.Refreshed);
         Assert.Equal(1, tracker.GetTvShowCallCount);
     }
 
@@ -120,7 +143,7 @@ public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture f
     }
 
     [Fact]
-    public async Task FailedShowRefreshDoesNotAdvanceCheckpoint()
+    public async Task FailedShowRefreshSkipsTitleAndAdvancesCheckpoint()
     {
         await fixture.ResetAsync();
 
@@ -132,10 +155,14 @@ public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture f
         scope.ServiceProvider.GetRequiredService<TvShowDataProviderCallTracker>().FailGetTvShow = true;
         var syncService = scope.ServiceProvider.GetRequiredService<ITmdbTvChangesSyncService>();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => syncService.SyncAsync(SyncInstant));
+        var result = await syncService.SyncAsync(SyncInstant);
+
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal(0, result.Refreshed);
 
         await using var context = TmdbTvChangesSyncFixture.CreateContext();
-        Assert.Equal(0, await context.TmdbTvChangesSyncCheckpoints.CountAsync());
+        var checkpoint = await context.TmdbTvChangesSyncCheckpoints.SingleAsync();
+        Assert.Equal(WindowEnd, checkpoint.LastCompletedEndDate);
     }
 
     [Fact]
@@ -294,6 +321,20 @@ public sealed class TmdbTvChangesSyncIntegrationTests(TmdbTvChangesSyncFixture f
 
         await context.SaveChangesAsync();
         return tvShowId;
+    }
+
+    private static async Task SeedFavoriteTvShowAsync(Guid tvShowId)
+    {
+        await using var context = TmdbTvChangesSyncFixture.CreateContext();
+        var user = User.Create(
+            Guid.NewGuid(),
+            $"favorite-{Guid.NewGuid():N}@example.com",
+            "hash",
+            "Favorite User",
+            DateTime.UtcNow);
+        context.Users.Add(user);
+        context.Favorites.Add(Favorite.CreateForTvShow(user.Id, tvShowId, DateTime.UtcNow));
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedFollowAsync(Guid tvShowId, string userSuffix = "primary")

@@ -7,7 +7,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.HotRelease;
 using MovieApp.Application.Models.PushNotifications;
 using MovieApp.Application.Models.ReleaseNotifications;
-using MovieApp.Application.Models.TvShowChanges;
+using MovieApp.Application.Models.Changes;
 using MovieApp.Application.Services.HotRelease;
 using MovieApp.Application.Services.PushNotifications;
 using MovieApp.Application.Services.ReleaseNotifications;
@@ -153,10 +153,10 @@ public sealed class BackgroundJobWrapperTests
     {
         public DateTime? ReceivedUtcNow { get; private set; }
 
-        public Task<TmdbTvChangesSyncResult> SyncAsync(DateTime? utcNow = null, CancellationToken cancellationToken = default)
+        public Task<TmdbChangesSyncResult> SyncAsync(DateTime? utcNow = null, CancellationToken cancellationToken = default)
         {
             ReceivedUtcNow = utcNow;
-            return Task.FromResult(new TmdbTvChangesSyncResult(1, 2, 3, DateOnly.FromDateTime(DateTime.UtcNow)));
+            return Task.FromResult(new TmdbChangesSyncResult(1, 2, 1, 1, 0, 0, DateOnly.FromDateTime(DateTime.UtcNow)));
         }
     }
 

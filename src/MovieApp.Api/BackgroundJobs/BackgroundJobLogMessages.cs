@@ -13,12 +13,29 @@ internal static partial class BackgroundJobLogMessages
     [LoggerMessage(
         EventId = 6001,
         Level = LogLevel.Information,
-        Message = "TMDB TV changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} refreshedShows={RefreshedShows} lastEndDate={LastEndDate}")]
+        Message = "TMDB TV changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} relevantTargets={RelevantTargets} refreshed={Refreshed} skipped={Skipped} failed={Failed} lastEndDate={LastEndDate}")]
     internal static partial void LogTmdbTvChangesSyncCompleted(
         ILogger logger,
         int windowsProcessed,
         int changedIds,
-        int refreshedShows,
+        int relevantTargets,
+        int refreshed,
+        int skipped,
+        int failed,
+        DateOnly? lastEndDate);
+
+    [LoggerMessage(
+        EventId = 6014,
+        Level = LogLevel.Information,
+        Message = "TMDB movie changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} relevantTargets={RelevantTargets} refreshed={Refreshed} skipped={Skipped} failed={Failed} lastEndDate={LastEndDate}")]
+    internal static partial void LogTmdbMovieChangesSyncCompleted(
+        ILogger logger,
+        int windowsProcessed,
+        int changedIds,
+        int relevantTargets,
+        int refreshed,
+        int skipped,
+        int failed,
         DateOnly? lastEndDate);
 
     [LoggerMessage(

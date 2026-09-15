@@ -3,13 +3,13 @@ using MovieApp.Application.Models.Changes;
 
 namespace MovieApp.Infrastructure.Providers;
 
-public sealed class FakeTmdbTvChangesProvider
+public sealed class FakeTmdbMovieChangesProvider
 {
     private readonly Dictionary<(DateOnly Start, DateOnly End), List<List<int>>> _windowPages = new();
 
     public bool FailNextPage { get; set; }
 
-    public int GetTvChangesCallCount { get; private set; }
+    public int GetMovieChangesCallCount { get; private set; }
 
     public void ConfigureWindow(DateOnly startDate, DateOnly endDate, params int[][] pages)
     {
@@ -20,20 +20,20 @@ public sealed class FakeTmdbTvChangesProvider
     {
         _windowPages.Clear();
         FailNextPage = false;
-        GetTvChangesCallCount = 0;
+        GetMovieChangesCallCount = 0;
     }
 
-    public Task<TmdbChangesPageResult> GetTvChangesPageAsync(
+    public Task<TmdbChangesPageResult> GetMovieChangesPageAsync(
         DateOnly startDate,
         DateOnly endDate,
         int page,
         CancellationToken cancellationToken = default)
     {
-        GetTvChangesCallCount++;
+        GetMovieChangesCallCount++;
 
         if (FailNextPage)
         {
-            throw new InvalidOperationException("Simulated TMDB TV changes page failure.");
+            throw new InvalidOperationException("Simulated TMDB movie changes page failure.");
         }
 
         if (!_windowPages.TryGetValue((startDate, endDate), out var pages))
@@ -53,12 +53,12 @@ public sealed class FakeTmdbTvChangesProvider
     }
 }
 
-public sealed class FakeTmdbTvChangesProviderAdapter(FakeTmdbTvChangesProvider inner) : ITmdbTvChangesProvider
+public sealed class FakeTmdbMovieChangesProviderAdapter(FakeTmdbMovieChangesProvider inner) : ITmdbMovieChangesProvider
 {
-    public Task<TmdbChangesPageResult> GetTvChangesPageAsync(
+    public Task<TmdbChangesPageResult> GetMovieChangesPageAsync(
         DateOnly startDate,
         DateOnly endDate,
         int page,
         CancellationToken cancellationToken = default) =>
-        inner.GetTvChangesPageAsync(startDate, endDate, page, cancellationToken);
+        inner.GetMovieChangesPageAsync(startDate, endDate, page, cancellationToken);
 }

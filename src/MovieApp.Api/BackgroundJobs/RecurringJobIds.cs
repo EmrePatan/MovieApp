@@ -3,6 +3,8 @@ namespace MovieApp.Api.BackgroundJobs;
 public static class RecurringJobIds
 {
     public const string TmdbTvChanges = "movieapp:tmdb-tv-changes";
+
+    public const string TmdbMovieChanges = "movieapp:tmdb-movie-changes";
     public const string HotRelease = "movieapp:hot-release";
     public const string MovieRelease = "movieapp:movie-release";
     public const string ReleaseFanout = "movieapp:release-fanout";
@@ -15,6 +17,7 @@ public static class RecurringJobIds
     public static IReadOnlyList<string> All =>
     [
         TmdbTvChanges,
+        TmdbMovieChanges,
         HotRelease,
         MovieRelease,
         ReleaseFanout,

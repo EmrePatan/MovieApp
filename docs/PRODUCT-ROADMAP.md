@@ -282,6 +282,27 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - `library_opened` once per tab focus; `library_filter_selected` on category/media change
 - Secondary routes (`/favorites`, watchlist tab, `/watch-history`, etc.) remain for deep links
 
+## DONE — Discovery 2.0 D7 (TMDB Changes 2.0)
+
+**Backend only** — no schema change / migration.
+
+**Refresh target policy:** only changed TMDB IDs that already exist locally **and** are user-relevant via followed, favorites, watchlist, watching TV, or watched movies. Unknown IDs are ignored; local titles are never deleted on TMDB 404.
+
+**Movie changes:**
+- `TmdbMovieChangesSyncJob` (`movieapp:tmdb-movie-changes`, every 6h UTC) reads `movie/changes`
+- Checkpoint key `tmdb-movie-changes`
+- Targeted refresh via existing movie provider upsert (metadata, genres, keywords, collection fields)
+
+**TV changes:**
+- Existing `TmdbTvChangesSyncJob` expanded from followed-only to the same relevance set
+- Checkpoint key `tmdb-tv-changes`
+- Preserves selective season hydration, release detector, catalog sync state
+- Invalidates TV detail / hydrated season / episode caches after successful refresh
+
+**Failure policy:** per-title isolation — log + skip unavailable/failed titles; advance checkpoint after chunk processing. Summary logs include changed/relevant/refreshed/skipped/failed counts.
+
+**Gating:** `BackgroundJobs:TmdbChangesEnabled` registers both movie and TV changes jobs.
+
 ## DONE — Discovery 2.0 D6 (Pick Something For Me)
 
 **Backend:**

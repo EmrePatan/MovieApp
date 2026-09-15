@@ -1,8 +1,9 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.ReleaseDetection;
 using MovieApp.Application.Abstractions.TvShows;
-using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Changes;
 using MovieApp.Application.Models.ReleaseDetection;
 using MovieApp.Application.Services.Keywords;
 
@@ -16,9 +17,10 @@ public sealed class TvShowChangesTargetedRefreshService(
     ITvShowExternalIdResolver externalIdResolver,
     IReleaseDetectionCatalogRepository releaseDetectionCatalogRepository,
     IReleaseDetector releaseDetector,
-    ITvShowCatalogSyncStateService catalogSyncStateService) : ITvShowChangesTargetedRefreshService
+    ITvShowCatalogSyncStateService catalogSyncStateService,
+    ITvShowCatalogDetailsCacheInvalidator cacheInvalidator) : ITvShowChangesTargetedRefreshService
 {
-    public async Task RefreshFollowedShowAsync(
+    public async Task<TmdbChangesTargetRefreshResult> RefreshRelevantShowAsync(
         Guid tvShowId,
         DateOnly boundaryDate,
         DateOnly changeSignalDate,
@@ -27,21 +29,19 @@ public sealed class TvShowChangesTargetedRefreshService(
         var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
         if (tvShow is null)
         {
-            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
+            return TmdbChangesTargetRefreshResult.SkippedNotFound();
         }
 
         var externalId = externalIdResolver.Resolve(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
         if (externalId is null)
         {
-            throw new InvalidOperationException(
-                $"TV show '{tvShowId}' does not have a resolvable provider identity.");
+            return TmdbChangesTargetRefreshResult.SkippedUnavailable();
         }
 
         var providerDetails = await tvShowDataProvider.GetTvShowAsync(externalId, cancellationToken);
         if (providerDetails is null)
         {
-            throw new InvalidOperationException(
-                $"Provider TV show details were unavailable for TV show '{tvShowId}'.");
+            return TmdbChangesTargetRefreshResult.SkippedUnavailable();
         }
 
         await catalogProviderUpsertService.UpsertTvShowFromProviderAsync(
@@ -54,6 +54,8 @@ public sealed class TvShowChangesTargetedRefreshService(
             cancellationToken);
 
         var seasonsToHydrate = TvShowChangesRefreshRules.DetermineSeasonsToHydrate(seasons, boundaryDate);
+        var hydratedSeasons = new List<TmdbChangesHydratedSeasonCacheTarget>();
+
         foreach (var seasonNumber in seasonsToHydrate)
         {
             var providerSeason = await tvShowDataProvider.GetSeasonAsync(
@@ -63,11 +65,20 @@ public sealed class TvShowChangesTargetedRefreshService(
 
             if (providerSeason is null)
             {
-                throw new InvalidOperationException(
-                    $"Provider season {seasonNumber} was unavailable for TV show '{tvShowId}'.");
+                return TmdbChangesTargetRefreshResult.SkippedUnavailable();
             }
 
-            await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
+            var hydratedSeason = await seasonRepository.UpsertFromProviderAsync(
+                tvShowId,
+                providerSeason,
+                cancellationToken);
+
+            hydratedSeasons.Add(new TmdbChangesHydratedSeasonCacheTarget(
+                seasonNumber,
+                hydratedSeason.Episodes
+                    .Where(episode => episode.EpisodeNumber >= 1)
+                    .Select(episode => episode.EpisodeNumber)
+                    .ToList()));
         }
 
         await releaseDetector.ScanTvShowAsync(
@@ -81,5 +92,9 @@ public sealed class TvShowChangesTargetedRefreshService(
             DateTime.UtcNow,
             changeSignalDate,
             cancellationToken);
+
+        await cacheInvalidator.InvalidateAsync(tvShowId, hydratedSeasons, cancellationToken);
+
+        return TmdbChangesTargetRefreshResult.Refreshed(hydratedSeasons);
     }
 }

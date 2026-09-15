@@ -37,10 +37,17 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
                 job => job.ExecuteAsync(),
                 Cron.HourInterval(6),
                 UtcOptions);
+
+            recurringJobManager.AddOrUpdate<TmdbMovieChangesSyncJob>(
+                RecurringJobIds.TmdbMovieChanges,
+                job => job.ExecuteAsync(),
+                Cron.HourInterval(6),
+                UtcOptions);
         }
         else
         {
             SkipRecurringJob(RecurringJobIds.TmdbTvChanges, "TmdbChangesEnabled=false");
+            SkipRecurringJob(RecurringJobIds.TmdbMovieChanges, "TmdbChangesEnabled=false");
         }
 
         if (backgroundJobs.HotReleaseEnabled)

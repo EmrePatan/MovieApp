@@ -24,6 +24,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             entry => entry.JobId == RecurringJobIds.TmdbTvChanges && entry.Cron == Cron.HourInterval(6));
         Assert.Contains(
             manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.TmdbMovieChanges && entry.Cron == Cron.HourInterval(6));
+        Assert.Contains(
+            manager.AddedOrUpdated,
             entry => entry.JobId == RecurringJobIds.HotRelease && entry.Cron == Cron.Hourly());
         Assert.Contains(
             manager.AddedOrUpdated,
@@ -77,7 +80,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         registrar.RegisterRecurringJobs();
         registrar.RegisterRecurringJobs();
 
-        Assert.Equal(7, manager.AddedOrUpdated.Count);
+        Assert.Equal(8, manager.AddedOrUpdated.Count);
     }
 
     [Fact]
@@ -133,6 +136,24 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
     }
 
     [Fact]
+    public void RegisterRecurringJobs_WhenTmdbChangesDisabled_RemovesMovieAndTvChangesJobs()
+    {
+        var manager = new FakeRecurringJobManager();
+        var registrar = CreateRegistrar(
+            manager,
+            enabled: true,
+            pushEnabled: true,
+            tmdbChangesEnabled: false);
+
+        registrar.RegisterRecurringJobs();
+
+        Assert.DoesNotContain(manager.AddedOrUpdated, entry => entry.JobId == RecurringJobIds.TmdbTvChanges);
+        Assert.DoesNotContain(manager.AddedOrUpdated, entry => entry.JobId == RecurringJobIds.TmdbMovieChanges);
+        Assert.Contains(RecurringJobIds.TmdbTvChanges, manager.Removed);
+        Assert.Contains(RecurringJobIds.TmdbMovieChanges, manager.Removed);
+    }
+
+    [Fact]
     public void RegisterRecurringJobs_WhenTvUpcomingEpisodeSyncDisabled_RemovesTvUpcomingEpisodeSyncJob()
     {
         var manager = new FakeRecurringJobManager();
@@ -153,13 +174,14 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         bool enabled,
         bool pushEnabled,
         bool keywordBackfillEnabled = false,
-        bool tvUpcomingEpisodeSyncEnabled = false) =>
+        bool tvUpcomingEpisodeSyncEnabled = false,
+        bool tmdbChangesEnabled = true) =>
         new(
             manager,
             Options.Create(new BackgroundJobsOptions
             {
                 Enabled = enabled,
-                TmdbChangesEnabled = true,
+                TmdbChangesEnabled = tmdbChangesEnabled,
                 HotReleaseEnabled = true,
                 TvUpcomingEpisodeSyncEnabled = tvUpcomingEpisodeSyncEnabled,
                 NotificationFanoutEnabled = true,

@@ -22,6 +22,7 @@ using MovieApp.Application.Services.PushNotifications;
 using MovieApp.Application.Services.ReleaseNotifications;
 using MovieApp.Application.Services.HotRelease;
 using MovieApp.Application.Services.TvShowChanges;
+using MovieApp.Application.Services.MovieChanges;
 using MovieApp.Application.Services.TvShowFollows;
 using MovieApp.Application.Services.MovieFollows;
 using MovieApp.Application.Services.CatalogFollows;
@@ -106,6 +107,9 @@ public static class DependencyInjection
 
         services.AddScoped<ITmdbTvChangesSyncService, TmdbTvChangesSyncService>();
         services.AddScoped<ITvShowChangesTargetedRefreshService, TvShowChangesTargetedRefreshService>();
+        services.AddScoped<ITmdbMovieChangesSyncService, TmdbMovieChangesSyncService>();
+        services.AddScoped<IMovieChangesTargetedRefreshService, MovieChangesTargetedRefreshService>();
+        services.AddScoped<ITvShowCatalogDetailsCacheInvalidator, TvShowCatalogDetailsCacheInvalidator>();
 
         services.AddScoped<IHotReleaseCheckService, HotReleaseCheckService>();
         services.AddScoped<IHotReleaseCandidateProcessor, HotReleaseCandidateProcessor>();

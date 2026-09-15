@@ -1,8 +1,8 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
-using MovieApp.Application.Models.TvShowChanges;
+using MovieApp.Application.Models.Changes;
 using MovieApp.Application.Services.TvShowChanges;
-using MovieApp.Domain.Entities;
 
 namespace MovieApp.UnitTests.TvShowChanges;
 
@@ -10,10 +10,9 @@ public sealed class TmdbTvChangesSyncServiceTests
 {
     private static readonly DateTime SyncInstant = new(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
     private static readonly DateOnly TargetDate = new(2026, 9, 15);
-    private static readonly DateOnly WindowStart = new(2026, 9, 14);
-    private static readonly Guid FollowedShowId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    private const int FollowedTmdbId = 900101;
-    private const int UnfollowedTmdbId = 555555;
+    private static readonly Guid RelevantShowId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private const int RelevantTmdbId = 900101;
+    private const int IrrelevantTmdbId = 555555;
 
     [Fact]
     public async Task SyncAsync_AggregatesAllPagesAndDeduplicatesIds()
@@ -22,8 +21,8 @@ public sealed class TmdbTvChangesSyncServiceTests
         {
             Pages =
             [
-                new TmdbTvChangesPageResult([FollowedTmdbId, UnfollowedTmdbId], 1, 2),
-                new TmdbTvChangesPageResult([FollowedTmdbId, 777777], 2, 2)
+                new TmdbChangesPageResult([RelevantTmdbId, IrrelevantTmdbId], 1, 2),
+                new TmdbChangesPageResult([RelevantTmdbId, 777777], 2, 2)
             ]
         };
 
@@ -34,16 +33,17 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         Assert.Equal(2, changesProvider.Calls.Count);
         Assert.Equal(3, result.ChangedTmdbIdsObserved);
-        Assert.Equal(1, result.FollowedShowsRefreshed);
-        Assert.Equal(FollowedShowId, Assert.Single(refreshService.RefreshedTvShowIds));
+        Assert.Equal(1, result.RelevantTargets);
+        Assert.Equal(1, result.Refreshed);
+        Assert.Equal(RelevantShowId, Assert.Single(refreshService.RefreshedTvShowIds));
     }
 
     [Fact]
-    public async Task SyncAsync_UnfollowedChangedId_DoesNotRefresh()
+    public async Task SyncAsync_IrrelevantChangedId_DoesNotRefresh()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
-            Pages = [new TmdbTvChangesPageResult([UnfollowedTmdbId], 1, 1)]
+            Pages = [new TmdbChangesPageResult([IrrelevantTmdbId], 1, 1)]
         };
 
         var refreshService = new RecordingRefreshService();
@@ -51,27 +51,21 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         var result = await service.SyncAsync(SyncInstant);
 
-        Assert.Equal(0, result.FollowedShowsRefreshed);
+        Assert.Equal(0, result.RelevantTargets);
+        Assert.Equal(0, result.Refreshed);
         Assert.Empty(refreshService.RefreshedTvShowIds);
     }
 
     [Fact]
-    public async Task SyncAsync_MultipleFollowersSameShow_RefreshesOnce()
+    public async Task SyncAsync_MultipleSignalsForSameShow_RefreshesOnce()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
-            Pages = [new TmdbTvChangesPageResult([FollowedTmdbId], 1, 1)]
+            Pages = [new TmdbChangesPageResult([RelevantTmdbId, RelevantTmdbId], 1, 1)]
         };
 
         var refreshService = new RecordingRefreshService();
-        var followedRepository = new FakeFollowedTvShowCatalogRepository(
-            new Dictionary<int, Guid> { [FollowedTmdbId] = FollowedShowId });
-
-        var service = new TmdbTvChangesSyncService(
-            changesProvider,
-            new FakeCheckpointRepository(),
-            followedRepository,
-            refreshService);
+        var service = CreateService(changesProvider, refreshService);
 
         await service.SyncAsync(SyncInstant);
 
@@ -83,7 +77,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
-            Pages = [new TmdbTvChangesPageResult([FollowedTmdbId], 1, 1)]
+            Pages = [new TmdbChangesPageResult([RelevantTmdbId], 1, 1)]
         };
 
         var refreshService = new RecordingRefreshService();
@@ -100,7 +94,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
-            Pages = [new TmdbTvChangesPageResult([FollowedTmdbId], 1, 2)],
+            Pages = [new TmdbChangesPageResult([RelevantTmdbId], 1, 2)],
             FailOnPage = 2
         };
 
@@ -113,20 +107,65 @@ public sealed class TmdbTvChangesSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_FailedShowRefresh_DoesNotAdvanceCheckpoint()
+    public async Task SyncAsync_FailedShowRefresh_SkipsTitleAndAdvancesCheckpoint()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
-            Pages = [new TmdbTvChangesPageResult([FollowedTmdbId], 1, 1)]
+            Pages = [new TmdbChangesPageResult([RelevantTmdbId], 1, 1)]
         };
 
         var checkpointRepository = new FakeCheckpointRepository();
-        var refreshService = new RecordingRefreshService { ShouldFail = true };
+        var refreshService = new RecordingRefreshService
+        {
+            Outcome = TmdbChangesTargetRefreshOutcome.Failed
+        };
         var service = CreateService(changesProvider, refreshService, checkpointRepository);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SyncAsync(SyncInstant));
+        var result = await service.SyncAsync(SyncInstant);
 
-        Assert.Null(checkpointRepository.LastCompletedEndDate);
+        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Equal(1, result.Failed);
+        Assert.Equal(0, result.Refreshed);
+    }
+
+    [Fact]
+    public async Task SyncAsync_UnavailableShowRefresh_SkipsTitleAndAdvancesCheckpoint()
+    {
+        var changesProvider = new FakeTmdbTvChangesProvider
+        {
+            Pages = [new TmdbChangesPageResult([RelevantTmdbId], 1, 1)]
+        };
+
+        var checkpointRepository = new FakeCheckpointRepository();
+        var refreshService = new RecordingRefreshService
+        {
+            Outcome = TmdbChangesTargetRefreshOutcome.SkippedUnavailable
+        };
+        var service = CreateService(changesProvider, refreshService, checkpointRepository);
+
+        var result = await service.SyncAsync(SyncInstant);
+
+        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal(0, result.Refreshed);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ExceptionDuringRefresh_SkipsTitleAndAdvancesCheckpoint()
+    {
+        var changesProvider = new FakeTmdbTvChangesProvider
+        {
+            Pages = [new TmdbChangesPageResult([RelevantTmdbId], 1, 1)]
+        };
+
+        var checkpointRepository = new FakeCheckpointRepository();
+        var refreshService = new RecordingRefreshService { ShouldThrow = true };
+        var service = CreateService(changesProvider, refreshService, checkpointRepository);
+
+        var result = await service.SyncAsync(SyncInstant);
+
+        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Equal(1, result.Failed);
     }
 
     [Fact]
@@ -134,7 +173,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
-            Pages = [new TmdbTvChangesPageResult([], 1, 1)]
+            Pages = [new TmdbChangesPageResult([], 1, 1)]
         };
 
         var checkpointRepository = new FakeCheckpointRepository();
@@ -147,24 +186,6 @@ public sealed class TmdbTvChangesSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_RepeatedSameWindow_RemainsIdempotentForCheckpoint()
-    {
-        var changesProvider = new FakeTmdbTvChangesProvider
-        {
-            Pages = [new TmdbTvChangesPageResult([], 1, 1)]
-        };
-
-        var checkpointRepository = new FakeCheckpointRepository();
-        var service = CreateService(changesProvider, new RecordingRefreshService(), checkpointRepository);
-
-        await service.SyncAsync(SyncInstant);
-        var second = await service.SyncAsync(SyncInstant);
-
-        Assert.Equal(1, second.WindowsProcessed);
-        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
-    }
-
-    [Fact]
     public async Task SyncAsync_LongCatchUp_ProcessesChunksSequentiallyAndAdvancesToTarget()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
@@ -172,9 +193,9 @@ public sealed class TmdbTvChangesSyncServiceTests
             PagesByWindow =
             {
                 [(new DateOnly(2026, 8, 31), new DateOnly(2026, 9, 13))] =
-                    [new TmdbTvChangesPageResult([], 1, 1)],
+                    [new TmdbChangesPageResult([], 1, 1)],
                 [(new DateOnly(2026, 9, 14), new DateOnly(2026, 9, 20))] =
-                    [new TmdbTvChangesPageResult([], 1, 1)]
+                    [new TmdbChangesPageResult([], 1, 1)]
             }
         };
 
@@ -186,8 +207,7 @@ public sealed class TmdbTvChangesSyncServiceTests
         var service = CreateService(
             changesProvider,
             new RecordingRefreshService(),
-            checkpointRepository,
-            targetDate: new DateOnly(2026, 9, 20));
+            checkpointRepository);
 
         var result = await service.SyncAsync(new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc));
 
@@ -198,27 +218,27 @@ public sealed class TmdbTvChangesSyncServiceTests
     private static TmdbTvChangesSyncService CreateService(
         FakeTmdbTvChangesProvider changesProvider,
         RecordingRefreshService refreshService,
-        FakeCheckpointRepository? checkpointRepository = null,
-        DateOnly? targetDate = null) =>
+        FakeCheckpointRepository? checkpointRepository = null) =>
         new(
             changesProvider,
             checkpointRepository ?? new FakeCheckpointRepository(),
-            new FakeFollowedTvShowCatalogRepository(
-                new Dictionary<int, Guid> { [FollowedTmdbId] = FollowedShowId }),
-            refreshService);
+            new FakeRelevanceRepository(
+                new Dictionary<int, Guid> { [RelevantTmdbId] = RelevantShowId }),
+            refreshService,
+            NullLogger<TmdbTvChangesSyncService>.Instance);
 
     private sealed class FakeTmdbTvChangesProvider : ITmdbTvChangesProvider
     {
-        public List<TmdbTvChangesPageResult> Pages { get; init; } = [];
+        public List<TmdbChangesPageResult> Pages { get; init; } = [];
 
-        public Dictionary<(DateOnly Start, DateOnly End), List<TmdbTvChangesPageResult>> PagesByWindow { get; init; } =
+        public Dictionary<(DateOnly Start, DateOnly End), List<TmdbChangesPageResult>> PagesByWindow { get; init; } =
             new();
 
         public int? FailOnPage { get; init; }
 
         public List<(DateOnly Start, DateOnly End, int Page)> Calls { get; } = [];
 
-        public Task<TmdbTvChangesPageResult> GetTvChangesPageAsync(
+        public Task<TmdbChangesPageResult> GetTvChangesPageAsync(
             DateOnly startDate,
             DateOnly endDate,
             int page,
@@ -260,17 +280,23 @@ public sealed class TmdbTvChangesSyncServiceTests
         }
     }
 
-    private sealed class FakeFollowedTvShowCatalogRepository(IReadOnlyDictionary<int, Guid> followedShows)
-        : IFollowedTvShowCatalogRepository
+    private sealed class FakeRelevanceRepository(IReadOnlyDictionary<int, Guid> relevantShows)
+        : ICatalogChangesRelevanceRepository
     {
-        public Task<IReadOnlyDictionary<int, Guid>> GetFollowedTvShowIdsByTmdbIdAsync(
+        public Task<IReadOnlyDictionary<int, Guid>> GetRelevantMovieIdsByTmdbIdAsync(
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(followedShows);
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetRelevantTvShowIdsByTmdbIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(relevantShows);
     }
 
     private sealed class RecordingRefreshService : ITvShowChangesTargetedRefreshService
     {
-        public bool ShouldFail { get; init; }
+        public bool ShouldThrow { get; init; }
+
+        public TmdbChangesTargetRefreshOutcome Outcome { get; init; } = TmdbChangesTargetRefreshOutcome.Refreshed;
 
         public List<Guid> RefreshedTvShowIds { get; } = [];
 
@@ -278,21 +304,28 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         public List<DateOnly> ChangeSignalDates { get; } = [];
 
-        public Task RefreshFollowedShowAsync(
+        public Task<TmdbChangesTargetRefreshResult> RefreshRelevantShowAsync(
             Guid tvShowId,
             DateOnly boundaryDate,
             DateOnly changeSignalDate,
             CancellationToken cancellationToken = default)
         {
-            if (ShouldFail)
+            if (ShouldThrow)
             {
                 throw new InvalidOperationException("Simulated refresh failure.");
             }
 
-            RefreshedTvShowIds.Add(tvShowId);
-            BoundaryDates.Add(boundaryDate);
-            ChangeSignalDates.Add(changeSignalDate);
-            return Task.CompletedTask;
+            if (Outcome == TmdbChangesTargetRefreshOutcome.Refreshed)
+            {
+                RefreshedTvShowIds.Add(tvShowId);
+                BoundaryDates.Add(boundaryDate);
+                ChangeSignalDates.Add(changeSignalDate);
+            }
+
+            return Task.FromResult(
+                Outcome == TmdbChangesTargetRefreshOutcome.Refreshed
+                    ? TmdbChangesTargetRefreshResult.Refreshed([])
+                    : new TmdbChangesTargetRefreshResult(Outcome, []));
         }
     }
 }

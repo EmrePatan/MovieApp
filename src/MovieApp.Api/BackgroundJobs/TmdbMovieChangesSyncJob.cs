@@ -1,22 +1,24 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.Extensions.Logging;
-using MovieApp.Application.Services.TvShowChanges;
+using MovieApp.Application.Services.MovieChanges;
 
 namespace MovieApp.Api.BackgroundJobs;
 
-public sealed class TmdbTvChangesSyncJob(ITmdbTvChangesSyncService syncService, ILogger<TmdbTvChangesSyncJob> logger)
+public sealed class TmdbMovieChangesSyncJob(
+    ITmdbMovieChangesSyncService syncService,
+    ILogger<TmdbMovieChangesSyncJob> logger)
 {
     [DisableConcurrentExecution(timeoutInSeconds: 6 * 60 * 60)]
     [AutomaticRetry(Attempts = 3)]
     public Task ExecuteAsync() =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
-            RecurringJobIds.TmdbTvChanges,
+            RecurringJobIds.TmdbMovieChanges,
             async () =>
             {
                 var result = await syncService.SyncAsync(DateTime.UtcNow);
 
-                BackgroundJobLogMessages.LogTmdbTvChangesSyncCompleted(
+                BackgroundJobLogMessages.LogTmdbMovieChangesSyncCompleted(
                     logger,
                     result.WindowsProcessed,
                     result.ChangedTmdbIdsObserved,

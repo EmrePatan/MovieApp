@@ -1,8 +1,10 @@
+using MovieApp.Application.Models.Changes;
+
 namespace MovieApp.Application.Services.TvShowChanges;
 
 public interface ITvShowChangesTargetedRefreshService
 {
-    Task RefreshFollowedShowAsync(
+    Task<TmdbChangesTargetRefreshResult> RefreshRelevantShowAsync(
         Guid tvShowId,
         DateOnly boundaryDate,
         DateOnly changeSignalDate,

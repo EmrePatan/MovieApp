@@ -26,6 +26,9 @@ internal static class MovieDataProviderServiceCollectionExtensions
             .Get<MovieProvidersOptions>() ?? new MovieProvidersOptions();
 
         services.AddSingleton<MovieDataProviderCallTracker>();
+        services.AddSingleton<FakeTmdbMovieChangesProvider>();
+        services.AddScoped<FakeTmdbMovieChangesProviderAdapter>();
+        services.AddScoped<TmdbMovieChangesProvider>();
         services.AddScoped<FakeMovieDataProvider>();
 
         if (IsTmdbProvider(movieProviders.Provider))
@@ -55,6 +58,12 @@ internal static class MovieDataProviderServiceCollectionExtensions
             return ResolveMovieDataProvider(serviceProvider, options.Provider);
         });
 
+        services.AddScoped<ITmdbMovieChangesProvider>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<MovieProvidersOptions>>().Value;
+            return ResolveTmdbMovieChangesProvider(serviceProvider, options.Provider);
+        });
+
         return services;
     }
 
@@ -71,5 +80,17 @@ internal static class MovieDataProviderServiceCollectionExtensions
         }
 
         return serviceProvider.GetRequiredService<FakeMovieDataProvider>();
+    }
+
+    private static ITmdbMovieChangesProvider ResolveTmdbMovieChangesProvider(
+        IServiceProvider serviceProvider,
+        string providerName)
+    {
+        if (IsTmdbProvider(providerName))
+        {
+            return serviceProvider.GetRequiredService<TmdbMovieChangesProvider>();
+        }
+
+        return serviceProvider.GetRequiredService<FakeTmdbMovieChangesProviderAdapter>();
     }
 }

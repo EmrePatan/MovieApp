@@ -4,16 +4,16 @@ using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 namespace MovieApp.Infrastructure.Providers.Tmdb;
 
-public sealed class TmdbTvChangesProvider(TmdbApiClient apiClient) : ITmdbTvChangesProvider
+public sealed class TmdbMovieChangesProvider(TmdbApiClient apiClient) : ITmdbMovieChangesProvider
 {
-    public async Task<TmdbChangesPageResult> GetTvChangesPageAsync(
+    public async Task<TmdbChangesPageResult> GetMovieChangesPageAsync(
         DateOnly startDate,
         DateOnly endDate,
         int page,
         CancellationToken cancellationToken = default)
     {
         var response = await apiClient.GetAsync<TmdbTvChangesResponseJson>(
-            $"tv/changes?start_date={startDate:yyyy-MM-dd}&end_date={endDate:yyyy-MM-dd}&page={page}",
+            $"movie/changes?start_date={startDate:yyyy-MM-dd}&end_date={endDate:yyyy-MM-dd}&page={page}",
             cancellationToken);
 
         if (response is null)

@@ -174,6 +174,8 @@ public static class DependencyInjection
 
         services.AddScoped<IFollowedTvShowCatalogRepository, FollowedTvShowCatalogRepository>();
 
+        services.AddScoped<ICatalogChangesRelevanceRepository, CatalogChangesRelevanceRepository>();
+
         services.AddScoped<IHotReleaseCandidateRepository, HotReleaseCandidateRepository>();
 
         services.AddScoped<ICatalogReleaseEventRepository, CatalogReleaseEventRepository>();
