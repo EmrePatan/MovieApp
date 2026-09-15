@@ -3,6 +3,7 @@ using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Discovery;
+using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Search;
@@ -22,8 +23,45 @@ public sealed class DiscoveryController(
     INowInTheatersService nowInTheatersService,
     IOnTvThisWeekService onTvThisWeekService,
     IWorldCinemaService worldCinemaService,
-    IExplorePreviewService explorePreviewService) : ControllerBase
+    IExplorePreviewService explorePreviewService,
+    IPickSomethingService pickSomethingService) : ControllerBase
 {
+    [HttpGet("pick-something")]
+    [ProducesResponseType(typeof(PickSomethingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PickSomethingResponse>> GetPickSomething(
+        [FromQuery] string? mediaType,
+        [FromQuery] string[]? excludeIds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var mediaTypeValidation = PickSomethingValidator.ValidateMediaType(mediaType);
+            if (!mediaTypeValidation.IsValid)
+            {
+                throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+            }
+
+            _ = RecommendationValidator.TryParseType(mediaType, out var contentType);
+
+            var criteria = new PickSomethingCriteria(
+                contentType,
+                PickSomethingValidator.ParseSessionExcludedIds(excludeIds));
+
+            var item = await pickSomethingService.PickAsync(criteria, cancellationToken);
+
+            return Ok(new PickSomethingResponse(
+                item is null ? null : RecommendationContractMapper.ToRecommendationItemResponse(item)));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid pick something request.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("explore-preview")]
     [ProducesResponseType(typeof(ExplorePreviewResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

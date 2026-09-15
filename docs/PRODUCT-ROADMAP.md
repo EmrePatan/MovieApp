@@ -64,7 +64,7 @@ Home may still surface useful personalized library-derived sections (e.g. Contin
 First-class bottom tab for finding new content:
 - Global Search entry
 - **Explore with Filters** (D1 Advanced Discover) → `/advanced-discover`
-- Layout prepared for D6 (Pick Something For Me) — placeholder only until that phase ships; D2 Streaming Services, D3 Now in Theaters, D4 On TV This Week, and D5 World Cinema are live
+- **Pick Something For Me** (D6) → `/pick-something`; D2 Streaming Services, D3 Now in Theaters, D4 On TV This Week, and D5 World Cinema are live
 - Existing real discovery content (Trending, Top Rated, genres, New Releases browse)
 
 Filtered browse listing screens remain reachable from Discover, genres, See All, and deep links.
@@ -183,7 +183,7 @@ Provider-first discovery by **watch region** and streaming availability, reusing
 - Lazy summary ingestion unchanged (`EnsureFromSummariesAsync`); no schema change
 
 **Mobile:**
-- Discover hub **Streaming Services** entry active → `/streaming-discover` (D6 remains coming-soon placeholder)
+- Discover hub **Streaming Services** entry active → `/streaming-discover`
 - Provider-first screen: watch region, multi-select providers (logos + names), Movies/TV toggle, availability types (Stream/Free/With Ads/Rent/Buy), optional min rating + sort, results via existing search cards with pagination and detail navigation
 - Advanced Discover filter sheet extended with optional Streaming section (watch region, providers, availability); D1 URLs remain valid
 - JustWatch attribution on Streaming Services screen (aligned with Where to Watch)
@@ -223,7 +223,7 @@ General TV discovery for shows with episodes airing soon — **not** personalize
 **Mobile:**
 - Discover hub **On TV This Week** preview carousel with See All, contained loading/error/empty states (failure isolated from other sections)
 - Full screen `/on-tv-this-week` with infinite pagination, pull-to-refresh, TV detail navigation with return-state preservation; TV only (no Movies/TV toggle, no region selector)
-- D6 Pick Something For Me remains coming-soon placeholder
+- D6 Pick Something For Me shipped in a later phase
 
 ## DONE — Discovery 2.0 D5 (World Cinema)
 
@@ -244,7 +244,7 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 **Mobile:**
 - Discover hub **World Cinema** section: curated cinema chips (KR, JP, IR, FR, IT, ES, IN, TR, CN, HK, TW, DE, MX, AR, BR), default featured **Korean Cinema**, preview carousel, Explore action
 - Full screen `/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc` with Movies/TV toggle, `OriginCountrySelector`, compact sort (Popular / Top Rated / Newest), infinite pagination, pull-to-refresh, detail navigation with return-state preservation
-- D6 Pick Something For Me remains coming-soon placeholder
+- D6 Pick Something For Me shipped in a later phase
 
 ## DONE — Discovery 2.0 D5.5 (User Regional Preference)
 
@@ -265,7 +265,22 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 **Settings:**
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
-**Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
+**Next Discovery 2.0 phase:** D5.6 Library 2.0.
+
+## DONE — Discovery 2.0 D6 (Pick Something For Me)
+
+**Backend:**
+- `GET /api/discovery/pick-something` returns one `PickSomethingResponse` item
+- Guest-capable; auth enriches via Recommendation 2.x context/scoring when eligible
+- Cold start uses local catalog trending/popular only (no TMDB on critical path)
+- Watchlist titles remain eligible with boost + `"From your watchlist"` reason
+- Session `excludeIds` (max 50) for Try Another; score-biased random selection from top band
+- No persistent pick history, no migration
+
+**Mobile:**
+- Discover hub entry active → `/pick-something`
+- Either / Movie / TV controls; result card with reason; Try Another + View Details
+- `pick_something_used` tracked once per screen visit on first successful pick
 
 ## DONE — Home Cold Start Optimization Phase 2
 
