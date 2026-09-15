@@ -187,7 +187,7 @@ Follow-first per-episode upcoming intelligence on top of existing Catalog Follow
 
 **Notifications:** **IMPLEMENTED** via existing `HotReleaseCheckJob` + `ReleaseDetector` + fanout (episode dedupe already exists). No second notification system.
 
-**Mobile:** Profile → My Library → Upcoming screen (`/upcoming`); `UpcomingCard` episode UX (`Sxx Exx`, episode title, relative air date).
+**Mobile:** Home Coming Up → See All → Upcoming screen (`/upcoming`); `UpcomingCard` episode UX (`Sxx Exx`, episode title, relative air date).
 
 **Migration:** `20260915134637_AddTvUpcomingEpisodeSync` (create only — do not assume applied on staging until deliberately migrated).
 
