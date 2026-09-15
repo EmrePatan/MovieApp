@@ -37,6 +37,15 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(movie => movie.ImdbId)
             .HasMaxLength(ConfigurationConstants.ImdbIdMaxLength);
 
+        builder.Property(movie => movie.CollectionName)
+            .HasMaxLength(ConfigurationConstants.TitleMaxLength);
+
+        builder.Property(movie => movie.CollectionPosterPath)
+            .HasMaxLength(ConfigurationConstants.PathMaxLength);
+
+        builder.Property(movie => movie.CollectionBackdropPath)
+            .HasMaxLength(ConfigurationConstants.PathMaxLength);
+
         builder.Property(movie => movie.VoteAverage)
             .HasPrecision(ConfigurationConstants.VoteAveragePrecision, ConfigurationConstants.VoteAverageScale);
 

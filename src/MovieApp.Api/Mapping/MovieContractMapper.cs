@@ -40,5 +40,12 @@ public static class MovieContractMapper
             result.OriginalLanguage,
             result.VoteAverage,
             result.VoteCount,
-            result.Genres);
+            result.Genres,
+            result.Collection is null
+                ? null
+                : new MovieCollectionSummaryResponse(
+                    result.Collection.TmdbId,
+                    result.Collection.Name,
+                    result.Collection.PosterPath,
+                    result.Collection.BackdropPath));
 }

@@ -178,6 +178,71 @@ public sealed class MovieRepositoryTests
         Assert.Equal(0, await context.MovieGenres.CountAsync());
     }
 
+    [Fact]
+    public async Task UpsertFromProviderAsyncPersistsCollectionFields()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"movie-repository-collection-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new MovieRepository(context);
+
+        var details = CreateDetails(
+            tmdbId: 900001,
+            imdbId: "tt9000001",
+            title: "Interstellar") with
+        {
+            TmdbCollectionId = 645,
+            CollectionName = "Space Collection",
+            CollectionPosterPath = "/collection-poster.jpg",
+            CollectionBackdropPath = "/collection-backdrop.jpg"
+        };
+
+        var movie = await repository.UpsertFromProviderAsync(details);
+
+        Assert.Equal(645, movie.TmdbCollectionId);
+        Assert.Equal("Space Collection", movie.CollectionName);
+        Assert.Equal("/collection-poster.jpg", movie.CollectionPosterPath);
+        Assert.Equal("/collection-backdrop.jpg", movie.CollectionBackdropPath);
+    }
+
+    [Fact]
+    public async Task UpsertFromProviderAsyncClearsStaleCollectionFieldsOnReIngest()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"movie-repository-clear-collection-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new MovieRepository(context);
+
+        var withCollection = CreateDetails(
+            tmdbId: 900001,
+            imdbId: "tt9000001",
+            title: "Interstellar") with
+        {
+            TmdbCollectionId = 645,
+            CollectionName = "Space Collection",
+            CollectionPosterPath = "/collection-poster.jpg",
+            CollectionBackdropPath = "/collection-backdrop.jpg"
+        };
+
+        await repository.UpsertFromProviderAsync(withCollection);
+
+        var withoutCollection = CreateDetails(
+            tmdbId: 900001,
+            imdbId: "tt9000001",
+            title: "Interstellar");
+
+        var updated = await repository.UpsertFromProviderAsync(withoutCollection);
+
+        Assert.Null(updated.TmdbCollectionId);
+        Assert.Null(updated.CollectionName);
+        Assert.Null(updated.CollectionPosterPath);
+        Assert.Null(updated.CollectionBackdropPath);
+    }
+
     private static MovieProviderDetails CreateDetails(int tmdbId, string? imdbId, string title) =>
         new(
             ExternalId: $"fake-tmdb-{tmdbId}",

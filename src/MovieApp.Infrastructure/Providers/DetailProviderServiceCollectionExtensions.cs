@@ -21,6 +21,7 @@ internal static class DetailProviderServiceCollectionExtensions
         services.AddScoped<FakePersonDataProvider>();
         services.AddScoped<FakeWatchProviderService>();
         services.AddScoped<FakeVideoProvider>();
+        services.AddScoped<FakeCollectionDataProvider>();
 
         if (IsTmdbProvider(movieProviders.Provider))
         {
@@ -28,6 +29,7 @@ internal static class DetailProviderServiceCollectionExtensions
             services.AddScoped<TmdbPersonDataProvider>();
             services.AddScoped<TmdbWatchProviderService>();
             services.AddScoped<TmdbVideoProvider>();
+            services.AddScoped<TmdbCollectionDataProvider>();
         }
 
         services.AddScoped<ICreditsProvider>(serviceProvider =>
@@ -49,6 +51,11 @@ internal static class DetailProviderServiceCollectionExtensions
             IsTmdbProvider(movieProviders.Provider)
                 ? serviceProvider.GetRequiredService<TmdbVideoProvider>()
                 : serviceProvider.GetRequiredService<FakeVideoProvider>());
+
+        services.AddScoped<ICollectionDataProvider>(serviceProvider =>
+            IsTmdbProvider(movieProviders.Provider)
+                ? serviceProvider.GetRequiredService<TmdbCollectionDataProvider>()
+                : serviceProvider.GetRequiredService<FakeCollectionDataProvider>());
 
         return services;
     }

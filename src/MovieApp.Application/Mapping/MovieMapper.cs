@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Collections;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Domain.Entities;
 
@@ -37,5 +38,20 @@ public static class MovieMapper
             movie.MovieGenres
                 .Select(movieGenre => movieGenre.Genre.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)
-                .ToList());
+                .ToList(),
+            ToCollectionSummary(movie));
+
+    private static MovieCollectionSummaryResult? ToCollectionSummary(Movie movie)
+    {
+        if (!movie.TmdbCollectionId.HasValue || string.IsNullOrWhiteSpace(movie.CollectionName))
+        {
+            return null;
+        }
+
+        return new MovieCollectionSummaryResult(
+            movie.TmdbCollectionId.Value,
+            movie.CollectionName,
+            movie.CollectionPosterPath,
+            movie.CollectionBackdropPath);
+    }
 }

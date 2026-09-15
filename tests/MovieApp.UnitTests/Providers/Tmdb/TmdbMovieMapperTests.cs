@@ -160,6 +160,43 @@ public sealed class TmdbMovieMapperTests
     }
 
     [Fact]
+    public void ToDetailsMapsBelongsToCollection()
+    {
+        var details = TmdbMovieMapper.ToDetails(new TmdbMovieDetailsResponseJson
+        {
+            Id = 157336,
+            Title = "Interstellar",
+            BelongsToCollection = new TmdbBelongsToCollectionJson
+            {
+                Id = 645,
+                Name = "Space Collection",
+                PosterPath = "collection-poster.jpg",
+                BackdropPath = "/collection-backdrop.jpg"
+            }
+        });
+
+        Assert.Equal(645, details.TmdbCollectionId);
+        Assert.Equal("Space Collection", details.CollectionName);
+        Assert.Equal("/collection-poster.jpg", details.CollectionPosterPath);
+        Assert.Equal("/collection-backdrop.jpg", details.CollectionBackdropPath);
+    }
+
+    [Fact]
+    public void ToDetailsClearsCollectionFieldsWhenBelongsToCollectionMissing()
+    {
+        var details = TmdbMovieMapper.ToDetails(new TmdbMovieDetailsResponseJson
+        {
+            Id = 157336,
+            Title = "Interstellar"
+        });
+
+        Assert.Null(details.TmdbCollectionId);
+        Assert.Null(details.CollectionName);
+        Assert.Null(details.CollectionPosterPath);
+        Assert.Null(details.CollectionBackdropPath);
+    }
+
+    [Fact]
     public void ParseReleaseDateReturnsNullForInvalidValue()
     {
         Assert.Null(TmdbMovieMapper.ParseReleaseDate("invalid-date"));

@@ -30,6 +30,14 @@ public sealed class Movie
 
     public int VoteCount { get; set; }
 
+    public int? TmdbCollectionId { get; set; }
+
+    public string? CollectionName { get; set; }
+
+    public string? CollectionPosterPath { get; set; }
+
+    public string? CollectionBackdropPath { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

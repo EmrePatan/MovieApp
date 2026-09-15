@@ -41,7 +41,11 @@ internal static class TmdbMovieMapper
             Genres: details.Genres
                 .Where(genre => !string.IsNullOrWhiteSpace(genre.Name))
                 .Select(genre => genre.Name!)
-                .ToList());
+                .ToList(),
+            TmdbCollectionId: details.BelongsToCollection?.Id,
+            CollectionName: details.BelongsToCollection?.Name,
+            CollectionPosterPath: NormalizeImagePath(details.BelongsToCollection?.PosterPath),
+            CollectionBackdropPath: NormalizeImagePath(details.BelongsToCollection?.BackdropPath));
     }
 
     internal static MovieProviderSearchResult ToSearchResult(

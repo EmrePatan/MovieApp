@@ -13,4 +13,5 @@ public sealed record MovieDetailsResponse(
     string? OriginalLanguage,
     decimal VoteAverage,
     int VoteCount,
-    IReadOnlyList<string> Genres);
+    IReadOnlyList<string> Genres,
+    MovieCollectionSummaryResponse? Collection);

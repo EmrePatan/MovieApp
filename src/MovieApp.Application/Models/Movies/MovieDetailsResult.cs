@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Collections;
+
 namespace MovieApp.Application.Models.Movies;
 
 public sealed record MovieDetailsResult(
@@ -15,4 +17,5 @@ public sealed record MovieDetailsResult(
     string? OriginalLanguage,
     decimal VoteAverage,
     int VoteCount,
-    IReadOnlyList<string> Genres);
+    IReadOnlyList<string> Genres,
+    MovieCollectionSummaryResult? Collection);

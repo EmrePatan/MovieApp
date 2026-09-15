@@ -290,6 +290,22 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         movie.OriginalLanguage = details.OriginalLanguage;
         movie.VoteAverage = details.VoteAverage;
         movie.VoteCount = details.VoteCount;
+
+        if (details.TmdbCollectionId.HasValue)
+        {
+            movie.TmdbCollectionId = details.TmdbCollectionId;
+            movie.CollectionName = details.CollectionName;
+            movie.CollectionPosterPath = details.CollectionPosterPath;
+            movie.CollectionBackdropPath = details.CollectionBackdropPath;
+        }
+        else
+        {
+            movie.TmdbCollectionId = null;
+            movie.CollectionName = null;
+            movie.CollectionPosterPath = null;
+            movie.CollectionBackdropPath = null;
+        }
+
         movie.UpdatedAt = utcNow;
     }
 

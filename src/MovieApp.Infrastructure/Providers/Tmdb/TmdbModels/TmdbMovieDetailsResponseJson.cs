@@ -29,4 +29,6 @@ internal sealed class TmdbMovieDetailsResponseJson
     public string? ImdbId { get; set; }
 
     public TmdbExternalIdsJson? ExternalIds { get; set; }
+
+    public TmdbBelongsToCollectionJson? BelongsToCollection { get; set; }
 }

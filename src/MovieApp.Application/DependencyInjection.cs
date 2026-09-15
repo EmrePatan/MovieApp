@@ -25,6 +25,7 @@ using MovieApp.Application.Services.MovieFollows;
 using MovieApp.Application.Services.CatalogFollows;
 using MovieApp.Application.Services.MovieRelease;
 using MovieApp.Application.Services.Watchlists;
+using MovieApp.Application.Services.Collections;
 
 namespace MovieApp.Application;
 
@@ -39,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IGetMovieWatchProvidersService, GetMovieWatchProvidersService>();
         services.AddScoped<IGetMovieVideosService, GetMovieVideosService>();
         services.AddScoped<IGetPersonByTmdbIdService, GetPersonByTmdbIdService>();
+        services.AddScoped<IGetCollectionService, GetCollectionService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();

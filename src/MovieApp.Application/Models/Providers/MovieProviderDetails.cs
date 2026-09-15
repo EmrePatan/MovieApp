@@ -15,4 +15,8 @@ public sealed record MovieProviderDetails(
     string? OriginalLanguage,
     decimal VoteAverage,
     int VoteCount,
-    IReadOnlyList<string> Genres);
+    IReadOnlyList<string> Genres,
+    int? TmdbCollectionId = null,
+    string? CollectionName = null,
+    string? CollectionPosterPath = null,
+    string? CollectionBackdropPath = null);
