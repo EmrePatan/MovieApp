@@ -55,7 +55,54 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
         Assert.NotNull(payload);
         Assert.Single(payload.Items);
         Assert.Equal("movie", payload.Items[0].Type);
+        Assert.Equal(1, payload.PageSize);
         Assert.True(payload.TotalCount >= 1);
+        Assert.True(payload.TotalPages >= 1);
+    }
+
+    [Fact]
+    public async Task BrowseSupportsTvOnlyPageSizeInvariant()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/discovery/browse?mode=top_rated&type=tv&page=1&pageSize=1");
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+
+        Assert.NotNull(payload);
+        Assert.Single(payload.Items);
+        Assert.Equal("tv", payload.Items[0].Type);
+        Assert.Equal(1, payload.PageSize);
+    }
+
+    [Fact]
+    public async Task BrowseSupportsMixedPageSizeInvariant()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/discovery/browse?mode=trending&type=all&page=1&pageSize=1");
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+
+        Assert.NotNull(payload);
+        Assert.Single(payload.Items);
+        Assert.Equal(1, payload.PageSize);
+        Assert.True(payload.TotalCount >= 1);
+    }
+
+    [Fact]
+    public async Task BrowseMovieOnlyPageSizeOneReturnsDeterministicOrdering()
+    {
+        await fixture.ResetAsync();
+
+        var first = await _client.GetFromJsonAsync<SearchResponse>(
+            "/api/discovery/browse?mode=top_rated&type=movie&page=1&pageSize=1");
+        var second = await _client.GetFromJsonAsync<SearchResponse>(
+            "/api/discovery/browse?mode=top_rated&type=movie&page=1&pageSize=1");
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Single(first.Items);
+        Assert.Single(second.Items);
+        Assert.Equal(first.Items[0].Id, second.Items[0].Id);
     }
 
     [Fact]

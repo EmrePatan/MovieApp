@@ -36,10 +36,11 @@ internal static class DiscoverBrowseMerger
         int pageSize,
         int totalCount)
     {
+        var trimmedItems = items.Take(pageSize).ToList();
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
 
         return new PaginatedResult<SearchItem>(
-            items,
+            trimmedItems,
             page,
             pageSize,
             totalCount,

@@ -44,8 +44,8 @@ public sealed class DiscoverBrowseService(
 
         PaginatedResult<SearchItem> result = criteria.Type switch
         {
-            SearchContentType.Movie => await BrowseMoviesAsync(providerCriteria, cancellationToken),
-            SearchContentType.Tv => await BrowseTvShowsAsync(providerCriteria, cancellationToken),
+            SearchContentType.Movie => await BrowseMoviesAsync(criteria, providerCriteria, cancellationToken),
+            SearchContentType.Tv => await BrowseTvShowsAsync(criteria, providerCriteria, cancellationToken),
             _ => await BrowseAllAsync(criteria, cancellationToken)
         };
 
@@ -96,6 +96,7 @@ public sealed class DiscoverBrowseService(
         BuildProviderCriteriaAsync(criteria, criteria.Type, cancellationToken);
 
     private async Task<PaginatedResult<SearchItem>> BrowseMoviesAsync(
+        DiscoverBrowseCriteria criteria,
         DiscoverProviderCriteria providerCriteria,
         CancellationToken cancellationToken)
     {
@@ -105,12 +106,13 @@ public sealed class DiscoverBrowseService(
 
         return DiscoverBrowseMerger.CreateSingleTypeResult(
             items,
-            searchResult.Page,
-            searchResult.PageSize,
+            criteria.Page,
+            criteria.PageSize,
             searchResult.TotalCount);
     }
 
     private async Task<PaginatedResult<SearchItem>> BrowseTvShowsAsync(
+        DiscoverBrowseCriteria criteria,
         DiscoverProviderCriteria providerCriteria,
         CancellationToken cancellationToken)
     {
@@ -120,8 +122,8 @@ public sealed class DiscoverBrowseService(
 
         return DiscoverBrowseMerger.CreateSingleTypeResult(
             items,
-            searchResult.Page,
-            searchResult.PageSize,
+            criteria.Page,
+            criteria.PageSize,
             searchResult.TotalCount);
     }
 

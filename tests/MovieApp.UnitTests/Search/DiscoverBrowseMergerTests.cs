@@ -42,6 +42,43 @@ public sealed class DiscoverBrowseMergerTests
     }
 
     [Fact]
+    public void CreateSingleTypeResultCapsProviderOverReturnToRequestedPageSize()
+    {
+        var items = Enumerable.Range(0, 3)
+            .Select(index => CreateItem(Guid.NewGuid(), "movie", voteCount: 100 - index))
+            .ToList();
+
+        var result = DiscoverBrowseMerger.CreateSingleTypeResult(
+            items,
+            page: 1,
+            pageSize: 1,
+            totalCount: 3);
+
+        Assert.Single(result.Items);
+        Assert.Equal(100, result.Items[0].VoteCount);
+        Assert.Equal(1, result.Page);
+        Assert.Equal(1, result.PageSize);
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(3, result.TotalPages);
+    }
+
+    [Fact]
+    public void CreateSingleTypeResultPreservesProviderOrderingWhenTrimming()
+    {
+        var first = CreateItem(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "tv", voteAverage: 9m);
+        var second = CreateItem(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "tv", voteAverage: 8m);
+
+        var result = DiscoverBrowseMerger.CreateSingleTypeResult(
+            [first, second],
+            page: 1,
+            pageSize: 1,
+            totalCount: 2);
+
+        Assert.Single(result.Items);
+        Assert.Equal(first.Id, result.Items[0].Id);
+    }
+
+    [Fact]
     public void MergeCapsAllTypePageToRequestedPageSize()
     {
         var criteria = new DiscoverBrowseCriteria(
