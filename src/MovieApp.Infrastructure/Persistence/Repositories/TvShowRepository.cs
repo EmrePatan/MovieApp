@@ -74,27 +74,82 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             dbContext.TvShows.Add(tvShow);
         }
 
-        tvShow.TmdbId = details.TmdbId;
-        tvShow.TvdbId = details.TvdbId;
-        tvShow.ImdbId = details.ImdbId;
-        tvShow.Title = details.Title;
-        tvShow.OriginalTitle = details.OriginalTitle;
-        tvShow.Overview = details.Overview;
-        tvShow.FirstAirDate = details.FirstAirDate;
-        tvShow.LastAirDate = details.LastAirDate;
-        tvShow.PosterPath = details.PosterPath;
-        tvShow.BackdropPath = details.BackdropPath;
-        tvShow.OriginalLanguage = details.OriginalLanguage;
-        tvShow.VoteAverage = details.VoteAverage;
-        tvShow.VoteCount = details.VoteCount;
-        tvShow.Status = TvShowStatusParser.Parse(details.Status);
-        tvShow.UpdatedAt = utcNow;
+        ApplyProviderDetails(tvShow, details, utcNow);
 
         await SyncGenresAsync(tvShow, details.Genres, cancellationToken);
         await SyncSeasonSummariesAsync(tvShow, details.Seasons, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return tvShow;
+    }
+
+    public async Task<IReadOnlyList<TvShow>> UpsertFromProviderBatchAsync(
+        IReadOnlyList<TvShowProviderDetails> details,
+        CancellationToken cancellationToken = default)
+    {
+        if (details.Count == 0)
+        {
+            return [];
+        }
+
+        var tmdbIds = details
+            .Where(detail => detail.TmdbId.HasValue)
+            .Select(detail => detail.TmdbId!.Value)
+            .Distinct()
+            .ToList();
+
+        var existingTvShows = tmdbIds.Count == 0
+            ? []
+            : await dbContext.TvShows
+                .Include(tvShow => tvShow.TvShowGenres)
+                .ThenInclude(tvShowGenre => tvShowGenre.Genre)
+                .Include(tvShow => tvShow.Seasons)
+                .Where(tvShow => tvShow.TmdbId.HasValue && tmdbIds.Contains(tvShow.TmdbId.Value))
+                .ToListAsync(cancellationToken);
+
+        var tvShowsByTmdbId = existingTvShows
+            .Where(tvShow => tvShow.TmdbId.HasValue)
+            .ToDictionary(tvShow => tvShow.TmdbId!.Value);
+
+        var genresByName = await LoadGenresByNameAsync(
+            details.SelectMany(detail => detail.Genres),
+            cancellationToken);
+
+        var utcNow = DateTime.UtcNow;
+        var results = new List<TvShow>(details.Count);
+
+        foreach (var detail in details)
+        {
+            TvShow tvShow;
+
+            if (detail.TmdbId.HasValue && tvShowsByTmdbId.TryGetValue(detail.TmdbId.Value, out var existingTvShow))
+            {
+                tvShow = existingTvShow;
+            }
+            else
+            {
+                tvShow = new TvShow
+                {
+                    Id = Guid.NewGuid(),
+                    CreatedAt = utcNow
+                };
+
+                dbContext.TvShows.Add(tvShow);
+
+                if (detail.TmdbId.HasValue)
+                {
+                    tvShowsByTmdbId[detail.TmdbId.Value] = tvShow;
+                }
+            }
+
+            ApplyProviderDetails(tvShow, detail, utcNow);
+            SyncGenresWithContext(tvShow, detail.Genres, genresByName, utcNow);
+            SyncSeasonSummaries(tvShow, detail.Seasons, utcNow);
+            results.Add(tvShow);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return results;
     }
 
     public async Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
@@ -194,21 +249,65 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         IReadOnlyList<string> genreNames,
         CancellationToken cancellationToken)
     {
+        var genresByName = await LoadGenresByNameAsync(genreNames, cancellationToken);
+        SyncGenresWithContext(tvShow, genreNames, genresByName, DateTime.UtcNow);
+    }
+
+    private async Task<Dictionary<string, Genre>> LoadGenresByNameAsync(
+        IEnumerable<string> genreNames,
+        CancellationToken cancellationToken)
+    {
         var normalizedGenreNames = genreNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        if (normalizedGenreNames.Count == 0)
+        {
+            return new Dictionary<string, Genre>(StringComparer.OrdinalIgnoreCase);
+        }
+
         var existingGenres = await dbContext.Genres
             .Where(genre => normalizedGenreNames.Contains(genre.Name))
             .ToListAsync(cancellationToken);
 
-        var genresByName = existingGenres.ToDictionary(
+        return existingGenres.ToDictionary(
             genre => genre.Name,
             StringComparer.OrdinalIgnoreCase);
+    }
 
-        var utcNow = DateTime.UtcNow;
+    private static void ApplyProviderDetails(TvShow tvShow, TvShowProviderDetails details, DateTime utcNow)
+    {
+        tvShow.TmdbId = details.TmdbId;
+        tvShow.TvdbId = details.TvdbId;
+        tvShow.ImdbId = details.ImdbId;
+        tvShow.Title = details.Title;
+        tvShow.OriginalTitle = details.OriginalTitle;
+        tvShow.Overview = details.Overview;
+        tvShow.FirstAirDate = details.FirstAirDate;
+        tvShow.LastAirDate = details.LastAirDate;
+        tvShow.PosterPath = details.PosterPath;
+        tvShow.BackdropPath = details.BackdropPath;
+        tvShow.OriginalLanguage = details.OriginalLanguage;
+        tvShow.VoteAverage = details.VoteAverage;
+        tvShow.VoteCount = details.VoteCount;
+        tvShow.Status = TvShowStatusParser.Parse(details.Status);
+        tvShow.UpdatedAt = utcNow;
+    }
+
+    private void SyncGenresWithContext(
+        TvShow tvShow,
+        IReadOnlyList<string> genreNames,
+        Dictionary<string, Genre> genresByName,
+        DateTime utcNow)
+    {
+        var normalizedGenreNames = genreNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var linkedGenreIds = new HashSet<Guid>();
 
         foreach (var genreName in normalizedGenreNames)
@@ -256,10 +355,18 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         IReadOnlyList<SeasonProviderSummary> seasons,
         CancellationToken cancellationToken)
     {
+        SyncSeasonSummaries(tvShow, seasons, DateTime.UtcNow);
+        await Task.CompletedTask;
+    }
+
+    private void SyncSeasonSummaries(
+        TvShow tvShow,
+        IReadOnlyList<SeasonProviderSummary> seasons,
+        DateTime utcNow)
+    {
         foreach (var summary in seasons)
         {
             var season = tvShow.Seasons.FirstOrDefault(item => item.SeasonNumber == summary.SeasonNumber);
-            var utcNow = DateTime.UtcNow;
 
             if (season is null)
             {
@@ -282,7 +389,5 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             season.PosterPath = summary.PosterPath;
             season.UpdatedAt = utcNow;
         }
-
-        await Task.CompletedTask;
     }
 }

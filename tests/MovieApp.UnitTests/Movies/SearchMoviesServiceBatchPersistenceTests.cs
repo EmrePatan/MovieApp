@@ -12,15 +12,16 @@ using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Movies;
 
-public sealed class SearchMoviesServiceProviderAmplificationTests
+public sealed class SearchMoviesServiceBatchPersistenceTests
 {
     [Fact]
-    public async Task SearchAsyncCapsProviderDetailRequestsToConfiguredMaximum()
+    public async Task SearchAsyncUsesBatchUpsertForMultipleResults()
     {
-        var provider = new CountingMovieDataProvider(CreateSummaries(100));
+        var repository = new CountingMovieRepository();
+        var provider = new CountingMovieDataProvider(CreateSummaries(3));
         var service = new SearchMoviesService(
             provider,
-            new NoOpMovieRepository(),
+            repository,
             new SearchServiceTestsHelper.FakeCacheService(null),
             Options.Create(new SearchOptions
             {
@@ -29,11 +30,11 @@ public sealed class SearchMoviesServiceProviderAmplificationTests
             }),
             NullLogger<SearchMoviesService>.Instance);
 
-        await service.SearchAsync(new MovieSearchRequest("batman", 1, 100));
+        var result = await service.SearchAsync(new MovieSearchRequest("batman", 1, 20));
 
-        Assert.Equal(1, provider.SearchCallCount);
-        Assert.Equal(20, provider.DetailCallCount);
-        Assert.Equal(21, provider.TotalProviderHttpCalls);
+        Assert.Equal(3, result.Items.Count);
+        Assert.Equal(1, repository.BatchUpsertCallCount);
+        Assert.Equal(0, repository.SingleUpsertCallCount);
     }
 
     private static List<MovieProviderSummary> CreateSummaries(int count) =>
@@ -53,32 +54,22 @@ public sealed class SearchMoviesServiceProviderAmplificationTests
 
     private sealed class CountingMovieDataProvider(IReadOnlyList<MovieProviderSummary> summaries) : IMovieDataProvider
     {
-        public int SearchCallCount { get; private set; }
-
-        public int DetailCallCount { get; private set; }
-
-        public int TotalProviderHttpCalls => SearchCallCount + DetailCallCount;
-
         public Task<MovieProviderSearchResult> SearchMoviesAsync(
             string query,
             int page,
             int pageSize,
-            CancellationToken cancellationToken = default)
-        {
-            SearchCallCount++;
-            return Task.FromResult(new MovieProviderSearchResult(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MovieProviderSearchResult(
                 summaries,
                 page,
                 pageSize,
                 summaries.Count,
                 1));
-        }
 
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
             CancellationToken cancellationToken = default)
         {
-            DetailCallCount++;
             var summary = summaries.Single(item => string.Equals(item.ExternalId, externalId, StringComparison.Ordinal));
             return Task.FromResult<MovieProviderDetails?>(new MovieProviderDetails(
                 summary.ExternalId,
@@ -99,34 +90,43 @@ public sealed class SearchMoviesServiceProviderAmplificationTests
         }
     }
 
-    private sealed class NoOpMovieRepository : IMovieRepository
+    private sealed class CountingMovieRepository : IMovieRepository
     {
+        public int BatchUpsertCallCount { get; private set; }
+
+        public int SingleUpsertCallCount { get; private set; }
+
         public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<Movie?>(null);
 
         public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
             Task.FromResult<Movie?>(null);
 
-        public Task<Movie> UpsertFromProviderAsync(MovieProviderDetails details, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new Movie
+        public Task<Movie> UpsertFromProviderAsync(MovieProviderDetails details, CancellationToken cancellationToken = default)
+        {
+            SingleUpsertCallCount++;
+            return Task.FromResult(new Movie
             {
                 Id = Guid.NewGuid(),
                 TmdbId = details.TmdbId,
                 Title = details.Title
             });
+        }
 
-        public async Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+        public Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
             IReadOnlyList<MovieProviderDetails> details,
             CancellationToken cancellationToken = default)
         {
-            var movies = new List<Movie>(details.Count);
-
-            foreach (var detail in details)
-            {
-                movies.Add(await UpsertFromProviderAsync(detail, cancellationToken));
-            }
-
-            return movies;
+            BatchUpsertCallCount++;
+            return Task.FromResult<IReadOnlyList<Movie>>(
+                details
+                    .Select(detail => new Movie
+                    {
+                        Id = Guid.NewGuid(),
+                        TmdbId = detail.TmdbId,
+                        Title = detail.Title
+                    })
+                    .ToList());
         }
     }
 }

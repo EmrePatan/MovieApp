@@ -204,23 +204,28 @@ internal static class SearchQueryBuilder
 
         return effectiveSort switch
         {
-            SearchSortOption.RatingDesc => query
-                .OrderByDescending(item => item.VoteAverage)
-                .ThenByDescending(item => item.VoteCount),
-            SearchSortOption.RatingAsc => query
-                .OrderBy(item => item.VoteAverage)
-                .ThenBy(item => item.VoteCount),
-            SearchSortOption.DateDesc => query
-                .OrderByDescending(item => item.ReleaseDate)
-                .ThenByDescending(item => item.VoteAverage),
-            SearchSortOption.DateAsc => query
-                .OrderBy(item => item.ReleaseDate)
-                .ThenBy(item => item.VoteAverage),
-            SearchSortOption.TitleAsc => query.OrderBy(item => item.Title),
-            SearchSortOption.TitleDesc => query.OrderByDescending(item => item.Title),
-            SearchSortOption.Popular => query
-                .OrderByDescending(item => item.VoteCount)
-                .ThenByDescending(item => item.VoteAverage),
+            SearchSortOption.RatingDesc => ApplyDeterministicTieBreak(
+                query
+                    .OrderByDescending(item => item.VoteAverage)
+                    .ThenByDescending(item => item.VoteCount)),
+            SearchSortOption.RatingAsc => ApplyDeterministicTieBreak(
+                query
+                    .OrderBy(item => item.VoteAverage)
+                    .ThenBy(item => item.VoteCount)),
+            SearchSortOption.DateDesc => ApplyDeterministicTieBreak(
+                query
+                    .OrderByDescending(item => item.ReleaseDate)
+                    .ThenByDescending(item => item.VoteAverage)),
+            SearchSortOption.DateAsc => ApplyDeterministicTieBreak(
+                query
+                    .OrderBy(item => item.ReleaseDate)
+                    .ThenBy(item => item.VoteAverage)),
+            SearchSortOption.TitleAsc => ApplyDeterministicTieBreak(query.OrderBy(item => item.Title)),
+            SearchSortOption.TitleDesc => ApplyDeterministicTieBreak(query.OrderByDescending(item => item.Title)),
+            SearchSortOption.Popular => ApplyDeterministicTieBreak(
+                query
+                    .OrderByDescending(item => item.VoteCount)
+                    .ThenByDescending(item => item.VoteAverage)),
             _ => ApplyRelevanceSort(query, normalizedQuery)
         };
     }
@@ -231,44 +236,53 @@ internal static class SearchQueryBuilder
     {
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
-            return query
-                .OrderByDescending(item => item.VoteAverage)
-                .ThenByDescending(item => item.VoteCount);
+            return ApplyDeterministicTieBreak(
+                query
+                    .OrderByDescending(item => item.VoteAverage)
+                    .ThenByDescending(item => item.VoteCount));
         }
 
-        return query
-            .OrderBy(item =>
-                EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                    ? 0
-                    : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                        ? 1
-                        : 2)
-            .ThenByDescending(item => item.VoteAverage)
-            .ThenByDescending(item => item.VoteCount);
+        return ApplyDeterministicTieBreak(
+            query
+                .OrderBy(item =>
+                    EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
+                        ? 0
+                        : EF.Functions.ILike(item.Title, normalizedQuery + "%")
+                            ? 1
+                            : 2)
+                .ThenByDescending(item => item.VoteAverage)
+                .ThenByDescending(item => item.VoteCount));
     }
 
     public static IQueryable<SearchItemProjection> ApplyTrendingSort(IQueryable<SearchItemProjection> query)
     {
-        return query
-            .OrderByDescending(item => item.VoteCount)
-            .ThenByDescending(item => item.VoteAverage)
-            .ThenByDescending(item => item.ReleaseDate ?? DateOnly.MinValue);
+        return ApplyDeterministicTieBreak(
+            query
+                .OrderByDescending(item => item.VoteCount)
+                .ThenByDescending(item => item.VoteAverage)
+                .ThenByDescending(item => item.ReleaseDate ?? DateOnly.MinValue));
     }
+
+    private static IOrderedQueryable<SearchItemProjection> ApplyDeterministicTieBreak(
+        IOrderedQueryable<SearchItemProjection> query) =>
+        query
+            .ThenBy(item => item.Type)
+            .ThenBy(item => item.Id);
 
     public static IQueryable<SearchItemProjection> ApplyNewReleasesSort(IQueryable<SearchItemProjection> query)
     {
-        return query
-            .OrderByDescending(item => item.ReleaseDate)
-            .ThenBy(item => item.Title)
-            .ThenBy(item => item.Id);
+        return ApplyDeterministicTieBreak(
+            query
+                .OrderByDescending(item => item.ReleaseDate)
+                .ThenBy(item => item.Title));
     }
 
     public static IQueryable<SearchItemProjection> ApplyTopRatedSort(IQueryable<SearchItemProjection> query)
     {
-        return query
-            .OrderByDescending(item => item.VoteAverage)
-            .ThenByDescending(item => item.VoteCount)
-            .ThenBy(item => item.Title)
-            .ThenBy(item => item.Id);
+        return ApplyDeterministicTieBreak(
+            query
+                .OrderByDescending(item => item.VoteAverage)
+                .ThenByDescending(item => item.VoteCount)
+                .ThenBy(item => item.Title));
     }
 }

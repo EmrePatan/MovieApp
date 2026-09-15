@@ -18,6 +18,11 @@ public interface IMovieRepository
         MovieProviderDetails details,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+        IReadOnlyList<MovieProviderDetails> details,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
         IReadOnlyList<MovieProviderSummary> summaries,
         CancellationToken cancellationToken = default) =>

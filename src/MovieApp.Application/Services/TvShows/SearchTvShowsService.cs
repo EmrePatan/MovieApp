@@ -61,7 +61,6 @@ public sealed class SearchTvShowsService(
 
         var slotCount = Math.Min(detailFetchLimit, providerSearchResult.Results.Count);
         var detailSlots = new TvShowProviderDetails?[slotCount];
-        var resultSlots = new TvShowSearchResult?[slotCount];
 
         await ProviderDetailIngestionHelper.IngestSummariesWithBoundedConcurrencyAsync(
             providerSearchResult.Results,
@@ -73,29 +72,25 @@ public sealed class SearchTvShowsService(
             },
             cancellationToken);
 
-        for (var index = 0; index < slotCount; index++)
+        var detailsToPersist = detailSlots
+            .Take(slotCount)
+            .Where(detail => detail is not null)
+            .Select(detail => detail!)
+            .ToList();
+
+        var persistedResults = await SearchDetailPersistenceHelper.PersistTvShowSearchResultsAsync(
+            detailsToPersist,
+            tvShowRepository,
+            cancellationToken);
+
+        if (persistedResults.Count > 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var details = detailSlots[index];
-            if (details is null)
-            {
-                continue;
-            }
-
-            var tvShow = await tvShowRepository.UpsertFromProviderAsync(details, cancellationToken);
-            await catalogSyncStateService.MarkRefreshedAsync(
-                tvShow.Id,
+            await catalogSyncStateService.MarkRefreshedBatchAsync(
+                persistedResults.Select(result => result.Id).ToList(),
                 TvShowCatalogRefreshReason.DetailHydration,
                 DateTime.UtcNow,
                 cancellationToken);
-            resultSlots[index] = TvShowMapper.ToSearchResult(tvShow);
         }
-
-        var persistedResults = resultSlots
-            .Where(item => item is not null)
-            .Select(item => item!)
-            .ToList();
 
         var paginatedResult = new PaginatedResult<TvShowSearchResult>(
             persistedResults,

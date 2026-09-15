@@ -146,6 +146,11 @@ public sealed class SearchMoviesServiceTests
             return Task.FromResult(CreateMovie(details));
         }
 
+        public Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+            IReadOnlyList<MovieProviderDetails> details,
+            CancellationToken cancellationToken = default) =>
+            throw new MovieExternalIdPersistenceConflictException(null, string.Empty);
+
         private static Movie CreateMovie(MovieProviderDetails details) =>
             new()
             {
@@ -168,6 +173,11 @@ public sealed class SearchMoviesServiceTests
 
         public Task<Movie> UpsertFromProviderAsync(
             MovieProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw exception;
+
+        public Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+            IReadOnlyList<MovieProviderDetails> details,
             CancellationToken cancellationToken = default) =>
             throw exception;
     }

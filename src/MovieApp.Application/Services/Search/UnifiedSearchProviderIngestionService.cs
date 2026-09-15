@@ -34,50 +34,27 @@ public sealed class UnifiedSearchProviderIngestionService(
         var tvAttempted = false;
         var tvSucceeded = false;
 
-        if (movieRequired)
+        if (movieRequired && tvRequired)
         {
             movieAttempted = true;
-
-            try
-            {
-                movieSearchResult = await movieDataProvider.SearchMoviesAsync(
-                    query,
-                    criteria.Page,
-                    criteria.PageSize,
-                    cancellationToken);
-                movieSucceeded = true;
-            }
-            catch (Exception exception)
-            {
-                UnifiedSearchProviderIngestionLogMessages.LogMovieSearchFailed(
-                    logger,
-                    query,
-                    criteria.Page,
-                    exception);
-            }
-        }
-
-        if (tvRequired)
-        {
             tvAttempted = true;
 
-            try
-            {
-                tvSearchResult = await tvShowDataProvider.SearchTvShowsAsync(
-                    query,
-                    criteria.Page,
-                    criteria.PageSize,
-                    cancellationToken);
-                tvSucceeded = true;
-            }
-            catch (Exception exception)
-            {
-                UnifiedSearchProviderIngestionLogMessages.LogTvSearchFailed(
-                    logger,
-                    query,
-                    criteria.Page,
-                    exception);
-            }
+            var movieTask = SearchMoviesSafeAsync(query, criteria, cancellationToken);
+            var tvTask = SearchTvShowsSafeAsync(query, criteria, cancellationToken);
+            await Task.WhenAll(movieTask, tvTask);
+
+            (movieSearchResult, movieSucceeded) = await movieTask;
+            (tvSearchResult, tvSucceeded) = await tvTask;
+        }
+        else if (movieRequired)
+        {
+            movieAttempted = true;
+            (movieSearchResult, movieSucceeded) = await SearchMoviesSafeAsync(query, criteria, cancellationToken);
+        }
+        else if (tvRequired)
+        {
+            tvAttempted = true;
+            (tvSearchResult, tvSucceeded) = await SearchTvShowsSafeAsync(query, criteria, cancellationToken);
         }
 
         var ingestionResult = new UnifiedSearchProviderIngestionResult(
@@ -134,17 +111,21 @@ public sealed class UnifiedSearchProviderIngestionService(
     {
         var collapsedQuery = QueryNormalizer.CollapseWhitespace(query);
 
-        var movieSearchResult = await movieDataProvider.SearchMoviesAsync(
+        var movieSearchTask = movieDataProvider.SearchMoviesAsync(
+            collapsedQuery,
+            1,
+            limit,
+            cancellationToken);
+        var tvSearchTask = tvShowDataProvider.SearchTvShowsAsync(
             collapsedQuery,
             1,
             limit,
             cancellationToken);
 
-        var tvSearchResult = await tvShowDataProvider.SearchTvShowsAsync(
-            collapsedQuery,
-            1,
-            limit,
-            cancellationToken);
+        await Task.WhenAll(movieSearchTask, tvSearchTask);
+
+        var movieSearchResult = await movieSearchTask;
+        var tvSearchResult = await tvSearchTask;
 
         var movieIds = await movieRepository.EnsureFromSummariesAsync(
             movieSearchResult.Results,
@@ -168,5 +149,55 @@ public sealed class UnifiedSearchProviderIngestionService(
             suggestions.Count);
 
         return suggestions;
+    }
+
+    private async Task<(MovieProviderSearchResult? Result, bool Succeeded)> SearchMoviesSafeAsync(
+        string query,
+        SearchCriteria criteria,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await movieDataProvider.SearchMoviesAsync(
+                query,
+                criteria.Page,
+                criteria.PageSize,
+                cancellationToken);
+            return (result, true);
+        }
+        catch (Exception exception)
+        {
+            UnifiedSearchProviderIngestionLogMessages.LogMovieSearchFailed(
+                logger,
+                query,
+                criteria.Page,
+                exception);
+            return (null, false);
+        }
+    }
+
+    private async Task<(TvShowProviderSearchResult? Result, bool Succeeded)> SearchTvShowsSafeAsync(
+        string query,
+        SearchCriteria criteria,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await tvShowDataProvider.SearchTvShowsAsync(
+                query,
+                criteria.Page,
+                criteria.PageSize,
+                cancellationToken);
+            return (result, true);
+        }
+        catch (Exception exception)
+        {
+            UnifiedSearchProviderIngestionLogMessages.LogTvSearchFailed(
+                logger,
+                query,
+                criteria.Page,
+                exception);
+            return (null, false);
+        }
     }
 }

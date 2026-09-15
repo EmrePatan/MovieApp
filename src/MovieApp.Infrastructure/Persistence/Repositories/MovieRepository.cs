@@ -55,20 +55,7 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
             dbContext.Movies.Add(movie);
         }
 
-        movie.TmdbId = details.TmdbId;
-        movie.TvdbId = details.TvdbId;
-        movie.ImdbId = ImdbIdNormalizer.Normalize(details.ImdbId);
-        movie.Title = details.Title;
-        movie.OriginalTitle = details.OriginalTitle;
-        movie.Overview = details.Overview;
-        movie.ReleaseDate = details.ReleaseDate;
-        movie.RuntimeMinutes = details.RuntimeMinutes;
-        movie.PosterPath = details.PosterPath;
-        movie.BackdropPath = details.BackdropPath;
-        movie.OriginalLanguage = details.OriginalLanguage;
-        movie.VoteAverage = details.VoteAverage;
-        movie.VoteCount = details.VoteCount;
-        movie.UpdatedAt = utcNow;
+        ApplyProviderDetails(movie, details, utcNow);
 
         await SyncGenresAsync(movie, details.Genres, cancellationToken);
 
@@ -85,6 +72,85 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         }
 
         return movie;
+    }
+
+    public async Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+        IReadOnlyList<MovieProviderDetails> details,
+        CancellationToken cancellationToken = default)
+    {
+        if (details.Count == 0)
+        {
+            return [];
+        }
+
+        var tmdbIds = details
+            .Where(detail => detail.TmdbId.HasValue)
+            .Select(detail => detail.TmdbId!.Value)
+            .Distinct()
+            .ToList();
+
+        var existingMovies = tmdbIds.Count == 0
+            ? []
+            : await dbContext.Movies
+                .Include(movie => movie.MovieGenres)
+                .ThenInclude(movieGenre => movieGenre.Genre)
+                .Where(movie => movie.TmdbId.HasValue && tmdbIds.Contains(movie.TmdbId.Value))
+                .ToListAsync(cancellationToken);
+
+        var moviesByTmdbId = existingMovies
+            .Where(movie => movie.TmdbId.HasValue)
+            .ToDictionary(movie => movie.TmdbId!.Value);
+
+        var genresByName = await LoadGenresByNameAsync(
+            details.SelectMany(detail => detail.Genres),
+            cancellationToken);
+
+        var utcNow = DateTime.UtcNow;
+        var results = new List<Movie>(details.Count);
+
+        foreach (var detail in details)
+        {
+            Movie movie;
+
+            if (detail.TmdbId.HasValue && moviesByTmdbId.TryGetValue(detail.TmdbId.Value, out var existingMovie))
+            {
+                movie = existingMovie;
+            }
+            else
+            {
+                movie = new Movie
+                {
+                    Id = Guid.NewGuid(),
+                    CreatedAt = utcNow
+                };
+
+                dbContext.Movies.Add(movie);
+
+                if (detail.TmdbId.HasValue)
+                {
+                    moviesByTmdbId[detail.TmdbId.Value] = movie;
+                }
+            }
+
+            ApplyProviderDetails(movie, detail, utcNow);
+            SyncGenresWithContext(movie, detail.Genres, genresByName, utcNow);
+            results.Add(movie);
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
+        {
+            dbContext.ChangeTracker.Clear();
+            throw new MovieExternalIdPersistenceConflictException(
+                null,
+                string.Empty,
+                exception);
+        }
+
+        return results;
     }
 
     public async Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
@@ -181,21 +247,64 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         IReadOnlyList<string> genreNames,
         CancellationToken cancellationToken)
     {
+        var genresByName = await LoadGenresByNameAsync(genreNames, cancellationToken);
+        SyncGenresWithContext(movie, genreNames, genresByName, DateTime.UtcNow);
+    }
+
+    private async Task<Dictionary<string, Genre>> LoadGenresByNameAsync(
+        IEnumerable<string> genreNames,
+        CancellationToken cancellationToken)
+    {
         var normalizedGenreNames = genreNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        if (normalizedGenreNames.Count == 0)
+        {
+            return new Dictionary<string, Genre>(StringComparer.OrdinalIgnoreCase);
+        }
+
         var existingGenres = await dbContext.Genres
             .Where(genre => normalizedGenreNames.Contains(genre.Name))
             .ToListAsync(cancellationToken);
 
-        var genresByName = existingGenres.ToDictionary(
+        return existingGenres.ToDictionary(
             genre => genre.Name,
             StringComparer.OrdinalIgnoreCase);
+    }
 
-        var utcNow = DateTime.UtcNow;
+    private static void ApplyProviderDetails(Movie movie, MovieProviderDetails details, DateTime utcNow)
+    {
+        movie.TmdbId = details.TmdbId;
+        movie.TvdbId = details.TvdbId;
+        movie.ImdbId = ImdbIdNormalizer.Normalize(details.ImdbId);
+        movie.Title = details.Title;
+        movie.OriginalTitle = details.OriginalTitle;
+        movie.Overview = details.Overview;
+        movie.ReleaseDate = details.ReleaseDate;
+        movie.RuntimeMinutes = details.RuntimeMinutes;
+        movie.PosterPath = details.PosterPath;
+        movie.BackdropPath = details.BackdropPath;
+        movie.OriginalLanguage = details.OriginalLanguage;
+        movie.VoteAverage = details.VoteAverage;
+        movie.VoteCount = details.VoteCount;
+        movie.UpdatedAt = utcNow;
+    }
+
+    private void SyncGenresWithContext(
+        Movie movie,
+        IReadOnlyList<string> genreNames,
+        Dictionary<string, Genre> genresByName,
+        DateTime utcNow)
+    {
+        var normalizedGenreNames = genreNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var linkedGenreIds = new HashSet<Guid>();
 
         foreach (var genreName in normalizedGenreNames)

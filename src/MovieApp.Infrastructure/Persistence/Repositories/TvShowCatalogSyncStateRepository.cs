@@ -24,6 +24,58 @@ public sealed class TvShowCatalogSyncStateRepository(ApplicationDbContext dbCont
             updateNextHotCheck: false,
             cancellationToken);
 
+    public async Task MarkRefreshedBatchAsync(
+        IReadOnlyList<Guid> tvShowIds,
+        TvShowCatalogRefreshReason reason,
+        DateTime refreshedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (tvShowIds.Count == 0)
+        {
+            return;
+        }
+
+        var distinctIds = tvShowIds.Distinct().ToList();
+        var existingStates = await dbContext.TvShowCatalogSyncStates
+            .Where(state => distinctIds.Contains(state.TvShowId))
+            .ToDictionaryAsync(state => state.TvShowId, cancellationToken);
+
+        var hasChanges = false;
+
+        foreach (var tvShowId in distinctIds)
+        {
+            if (existingStates.TryGetValue(tvShowId, out var state))
+            {
+                if (!ShouldApplyRefresh(state.LastRefreshedAtUtc, refreshedAtUtc))
+                {
+                    continue;
+                }
+
+                state.LastRefreshedAtUtc = refreshedAtUtc;
+                state.LastRefreshReason = reason;
+                state.UpdatedAtUtc = refreshedAtUtc;
+                hasChanges = true;
+                continue;
+            }
+
+            dbContext.TvShowCatalogSyncStates.Add(new TvShowCatalogSyncState
+            {
+                TvShowId = tvShowId,
+                LastRefreshedAtUtc = refreshedAtUtc,
+                LastRefreshReason = reason,
+                UpdatedAtUtc = refreshedAtUtc
+            });
+            hasChanges = true;
+        }
+
+        if (!hasChanges)
+        {
+            return;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public Task MarkChangeSignalAsync(
         Guid tvShowId,
         DateOnly changeSignalDate,

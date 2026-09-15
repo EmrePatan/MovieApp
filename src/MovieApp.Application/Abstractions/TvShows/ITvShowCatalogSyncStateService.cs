@@ -10,6 +10,13 @@ public interface ITvShowCatalogSyncStateService
         DateTime refreshedAtUtc,
         CancellationToken cancellationToken = default);
 
+    Task MarkRefreshedBatchAsync(
+        IReadOnlyList<Guid> tvShowIds,
+        TvShowCatalogRefreshReason reason,
+        DateTime refreshedAtUtc,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task MarkChangeSignalAsync(
         Guid tvShowId,
         DateOnly changeSignalDate,

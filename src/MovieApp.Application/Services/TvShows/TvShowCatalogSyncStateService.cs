@@ -14,6 +14,13 @@ public sealed class TvShowCatalogSyncStateService(
         CancellationToken cancellationToken = default) =>
         repository.MarkRefreshedAsync(tvShowId, reason, refreshedAtUtc, cancellationToken);
 
+    public Task MarkRefreshedBatchAsync(
+        IReadOnlyList<Guid> tvShowIds,
+        TvShowCatalogRefreshReason reason,
+        DateTime refreshedAtUtc,
+        CancellationToken cancellationToken = default) =>
+        repository.MarkRefreshedBatchAsync(tvShowIds, reason, refreshedAtUtc, cancellationToken);
+
     public Task MarkChangeSignalAsync(
         Guid tvShowId,
         DateOnly changeSignalDate,
