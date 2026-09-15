@@ -282,14 +282,16 @@ internal static class SearchQueryBuilder
         decimal catalogMeanVoteAverage,
         int minimumVoteConfidence)
     {
-        var minimumVotes = (decimal)minimumVoteConfidence;
-        var catalogMean = catalogMeanVoteAverage;
+        // Use double precision for SQL ordering. PostgreSQL numeric(5,2) intermediates overflow
+        // when vote_count is multiplied by vote_average during Bayesian score translation.
+        var minimumVotes = (double)minimumVoteConfidence;
+        var catalogMean = (double)catalogMeanVoteAverage;
 
         return ApplyDeterministicTieBreak(
             query
                 .OrderByDescending(item =>
-                    ((decimal)item.VoteCount / (item.VoteCount + minimumVotes)) * item.VoteAverage
-                    + (minimumVotes / (item.VoteCount + minimumVotes)) * catalogMean)
+                    item.VoteCount / (item.VoteCount + minimumVotes) * (double)item.VoteAverage
+                    + minimumVotes / (item.VoteCount + minimumVotes) * catalogMean)
                 .ThenByDescending(item => item.VoteCount)
                 .ThenBy(item => item.Title));
     }
