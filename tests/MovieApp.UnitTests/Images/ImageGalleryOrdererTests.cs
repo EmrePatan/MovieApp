@@ -62,6 +62,22 @@ public sealed class ImageGalleryOrdererTests
     {
         var resolved = ImageGalleryServiceHelper.ResolveLanguage(null, "en-US,en;q=0.9");
 
-        Assert.Equal("en-us", resolved);
+        Assert.Equal("en", resolved);
+    }
+
+    [Fact]
+    public void ResolveLanguageNormalizesRegionalSubtags()
+    {
+        var resolved = ImageGalleryServiceHelper.ResolveLanguage(null, "tr-TR,tr;q=0.9");
+
+        Assert.Equal("tr", resolved);
+    }
+
+    [Fact]
+    public void FormatTmdbIncludeImageLanguageIncludesNeutralImages()
+    {
+        var formatted = ImageGalleryServiceHelper.FormatTmdbIncludeImageLanguage("en-US");
+
+        Assert.Equal("en,null", formatted);
     }
 }

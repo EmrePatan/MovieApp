@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Images;
+using MovieApp.Application.Services.Images;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
@@ -65,11 +66,12 @@ public sealed class TmdbImageProvider(TmdbApiClient apiClient) : IImageProvider
 
     private static string BuildImagesPath(string relativePath, string? language)
     {
-        if (string.IsNullOrWhiteSpace(language))
+        var includeImageLanguage = ImageGalleryServiceHelper.FormatTmdbIncludeImageLanguage(language);
+        if (includeImageLanguage is null)
         {
             return relativePath;
         }
 
-        return $"{relativePath}?include_image_language={Uri.EscapeDataString(language)}";
+        return $"{relativePath}?include_image_language={Uri.EscapeDataString(includeImageLanguage)}";
     }
 }

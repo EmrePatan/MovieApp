@@ -38,7 +38,20 @@ public static class ImageGalleryServiceHelper
             return null;
         }
 
-        return language.Trim().ToLowerInvariant();
+        var normalized = language.Trim().ToLowerInvariant();
+        var separatorIndex = normalized.IndexOf('-', StringComparison.Ordinal);
+        if (separatorIndex > 0)
+        {
+            normalized = normalized[..separatorIndex];
+        }
+
+        return normalized;
+    }
+
+    public static string? FormatTmdbIncludeImageLanguage(string? language)
+    {
+        var normalized = NormalizeLanguage(language);
+        return normalized is null ? null : $"{normalized},null";
     }
 
     internal static async Task<ImagesResult> GetOrLoadAsync(
