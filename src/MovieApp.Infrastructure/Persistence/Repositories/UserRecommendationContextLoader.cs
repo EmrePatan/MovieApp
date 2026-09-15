@@ -12,10 +12,9 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
 
     public async Task<UserRecommendationContext> LoadAsync(
         Guid userId,
-        CancellationToken cancellationToken)
+        int minimumInteractionsForEnrichment = 0,
+        CancellationToken cancellationToken = default)
     {
-        var utcNow = DateTime.UtcNow;
-
         var ratingRows = await dbContext.Ratings
             .AsNoTracking()
             .Where(rating => rating.UserId == userId)
@@ -81,6 +80,24 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(item => item.NormalizedQuery)
             .Take(MaxSearchQueries)
             .ToListAsync(cancellationToken);
+
+        var meaningfulInteractionCount = CountMeaningfulInteractions(
+            ratingRows,
+            favoriteRows,
+            watchedMovieRows,
+            watchlistRows,
+            watchedEpisodeRows,
+            catalogFollowRows);
+
+        if (minimumInteractionsForEnrichment > 0 &&
+            meaningfulInteractionCount < minimumInteractionsForEnrichment)
+        {
+            return new UserRecommendationContext(
+                [],
+                new HashSet<Guid>(),
+                new HashSet<Guid>(),
+                meaningfulInteractionCount);
+        }
 
         var excludedMovieIds = new HashSet<Guid>();
         var excludedTvShowIds = new HashSet<Guid>();
@@ -153,12 +170,6 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         seeds.AddRange(await CreateTvFollowSeedsAsync(catalogFollowRows, cancellationToken));
         seeds.AddRange(await CreateSearchSeedsAsync(recentQueries, cancellationToken));
 
-        var meaningfulInteractionCount = seeds
-            .Where(seed => RecommendationSignalScoring.IsMeaningfulInteractionSignal(seed.SignalType))
-            .Select(seed => (seed.ContentType, seed.ContentId))
-            .Distinct()
-            .Count();
-
         var collapsedSeeds = CollapseSeeds(seeds);
 
         var movieSignals = await BuildMovieSignalsAsync(
@@ -173,6 +184,75 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             excludedMovieIds,
             excludedTvShowIds,
             meaningfulInteractionCount);
+    }
+
+    private static int CountMeaningfulInteractions(
+        IReadOnlyList<RatingRow> ratingRows,
+        IReadOnlyList<TimestampedContentRow> favoriteRows,
+        IReadOnlyList<WatchedMovieRow> watchedMovieRows,
+        IReadOnlyList<TimestampedContentRow> watchlistRows,
+        IReadOnlyList<WatchedEpisodeRow> watchedEpisodeRows,
+        IReadOnlyList<CatalogFollowRow> catalogFollowRows)
+    {
+        var interactions = new HashSet<(string ContentType, Guid ContentId)>();
+
+        foreach (var rating in ratingRows)
+        {
+            if (rating.MovieId.HasValue)
+            {
+                interactions.Add(("movie", rating.MovieId.Value));
+            }
+
+            if (rating.TvShowId.HasValue)
+            {
+                interactions.Add(("tv", rating.TvShowId.Value));
+            }
+        }
+
+        foreach (var favorite in favoriteRows)
+        {
+            if (favorite.MovieId.HasValue)
+            {
+                interactions.Add(("movie", favorite.MovieId.Value));
+            }
+
+            if (favorite.TvShowId.HasValue)
+            {
+                interactions.Add(("tv", favorite.TvShowId.Value));
+            }
+        }
+
+        foreach (var watchedMovie in watchedMovieRows)
+        {
+            interactions.Add(("movie", watchedMovie.MovieId));
+        }
+
+        foreach (var watchlistItem in watchlistRows)
+        {
+            if (watchlistItem.MovieId.HasValue)
+            {
+                interactions.Add(("movie", watchlistItem.MovieId.Value));
+            }
+
+            if (watchlistItem.TvShowId.HasValue)
+            {
+                interactions.Add(("tv", watchlistItem.TvShowId.Value));
+            }
+        }
+
+        foreach (var watchedEpisode in watchedEpisodeRows
+                     .Select(row => row.TvShowId)
+                     .Distinct())
+        {
+            interactions.Add(("tv", watchedEpisode));
+        }
+
+        foreach (var follow in catalogFollowRows.Where(row => row.ContentType == CatalogContentType.Tv))
+        {
+            interactions.Add(("tv", follow.ContentId));
+        }
+
+        return interactions.Count;
     }
 
     private static IEnumerable<SignalSeed> CreateRatingSeeds(IReadOnlyList<RatingRow> ratingRows)

@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Discovery 2.0 D5.5.4 World Cinema Expansion + Top Rated Quality)  
+**Last updated:** 2026-09-15 (Home Cold Start Optimization Phase 1)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -266,6 +266,16 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
 **Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
+
+## DONE — Home Cold Start Optimization Phase 1
+
+**Mobile:**
+- Routes unblock immediately after SecureStore token sync; `/api/auth/me` hydrates profile in background
+- Invalid/expired tokens still clear session; non-auth `/me` failures keep token and allow authenticated startup
+
+**Backend:**
+- Home recommendation path skips expensive `UserRecommendationContext` signal enrichment when meaningful interactions are below personalization threshold (default 3)
+- Eligible users preserve existing personalized recommendation behavior
 
 ## DONE — Discovery 2.0 D5.5.4 (World Cinema Expansion + Top Rated Quality)
 

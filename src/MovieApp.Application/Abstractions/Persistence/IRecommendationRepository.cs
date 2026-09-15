@@ -68,6 +68,7 @@ public interface IRecommendationRepository
 
     Task<UserRecommendationContext> GetUserRecommendationContextAsync(
         Guid userId,
+        int minimumInteractionsForEnrichment = 0,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<PersonalizedCandidateProfile>> GetPersonalizedCandidatesAsync(

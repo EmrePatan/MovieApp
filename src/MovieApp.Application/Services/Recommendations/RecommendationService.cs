@@ -129,7 +129,10 @@ public sealed class RecommendationService(
             return cached.Result;
         }
 
-        var context = await recommendationRepository.GetUserRecommendationContextAsync(userId, cancellationToken);
+        var context = await recommendationRepository.GetUserRecommendationContextAsync(
+            userId,
+            _options.MinimumPersonalizationInteractions,
+            cancellationToken);
         PaginatedResult<RecommendationItem> result;
 
         if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
@@ -163,7 +166,10 @@ public sealed class RecommendationService(
             return cached.Sections;
         }
 
-        var context = await recommendationRepository.GetUserRecommendationContextAsync(userId, cancellationToken);
+        var context = await recommendationRepository.GetUserRecommendationContextAsync(
+            userId,
+            _options.MinimumPersonalizationInteractions,
+            cancellationToken);
         IReadOnlyList<RecommendationSection> sections;
 
         if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)

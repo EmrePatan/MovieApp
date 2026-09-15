@@ -120,8 +120,12 @@ public sealed class RecommendationRepository(ApplicationDbContext dbContext) : I
 
     public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
         Guid userId,
+        int minimumInteractionsForEnrichment = 0,
         CancellationToken cancellationToken = default) =>
-        new UserRecommendationContextLoader(dbContext).LoadAsync(userId, cancellationToken);
+        new UserRecommendationContextLoader(dbContext).LoadAsync(
+            userId,
+            minimumInteractionsForEnrichment,
+            cancellationToken);
 
     public async Task<IReadOnlyDictionary<Guid, SimilaritySourceProfile>> GetMovieSimilarityProfilesAsync(
         IReadOnlyList<Guid> movieIds,

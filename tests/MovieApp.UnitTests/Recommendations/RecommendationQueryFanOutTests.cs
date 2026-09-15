@@ -18,15 +18,27 @@ public sealed class RecommendationQueryFanOutTests
     public async Task GetHomeRecommendationsForCurrentUserAsyncSkipsColdStartDiscoveryWhenDisabled()
     {
         var discovery = new CountingDiscoveryService();
-        var service = CreateService(
-            new ColdStartRecommendationRepository(),
-            discovery);
+        var repository = new ColdStartRecommendationRepository();
+        var service = CreateService(repository, discovery);
 
         var sections = await service.GetHomeRecommendationsForCurrentUserAsync(
             includeColdStartDiscoverySections: false);
 
         Assert.Empty(sections);
         Assert.Equal(0, discovery.CallCount);
+        Assert.Equal(1, repository.LastMinimumInteractionsForEnrichment);
+    }
+
+    [Fact]
+    public async Task GetHomeRecommendationsForCurrentUserAsyncPassesPersonalizationThresholdToRepository()
+    {
+        var repository = new ColdStartRecommendationRepository();
+        var service = CreateService(repository, new CountingDiscoveryService());
+
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+
+        Assert.Equal(1, repository.GetUserContextCount);
+        Assert.Equal(1, repository.LastMinimumInteractionsForEnrichment);
     }
 
     [Fact]
@@ -171,14 +183,24 @@ public sealed class RecommendationQueryFanOutTests
 
     private sealed class ColdStartRecommendationRepository : IRecommendationRepository
     {
+        public int GetUserContextCount { get; private set; }
+
+        public int LastMinimumInteractionsForEnrichment { get; private set; }
+
         public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
             Guid userId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new UserRecommendationContext(
+            int minimumInteractionsForEnrichment = 0,
+            CancellationToken cancellationToken = default)
+        {
+            GetUserContextCount++;
+            LastMinimumInteractionsForEnrichment = minimumInteractionsForEnrichment;
+
+            return Task.FromResult(new UserRecommendationContext(
                 [],
                 new HashSet<Guid>(),
                 new HashSet<Guid>(),
                 0));
+        }
 
         public Task<bool> MovieExistsAsync(Guid movieId, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
@@ -298,9 +320,11 @@ public sealed class RecommendationQueryFanOutTests
 
         public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
             Guid userId,
+            int minimumInteractionsForEnrichment = 0,
             CancellationToken cancellationToken = default)
         {
             GetUserContextCount++;
+            _ = minimumInteractionsForEnrichment;
             var watchedSignals = Enumerable.Range(0, WatchedSignalCount)
                 .Select(index => new UserBehaviorSignal(
                     Guid.Parse($"bbbbbbbb-bbbb-bbbb-bbbb-{index:D012}"),
