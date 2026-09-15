@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-15 (Discovery 2.0 D5.5.3 Product Metrics Foundation)  
+**Last updated:** 2026-09-15 (Discovery 2.0 D5.5.4 World Cinema Expansion + Top Rated Quality)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -237,12 +237,12 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 **Backend:**
 - `GET /api/discovery/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc&page=1&pageSize=20` — standard `SearchResponse`; unauthenticated
 - TMDB source: **`discover/movie`** or **`discover/tv`** with `with_origin_country={ISO_CODE}` (reuses D1 query translation)
-- Default sort `popularity_desc`; `rating_desc` applies existing `minVoteCount=50` quality guardrail
-- Cache key `discovery-world-cinema:{mediaType}:{originCountry}:{sort}:{page}:{pageSize}:v1`; TTL 30 minutes
+- Default sort `popularity_desc`; `rating_desc` applies media-specific vote guardrails (`movie=200`, `tv=100`)
+- Cache key `discovery-world-cinema:{mediaType}:{originCountry}:{sort}:{page}:{pageSize}:v2`; TTL 30 minutes
 - Lazy summary ingestion via `EnsureFromSummariesAsync`; no schema change
 
 **Mobile:**
-- Discover hub **World Cinema** section: curated cinema chips (KR, JP, FR, IT, ES, IN, TR), default featured **Korean Cinema**, preview carousel, Explore action
+- Discover hub **World Cinema** section: curated cinema chips (KR, JP, IR, FR, IT, ES, IN, TR, CN, HK, TW, DE, MX, AR, BR), default featured **Korean Cinema**, preview carousel, Explore action
 - Full screen `/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc` with Movies/TV toggle, `OriginCountrySelector`, compact sort (Popular / Top Rated / Newest), infinite pagination, pull-to-refresh, detail navigation with return-state preservation
 - D6 Pick Something For Me remains coming-soon placeholder
 
@@ -266,6 +266,17 @@ Origin-country discovery for movies and TV — **content origin**, not streaming
 - Profile → **Region** preference (`/profile/region`) using existing `RegionSelector` options
 
 **Next Discovery 2.0 phase:** D5.6 Library 2.0, then D6 Pick Something For Me.
+
+## DONE — Discovery 2.0 D5.5.4 (World Cinema Expansion + Top Rated Quality)
+
+**Backend:**
+- World Cinema `rating_desc` uses TMDB-native `vote_count.gte` thresholds: **200** (movie), **100** (tv)
+- Popular / Newest / Oldest unchanged; TMDB pagination preserved
+- World Cinema cache key bumped to **v2**
+
+**Mobile:**
+- Curated World Cinema expanded to 15 origin countries (KR default)
+- Full origin-country selector includes IR, HK, TW, AR with display labels
 
 ## DONE — Discovery 2.0 D5.5.3 (Product Metrics Foundation)
 

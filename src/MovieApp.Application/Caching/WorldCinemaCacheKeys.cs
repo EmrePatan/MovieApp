@@ -13,5 +13,5 @@ public static class WorldCinemaCacheKeys
             criteria.Sort.ToString(),
             criteria.Page,
             criteria.PageSize,
-            "v1");
+            "v2");
 }

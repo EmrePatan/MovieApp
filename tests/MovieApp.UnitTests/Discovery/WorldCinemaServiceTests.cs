@@ -53,7 +53,20 @@ public sealed class WorldCinemaServiceTests
     }
 
     [Fact]
-    public async Task GetWorldCinemaAsyncAppliesVoteCountGuardrailForTopRatedSort()
+    public async Task GetWorldCinemaAsyncAppliesMovieVoteCountGuardrailForTopRatedSort()
+    {
+        var advancedDiscover = new RecordingAdvancedDiscoverService();
+        var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
+
+        await service.GetWorldCinemaAsync(
+            new WorldCinemaCriteria(SearchContentType.Movie, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20));
+
+        Assert.Equal(200, advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(SearchContentType.Movie, advancedDiscover.LastCriteria?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetWorldCinemaAsyncAppliesTvVoteCountGuardrailForTopRatedSort()
     {
         var advancedDiscover = new RecordingAdvancedDiscoverService();
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
@@ -61,8 +74,37 @@ public sealed class WorldCinemaServiceTests
         await service.GetWorldCinemaAsync(
             new WorldCinemaCriteria(SearchContentType.Tv, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20));
 
-        Assert.Equal(50, advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(100, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Tv, advancedDiscover.LastCriteria?.MediaType);
+    }
+
+    [Theory]
+    [InlineData(AdvancedDiscoverSort.PopularityDesc)]
+    [InlineData(AdvancedDiscoverSort.Newest)]
+    [InlineData(AdvancedDiscoverSort.Oldest)]
+    public async Task GetWorldCinemaAsyncDoesNotApplyVoteCountGuardrailForNonTopRatedSorts(
+        AdvancedDiscoverSort sort)
+    {
+        var advancedDiscover = new RecordingAdvancedDiscoverService();
+        var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
+
+        await service.GetWorldCinemaAsync(
+            new WorldCinemaCriteria(SearchContentType.Movie, "KR", sort, 1, 20));
+
+        Assert.Null(advancedDiscover.LastCriteria?.MinVoteCount);
+    }
+
+    [Fact]
+    public async Task GetWorldCinemaAsyncPassesPaginationThroughToAdvancedDiscover()
+    {
+        var advancedDiscover = new RecordingAdvancedDiscoverService();
+        var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
+
+        await service.GetWorldCinemaAsync(
+            new WorldCinemaCriteria(SearchContentType.Movie, "JP", AdvancedDiscoverSort.PopularityDesc, 3, 20));
+
+        Assert.Equal(3, advancedDiscover.LastCriteria?.Page);
+        Assert.Equal(20, advancedDiscover.LastCriteria?.PageSize);
     }
 
     [Fact]
@@ -86,6 +128,20 @@ public sealed class WorldCinemaServiceTests
         Assert.Null(mapped.WatchRegion);
         Assert.Null(mapped.OriginalLanguage);
         Assert.Equal(AdvancedDiscoverSort.PopularityDesc, mapped.Sort);
+        Assert.Null(mapped.MinVoteCount);
+    }
+
+    [Theory]
+    [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.RatingDesc, 200)]
+    [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.RatingDesc, 100)]
+    [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.PopularityDesc, null)]
+    [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.Newest, null)]
+    public void ResolveTopRatedMinimumVoteCountReturnsExpectedThreshold(
+        SearchContentType mediaType,
+        AdvancedDiscoverSort sort,
+        int? expected)
+    {
+        Assert.Equal(expected, WorldCinemaService.ResolveTopRatedMinimumVoteCount(mediaType, sort));
     }
 
     private static WorldCinemaService CreateService(
