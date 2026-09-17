@@ -66,7 +66,7 @@ public sealed class AddMovieFavoriteServiceTests
         ICurrentUser currentUser,
         IFavoriteRepository favoriteRepository,
         IMovieRepository movieRepository) =>
-        new(currentUser, favoriteRepository, movieRepository, new FakeProfileStatisticsCache());
+        new(currentUser, favoriteRepository, movieRepository, new FakeUserAnalyticsCacheInvalidator());
 
     private static Movie CreateMovie() =>
         new()

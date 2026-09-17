@@ -34,6 +34,7 @@ using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.RegionalRelease;
 using MovieApp.Application.Services.TvUpcomingEpisodes;
 using MovieApp.Application.Services.ProductMetrics;
+using MovieApp.Application.Services.Insights;
 
 namespace MovieApp.Application;
 
@@ -69,6 +70,9 @@ public static class DependencyInjection
         services.AddScoped<ISocialAuthService, SocialAuthService>();
         services.AddScoped<IGetCurrentUserService, GetCurrentUserService>();
         services.AddScoped<IProfileStatisticsCache, ProfileStatisticsCache>();
+        services.AddScoped<IInsightsCache, InsightsCache>();
+        services.AddScoped<IUserAnalyticsCacheInvalidator, UserAnalyticsCacheInvalidator>();
+        services.AddScoped<IInsightsSummaryService, InsightsSummaryService>();
         services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
         services.AddScoped<IResetPasswordService, ResetPasswordService>();

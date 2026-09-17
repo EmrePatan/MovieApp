@@ -15,7 +15,7 @@ public sealed class RatingService(
     IRatingRepository ratingRepository,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IRatingService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IRatingService
 {
     public async Task<RatingUpsertResult> UpsertMovieRatingAsync(
         Guid movieId,
@@ -32,13 +32,13 @@ public sealed class RatingService(
         {
             existingRating.UpdateScore(score, utcNow);
             await ratingRepository.UpdateAsync(existingRating, cancellationToken);
-            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
             return new RatingUpsertResult(RatingMapper.ToResult(existingRating), Created: false);
         }
 
         var rating = Rating.CreateForMovie(userId, movieId, score, utcNow);
         await ratingRepository.AddAsync(rating, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
         return new RatingUpsertResult(RatingMapper.ToResult(rating), Created: true);
     }
 
@@ -57,13 +57,13 @@ public sealed class RatingService(
         {
             existingRating.UpdateScore(score, utcNow);
             await ratingRepository.UpdateAsync(existingRating, cancellationToken);
-            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
             return new RatingUpsertResult(RatingMapper.ToResult(existingRating), Created: false);
         }
 
         var rating = Rating.CreateForTvShow(userId, tvShowId, score, utcNow);
         await ratingRepository.AddAsync(rating, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
         return new RatingUpsertResult(RatingMapper.ToResult(rating), Created: true);
     }
 
@@ -77,7 +77,7 @@ public sealed class RatingService(
             throw new NotFoundException("The requested rating was not found.");
         }
 
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
     public async Task DeleteTvShowRatingAsync(Guid tvShowId, CancellationToken cancellationToken = default)
@@ -90,7 +90,7 @@ public sealed class RatingService(
             throw new NotFoundException("The requested rating was not found.");
         }
 
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
     public async Task<RatingResult> GetCurrentUserMovieRatingAsync(

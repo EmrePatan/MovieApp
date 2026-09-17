@@ -8,12 +8,12 @@ namespace MovieApp.Application.Services.Favorites;
 public sealed class RemoveMovieFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IRemoveMovieFavoriteService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IRemoveMovieFavoriteService
 {
     public async Task RemoveAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await favoriteRepository.RemoveForMovieAsync(userId, movieId, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 }

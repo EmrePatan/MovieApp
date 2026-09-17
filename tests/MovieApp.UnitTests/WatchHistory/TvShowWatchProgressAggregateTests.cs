@@ -10,6 +10,7 @@ using MovieApp.Application.Services.TvShows;
 using MovieApp.Domain.Enums;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Caching;
 
 namespace MovieApp.UnitTests.WatchHistory;
 
@@ -34,7 +35,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -74,7 +75,7 @@ public sealed class TvShowWatchProgressAggregateTests
             getSeasonService,
             new FakeSeasonSummaryHydrator(tvShow),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
 
@@ -97,7 +98,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         var result = await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
 
@@ -122,7 +123,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -147,7 +148,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -171,25 +172,6 @@ public sealed class TvShowWatchProgressAggregateTests
         public bool IsAuthenticated => true;
 
         public Guid? UserId => userId;
-    }
-
-    private sealed class FakeProfileStatisticsCache : IProfileStatisticsCache
-    {
-        public Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<UserStatisticsResult?> GetAsync(
-            Guid userId,
-            string? timeZoneId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<UserStatisticsResult?>(null);
-
-        public Task SetAsync(
-            Guid userId,
-            string? timeZoneId,
-            UserStatisticsResult statistics,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
     }
 
     private sealed class FakeWatchedMovieRepository : IWatchedMovieRepository

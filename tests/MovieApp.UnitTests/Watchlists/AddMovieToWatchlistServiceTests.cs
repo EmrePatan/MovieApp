@@ -47,7 +47,7 @@ public sealed class AddMovieToWatchlistServiceTests
         IWatchlistRepository watchlistRepository,
         IWatchlistItemRepository watchlistItemRepository,
         IMovieRepository movieRepository) =>
-        new(currentUser, watchlistRepository, watchlistItemRepository, movieRepository, new FakeProfileStatisticsCache());
+        new(currentUser, watchlistRepository, watchlistItemRepository, movieRepository, new FakeUserAnalyticsCacheInvalidator());
 
     private static Movie CreateMovie() =>
         new()

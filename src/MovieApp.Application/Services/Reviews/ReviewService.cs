@@ -16,7 +16,7 @@ public sealed class ReviewService(
     IReviewRepository reviewRepository,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IReviewService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IReviewService
 {
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
@@ -34,7 +34,7 @@ public sealed class ReviewService(
 
         var review = Review.CreateForMovie(userId, movieId, content, DateTime.UtcNow);
         await reviewRepository.AddAsync(review, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndMovieAsync(userId, movieId, cancellationToken);
         return ReviewMapper.ToResult(createdReview!);
@@ -56,7 +56,7 @@ public sealed class ReviewService(
 
         var review = Review.CreateForTvShow(userId, tvShowId, content, DateTime.UtcNow);
         await reviewRepository.AddAsync(review, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndTvShowAsync(userId, tvShowId, cancellationToken);
         return ReviewMapper.ToResult(createdReview!);
@@ -110,7 +110,7 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
     public async Task DeleteTvShowReviewAsync(Guid tvShowId, CancellationToken cancellationToken = default)
@@ -123,7 +123,7 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
     public async Task<ReviewResult> GetCurrentUserMovieReviewAsync(

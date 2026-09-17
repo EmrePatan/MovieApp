@@ -10,7 +10,7 @@ public sealed class RemoveTvShowFromWatchlistService(
     ICurrentUser currentUser,
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IRemoveTvShowFromWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IRemoveTvShowFromWatchlistService
 {
     public async Task RemoveAsync(
         Guid watchlistId,
@@ -26,6 +26,6 @@ public sealed class RemoveTvShowFromWatchlistService(
 
         await watchlistItemRepository.RemoveForTvShowAsync(watchlistId, tvShowId, cancellationToken);
         await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 }

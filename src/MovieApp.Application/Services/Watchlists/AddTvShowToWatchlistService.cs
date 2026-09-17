@@ -13,7 +13,7 @@ public sealed class AddTvShowToWatchlistService(
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
     ITvShowRepository tvShowRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IAddTvShowToWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddTvShowToWatchlistService
 {
     public async Task<WatchlistItemMutationResult> AddAsync(
         Guid watchlistId,
@@ -42,7 +42,7 @@ public sealed class AddTvShowToWatchlistService(
         if (added)
         {
             await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
             return WatchlistItemMutationResult.Created;
         }
 

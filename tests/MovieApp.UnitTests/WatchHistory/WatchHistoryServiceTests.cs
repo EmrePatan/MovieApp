@@ -61,7 +61,7 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkMovieWatchedAsync(MovieId));
     }
@@ -139,7 +139,7 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkEpisodeWatchedAsync(EpisodeId1));
     }
@@ -206,7 +206,7 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -249,7 +249,7 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -290,7 +290,7 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetSeasonWatchProgressAsync(TvShowId, 99));
     }
@@ -420,7 +420,7 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
     private static Movie CreateMovie() =>
         new()

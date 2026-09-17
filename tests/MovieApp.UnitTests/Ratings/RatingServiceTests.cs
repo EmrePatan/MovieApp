@@ -103,7 +103,7 @@ public sealed class RatingServiceTests
             ratingRepository,
             new FakeMovieRepository(movie),
             new FakeTvShowRepository(tvShow),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
     private static Movie CreateMovie() =>
         new()

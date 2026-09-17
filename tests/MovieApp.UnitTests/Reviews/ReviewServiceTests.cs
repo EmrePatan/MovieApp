@@ -84,7 +84,7 @@ public sealed class ReviewServiceTests
             repository,
             new FakeMovieRepository(movie),
             new FakeTvShowRepository(null),
-            new FakeProfileStatisticsCache());
+            new FakeUserAnalyticsCacheInvalidator());
 
     private static Movie CreateMovie() =>
         new()

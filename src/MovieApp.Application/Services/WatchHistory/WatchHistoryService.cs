@@ -25,7 +25,7 @@ public sealed class WatchHistoryService(
     IGetSeasonService getSeasonService,
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     ITvShowCatalogSyncStateService catalogSyncStateService,
-    IProfileStatisticsCache profileStatisticsCache) : IWatchHistoryService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
@@ -471,7 +471,7 @@ public sealed class WatchHistoryService(
     }
 
     private Task InvalidateProfileStatisticsAsync(Guid userId, CancellationToken cancellationToken) =>
-        profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
     private static void ValidatePagination(int page, int pageSize)
     {

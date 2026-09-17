@@ -10,7 +10,7 @@ public sealed class RemoveMovieFromWatchlistService(
     ICurrentUser currentUser,
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IRemoveMovieFromWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IRemoveMovieFromWatchlistService
 {
     public async Task RemoveAsync(
         Guid watchlistId,
@@ -26,6 +26,6 @@ public sealed class RemoveMovieFromWatchlistService(
 
         await watchlistItemRepository.RemoveForMovieAsync(watchlistId, movieId, cancellationToken);
         await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-        await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 }

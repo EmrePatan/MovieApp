@@ -62,6 +62,8 @@ public static class DependencyInjection
 
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
 
+        services.Configure<InsightsOptions>(configuration.GetSection(InsightsOptions.SectionName));
+
         services.Configure<TopRatedOptions>(configuration.GetSection(TopRatedOptions.SectionName));
 
         services.Configure<PushNotificationsOptions>(configuration.GetSection(PushNotificationsOptions.SectionName));
@@ -183,6 +185,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialIdentityTokenVerifier, AppleIdTokenVerifier>();
 
         services.AddScoped<IUserStatisticsRepository, UserStatisticsRepository>();
+        services.AddScoped<IInsightsRepository, InsightsRepository>();
 
         services.AddScoped<IFavoriteRepository, FavoriteRepository>();
 

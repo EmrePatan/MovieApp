@@ -12,7 +12,7 @@ public sealed class AddTvShowFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
     ITvShowRepository tvShowRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IAddTvShowFavoriteService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddTvShowFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
@@ -33,7 +33,7 @@ public sealed class AddTvShowFavoriteService(
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
         if (added)
         {
-            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
             return FavoriteMutationResult.Created;
         }
 

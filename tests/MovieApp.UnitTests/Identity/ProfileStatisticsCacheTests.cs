@@ -102,11 +102,13 @@ public sealed class ProfileStatisticsCacheTests
         var movieId = Guid.NewGuid();
         var cache = new RecordingCacheService();
         var profileStatisticsCache = new ProfileStatisticsCache(cache);
+        var insightsCache = new InsightsCache(cache);
+        var analyticsCacheInvalidator = new UserAnalyticsCacheInvalidator(profileStatisticsCache, insightsCache);
         var service = new AddMovieFavoriteService(
             new FakeCurrentUser(userId),
             new FakeFavoriteRepository(exists: false, tryAddReturns: true),
             new FakeMovieRepository(movieId),
-            profileStatisticsCache);
+            analyticsCacheInvalidator);
 
         var result = await service.AddAsync(movieId);
 

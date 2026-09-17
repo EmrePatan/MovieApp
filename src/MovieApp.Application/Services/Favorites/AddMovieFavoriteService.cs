@@ -12,7 +12,7 @@ public sealed class AddMovieFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
     IMovieRepository movieRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IAddMovieFavoriteService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddMovieFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
@@ -33,7 +33,7 @@ public sealed class AddMovieFavoriteService(
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
         if (added)
         {
-            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
             return FavoriteMutationResult.Created;
         }
 

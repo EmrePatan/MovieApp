@@ -13,7 +13,7 @@ public sealed class AddMovieToWatchlistService(
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
     IMovieRepository movieRepository,
-    IProfileStatisticsCache profileStatisticsCache) : IAddMovieToWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddMovieToWatchlistService
 {
     public async Task<WatchlistItemMutationResult> AddAsync(
         Guid watchlistId,
@@ -42,7 +42,7 @@ public sealed class AddMovieToWatchlistService(
         if (added)
         {
             await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-            await profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken);
+            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
             return WatchlistItemMutationResult.Created;
         }
 
