@@ -18,6 +18,8 @@ public sealed class BackgroundJobsOptions
 
     public bool PushDeliveryEnabled { get; set; } = true;
 
+    public bool NotificationInboxCleanupEnabled { get; set; } = true;
+
     public int FanoutBatchSize { get; set; } = 100;
 
     public int PreparationBatchSize { get; set; } = 100;

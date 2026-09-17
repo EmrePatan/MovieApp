@@ -15,7 +15,8 @@ public sealed class NotificationsController(
     IGetNotificationsService getNotificationsService,
     IGetUnreadNotificationCountService getUnreadNotificationCountService,
     IMarkNotificationReadService markNotificationReadService,
-    IMarkAllNotificationsReadService markAllNotificationsReadService) : ControllerBase
+    IMarkAllNotificationsReadService markAllNotificationsReadService,
+    IDeleteNotificationService deleteNotificationService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(NotificationsResponse), StatusCodes.Status200OK)]
@@ -116,6 +117,35 @@ public sealed class NotificationsController(
             return Unauthorized(CreateProblemDetails(
                 StatusCodes.Status401Unauthorized,
                 "Authentication required.",
+                exception.Message));
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await deleteNotificationService.DeleteAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Notification not found.",
                 exception.Message));
         }
     }

@@ -43,6 +43,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         Assert.Contains(
             manager.AddedOrUpdated,
             entry => entry.JobId == RecurringJobIds.PushReceipts && entry.Cron == Cron.MinuteInterval(15));
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.NotificationInboxCleanup && entry.Cron == Cron.Daily());
     }
 
     [Fact]
@@ -80,7 +83,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         registrar.RegisterRecurringJobs();
         registrar.RegisterRecurringJobs();
 
-        Assert.Equal(8, manager.AddedOrUpdated.Count);
+        Assert.Equal(9, manager.AddedOrUpdated.Count);
     }
 
     [Fact]
@@ -185,7 +188,8 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
                 HotReleaseEnabled = true,
                 TvUpcomingEpisodeSyncEnabled = tvUpcomingEpisodeSyncEnabled,
                 NotificationFanoutEnabled = true,
-                PushDeliveryEnabled = true
+                PushDeliveryEnabled = true,
+                NotificationInboxCleanupEnabled = true
             }),
             Options.Create(new PushNotificationsOptions
             {

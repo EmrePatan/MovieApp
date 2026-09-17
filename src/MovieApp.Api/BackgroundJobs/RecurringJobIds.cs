@@ -13,6 +13,7 @@ public static class RecurringJobIds
     public const string PushReceipts = "movieapp:push-receipts";
     public const string CatalogKeywordBackfill = "movieapp:catalog-keyword-backfill";
     public const string TvUpcomingEpisodeSync = "movieapp:tv-upcoming-episode-sync";
+    public const string NotificationInboxCleanup = "movieapp:notification-inbox-cleanup";
 
     public static IReadOnlyList<string> All =>
     [
@@ -25,6 +26,7 @@ public static class RecurringJobIds
         PushDispatch,
         PushReceipts,
         CatalogKeywordBackfill,
-        TvUpcomingEpisodeSync
+        TvUpcomingEpisodeSync,
+        NotificationInboxCleanup
     ];
 }

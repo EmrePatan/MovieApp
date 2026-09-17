@@ -110,6 +110,27 @@ public sealed class NotificationServiceTests
         await Assert.ThrowsAsync<AuthenticationException>(() => service.GetAsync(1, 20));
     }
 
+    [Fact]
+    public async Task DeleteNotification_OwnNotification_Succeeds()
+    {
+        var repository = new FakeNotificationRepository { DeleteResult = true };
+        var service = new DeleteNotificationService(new FakeCurrentUser(UserId), repository);
+
+        await service.DeleteAsync(NotificationId);
+
+        Assert.Equal(UserId, repository.LastUserId);
+        Assert.Equal(NotificationId, repository.LastNotificationId);
+    }
+
+    [Fact]
+    public async Task DeleteNotification_ForeignNotification_ReturnsNotFound()
+    {
+        var repository = new FakeNotificationRepository { DeleteResult = false };
+        var service = new DeleteNotificationService(new FakeCurrentUser(UserId), repository);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteAsync(NotificationId));
+    }
+
     private static NotificationInboxItemResult CreateItem(
         Guid id,
         string contentType,
@@ -148,6 +169,8 @@ public sealed class NotificationServiceTests
 
         public int MarkAllAffectedCount { get; init; }
 
+        public bool DeleteResult { get; init; }
+
         public Task<(IReadOnlyList<NotificationInboxItemResult> Items, int TotalCount)> GetInboxAsync(
             Guid userId,
             int page,
@@ -182,6 +205,21 @@ public sealed class NotificationServiceTests
         {
             LastUserId = userId;
             return Task.FromResult(MarkAllAffectedCount);
+        }
+
+        public Task<int> DeleteExpiredReadNotificationsAsync(
+            DateTime readExpirationCutoffUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<bool> DeleteAsync(
+            Guid userId,
+            Guid notificationId,
+            CancellationToken cancellationToken = default)
+        {
+            LastUserId = userId;
+            LastNotificationId = notificationId;
+            return Task.FromResult(DeleteResult);
         }
     }
 }

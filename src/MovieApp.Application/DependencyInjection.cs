@@ -165,6 +165,8 @@ public static class DependencyInjection
         services.AddScoped<IGetUnreadNotificationCountService, GetUnreadNotificationCountService>();
         services.AddScoped<IMarkNotificationReadService, MarkNotificationReadService>();
         services.AddScoped<IMarkAllNotificationsReadService, MarkAllNotificationsReadService>();
+        services.AddScoped<IDeleteNotificationService, DeleteNotificationService>();
+        services.AddScoped<INotificationInboxCleanupService, NotificationInboxCleanupService>();
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
         services.AddScoped<ILibraryService, LibraryService>();
 

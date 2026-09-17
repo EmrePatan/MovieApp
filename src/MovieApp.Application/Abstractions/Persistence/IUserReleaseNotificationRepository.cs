@@ -22,4 +22,13 @@ public interface IUserReleaseNotificationRepository
         Guid userId,
         DateTime readAtUtc,
         CancellationToken cancellationToken = default);
+
+    Task<int> DeleteExpiredReadNotificationsAsync(
+        DateTime readExpirationCutoffUtc,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteAsync(
+        Guid userId,
+        Guid notificationId,
+        CancellationToken cancellationToken = default);
 }

@@ -68,6 +68,9 @@ public static class DependencyInjection
 
         services.Configure<PushNotificationsOptions>(configuration.GetSection(PushNotificationsOptions.SectionName));
 
+        services.Configure<NotificationRetentionOptions>(
+            configuration.GetSection(NotificationRetentionOptions.SectionName));
+
         services.AddOptions<SearchOptions>()
             .Bind(configuration.GetSection(SearchOptions.SectionName))
             .ValidateOnStart();

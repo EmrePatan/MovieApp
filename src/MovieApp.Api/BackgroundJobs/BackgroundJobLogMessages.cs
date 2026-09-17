@@ -159,6 +159,16 @@ internal static partial class BackgroundJobLogMessages
         int hydrated);
 
     [LoggerMessage(
+        EventId = 6013,
+        Level = LogLevel.Information,
+        Message = "Notification inbox cleanup completed: deleted={DeletedCount} cutoffUtc={CutoffUtc} durationMs={DurationMs}")]
+    internal static partial void LogNotificationInboxCleanupCompleted(
+        ILogger logger,
+        int deletedCount,
+        DateTime cutoffUtc,
+        long durationMs);
+
+    [LoggerMessage(
         EventId = 6097,
         Level = LogLevel.Error,
         Message = "Background job failed: jobId={JobId}")]

@@ -1,11 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Notifications;
+using MovieApp.Application.Services.Notifications;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class UserReleaseNotificationRepository(ApplicationDbContext dbContext)
+public sealed class UserReleaseNotificationRepository(
+    ApplicationDbContext dbContext,
+    IOptions<NotificationRetentionOptions> retentionOptions)
     : IUserReleaseNotificationRepository
 {
     public async Task<(IReadOnlyList<NotificationInboxItemResult> Items, int TotalCount)> GetInboxAsync(
@@ -14,9 +19,15 @@ public sealed class UserReleaseNotificationRepository(ApplicationDbContext dbCon
         int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var readExpirationCutoffUtc = NotificationInboxRetention.GetReadExpirationCutoffUtc(
+            DateTime.UtcNow,
+            retentionOptions.Value.ReadRetentionDays);
+
         var query = dbContext.UserReleaseNotifications
             .AsNoTracking()
-            .Where(notification => notification.UserId == userId);
+            .Where(notification => notification.UserId == userId)
+            .Where(notification =>
+                notification.ReadAtUtc == null || notification.ReadAtUtc > readExpirationCutoffUtc);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -87,4 +98,24 @@ public sealed class UserReleaseNotificationRepository(ApplicationDbContext dbCon
             .ExecuteUpdateAsync(
                 updates => updates.SetProperty(notification => notification.ReadAtUtc, readAtUtc),
                 cancellationToken);
+
+    public Task<int> DeleteExpiredReadNotificationsAsync(
+        DateTime readExpirationCutoffUtc,
+        CancellationToken cancellationToken = default) =>
+        dbContext.UserReleaseNotifications
+            .Where(notification =>
+                notification.ReadAtUtc != null && notification.ReadAtUtc <= readExpirationCutoffUtc)
+            .ExecuteDeleteAsync(cancellationToken);
+
+    public async Task<bool> DeleteAsync(
+        Guid userId,
+        Guid notificationId,
+        CancellationToken cancellationToken = default)
+    {
+        var deletedCount = await dbContext.UserReleaseNotifications
+            .Where(notification => notification.Id == notificationId && notification.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return deletedCount > 0;
+    }
 }

@@ -145,6 +145,21 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
                 RecurringJobIds.TvUpcomingEpisodeSync,
                 "TvUpcomingEpisodeSyncEnabled=false or TvUpcomingEpisodeSync:Enabled=false");
         }
+
+        if (backgroundJobs.NotificationInboxCleanupEnabled)
+        {
+            recurringJobManager.AddOrUpdate<NotificationInboxCleanupJob>(
+                RecurringJobIds.NotificationInboxCleanup,
+                job => job.ExecuteAsync(),
+                Cron.Daily(),
+                UtcOptions);
+        }
+        else
+        {
+            SkipRecurringJob(
+                RecurringJobIds.NotificationInboxCleanup,
+                "NotificationInboxCleanupEnabled=false");
+        }
     }
 
     public void RemoveAllRecurringJobs()
