@@ -416,6 +416,186 @@ public sealed class HomeServiceTests
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NewReleases);
     }
 
+    [Fact]
+    public async Task GetHomeBrowseAsyncReturnsOnlyBrowseSectionsInOrder()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You",
+                    [CreateRecommendationItem("movie", 1)])
+            ]),
+            discoveryService: new FakeDiscoveryService());
+
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.Equal(
+            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
+            result.Sections.Select(section => section.Type).ToList());
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ComingUp);
+    }
+
+    [Fact]
+    public async Task GetHomeBrowseAsyncOmitsEmptySections()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: new EmptyTrendingDiscoveryService());
+
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncReturnsRecommendedAndComingUpForPersonalizedUser()
+    {
+        var comingUpItems = new List<Application.Models.CatalogFollows.CatalogUpcomingItemResult>
+        {
+            new(
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                MovieApp.Domain.Enums.CatalogContentType.Tv,
+                MovieApp.Application.Models.CatalogFollows.CatalogUpcomingKind.TvEpisode,
+                "Followed Show",
+                "/poster.jpg",
+                new DateOnly(2026, 9, 20),
+                true,
+                Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                1,
+                2,
+                "Next")
+        };
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You",
+                    [CreateRecommendationItem("movie", 1)])
+            ]),
+            discoveryService: new FakeDiscoveryService(),
+            comingUpService: new FakeHomeComingUpService(comingUpItems));
+
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.True(result.IsPersonalized);
+        Assert.Equal(
+            [HomeSectionType.RecommendedForYou, HomeSectionType.ComingUp],
+            result.Sections.Select(section => section.Type).ToList());
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncReturnsFalseForColdUser()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("popular", "Popular", []),
+                new RecommendationSection("trending", "Trending", []),
+                new RecommendationSection("top-rated", "Top Rated", [])
+            ]),
+            discoveryService: new FakeDiscoveryService());
+
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.False(result.IsPersonalized);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncDedupesRecommendedAgainstHotThisWeek()
+    {
+        var heroItemId = Guid.Parse("11111111-1111-1111-1111-000000000001");
+        var recommendedItems = Enumerable.Range(1, 10)
+            .Select(seed => CreateRecommendationItem("movie", seed))
+            .ToList();
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
+            ]),
+            hotThisWeekService: new FakeHotThisWeekService(
+            [
+                new SearchItem(
+                    heroItemId,
+                    "movie",
+                    "Hero Title",
+                    null,
+                    null,
+                    null,
+                    null,
+                    new DateOnly(2025, 1, 1),
+                    9m,
+                    1000,
+                    2025)
+            ]),
+            options: new HomeOptions
+            {
+                DefaultSectionSize = 10,
+                MaximumSectionSize = 20,
+                HeroSectionSize = 5
+            });
+
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 10));
+        var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
+
+        Assert.Equal(10, recommended.Items.Count);
+        Assert.Contains(recommended.Items, item => item.Id == recommendedItems[0].Id);
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncWorksWithoutBrowseFirst()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You",
+                    [CreateRecommendationItem("movie", 1)])
+            ]),
+            discoveryService: new FakeDiscoveryService());
+
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.True(result.IsPersonalized);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
+    }
+
+    [Fact]
+    public async Task GetHomeBrowseAsyncRespectsMovieTypeFilter()
+    {
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: new FakeDiscoveryService());
+
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.Movie, 5));
+
+        Assert.All(
+            result.Sections.SelectMany(section => section.Items),
+            item => Assert.Equal("movie", item.ContentType));
+    }
+
+    [Fact]
+    public async Task GetHomeBrowseAsyncDoesNotUseAggregateHomeCache()
+    {
+        var cachedResult = new HomeResult(
+            [new HomeSection(HomeSectionType.Popular, "Popular", [CreateHomeItem("movie", 1)], 1)],
+            false);
+
+        var cache = new FakeCacheService(cachedResult);
+        var service = CreateService(
+            cache: cache,
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: new FakeDiscoveryService());
+
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5));
+
+        Assert.False(cache.WasWritten);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
+    }
+
     private static HomeService CreateService(
         ICacheService? cache = null,
         IRecommendationService? recommendationService = null,

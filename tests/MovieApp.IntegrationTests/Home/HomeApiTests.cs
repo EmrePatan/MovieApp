@@ -207,6 +207,97 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task HomeBrowseRequiresAuthentication()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/home/browse");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HomeBrowseReturnsOnlyBrowseSections()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+        var token = await RegisterAndGetTokenAsync();
+
+        var response = await SendAuthorizedGetAsync("/api/home/browse?type=all&sectionSize=10", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<HomeBrowseResponse>();
+        Assert.NotNull(payload);
+        Assert.Contains(payload.Sections, section => section.Type == "HotThisWeek");
+        Assert.Contains(payload.Sections, section => section.Type == "Trending");
+        Assert.Contains(payload.Sections, section => section.Type == "TopRated");
+        Assert.Contains(payload.Sections, section => section.Type == "NewReleases");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "RecommendedForYou");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "ComingUp");
+    }
+
+    [Fact]
+    public async Task HomePersonalizedReturnsColdStartStateForNewUser()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+        var token = await RegisterAndGetTokenAsync();
+
+        var response = await SendAuthorizedGetAsync("/api/home/personalized?type=all&sectionSize=10", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<HomePersonalizedResponse>();
+        Assert.NotNull(payload);
+        Assert.False(payload.IsPersonalized);
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "RecommendedForYou");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "HotThisWeek");
+    }
+
+    [Fact]
+    public async Task HomePersonalizedReturnsRecommendationSectionsForPersonalizedUser()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+        await SeedPagedMovieCatalogAsync();
+        var movieId = await SeedMovieAsync();
+        var tvShowId = await SeedTvShowAsync();
+        var secondMovieId = await SeedSecondMovieAsync();
+        var token = await RegisterAndGetTokenAsync();
+
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/favorites/tvshows/{tvShowId}", token);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{secondMovieId}", token);
+
+        var response = await SendAuthorizedGetAsync("/api/home/personalized?type=all&sectionSize=10", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<HomePersonalizedResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload.IsPersonalized);
+        Assert.Contains(payload.Sections, section => section.Type == "RecommendedForYou");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "HotThisWeek");
+    }
+
+    [Fact]
+    public async Task HomeBrowseSectionSizeIsRespected()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+        var token = await RegisterAndGetTokenAsync();
+
+        var response = await SendAuthorizedGetAsync("/api/home/browse?sectionSize=5", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<HomeBrowseResponse>();
+        Assert.NotNull(payload);
+        Assert.All(payload.Sections, section => Assert.True(section.Items.Count <= 5));
+    }
+
     private async Task SeedCatalogAsync()
     {
         await SeedMovieAsync();

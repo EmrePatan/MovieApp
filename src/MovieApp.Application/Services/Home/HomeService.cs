@@ -36,6 +36,20 @@ public sealed class HomeService(
         HomeSectionType.NewReleases
     ];
 
+    private static readonly HomeSectionType[] BrowseSectionOrder =
+    [
+        HomeSectionType.HotThisWeek,
+        HomeSectionType.Trending,
+        HomeSectionType.TopRated,
+        HomeSectionType.NewReleases
+    ];
+
+    private static readonly HomeSectionType[] PersonalizedSectionOrder =
+    [
+        HomeSectionType.RecommendedForYou,
+        HomeSectionType.ComingUp
+    ];
+
     private readonly HomeOptions _options = options.Value;
 
     public async Task<HomeResult> GetHomeAsync(HomeCriteria criteria, CancellationToken cancellationToken = default)
@@ -175,6 +189,151 @@ public sealed class HomeService(
             newReleasesMs);
 
         return result;
+    }
+
+    public async Task<HomeBrowseResult> GetHomeBrowseAsync(
+        HomeCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var totalStopwatch = Stopwatch.StartNew();
+
+        ValidateCriteria(criteria);
+        _ = CurrentUserGuard.RequireUserId(currentUser);
+
+        var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
+        var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
+
+        var hotThisWeekTask = RunScopedTimedAsync(
+            (services, ct) => BuildHotThisWeekSectionAsync(
+                services,
+                criteria,
+                heroSize,
+                ct),
+            cancellationToken);
+
+        var trendingTask = RunScopedTimedAsync(
+            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
+                HomeSectionType.Trending,
+                "Trending Now",
+                services.GetRequiredService<IDiscoveryService>()
+                    .GetTrendingAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
+            cancellationToken);
+
+        var topRatedTask = RunScopedTimedAsync(
+            (services, ct) => BuildTopRatedSectionAsync(services, criteria, ct),
+            cancellationToken);
+
+        var newReleasesTask = RunScopedTimedAsync(
+            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
+                HomeSectionType.NewReleases,
+                "New Releases",
+                services.GetRequiredService<IDiscoveryService>()
+                    .GetNewReleasesAsync(discoveryCriteria, ct),
+                criteria,
+                ct),
+            cancellationToken);
+
+        await Task.WhenAll(hotThisWeekTask, trendingTask, topRatedTask, newReleasesTask);
+
+        var (hotThisWeekSection, hotThisWeekMs) = await hotThisWeekTask;
+        var (trendingSection, trendingMs) = await trendingTask;
+        var (topRatedSection, topRatedMs) = await topRatedTask;
+        var (newReleasesSection, newReleasesMs) = await newReleasesTask;
+
+        var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
+        {
+            [HomeSectionType.HotThisWeek] = hotThisWeekSection,
+            [HomeSectionType.Trending] = trendingSection,
+            [HomeSectionType.TopRated] = topRatedSection,
+            [HomeSectionType.NewReleases] = newReleasesSection
+        };
+
+        var orderedSections = BuildOrderedSections(sectionsByType, BrowseSectionOrder);
+        totalStopwatch.Stop();
+
+        HomeServiceLogMessages.LogBrowse(
+            logger,
+            totalStopwatch.ElapsedMilliseconds,
+            hotThisWeekMs,
+            trendingMs,
+            topRatedMs,
+            newReleasesMs,
+            orderedSections.Count);
+
+        return new HomeBrowseResult(orderedSections, DateTime.UtcNow);
+    }
+
+    public async Task<HomePersonalizedResult> GetHomePersonalizedAsync(
+        HomeCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var totalStopwatch = Stopwatch.StartNew();
+
+        ValidateCriteria(criteria);
+        _ = CurrentUserGuard.RequireUserId(currentUser);
+
+        var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
+
+        var recommendationSectionsTask = RunScopedTimedAsync(
+            (services, ct) => services
+                .GetRequiredService<IRecommendationService>()
+                .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
+            cancellationToken);
+
+        var comingUpTask = RunScopedTimedAsync(
+            (services, ct) => BuildComingUpSectionAsync(services, ct),
+            cancellationToken);
+
+        var hotThisWeekDedupTask = RunScopedTimedAsync(
+            (services, ct) => BuildHotThisWeekSectionAsync(
+                services,
+                criteria,
+                heroSize,
+                ct),
+            cancellationToken);
+
+        await Task.WhenAll(recommendationSectionsTask, comingUpTask, hotThisWeekDedupTask);
+
+        var (recommendationSections, recommendedForYouMs) = await recommendationSectionsTask;
+        var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
+        var (comingUpSection, comingUpMs) = await comingUpTask;
+        var (hotThisWeekSection, hotThisWeekDedupMs) = await hotThisWeekDedupTask;
+
+        var sectionsByType = new Dictionary<HomeSectionType, HomeSection>();
+
+        if (comingUpSection.Items.Count > 0)
+        {
+            sectionsByType[HomeSectionType.ComingUp] = comingUpSection;
+        }
+
+        if (isPersonalized)
+        {
+            var recommendedSection = BuildRecommendedSection(
+                recommendationSections,
+                criteria,
+                hotThisWeekSection);
+
+            if (recommendedSection is not null)
+            {
+                sectionsByType[HomeSectionType.RecommendedForYou] = recommendedSection;
+            }
+        }
+
+        var orderedSections = BuildOrderedSections(sectionsByType, PersonalizedSectionOrder);
+        totalStopwatch.Stop();
+
+        HomeServiceLogMessages.LogPersonalized(
+            logger,
+            totalStopwatch.ElapsedMilliseconds,
+            hotThisWeekDedupMs,
+            comingUpMs,
+            recommendedForYouMs,
+            isPersonalized,
+            orderedSections.Count);
+
+        return new HomePersonalizedResult(orderedSections, isPersonalized, DateTime.UtcNow);
     }
 
     private async Task<HomeSection> BuildComingUpSectionAsync(

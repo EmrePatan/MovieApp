@@ -10,6 +10,17 @@ public static class HomeContractMapper
             result.Sections.Select(ToHomeSectionResponse).ToList(),
             result.IsPersonalized);
 
+    public static HomeBrowseResponse ToHomeBrowseResponse(HomeBrowseResult result) =>
+        new(
+            result.Sections.Select(ToHomeSectionResponse).ToList(),
+            result.GeneratedAtUtc);
+
+    public static HomePersonalizedResponse ToHomePersonalizedResponse(HomePersonalizedResult result) =>
+        new(
+            result.Sections.Select(ToHomeSectionResponse).ToList(),
+            result.IsPersonalized,
+            result.GeneratedAtUtc);
+
     private static HomeSectionResponse ToHomeSectionResponse(HomeSection section) =>
         new(
             section.Type.ToString(),
