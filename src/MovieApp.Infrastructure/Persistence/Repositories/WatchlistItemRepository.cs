@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Watchlists;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -88,6 +90,8 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
 
     public async Task<(IReadOnlyList<WatchlistItem> Items, int TotalCount)> GetItemsAsync(
         Guid watchlistId,
+        SearchContentType mediaType,
+        WatchlistItemsSort sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -96,12 +100,29 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
             .AsNoTracking()
             .Where(item => item.WatchlistId == watchlistId);
 
+        query = mediaType switch
+        {
+            SearchContentType.Movie => query.Where(item => item.MovieId != null),
+            SearchContentType.Tv => query.Where(item => item.TvShowId != null),
+            _ => query,
+        };
+
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var items = await query
+        var hydratedQuery = query
             .Include(item => item.Movie)
-            .Include(item => item.TvShow)
-            .OrderByDescending(item => item.CreatedAt)
+            .Include(item => item.TvShow);
+
+        var orderedQuery = sort switch
+        {
+            WatchlistItemsSort.TitleAsc => hydratedQuery
+                .OrderBy(item => item.Movie != null ? item.Movie!.Title : item.TvShow!.Title),
+            WatchlistItemsSort.RatingDesc => hydratedQuery
+                .OrderByDescending(item => item.Movie != null ? item.Movie!.VoteAverage : item.TvShow!.VoteAverage),
+            _ => hydratedQuery.OrderByDescending(item => item.CreatedAt),
+        };
+
+        var items = await orderedQuery
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

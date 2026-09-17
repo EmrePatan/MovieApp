@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Validation;
 
@@ -15,6 +16,8 @@ public sealed class GetWatchlistItemsService(
 {
     public async Task<WatchlistItemsResult> GetAsync(
         Guid watchlistId,
+        SearchContentType mediaType,
+        WatchlistItemsSort sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -34,6 +37,8 @@ public sealed class GetWatchlistItemsService(
 
         var (items, totalCount) = await watchlistItemRepository.GetItemsAsync(
             watchlistId,
+            mediaType,
+            sort,
             page,
             pageSize,
             cancellationToken);

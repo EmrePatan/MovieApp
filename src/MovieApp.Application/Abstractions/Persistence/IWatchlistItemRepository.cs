@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Watchlists;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Abstractions.Persistence;
@@ -28,6 +30,8 @@ public interface IWatchlistItemRepository
 
     Task<(IReadOnlyList<WatchlistItem> Items, int TotalCount)> GetItemsAsync(
         Guid watchlistId,
+        SearchContentType mediaType,
+        WatchlistItemsSort sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

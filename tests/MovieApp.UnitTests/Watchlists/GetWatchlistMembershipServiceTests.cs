@@ -1,5 +1,7 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Watchlists;
 using MovieApp.Domain.Entities;
 
@@ -96,6 +98,8 @@ public sealed class GetWatchlistMembershipServiceTests
 
         public Task<(IReadOnlyList<WatchlistItem> Items, int TotalCount)> GetItemsAsync(
             Guid watchlistId,
+            SearchContentType mediaType,
+            WatchlistItemsSort sort,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default) =>

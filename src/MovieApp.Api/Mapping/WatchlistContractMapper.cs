@@ -32,6 +32,7 @@ public static class WatchlistContractMapper
 
     public static WatchlistItemsResponse ToItemsResponse(WatchlistItemsResult result) =>
         new(
+            result.Items.Select(ToCatalogItemResponse).ToList(),
             result.Movies.Select(ToMovieItemResponse).ToList(),
             result.TvShows.Select(ToTvShowItemResponse).ToList(),
             result.Page,
@@ -40,6 +41,17 @@ public static class WatchlistContractMapper
             result.TotalPages,
             result.HasNextPage,
             result.HasPreviousPage);
+
+    private static WatchlistCatalogItemResponse ToCatalogItemResponse(WatchlistCatalogItemResult result) =>
+        new(
+            result.ContentType,
+            result.Id,
+            result.Title,
+            result.PosterPath,
+            result.ReleaseDate,
+            result.FirstAirDate,
+            result.VoteAverage,
+            result.CreatedAt);
 
     private static WatchlistMovieItemResponse ToMovieItemResponse(WatchlistItemMovieResult result) =>
         new(

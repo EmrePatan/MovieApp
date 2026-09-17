@@ -62,16 +62,51 @@ public static class WatchlistMapper
     {
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
 
-        var movies = items
-            .Where(item => item.Movie is not null)
-            .Select(ToItemMovieResult)
+        var orderedItems = items.Select(ToCatalogItemResult).ToList();
+
+        var movies = orderedItems
+            .Where(item => item.ContentType == "movie")
+            .Select(item => new WatchlistItemMovieResult(
+                item.Id,
+                item.Title,
+                item.PosterPath,
+                item.ReleaseDate,
+                item.VoteAverage,
+                item.CreatedAt))
             .ToList();
 
-        var tvShows = items
-            .Where(item => item.TvShow is not null)
-            .Select(ToItemTvShowResult)
+        var tvShows = orderedItems
+            .Where(item => item.ContentType == "tv")
+            .Select(item => new WatchlistItemTvShowResult(
+                item.Id,
+                item.Title,
+                item.PosterPath,
+                item.FirstAirDate,
+                item.VoteAverage,
+                item.CreatedAt))
             .ToList();
 
-        return new WatchlistItemsResult(movies, tvShows, page, pageSize, totalCount, totalPages);
+        return new WatchlistItemsResult(orderedItems, movies, tvShows, page, pageSize, totalCount, totalPages);
     }
+
+    private static WatchlistCatalogItemResult ToCatalogItemResult(WatchlistItem item) =>
+        item.Movie is not null
+            ? new WatchlistCatalogItemResult(
+                "movie",
+                item.Movie.Id,
+                item.Movie.Title,
+                item.Movie.PosterPath,
+                item.Movie.ReleaseDate,
+                null,
+                item.Movie.VoteAverage,
+                item.CreatedAt)
+            : new WatchlistCatalogItemResult(
+                "tv",
+                item.TvShow!.Id,
+                item.TvShow.Title,
+                item.TvShow.PosterPath,
+                null,
+                item.TvShow.FirstAirDate,
+                item.TvShow.VoteAverage,
+                item.CreatedAt);
 }

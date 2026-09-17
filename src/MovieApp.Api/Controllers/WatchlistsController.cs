@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Watchlists;
+using MovieApp.Application.Validation;
 using ContractsCreateWatchlistRequest = MovieApp.Contracts.Watchlists.CreateWatchlistRequest;
 using ContractsUpdateWatchlistRequest = MovieApp.Contracts.Watchlists.UpdateWatchlistRequest;
 using MovieApp.Contracts.Watchlists;
@@ -363,14 +365,33 @@ public sealed class WatchlistsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WatchlistItemsResponse>> GetWatchlistItems(
         Guid watchlistId,
+        [FromQuery] string? mediaType,
+        [FromQuery] string? sort,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         CancellationToken cancellationToken)
     {
         try
         {
+            var mediaTypeValidation = WatchlistItemsValidator.ValidateMediaType(mediaType);
+            if (!mediaTypeValidation.IsValid)
+            {
+                throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+            }
+
+            var sortValidation = WatchlistItemsValidator.ValidateSort(sort);
+            if (!sortValidation.IsValid)
+            {
+                throw new ValidationException(sortValidation.ErrorMessage!);
+            }
+
+            _ = AdvancedSearchValidator.TryParseType(mediaType, out var parsedMediaType);
+            _ = WatchlistItemsValidator.TryParseSort(sort, out var parsedSort);
+
             var result = await getWatchlistItemsService.GetAsync(
                 watchlistId,
+                parsedMediaType,
+                parsedSort,
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
                 cancellationToken);
