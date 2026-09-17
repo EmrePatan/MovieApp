@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -20,7 +22,8 @@ public sealed class RecommendationService(
     IDiscoveryService discoveryService,
     ICurrentUser currentUser,
     ICacheService cacheService,
-    IOptions<RecommendationOptions> options) : IRecommendationService
+    IOptions<RecommendationOptions> options,
+    ILogger<RecommendationService> logger) : IRecommendationService
 {
     private static readonly TimeSpan SimilarCacheTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan PersonalizedCacheTtl = TimeSpan.FromMinutes(5);
@@ -157,20 +160,35 @@ public sealed class RecommendationService(
         bool includeColdStartDiscoverySections = true,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
         var cacheKey = RecommendationCacheKeys.Home(userId);
+        var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<RecommendationHomeCacheEntry>(cacheKey, cancellationToken);
+        cacheLookupStopwatch.Stop();
+
         if (cached is not null)
         {
+            totalStopwatch.Stop();
+            RecommendationServiceLogMessages.LogCacheHit(
+                logger,
+                "HIT",
+                totalStopwatch.ElapsedMilliseconds,
+                cacheLookupStopwatch.ElapsedMilliseconds);
             return cached.Sections;
         }
 
+        var userContextStopwatch = Stopwatch.StartNew();
         var context = await recommendationRepository.GetUserRecommendationContextAsync(
             userId,
             _options.MinimumPersonalizationInteractions,
             cancellationToken);
+        userContextStopwatch.Stop();
+
         IReadOnlyList<RecommendationSection> sections;
+        long personalizedSectionMs = 0;
+        long becauseYouWatchedMs = 0;
 
         if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
         {
@@ -180,14 +198,30 @@ public sealed class RecommendationService(
         }
         else
         {
-            sections = await BuildPersonalizedHomeSectionsAsync(context, cancellationToken);
+            (sections, personalizedSectionMs, becauseYouWatchedMs) =
+                await BuildPersonalizedHomeSectionsTimedAsync(context, cancellationToken);
         }
 
+        var cacheWriteStopwatch = Stopwatch.StartNew();
         await cacheService.SetAsync(
             cacheKey,
             new RecommendationHomeCacheEntry { Sections = sections },
             PersonalizedCacheTtl,
             cancellationToken);
+        cacheWriteStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        RecommendationServiceLogMessages.LogCacheMiss(
+            logger,
+            "MISS",
+            totalStopwatch.ElapsedMilliseconds,
+            cacheLookupStopwatch.ElapsedMilliseconds,
+            userContextStopwatch.ElapsedMilliseconds,
+            personalizedSectionMs,
+            becauseYouWatchedMs,
+            cacheWriteStopwatch.ElapsedMilliseconds,
+            context.MeaningfulInteractionCount,
+            sections.Count);
 
         return sections;
     }
@@ -216,9 +250,12 @@ public sealed class RecommendationService(
     private async Task<PaginatedResult<RecommendationItem>> BuildPersonalizedRecommendationsAsync(
         UserRecommendationContext context,
         RecommendationCriteria criteria,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool emitPerfLogs = false)
     {
         var utcNow = DateTime.UtcNow;
+
+        var preferenceBuildStopwatch = Stopwatch.StartNew();
         var genrePreferences = PersonalizedRecommendationEngine.BuildGenrePreferences(
             context.Signals,
             _options,
@@ -228,7 +265,9 @@ public sealed class RecommendationService(
             _options,
             utcNow);
         var preferredGenreIds = genrePreferences.Keys.ToList();
+        preferenceBuildStopwatch.Stop();
 
+        var candidateFetchStopwatch = Stopwatch.StartNew();
         var candidates = await recommendationRepository.GetPersonalizedCandidatesAsync(
             criteria.Type,
             preferredGenreIds,
@@ -236,7 +275,9 @@ public sealed class RecommendationService(
             context.ExcludedTvShowIds,
             _options.MaximumCandidates,
             cancellationToken);
+        candidateFetchStopwatch.Stop();
 
+        var scoringStopwatch = Stopwatch.StartNew();
         var scored = PersonalizedRecommendationEngine.ScoreCandidates(
             candidates,
             context.Signals,
@@ -244,12 +285,32 @@ public sealed class RecommendationService(
             keywordPreferences,
             _options,
             utcNow);
+        scoringStopwatch.Stop();
 
+        var diversityStopwatch = Stopwatch.StartNew();
         var diversified = PersonalizedRecommendationEngine.ApplyDiversity(scored, _options)
             .Select(RecommendationMapper.ToRecommendationItem)
             .ToList();
+        diversityStopwatch.Stop();
 
-        return Paginate(diversified, criteria.Page, criteria.PageSize);
+        var paginationStopwatch = Stopwatch.StartNew();
+        var result = Paginate(diversified, criteria.Page, criteria.PageSize);
+        paginationStopwatch.Stop();
+
+        if (emitPerfLogs)
+        {
+            RecommendationServiceLogMessages.LogPersonalizedBuild(
+                logger,
+                preferenceBuildStopwatch.ElapsedMilliseconds,
+                candidateFetchStopwatch.ElapsedMilliseconds,
+                scoringStopwatch.ElapsedMilliseconds,
+                diversityStopwatch.ElapsedMilliseconds,
+                paginationStopwatch.ElapsedMilliseconds,
+                candidates.Count,
+                scored.Count);
+        }
+
+        return result;
     }
 
     private async Task<IReadOnlyList<RecommendationSection>> BuildColdStartHomeSectionsAsync(
@@ -292,30 +353,37 @@ public sealed class RecommendationService(
         ];
     }
 
-    private async Task<IReadOnlyList<RecommendationSection>> BuildPersonalizedHomeSectionsAsync(
-        UserRecommendationContext context,
-        CancellationToken cancellationToken)
+    private async Task<(IReadOnlyList<RecommendationSection> Sections, long PersonalizedSectionMs, long BecauseYouWatchedMs)>
+        BuildPersonalizedHomeSectionsTimedAsync(
+            UserRecommendationContext context,
+            CancellationToken cancellationToken)
     {
         var sections = new List<RecommendationSection>();
         var sectionSize = _options.HomeSectionItemCount;
 
+        var personalizedStopwatch = Stopwatch.StartNew();
         var recommended = await BuildPersonalizedRecommendationsAsync(
             context,
             new RecommendationCriteria(RecommendationContentType.All, 1, sectionSize),
-            cancellationToken);
+            cancellationToken,
+            emitPerfLogs: true);
+        personalizedStopwatch.Stop();
 
         sections.Add(CreateSection(
             "recommended-for-you",
             "Recommended For You",
             recommended.Items));
 
+        var becauseYouWatchedStopwatch = Stopwatch.StartNew();
         var becauseYouWatched = await BuildBecauseYouWatchedSectionAsync(context, sectionSize, cancellationToken);
+        becauseYouWatchedStopwatch.Stop();
+
         if (becauseYouWatched.Count > 0)
         {
             sections.Add(CreateSection("because-you-watched", "Because You Watched", becauseYouWatched));
         }
 
-        return sections;
+        return (sections, personalizedStopwatch.ElapsedMilliseconds, becauseYouWatchedStopwatch.ElapsedMilliseconds);
     }
 
     private async Task<IReadOnlyList<RecommendationItem>> BuildBecauseYouWatchedSectionAsync(
@@ -333,14 +401,23 @@ public sealed class RecommendationService(
             return [];
         }
 
-        return await BuildSimilarSectionFromSignalsAsync(
+        var becauseYouWatched = await BuildSimilarSectionFromSignalsAsync(
             watchedSources,
             context,
             sectionSize,
             cancellationToken);
+
+        RecommendationServiceLogMessages.LogBecauseYouWatched(
+            logger,
+            becauseYouWatched.MovieAggregateMs,
+            becauseYouWatched.TvAggregateMs,
+            watchedSources.Count,
+            becauseYouWatched.Items.Count);
+
+        return becauseYouWatched.Items;
     }
 
-    private async Task<IReadOnlyList<RecommendationItem>> BuildSimilarSectionFromSignalsAsync(
+    private async Task<SimilarSectionBuildResult> BuildSimilarSectionFromSignalsAsync(
         IReadOnlyList<UserBehaviorSignal> sourceSignals,
         UserRecommendationContext context,
         int sectionSize,
@@ -350,25 +427,40 @@ public sealed class RecommendationService(
         var movieSignals = sourceSignals.Where(signal => signal.ContentType == "movie").ToList();
         var tvSignals = sourceSignals.Where(signal => signal.ContentType == "tv").ToList();
 
+        var movieAggregateStopwatch = Stopwatch.StartNew();
         await AggregateSimilarMovieSignalsAsync(
             movieSignals,
             context.ExcludedMovieIds,
             aggregated,
             cancellationToken);
+        movieAggregateStopwatch.Stop();
+
+        var tvAggregateStopwatch = Stopwatch.StartNew();
         await AggregateSimilarTvSignalsAsync(
             tvSignals,
             context.ExcludedTvShowIds,
             aggregated,
             cancellationToken);
+        tvAggregateStopwatch.Stop();
 
-        return aggregated.Values
+        var items = aggregated.Values
             .OrderByDescending(item => item.Score)
             .ThenByDescending(item => item.VoteCount)
             .ThenByDescending(item => item.VoteAverage)
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
             .Take(sectionSize)
             .ToList();
+
+        return new SimilarSectionBuildResult(
+            items,
+            movieAggregateStopwatch.ElapsedMilliseconds,
+            tvAggregateStopwatch.ElapsedMilliseconds);
     }
+
+    private sealed record SimilarSectionBuildResult(
+        IReadOnlyList<RecommendationItem> Items,
+        long MovieAggregateMs,
+        long TvAggregateMs);
 
     private async Task AggregateSimilarMovieSignalsAsync(
         List<UserBehaviorSignal> movieSignals,
@@ -382,7 +474,11 @@ public sealed class RecommendationService(
         }
 
         var movieIds = movieSignals.Select(signal => signal.ContentId).Distinct().ToList();
+
+        var sourceProfilesStopwatch = Stopwatch.StartNew();
         var sourceProfiles = await recommendationRepository.GetMovieSimilarityProfilesAsync(movieIds, cancellationToken);
+        sourceProfilesStopwatch.Stop();
+
         var sourceRequests = movieSignals
             .Where(signal => sourceProfiles.ContainsKey(signal.ContentId))
             .Select(signal => new SimilaritySourceGenreRequest(
@@ -390,20 +486,28 @@ public sealed class RecommendationService(
                 sourceProfiles[signal.ContentId].GenreIds))
             .DistinctBy(request => request.SourceId)
             .ToList();
+
+        var candidateIdsStopwatch = Stopwatch.StartNew();
         var candidateIdsBySource = await recommendationRepository.GetSimilarMovieCandidateIdsForSourcesAsync(
             sourceRequests,
             _options.MaximumCandidates,
             cancellationToken);
+        candidateIdsStopwatch.Stop();
 
         var uniqueCandidateIds = candidateIdsBySource.Values
             .SelectMany(ids => ids)
             .Distinct()
             .ToList();
+
+        var candidateProfilesStopwatch = Stopwatch.StartNew();
         var candidateProfiles = await recommendationRepository.GetSimilarMovieCandidatesByIdsAsync(
             uniqueCandidateIds,
             cancellationToken);
+        candidateProfilesStopwatch.Stop();
+
         var candidatesById = candidateProfiles.ToDictionary(candidate => candidate.Id);
 
+        var rankStopwatch = Stopwatch.StartNew();
         foreach (var signal in movieSignals)
         {
             if (!sourceProfiles.TryGetValue(signal.ContentId, out var source) ||
@@ -433,6 +537,18 @@ public sealed class RecommendationService(
                         RecommendationReasonBuilder.BuildSimilarReason(source, candidate)));
             }
         }
+
+        rankStopwatch.Stop();
+
+        RecommendationServiceLogMessages.LogSimilarityAggregate(
+            logger,
+            "movie",
+            sourceProfilesStopwatch.ElapsedMilliseconds,
+            candidateIdsStopwatch.ElapsedMilliseconds,
+            candidateProfilesStopwatch.ElapsedMilliseconds,
+            rankStopwatch.ElapsedMilliseconds,
+            movieSignals.Count,
+            uniqueCandidateIds.Count);
     }
 
     private async Task AggregateSimilarTvSignalsAsync(
@@ -447,7 +563,11 @@ public sealed class RecommendationService(
         }
 
         var tvShowIds = tvSignals.Select(signal => signal.ContentId).Distinct().ToList();
+
+        var sourceProfilesStopwatch = Stopwatch.StartNew();
         var sourceProfiles = await recommendationRepository.GetTvShowSimilarityProfilesAsync(tvShowIds, cancellationToken);
+        sourceProfilesStopwatch.Stop();
+
         var sourceRequests = tvSignals
             .Where(signal => sourceProfiles.ContainsKey(signal.ContentId))
             .Select(signal => new SimilaritySourceGenreRequest(
@@ -455,20 +575,28 @@ public sealed class RecommendationService(
                 sourceProfiles[signal.ContentId].GenreIds))
             .DistinctBy(request => request.SourceId)
             .ToList();
+
+        var candidateIdsStopwatch = Stopwatch.StartNew();
         var candidateIdsBySource = await recommendationRepository.GetSimilarTvShowCandidateIdsForSourcesAsync(
             sourceRequests,
             _options.MaximumCandidates,
             cancellationToken);
+        candidateIdsStopwatch.Stop();
 
         var uniqueCandidateIds = candidateIdsBySource.Values
             .SelectMany(ids => ids)
             .Distinct()
             .ToList();
+
+        var candidateProfilesStopwatch = Stopwatch.StartNew();
         var candidateProfiles = await recommendationRepository.GetSimilarTvShowCandidatesByIdsAsync(
             uniqueCandidateIds,
             cancellationToken);
+        candidateProfilesStopwatch.Stop();
+
         var candidatesById = candidateProfiles.ToDictionary(candidate => candidate.Id);
 
+        var rankStopwatch = Stopwatch.StartNew();
         foreach (var signal in tvSignals)
         {
             if (!sourceProfiles.TryGetValue(signal.ContentId, out var source) ||
@@ -498,6 +626,18 @@ public sealed class RecommendationService(
                         RecommendationReasonBuilder.BuildSimilarReason(source, candidate)));
             }
         }
+
+        rankStopwatch.Stop();
+
+        RecommendationServiceLogMessages.LogSimilarityAggregate(
+            logger,
+            "tv",
+            sourceProfilesStopwatch.ElapsedMilliseconds,
+            candidateIdsStopwatch.ElapsedMilliseconds,
+            candidateProfilesStopwatch.ElapsedMilliseconds,
+            rankStopwatch.ElapsedMilliseconds,
+            tvSignals.Count,
+            uniqueCandidateIds.Count);
     }
 
     private static void AddAggregatedItem(

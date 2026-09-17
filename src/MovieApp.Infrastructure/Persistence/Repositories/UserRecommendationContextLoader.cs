@@ -1,11 +1,15 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Recommendations;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbContext)
+internal sealed class UserRecommendationContextLoader(
+    ApplicationDbContext dbContext,
+    ILogger logger)
 {
     private const int MaxCastPeople = 20;
     private const int MaxSearchQueries = 10;
@@ -15,6 +19,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         int minimumInteractionsForEnrichment = 0,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
+        long dbTotalMs = 0;
+
+        var ratingsStopwatch = Stopwatch.StartNew();
         var ratingRows = await dbContext.Ratings
             .AsNoTracking()
             .Where(rating => rating.UserId == userId)
@@ -26,7 +34,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 rating.MovieId != null ? rating.Movie!.Title : null,
                 rating.TvShowId != null ? rating.TvShow!.Title : null))
             .ToListAsync(cancellationToken);
+        ratingsStopwatch.Stop();
+        dbTotalMs += ratingsStopwatch.ElapsedMilliseconds;
 
+        var favoritesStopwatch = Stopwatch.StartNew();
         var favoriteRows = await dbContext.Favorites
             .AsNoTracking()
             .Where(favorite => favorite.UserId == userId)
@@ -37,14 +48,20 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 favorite.MovieId != null ? favorite.Movie!.Title : null,
                 favorite.TvShowId != null ? favorite.TvShow!.Title : null))
             .ToListAsync(cancellationToken);
+        favoritesStopwatch.Stop();
+        dbTotalMs += favoritesStopwatch.ElapsedMilliseconds;
 
+        var watchedMoviesStopwatch = Stopwatch.StartNew();
         var watchedMovieRows = await dbContext.WatchedMovies
             .AsNoTracking()
             .Where(item => item.UserId == userId)
             .OrderByDescending(item => item.WatchedAt)
             .Select(item => new WatchedMovieRow(item.MovieId, item.Movie!.Title, item.WatchedAt))
             .ToListAsync(cancellationToken);
+        watchedMoviesStopwatch.Stop();
+        dbTotalMs += watchedMoviesStopwatch.ElapsedMilliseconds;
 
+        var watchlistStopwatch = Stopwatch.StartNew();
         var watchlistRows = await dbContext.WatchlistItems
             .AsNoTracking()
             .Where(item => item.Watchlist.UserId == userId)
@@ -55,7 +72,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 item.MovieId != null ? item.Movie!.Title : null,
                 item.TvShowId != null ? item.TvShow!.Title : null))
             .ToListAsync(cancellationToken);
+        watchlistStopwatch.Stop();
+        dbTotalMs += watchlistStopwatch.ElapsedMilliseconds;
 
+        var watchedEpisodesStopwatch = Stopwatch.StartNew();
         var watchedEpisodeRows = await dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(item => item.UserId == userId)
@@ -63,7 +83,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 item.Episode.Season.TvShowId,
                 item.WatchedAt))
             .ToListAsync(cancellationToken);
+        watchedEpisodesStopwatch.Stop();
+        dbTotalMs += watchedEpisodesStopwatch.ElapsedMilliseconds;
 
+        var catalogFollowsStopwatch = Stopwatch.StartNew();
         var catalogFollowRows = await dbContext.CatalogFollows
             .AsNoTracking()
             .Where(follow => follow.UserId == userId)
@@ -72,7 +95,10 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
                 follow.ContentId,
                 follow.CreatedAt))
             .ToListAsync(cancellationToken);
+        catalogFollowsStopwatch.Stop();
+        dbTotalMs += catalogFollowsStopwatch.ElapsedMilliseconds;
 
+        var searchHistoryStopwatch = Stopwatch.StartNew();
         var recentQueries = await dbContext.SearchHistories
             .AsNoTracking()
             .Where(item => item.UserId == userId)
@@ -80,6 +106,8 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             .Select(item => item.NormalizedQuery)
             .Take(MaxSearchQueries)
             .ToListAsync(cancellationToken);
+        searchHistoryStopwatch.Stop();
+        dbTotalMs += searchHistoryStopwatch.ElapsedMilliseconds;
 
         var meaningfulInteractionCount = CountMeaningfulInteractions(
             ratingRows,
@@ -92,6 +120,36 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         if (minimumInteractionsForEnrichment > 0 &&
             meaningfulInteractionCount < minimumInteractionsForEnrichment)
         {
+            totalStopwatch.Stop();
+            LogLoadSummary(
+                totalStopwatch.ElapsedMilliseconds,
+                dbTotalMs,
+                ratingsStopwatch.ElapsedMilliseconds,
+                favoritesStopwatch.ElapsedMilliseconds,
+                watchedMoviesStopwatch.ElapsedMilliseconds,
+                watchlistStopwatch.ElapsedMilliseconds,
+                watchedEpisodesStopwatch.ElapsedMilliseconds,
+                catalogFollowsStopwatch.ElapsedMilliseconds,
+                searchHistoryStopwatch.ElapsedMilliseconds,
+                fullyWatchedTvMs: 0,
+                watchedTvTitlesMs: 0,
+                tvFollowTitlesMs: 0,
+                searchMatchMoviesMs: 0,
+                searchMatchTvMs: 0,
+                movieSignalsDbMs: 0,
+                tvSignalsDbMs: 0,
+                signalBuildExecutionMode: "skipped",
+                ratingCount: ratingRows.Count,
+                favoriteCount: favoriteRows.Count,
+                watchedMovieCount: watchedMovieRows.Count,
+                watchlistCount: watchlistRows.Count,
+                watchedEpisodeCount: watchedEpisodeRows.Count,
+                catalogFollowCount: catalogFollowRows.Count,
+                searchQueryCount: recentQueries.Count,
+                movieSignalCount: 0,
+                tvSignalCount: 0,
+                meaningfulInteractionCount);
+
             return new UserRecommendationContext(
                 [],
                 new HashSet<Guid>(),
@@ -159,30 +217,149 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
         }
 
         var watchedEpisodeTvShowIds = watchedEpisodeRows.Select(row => row.TvShowId).ToList();
+        var fullyWatchedTvStopwatch = Stopwatch.StartNew();
         excludedTvShowIds.UnionWith(await GetFullyWatchedTvShowIdsAsync(watchedEpisodeTvShowIds, cancellationToken));
+        fullyWatchedTvStopwatch.Stop();
+        dbTotalMs += fullyWatchedTvStopwatch.ElapsedMilliseconds;
 
         var seeds = new List<SignalSeed>();
         seeds.AddRange(CreateRatingSeeds(ratingRows));
         seeds.AddRange(CreateFavoriteSeeds(favoriteRows));
         seeds.AddRange(CreateWatchedMovieSeeds(watchedMovieRows));
+
+        var watchedTvTitlesStopwatch = Stopwatch.StartNew();
         seeds.AddRange(await CreateWatchedTvShowSeedsAsync(watchedEpisodeRows, cancellationToken));
+        watchedTvTitlesStopwatch.Stop();
+        dbTotalMs += watchedTvTitlesStopwatch.ElapsedMilliseconds;
+
         seeds.AddRange(CreateWatchlistSeeds(watchlistRows));
+
+        var tvFollowTitlesStopwatch = Stopwatch.StartNew();
         seeds.AddRange(await CreateTvFollowSeedsAsync(catalogFollowRows, cancellationToken));
-        seeds.AddRange(await CreateSearchSeedsAsync(recentQueries, cancellationToken));
+        tvFollowTitlesStopwatch.Stop();
+        dbTotalMs += tvFollowTitlesStopwatch.ElapsedMilliseconds;
+
+        var searchMatchMoviesMs = 0L;
+        var searchMatchTvMs = 0L;
+        seeds.AddRange(await CreateSearchSeedsAsync(
+            recentQueries,
+            cancellationToken,
+            movieQueryMs => searchMatchMoviesMs = movieQueryMs,
+            tvQueryMs => searchMatchTvMs = tvQueryMs));
+        dbTotalMs += searchMatchMoviesMs + searchMatchTvMs;
 
         var collapsedSeeds = CollapseSeeds(seeds);
+        var movieSeedList = collapsedSeeds.Where(seed => seed.ContentType == "movie").ToList();
+        var tvSeedList = collapsedSeeds.Where(seed => seed.ContentType == "tv").ToList();
 
-        var movieSignals = await BuildMovieSignalsAsync(
-            collapsedSeeds.Where(seed => seed.ContentType == "movie").ToList(),
-            cancellationToken);
-        var tvSignals = await BuildTvSignalsAsync(
-            collapsedSeeds.Where(seed => seed.ContentType == "tv").ToList(),
-            cancellationToken);
+        var movieSignalsStopwatch = Stopwatch.StartNew();
+        var movieSignals = await BuildMovieSignalsAsync(movieSeedList, cancellationToken);
+        movieSignalsStopwatch.Stop();
+        dbTotalMs += movieSignalsStopwatch.ElapsedMilliseconds;
+
+        var tvSignalsStopwatch = Stopwatch.StartNew();
+        var tvSignals = await BuildTvSignalsAsync(tvSeedList, cancellationToken);
+        tvSignalsStopwatch.Stop();
+        dbTotalMs += tvSignalsStopwatch.ElapsedMilliseconds;
+
+        totalStopwatch.Stop();
+        LogLoadSummary(
+            totalStopwatch.ElapsedMilliseconds,
+            dbTotalMs,
+            ratingsStopwatch.ElapsedMilliseconds,
+            favoritesStopwatch.ElapsedMilliseconds,
+            watchedMoviesStopwatch.ElapsedMilliseconds,
+            watchlistStopwatch.ElapsedMilliseconds,
+            watchedEpisodesStopwatch.ElapsedMilliseconds,
+            catalogFollowsStopwatch.ElapsedMilliseconds,
+            searchHistoryStopwatch.ElapsedMilliseconds,
+            fullyWatchedTvStopwatch.ElapsedMilliseconds,
+            watchedTvTitlesStopwatch.ElapsedMilliseconds,
+            tvFollowTitlesStopwatch.ElapsedMilliseconds,
+            searchMatchMoviesMs,
+            searchMatchTvMs,
+            movieSignalsStopwatch.ElapsedMilliseconds,
+            tvSignalsStopwatch.ElapsedMilliseconds,
+            signalBuildExecutionMode: "sequential",
+            ratingCount: ratingRows.Count,
+            favoriteCount: favoriteRows.Count,
+            watchedMovieCount: watchedMovieRows.Count,
+            watchlistCount: watchlistRows.Count,
+            watchedEpisodeCount: watchedEpisodeRows.Count,
+            catalogFollowCount: catalogFollowRows.Count,
+            searchQueryCount: recentQueries.Count,
+            movieSignalCount: movieSignals.Count,
+            tvSignalCount: tvSignals.Count,
+            meaningfulInteractionCount);
 
         return new UserRecommendationContext(
             movieSignals.Concat(tvSignals).ToList(),
             excludedMovieIds,
             excludedTvShowIds,
+            meaningfulInteractionCount);
+    }
+
+    private void LogLoadSummary(
+        long totalMs,
+        long dbTotalMs,
+        long ratingsMs,
+        long favoritesMs,
+        long watchedMoviesMs,
+        long watchlistMs,
+        long watchedEpisodesMs,
+        long catalogFollowsMs,
+        long searchHistoryMs,
+        long fullyWatchedTvMs,
+        long watchedTvTitlesMs,
+        long tvFollowTitlesMs,
+        long searchMatchMoviesMs,
+        long searchMatchTvMs,
+        long movieSignalsDbMs,
+        long tvSignalsDbMs,
+        string signalBuildExecutionMode,
+        int ratingCount,
+        int favoriteCount,
+        int watchedMovieCount,
+        int watchlistCount,
+        int watchedEpisodeCount,
+        int catalogFollowCount,
+        int searchQueryCount,
+        int movieSignalCount,
+        int tvSignalCount,
+        int meaningfulInteractionCount)
+    {
+        var cpuMs = Math.Max(0, totalMs - dbTotalMs);
+
+        UserRecommendationContextLoaderLogMessages.LogLoadComplete(
+            logger,
+            totalMs,
+            dbTotalMs,
+            cpuMs,
+            "sequential",
+            ratingsMs,
+            favoritesMs,
+            watchedMoviesMs,
+            watchlistMs,
+            watchedEpisodesMs,
+            catalogFollowsMs,
+            searchHistoryMs,
+            fullyWatchedTvMs,
+            watchedTvTitlesMs,
+            tvFollowTitlesMs,
+            searchMatchMoviesMs,
+            searchMatchTvMs,
+            movieSignalsDbMs,
+            tvSignalsDbMs,
+            signalBuildExecutionMode,
+            ratingCount,
+            favoriteCount,
+            watchedMovieCount,
+            watchlistCount,
+            watchedEpisodeCount,
+            catalogFollowCount,
+            searchQueryCount,
+            movieSignalCount,
+            tvSignalCount,
             meaningfulInteractionCount);
     }
 
@@ -421,7 +598,9 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
 
     private async Task<IReadOnlyList<SignalSeed>> CreateSearchSeedsAsync(
         IReadOnlyList<string> recentQueries,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<long>? recordMovieQueryMs = null,
+        Action<long>? recordTvQueryMs = null)
     {
         var distinctQueries = recentQueries
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -432,8 +611,15 @@ internal sealed class UserRecommendationContextLoader(ApplicationDbContext dbCon
             return [];
         }
 
+        var movieQueryStopwatch = Stopwatch.StartNew();
         var matchingMovies = await LoadSearchMatchMoviesAsync(distinctQueries, cancellationToken);
+        movieQueryStopwatch.Stop();
+        recordMovieQueryMs?.Invoke(movieQueryStopwatch.ElapsedMilliseconds);
+
+        var tvQueryStopwatch = Stopwatch.StartNew();
         var matchingTvShows = await LoadSearchMatchTvShowsAsync(distinctQueries, cancellationToken);
+        tvQueryStopwatch.Stop();
+        recordTvQueryMs?.Invoke(tvQueryStopwatch.ElapsedMilliseconds);
         var seeds = new List<SignalSeed>();
 
         foreach (var query in distinctQueries)

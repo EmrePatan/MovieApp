@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -117,7 +118,8 @@ public sealed class RecommendationQueryFanOutTests
                 MinimumPersonalizationInteractions = 1,
                 HomeSectionItemCount = 10,
                 MaximumCandidates = 500
-            }));
+            }),
+            NullLogger<RecommendationService>.Instance);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
