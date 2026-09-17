@@ -16,6 +16,7 @@ using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.PushNotifications;
 using MovieApp.Infrastructure.Providers;
+using MovieApp.Infrastructure.AiRecommendations;
 using MovieApp.Infrastructure.RateLimiting;
 using StackExchange.Redis;
 
@@ -98,6 +99,8 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services.AddSingleton<IValidateOptions<PasswordResetOptions>, PasswordResetOptionsValidator>();
+
+        services.AddAiRecommendations(configuration);
 
         services.AddMovieDataProviders(configuration);
 

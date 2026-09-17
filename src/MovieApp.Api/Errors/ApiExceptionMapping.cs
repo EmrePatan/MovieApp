@@ -70,6 +70,46 @@ internal static class ApiExceptionMappings
                     ApiErrorCodes.TvShowFollowBaselineUnavailable,
                     LogAsError: false);
                 return true;
+            case MovieApp.Application.Exceptions.AiRecommendationEntitlementException entitlement:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status403Forbidden,
+                    "Premium required.",
+                    entitlement.Message,
+                    ApiErrorCodes.Forbidden,
+                    LogAsError: false);
+                return true;
+            case MovieApp.Application.Exceptions.AiRecommendationQuotaExceededException quota:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status429TooManyRequests,
+                    "Quota exceeded.",
+                    quota.Message,
+                    ApiErrorCodes.TooManyRequests,
+                    LogAsError: false);
+                return true;
+            case MovieApp.Application.Exceptions.AiRecommendationNoValidResultsException noValid:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status422UnprocessableEntity,
+                    "No valid recommendations.",
+                    noValid.Message,
+                    ApiErrorCodes.ValidationFailed,
+                    LogAsError: false);
+                return true;
+            case MovieApp.Application.Exceptions.AiRecommendationProviderUnavailableException providerUnavailable:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "AI provider unavailable.",
+                    providerUnavailable.Message,
+                    ApiErrorCodes.AiRecommendationUnavailable,
+                    LogAsError: false);
+                return true;
+            case MovieApp.Application.Exceptions.AiRecommendationInfrastructureUnavailableException infrastructure:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "AI infrastructure unavailable.",
+                    infrastructure.Message,
+                    ApiErrorCodes.AiRecommendationUnavailable,
+                    LogAsError: false);
+                return true;
             default:
                 return false;
         }
