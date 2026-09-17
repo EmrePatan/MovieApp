@@ -51,6 +51,7 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
             .Select(pair => (pair.UserReleaseNotificationId, pair.PushDeviceId))
             .ToHashSet();
 
+        var pendingStatus = PushNotificationDeliveryStatus.Pending.ToString();
         var created = 0;
 
         foreach (var notification in notifications)
@@ -67,30 +68,30 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
                     continue;
                 }
 
-                dbContext.PushNotificationDeliveries.Add(new PushNotificationDelivery
-                {
-                    Id = Guid.NewGuid(),
-                    UserReleaseNotificationId = notification.Id,
-                    PushDeviceId = deviceId,
-                    Status = PushNotificationDeliveryStatus.Pending,
-                    AttemptCount = 0,
-                    CreatedAtUtc = utcNow,
-                    UpdatedAtUtc = utcNow
-                });
-                existingPairSet.Add((notification.Id, deviceId));
-                created++;
-            }
-        }
+                var deliveryId = Guid.NewGuid();
+                created += await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                     INSERT INTO push_notification_deliveries (
+                         "Id",
+                         "UserReleaseNotificationId",
+                         "PushDeviceId",
+                         "Status",
+                         "AttemptCount",
+                         "CreatedAtUtc",
+                         "UpdatedAtUtc")
+                     VALUES (
+                         {deliveryId},
+                         {notification.Id},
+                         {deviceId},
+                         {pendingStatus},
+                         0,
+                         {utcNow},
+                         {utcNow})
+                     ON CONFLICT ("UserReleaseNotificationId", "PushDeviceId") DO NOTHING
+                     """,
+                    cancellationToken);
 
-        if (created > 0)
-        {
-            try
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException)
-            {
-                dbContext.ChangeTracker.Clear();
+                existingPairSet.Add((notification.Id, deviceId));
             }
         }
 
