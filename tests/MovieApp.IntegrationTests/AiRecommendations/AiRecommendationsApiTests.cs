@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Identity;
@@ -12,6 +13,7 @@ using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Contracts.AiRecommendations;
 using MovieApp.Contracts.Auth;
 using MovieApp.Infrastructure.Email;
+using MovieApp.Infrastructure.Persistence;
 using MovieApp.IntegrationTests.Auth;
 
 namespace MovieApp.IntegrationTests.AiRecommendations;
@@ -27,6 +29,8 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     [Fact]
     public async Task PostReturnsUnauthorizedWithoutToken()
     {
+        fixture.Factory.ResetTestState();
+
         var response = await _client.PostAsJsonAsync(
             "/api/ai/recommendations",
             new AiRecommendationRequest("mystery movie please", null));
@@ -37,6 +41,8 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     [Fact]
     public async Task PostReturnsForbiddenWhenNotEntitled()
     {
+        fixture.Factory.ResetTestState();
+
         var token = await RegisterAndGetTokenAsync();
 
         var response = await SendAuthorizedAsync(
@@ -49,6 +55,7 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     [Fact]
     public async Task PostReturnsSuccessfulAiResponseForEntitledUser()
     {
+        fixture.Factory.ResetTestState();
         fixture.Factory.AllowEntitlement = true;
 
         var token = await RegisterAndGetTokenAsync();
@@ -69,6 +76,7 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     [Fact]
     public async Task PostReturns422WhenValidationProducesZeroResults()
     {
+        fixture.Factory.ResetTestState();
         fixture.Factory.AllowEntitlement = true;
         fixture.Factory.ProviderResult = new AiProviderGenerationResult(
             [new AiProviderSuggestion("Unknown", 2099, "movie", null, "Reason")],
@@ -117,12 +125,26 @@ public sealed class AiRecommendationsApiFixture : IAsyncLifetime
 {
     public AiRecommendationsWebApplicationFactory Factory { get; } = new();
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public Task DisposeAsync()
+    public async Task InitializeAsync()
     {
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await using var context = CreateContext();
+        await context.Database.EnsureDeletedAsync();
         Factory.Dispose();
-        return Task.CompletedTask;
+    }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(AuthIntegrationDatabase.GetConnectionString())
+            .Options;
+
+        return new ApplicationDbContext(options);
     }
 }
 
@@ -130,11 +152,22 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
 {
     public bool AllowEntitlement { get; set; }
 
-    public AiProviderGenerationResult ProviderResult { get; set; } = new(
+    public AiProviderGenerationResult ProviderResult { get; set; } = CreateDefaultProviderResult();
+
+    public AiValidationResult ValidatorResult { get; set; } = CreateDefaultValidatorResult();
+
+    public void ResetTestState()
+    {
+        AllowEntitlement = false;
+        ProviderResult = CreateDefaultProviderResult();
+        ValidatorResult = CreateDefaultValidatorResult();
+    }
+
+    private static AiProviderGenerationResult CreateDefaultProviderResult() => new(
         [new AiProviderSuggestion("Arrival", 2016, "movie", 329996, "Mind-bending sci-fi")],
         null);
 
-    public AiValidationResult ValidatorResult { get; set; } = new(
+    private static AiValidationResult CreateDefaultValidatorResult() => new(
         [
             new AiValidatedRecommendation(
                 new ResolvedMovieIdentity(
@@ -182,6 +215,7 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
 
         builder.ConfigureServices(services =>
         {
+            services.AddSingleton(this);
             services.AddSingleton<CapturingEmailSender>();
             services.AddSingleton<IEmailSender>(provider => provider.GetRequiredService<CapturingEmailSender>());
 
