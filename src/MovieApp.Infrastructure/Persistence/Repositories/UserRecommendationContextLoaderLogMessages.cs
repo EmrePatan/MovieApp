@@ -7,7 +7,7 @@ internal static partial class UserRecommendationContextLoaderLogMessages
     [LoggerMessage(
         EventId = 7201,
         Level = LogLevel.Information,
-        Message = "RecHomePerf UserContext TotalMs={TotalMs} DbTotalMs={DbTotalMs} CpuMs={CpuMs} InitialQueriesExecutionMode={InitialQueriesExecutionMode} RatingsMs={RatingsMs} FavoritesMs={FavoritesMs} WatchedMoviesMs={WatchedMoviesMs} WatchlistMs={WatchlistMs} WatchedEpisodesMs={WatchedEpisodesMs} CatalogFollowsMs={CatalogFollowsMs} SearchHistoryMs={SearchHistoryMs} FullyWatchedTvMs={FullyWatchedTvMs} WatchedTvTitlesMs={WatchedTvTitlesMs} TvFollowTitlesMs={TvFollowTitlesMs} SearchMatchMoviesMs={SearchMatchMoviesMs} SearchMatchTvMs={SearchMatchTvMs} MovieSignalsDbMs={MovieSignalsDbMs} TvSignalsDbMs={TvSignalsDbMs} SignalBuildExecutionMode={SignalBuildExecutionMode} RatingCount={RatingCount} FavoriteCount={FavoriteCount} WatchedMovieCount={WatchedMovieCount} WatchlistCount={WatchlistCount} WatchedEpisodeCount={WatchedEpisodeCount} CatalogFollowCount={CatalogFollowCount} SearchQueryCount={SearchQueryCount} MovieSignalCount={MovieSignalCount} TvSignalCount={TvSignalCount} MeaningfulInteractionCount={MeaningfulInteractionCount}")]
+        Message = "RecHomePerf UserContext TotalMs={TotalMs} DbTotalMs={DbTotalMs} CpuMs={CpuMs} DbRoundTrips={DbRoundTrips} InitialQueriesExecutionMode={InitialQueriesExecutionMode} RatingsMs={RatingsMs} FavoritesMs={FavoritesMs} WatchedMoviesMs={WatchedMoviesMs} WatchlistMs={WatchlistMs} WatchedEpisodesMs={WatchedEpisodesMs} CatalogFollowsMs={CatalogFollowsMs} SearchHistoryMs={SearchHistoryMs} FullyWatchedTvMs={FullyWatchedTvMs} WatchedTvTitlesMs={WatchedTvTitlesMs} TvFollowTitlesMs={TvFollowTitlesMs} SearchMatchMoviesMs={SearchMatchMoviesMs} SearchMatchTvMs={SearchMatchTvMs} MovieSignalsDbMs={MovieSignalsDbMs} TvSignalsDbMs={TvSignalsDbMs} SignalBuildExecutionMode={SignalBuildExecutionMode} RatingCount={RatingCount} FavoriteCount={FavoriteCount} WatchedMovieCount={WatchedMovieCount} WatchlistCount={WatchlistCount} WatchedEpisodeCount={WatchedEpisodeCount} CatalogFollowCount={CatalogFollowCount} SearchQueryCount={SearchQueryCount} MovieSignalCount={MovieSignalCount} TvSignalCount={TvSignalCount} MeaningfulInteractionCount={MeaningfulInteractionCount}")]
     public static partial void LogLoadComplete(
         ILogger logger,
         long totalMs,
@@ -38,5 +38,6 @@ internal static partial class UserRecommendationContextLoaderLogMessages
         int searchQueryCount,
         int movieSignalCount,
         int tvSignalCount,
-        int meaningfulInteractionCount);
+        int meaningfulInteractionCount,
+        int dbRoundTrips);
 }

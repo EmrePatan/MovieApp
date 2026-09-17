@@ -7,15 +7,12 @@ internal static partial class RecommendationRepositoryLogMessages
     [LoggerMessage(
         EventId = 7211,
         Level = LogLevel.Information,
-        Message = "RecHomePerf CandidateFetch MovieIdsDbMs={MovieIdsDbMs} MovieProjectionsDbMs={MovieProjectionsDbMs} TvIdsDbMs={TvIdsDbMs} TvProjectionsDbMs={TvProjectionsDbMs} MovieKeywordsDbMs={MovieKeywordsDbMs} TvKeywordsDbMs={TvKeywordsDbMs} DbTotalMs={DbTotalMs} MovieIdCount={MovieIdCount} TvIdCount={TvIdCount} CandidateCount={CandidateCount} ContentType={ContentType}")]
+        Message = "RecHomePerf CandidateFetch DbRoundTrips={DbRoundTrips} MovieFetchMs={MovieFetchMs} TvFetchMs={TvFetchMs} DbTotalMs={DbTotalMs} MovieIdCount={MovieIdCount} TvIdCount={TvIdCount} CandidateCount={CandidateCount} ContentType={ContentType}")]
     public static partial void LogCandidateFetch(
         ILogger logger,
-        long movieIdsDbMs,
-        long movieProjectionsDbMs,
-        long tvIdsDbMs,
-        long tvProjectionsDbMs,
-        long movieKeywordsDbMs,
-        long tvKeywordsDbMs,
+        int dbRoundTrips,
+        long movieFetchMs,
+        long tvFetchMs,
         long dbTotalMs,
         int movieIdCount,
         int tvIdCount,

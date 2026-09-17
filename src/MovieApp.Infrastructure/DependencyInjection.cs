@@ -140,6 +140,10 @@ public static class DependencyInjection
 
             options.UseNpgsql(postgreSqlConnectionString));
 
+        services.AddDbContextFactory<ApplicationDbContext>(options =>
+
+            options.UseNpgsql(postgreSqlConnectionString));
+
 
 
         services.AddScoped<IApplicationDbContext>(provider =>
