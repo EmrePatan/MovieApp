@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -443,7 +444,8 @@ public sealed class HomeServiceTests
                 cache,
                 homeOptions),
             cache ?? new FakeCacheService(),
-            Options.Create(homeOptions));
+            Options.Create(homeOptions),
+            NullLogger<HomeService>.Instance);
     }
 
     private static IServiceScopeFactory CreateScopeFactory(

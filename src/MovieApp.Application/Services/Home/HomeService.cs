@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -19,7 +21,8 @@ public sealed class HomeService(
     ICurrentUser currentUser,
     IServiceScopeFactory scopeFactory,
     ICacheService cacheService,
-    IOptions<HomeOptions> options) : IHomeService
+    IOptions<HomeOptions> options,
+    ILogger<HomeService> logger) : IHomeService
 {
     private const string RecommendedForYouKey = "recommended-for-you";
 
@@ -37,26 +40,37 @@ public sealed class HomeService(
 
     public async Task<HomeResult> GetHomeAsync(HomeCriteria criteria, CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
+
         ValidateCriteria(criteria);
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
         var cacheKey = HomeCacheKeys.Create(userId, criteria.Type, criteria.SectionSize);
+        var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
+        cacheLookupStopwatch.Stop();
+
         if (cached is not null)
         {
+            totalStopwatch.Stop();
+            HomeServiceLogMessages.LogCacheHit(
+                logger,
+                "HIT",
+                totalStopwatch.ElapsedMilliseconds,
+                cacheLookupStopwatch.ElapsedMilliseconds);
             return cached.Result;
         }
 
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
         var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
 
-        var recommendationSectionsTask = RunScopedAsync(
+        var recommendationSectionsTask = RunScopedTimedAsync(
             (services, ct) => services
                 .GetRequiredService<IRecommendationService>()
                 .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
             cancellationToken);
 
-        var hotThisWeekTask = RunScopedAsync(
+        var hotThisWeekTask = RunScopedTimedAsync(
             (services, ct) => BuildHotThisWeekSectionAsync(
                 services,
                 criteria,
@@ -64,11 +78,11 @@ public sealed class HomeService(
                 ct),
             cancellationToken);
 
-        var comingUpTask = RunScopedAsync(
+        var comingUpTask = RunScopedTimedAsync(
             (services, ct) => BuildComingUpSectionAsync(services, ct),
             cancellationToken);
 
-        var trendingTask = RunScopedAsync(
+        var trendingTask = RunScopedTimedAsync(
             (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
                 HomeSectionType.Trending,
                 "Trending Now",
@@ -78,11 +92,11 @@ public sealed class HomeService(
                 ct),
             cancellationToken);
 
-        var topRatedTask = RunScopedAsync(
+        var topRatedTask = RunScopedTimedAsync(
             (services, ct) => BuildTopRatedSectionAsync(services, criteria, ct),
             cancellationToken);
 
-        var newReleasesTask = RunScopedAsync(
+        var newReleasesTask = RunScopedTimedAsync(
             (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
                 HomeSectionType.NewReleases,
                 "New Releases",
@@ -100,16 +114,21 @@ public sealed class HomeService(
             topRatedTask,
             newReleasesTask);
 
-        var recommendationSections = await recommendationSectionsTask;
+        var (recommendationSections, recommendedForYouMs) = await recommendationSectionsTask;
         var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
 
-        var comingUpSection = await comingUpTask;
+        var (comingUpSection, comingUpMs) = await comingUpTask;
+        var (hotThisWeekSection, hotThisWeekMs) = await hotThisWeekTask;
+        var (trendingSection, trendingMs) = await trendingTask;
+        var (topRatedSection, topRatedMs) = await topRatedTask;
+        var (newReleasesSection, newReleasesMs) = await newReleasesTask;
+
         var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
         {
-            [HomeSectionType.HotThisWeek] = await hotThisWeekTask,
-            [HomeSectionType.Trending] = await trendingTask,
-            [HomeSectionType.TopRated] = await topRatedTask,
-            [HomeSectionType.NewReleases] = await newReleasesTask
+            [HomeSectionType.HotThisWeek] = hotThisWeekSection,
+            [HomeSectionType.Trending] = trendingSection,
+            [HomeSectionType.TopRated] = topRatedSection,
+            [HomeSectionType.NewReleases] = newReleasesSection
         };
 
         if (comingUpSection.Items.Count > 0)
@@ -133,11 +152,27 @@ public sealed class HomeService(
         var orderedSections = BuildOrderedSections(sectionsByType, HomeSectionOrder);
         var result = new HomeResult(orderedSections, isPersonalized);
 
+        var cacheWriteStopwatch = Stopwatch.StartNew();
         await cacheService.SetAsync(
             cacheKey,
             new HomeCacheEntry { Result = result },
             TimeSpan.FromMinutes(_options.CacheTtlMinutes),
             cancellationToken);
+        cacheWriteStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        HomeServiceLogMessages.LogCacheMiss(
+            logger,
+            "MISS",
+            totalStopwatch.ElapsedMilliseconds,
+            cacheLookupStopwatch.ElapsedMilliseconds,
+            cacheWriteStopwatch.ElapsedMilliseconds,
+            hotThisWeekMs,
+            recommendedForYouMs,
+            comingUpMs,
+            trendingMs,
+            topRatedMs,
+            newReleasesMs);
 
         return result;
     }
@@ -246,12 +281,15 @@ public sealed class HomeService(
             0);
     }
 
-    private async Task<T> RunScopedAsync<T>(
+    private async Task<(T Result, long ElapsedMs)> RunScopedTimedAsync<T>(
         Func<IServiceProvider, CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
         using var scope = scopeFactory.CreateScope();
-        return await operation(scope.ServiceProvider, cancellationToken);
+        var result = await operation(scope.ServiceProvider, cancellationToken);
+        stopwatch.Stop();
+        return (result, stopwatch.ElapsedMilliseconds);
     }
 
     private static List<HomeSection> BuildOrderedSections(
