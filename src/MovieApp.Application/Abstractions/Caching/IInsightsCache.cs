@@ -16,5 +16,17 @@ public interface IInsightsCache
         TimeSpan ttl,
         CancellationToken cancellationToken = default);
 
+    Task<InsightsAnalyticsResult?> GetAnalyticsAsync(
+        Guid userId,
+        string? timeZoneId,
+        CancellationToken cancellationToken = default);
+
+    Task SetAnalyticsAsync(
+        Guid userId,
+        string? timeZoneId,
+        InsightsAnalyticsResult analytics,
+        TimeSpan ttl,
+        CancellationToken cancellationToken = default);
+
     Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }

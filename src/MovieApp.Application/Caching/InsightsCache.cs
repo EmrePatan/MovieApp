@@ -29,6 +29,28 @@ public sealed class InsightsCache(ICacheService cacheService) : IInsightsCache
         await cacheService.SetAsync(cacheKey, summary, ttl, cancellationToken);
     }
 
+    public async Task<InsightsAnalyticsResult?> GetAnalyticsAsync(
+        Guid userId,
+        string? timeZoneId,
+        CancellationToken cancellationToken = default)
+    {
+        var generation = await GetGenerationAsync(userId, cancellationToken);
+        var cacheKey = InsightsCacheKeys.Analytics(userId, timeZoneId, generation);
+        return await cacheService.GetAsync<InsightsAnalyticsResult>(cacheKey, cancellationToken);
+    }
+
+    public async Task SetAnalyticsAsync(
+        Guid userId,
+        string? timeZoneId,
+        InsightsAnalyticsResult analytics,
+        TimeSpan ttl,
+        CancellationToken cancellationToken = default)
+    {
+        var generation = await GetGenerationAsync(userId, cancellationToken);
+        var cacheKey = InsightsCacheKeys.Analytics(userId, timeZoneId, generation);
+        await cacheService.SetAsync(cacheKey, analytics, ttl, cancellationToken);
+    }
+
     public async Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         try

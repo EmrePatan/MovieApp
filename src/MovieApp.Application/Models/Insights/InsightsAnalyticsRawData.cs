@@ -1,0 +1,25 @@
+namespace MovieApp.Application.Models.Insights;
+
+public sealed record InsightsAnalyticsRawData(
+    DateTime MemberSinceUtc,
+    int MoviesWatched,
+    int EpisodesWatched,
+    int ShowsStarted,
+    int RatingsCount,
+    IReadOnlyList<InsightsActivityEventData> ActivityEvents,
+    IReadOnlyList<InsightsDnaTitleData> MovieTitles,
+    IReadOnlyList<InsightsDnaTitleData> TvShowTitles,
+    int MovieEstimatedMinutes,
+    int MoviesWithKnownRuntime,
+    int EpisodeEstimatedMinutes,
+    int EpisodesWithKnownRuntime,
+    IReadOnlyList<(int Score, int Count)> RatingScoreCounts,
+    IReadOnlyList<InsightsShowCompletionData> ShowCompletions,
+    DateTime? FirstMovieWatchedAtUtc,
+    DateTime? TenthMovieWatchedAtUtc,
+    DateTime? FiftiethMovieWatchedAtUtc,
+    DateTime? HundredthEpisodeWatchedAtUtc,
+    DateTime? FiveHundredthEpisodeWatchedAtUtc,
+    DateTime? TenthRatingAtUtc,
+    DateTime? TwentyFifthRatingAtUtc,
+    DateTime? FiftiethRatingAtUtc);

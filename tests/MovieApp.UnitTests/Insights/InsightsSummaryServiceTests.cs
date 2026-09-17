@@ -227,6 +227,12 @@ public sealed class InsightsSummaryServiceTests
 
             return Task.FromResult((raw, new InsightsSummaryQueryMetrics { DbRoundTrips = 4, DbTotalMs = 10 }));
         }
+
+        public Task<(InsightsAnalyticsRawData Raw, InsightsAnalyticsQueryMetrics Metrics)> GetAnalyticsRawDataAsync(
+            Guid userId,
+            DateTime activityUtcStart,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingInsightsCacheService : ICacheService
