@@ -64,6 +64,12 @@ public sealed class CreateWatchlistServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Watchlist?>(null);
 
+        public Task<Watchlist?> GetTrackedByIdForUserAsync(
+            Guid userId,
+            Guid watchlistId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Watchlist?>(null);
+
         public Task<IReadOnlyList<Watchlist>> GetUserWatchlistsAsync(
             Guid userId,
             CancellationToken cancellationToken = default) =>
@@ -84,6 +90,9 @@ public sealed class CreateWatchlistServiceTests
 
         public Task<bool> DeleteAsync(Guid userId, Guid watchlistId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         public Task TouchAsync(Guid watchlistId, DateTime utcNow, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;

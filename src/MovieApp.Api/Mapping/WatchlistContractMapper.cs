@@ -9,6 +9,10 @@ public static class WatchlistContractMapper
         Contracts.Watchlists.CreateWatchlistRequest request) =>
         new(request.Name);
 
+    public static Application.Models.Watchlists.UpdateWatchlistRequest ToUpdateWatchlistRequest(
+        Contracts.Watchlists.UpdateWatchlistRequest request) =>
+        new(request.Name);
+
     public static WatchlistSummaryResponse ToSummaryResponse(WatchlistSummaryResult result) =>
         new(
             result.Id,

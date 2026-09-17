@@ -121,6 +121,7 @@ public static class DependencyInjection
         services.AddScoped<IHotReleaseCandidateProcessor, HotReleaseCandidateProcessor>();
 
         services.AddScoped<ICreateWatchlistService, CreateWatchlistService>();
+        services.AddScoped<IUpdateWatchlistService, UpdateWatchlistService>();
         services.AddScoped<IDeleteWatchlistService, DeleteWatchlistService>();
         services.AddScoped<IGetWatchlistsService, GetWatchlistsService>();
         services.AddScoped<IGetWatchlistService, GetWatchlistService>();

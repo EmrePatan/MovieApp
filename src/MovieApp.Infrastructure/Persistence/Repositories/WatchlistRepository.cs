@@ -18,6 +18,17 @@ public sealed class WatchlistRepository(ApplicationDbContext dbContext) : IWatch
                 cancellationToken);
     }
 
+    public async Task<Watchlist?> GetTrackedByIdForUserAsync(
+        Guid userId,
+        Guid watchlistId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Watchlists
+            .FirstOrDefaultAsync(
+                watchlist => watchlist.Id == watchlistId && watchlist.UserId == userId,
+                cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Watchlist>> GetUserWatchlistsAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -73,6 +84,9 @@ public sealed class WatchlistRepository(ApplicationDbContext dbContext) : IWatch
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        dbContext.SaveChangesAsync(cancellationToken);
 
     public async Task TouchAsync(
         Guid watchlistId,

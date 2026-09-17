@@ -6,6 +6,7 @@ using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Watchlists;
 using ContractsCreateWatchlistRequest = MovieApp.Contracts.Watchlists.CreateWatchlistRequest;
+using ContractsUpdateWatchlistRequest = MovieApp.Contracts.Watchlists.UpdateWatchlistRequest;
 using MovieApp.Contracts.Watchlists;
 
 namespace MovieApp.Api.Controllers;
@@ -15,6 +16,7 @@ namespace MovieApp.Api.Controllers;
 [Route("api/watchlists")]
 public sealed class WatchlistsController(
     ICreateWatchlistService createWatchlistService,
+    IUpdateWatchlistService updateWatchlistService,
     IDeleteWatchlistService deleteWatchlistService,
     IGetWatchlistsService getWatchlistsService,
     IGetWatchlistService getWatchlistService,
@@ -145,6 +147,56 @@ public sealed class WatchlistsController(
             return NotFound(CreateProblemDetails(
                 StatusCodes.Status404NotFound,
                 "Watchlist not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPatch("{watchlistId:guid}")]
+    [ProducesResponseType(typeof(WatchlistSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<WatchlistSummaryResponse>> UpdateWatchlist(
+        Guid watchlistId,
+        [FromBody] ContractsUpdateWatchlistRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await updateWatchlistService.UpdateAsync(
+                watchlistId,
+                WatchlistContractMapper.ToUpdateWatchlistRequest(request),
+                cancellationToken);
+
+            return Ok(WatchlistContractMapper.ToSummaryResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid watchlist request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Watchlist not found.",
+                exception.Message));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(CreateProblemDetails(
+                StatusCodes.Status409Conflict,
+                "Watchlist conflict.",
                 exception.Message));
         }
     }

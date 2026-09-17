@@ -29,4 +29,17 @@ public sealed class WatchlistTests
         Assert.Throws<ArgumentException>(() =>
             Watchlist.Create(Guid.NewGuid(), longName, DateTime.UtcNow));
     }
+
+    [Fact]
+    public void RenameTrimsNameAndUpdatesNormalizedName()
+    {
+        var watchlist = Watchlist.Create(Guid.NewGuid(), "Weekend Watch", DateTime.UtcNow);
+        var updatedAt = watchlist.UpdatedAt;
+
+        watchlist.Rename("  Friday Night  ", updatedAt.AddMinutes(5));
+
+        Assert.Equal("Friday Night", watchlist.Name);
+        Assert.Equal(WatchlistNameNormalizer.Normalize("Friday Night"), watchlist.NormalizedName);
+        Assert.True(watchlist.UpdatedAt > updatedAt);
+    }
 }

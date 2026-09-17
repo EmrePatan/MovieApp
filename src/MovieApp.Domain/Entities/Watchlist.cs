@@ -43,5 +43,22 @@ public sealed class Watchlist
         };
     }
 
+    public void Rename(string name, DateTime utcNow)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var trimmedName = name.Trim();
+        if (trimmedName.Length > WatchlistNameNormalizer.MaxLength)
+        {
+            throw new ArgumentException(
+                $"Watchlist name must not exceed {WatchlistNameNormalizer.MaxLength} characters.",
+                nameof(name));
+        }
+
+        Name = trimmedName;
+        NormalizedName = WatchlistNameNormalizer.Normalize(trimmedName);
+        Touch(utcNow);
+    }
+
     public void Touch(DateTime utcNow) => UpdatedAt = utcNow;
 }

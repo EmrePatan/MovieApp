@@ -70,6 +70,12 @@ public sealed class AddMovieToWatchlistServiceTests
         public Task<Watchlist?> GetByIdForUserAsync(
             Guid userId,
             Guid requestedWatchlistId,
+            CancellationToken cancellationToken = default) =>
+            GetTrackedByIdForUserAsync(userId, requestedWatchlistId, cancellationToken);
+
+        public Task<Watchlist?> GetTrackedByIdForUserAsync(
+            Guid userId,
+            Guid requestedWatchlistId,
             CancellationToken cancellationToken = default)
         {
             if (userId != ownerId || requestedWatchlistId != watchlistId)
@@ -105,6 +111,9 @@ public sealed class AddMovieToWatchlistServiceTests
 
         public Task<bool> DeleteAsync(Guid userId, Guid requestedWatchlistId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         public Task TouchAsync(Guid requestedWatchlistId, DateTime utcNow, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;

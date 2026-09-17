@@ -87,6 +87,41 @@ public sealed class FavoritesWatchlistsApiTests(FavoritesWatchlistsApiFixture fi
     }
 
     [Fact]
+    public async Task UserACanRenameWatchlist()
+    {
+        await fixture.ResetAsync();
+
+        var userAToken = await RegisterAndGetTokenAsync("renamer");
+
+        var createWatchlistResponse = await SendAuthorizedPostAsync(
+            "/api/watchlists",
+            userAToken,
+            new CreateWatchlistRequest("Weekend Watch"));
+
+        Assert.Equal(HttpStatusCode.Created, createWatchlistResponse.StatusCode);
+
+        var watchlist = await createWatchlistResponse.Content.ReadFromJsonAsync<WatchlistSummaryResponse>();
+        Assert.NotNull(watchlist);
+
+        var renameResponse = await SendAuthorizedPatchAsync(
+            $"/api/watchlists/{watchlist.Id}",
+            userAToken,
+            new UpdateWatchlistRequest("Friday Night"));
+
+        Assert.Equal(HttpStatusCode.OK, renameResponse.StatusCode);
+
+        var renamed = await renameResponse.Content.ReadFromJsonAsync<WatchlistSummaryResponse>();
+        Assert.NotNull(renamed);
+        Assert.Equal("Friday Night", renamed.Name);
+        Assert.Equal(watchlist.ItemCount, renamed.ItemCount);
+
+        var listResponse = await SendAuthorizedGetAsync("/api/watchlists", userAToken);
+        var watchlists = await listResponse.Content.ReadFromJsonAsync<List<WatchlistSummaryResponse>>();
+        Assert.NotNull(watchlists);
+        Assert.Contains(watchlists, entry => entry.Id == watchlist.Id && entry.Name == "Friday Night");
+    }
+
+    [Fact]
     public async Task UserBCannotAccessUserAWatchlist()
     {
         await fixture.ResetAsync();
@@ -318,6 +353,14 @@ public sealed class FavoritesWatchlistsApiTests(FavoritesWatchlistsApiFixture fi
     {
         var request = new HttpRequestMessage(HttpMethod.Delete, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return _client.SendAsync(request);
+    }
+
+    private Task<HttpResponseMessage> SendAuthorizedPatchAsync(string url, string token, object body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Patch, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = JsonContent.Create(body);
         return _client.SendAsync(request);
     }
 }
