@@ -88,7 +88,7 @@ public sealed class AiMovieRecommendationValidator(
             partialResults);
     }
 
-    private static bool ViolatesGenreExclusion(ResolvedMovieIdentity movie, IReadOnlyList<string> excludedGenres)
+    private static bool ViolatesGenreExclusion(ResolvedMovieIdentity movie, List<string> excludedGenres)
     {
         if (excludedGenres.Count == 0)
         {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -223,7 +224,7 @@ internal sealed class AiRecommendationQuotaService : IAiRecommendationQuotaServi
         }
     }
 
-    private AiRecommendationQuotaExceededException CreateQuotaExceededException(RedisResult[]? result)
+    private static AiRecommendationQuotaExceededException CreateQuotaExceededException(RedisResult[]? result)
     {
         var reason = result is { Length: > 1 } ? (int)result[1] : 0;
         var message = reason switch
@@ -239,8 +240,8 @@ internal sealed class AiRecommendationQuotaService : IAiRecommendationQuotaServi
 
     private QuotaKeys BuildKeys(Guid userId)
     {
-        var date = DateTime.UtcNow.ToString("yyyyMMdd");
-        var minute = DateTime.UtcNow.ToString("yyyyMMddHHmm");
+        var date = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var minute = DateTime.UtcNow.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture);
         var prefix = _redisOptions.Value.InstanceName;
 
         return new QuotaKeys(
@@ -253,7 +254,7 @@ internal sealed class AiRecommendationQuotaService : IAiRecommendationQuotaServi
 
     private string BuildUserCommittedKey(Guid userId)
     {
-        var date = DateTime.UtcNow.ToString("yyyyMMdd");
+        var date = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var prefix = _redisOptions.Value.InstanceName;
         return $"{prefix}ai:quota:user:{userId:D}:{date}:committed";
     }

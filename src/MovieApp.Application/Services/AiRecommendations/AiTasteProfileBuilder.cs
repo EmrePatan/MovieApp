@@ -141,7 +141,7 @@ public sealed class AiTasteProfileBuilder(
     }
 
     private static void AddGenreWeights(
-        IDictionary<string, double> genreScores,
+        Dictionary<string, double> genreScores,
         IReadOnlyList<string> genres,
         double weight)
     {

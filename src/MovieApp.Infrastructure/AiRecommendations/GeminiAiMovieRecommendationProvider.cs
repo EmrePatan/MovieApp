@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -261,7 +262,7 @@ internal static class GeminiPromptBuilder
         builder.AppendLine("Session constraints:");
         AppendSessionConstraints(builder, request.Session);
         builder.AppendLine();
-        builder.AppendLine($"Return exactly up to {request.SuggestionCount} movie suggestions.");
+        builder.AppendLine(CultureInfo.InvariantCulture, $"Return exactly up to {request.SuggestionCount} movie suggestions.");
         return builder.ToString();
     }
 
@@ -289,22 +290,22 @@ internal static class GeminiPromptBuilder
 
         if (session.MaxRuntimeMinutes.HasValue)
         {
-            builder.AppendLine($"Max runtime minutes: {session.MaxRuntimeMinutes.Value}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"Max runtime minutes: {session.MaxRuntimeMinutes.Value}");
         }
 
         if (session.MinYear.HasValue)
         {
-            builder.AppendLine($"Min year: {session.MinYear.Value}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"Min year: {session.MinYear.Value}");
         }
 
         if (session.MaxYear.HasValue)
         {
-            builder.AppendLine($"Max year: {session.MaxYear.Value}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"Max year: {session.MaxYear.Value}");
         }
 
         if (session.RecommendedMovieIds.Count > 0)
         {
-            builder.AppendLine($"Already recommended movie count: {session.RecommendedMovieIds.Count}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"Already recommended movie count: {session.RecommendedMovieIds.Count}");
         }
     }
 
@@ -316,7 +317,7 @@ internal static class GeminiPromptBuilder
             return;
         }
 
-        builder.AppendLine($"{label}: {string.Join(", ", items)}");
+        builder.AppendLine(CultureInfo.InvariantCulture, $"{label}: {string.Join(", ", items)}");
     }
 
     private static void AppendMovieSignals(StringBuilder builder, string label, IReadOnlyList<AiTasteMovieSignal> signals)
@@ -331,7 +332,7 @@ internal static class GeminiPromptBuilder
         {
             var year = signal.Year.HasValue ? $" ({signal.Year})" : string.Empty;
             var rating = signal.Rating.HasValue ? $" [{signal.Rating}]" : string.Empty;
-            builder.AppendLine($"- {signal.Title}{year}{rating}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"- {signal.Title}{year}{rating}");
         }
     }
 }
