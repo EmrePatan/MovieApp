@@ -141,7 +141,7 @@ public sealed class AiRecommendationsApiFixture : IAsyncLifetime
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(AuthIntegrationDatabase.GetConnectionString())
+            .UseNpgsql(AiRecommendationsIntegrationDatabase.GetConnectionString())
             .Options;
 
         return new ApplicationDbContext(options);
@@ -197,7 +197,7 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
 
         Environment.SetEnvironmentVariable(
             "PostgreSql__ConnectionString",
-            AuthIntegrationDatabase.GetConnectionString());
+            AiRecommendationsIntegrationDatabase.GetConnectionString());
         Environment.SetEnvironmentVariable(
             "Authentication__Jwt__SigningKey",
             IntegrationTestJwtSettings.SigningKey);
@@ -205,7 +205,8 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {
             var configuration = IntegrationTestJwtSettings.CreateConfiguration();
-            configuration["PostgreSql:ConnectionString"] = AuthIntegrationDatabase.GetConnectionString();
+            configuration["PostgreSql:ConnectionString"] =
+                AiRecommendationsIntegrationDatabase.GetConnectionString();
             configuration["Redis:ConnectionString"] = string.Empty;
             configuration["MovieProviders:Provider"] = "Fake";
             configuration["AiRecommendations:UserDailyMessageLimit"] = "3";
