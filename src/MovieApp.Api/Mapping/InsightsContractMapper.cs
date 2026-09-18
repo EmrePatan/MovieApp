@@ -86,4 +86,108 @@ public static class InsightsContractMapper
 
     private static InsightsTasteGenreResponse ToInsightsTasteGenreResponse(InsightsTasteGenreResult genre) =>
         new(genre.GenreId, genre.Name, genre.Weight, genre.SharePercent);
+
+    public static InsightsV3Response ToInsightsV3Response(InsightsV3Result result) =>
+        new(
+            new InsightsV3MetaResponse(
+                result.Meta.MemberSinceUtc,
+                result.Meta.GeneratedAtUtc,
+                result.Meta.TimeZone,
+                result.Meta.Year),
+            new InsightsV3MovieDnaResponse(
+                result.MovieDna.IdentityTitle,
+                result.MovieDna.IdentityCodes,
+                result.MovieDna.Labels.Select(ToInsightsMovieDnaLabelResponse).ToList(),
+                result.MovieDna.TopGenres.Select(ToInsightsTasteGenreResponse).ToList(),
+                new InsightsV3WatchingMixResponse(
+                    result.MovieDna.WatchingMix.MovieTitleCount,
+                    result.MovieDna.WatchingMix.SeriesTitleCount,
+                    result.MovieDna.WatchingMix.MovieSharePercent,
+                    result.MovieDna.WatchingMix.SeriesSharePercent)),
+            new InsightsV3YourYearResponse(
+                result.YourYear.Months.Select(month => new InsightsV3MonthlyActivityResponse(
+                    month.Year,
+                    month.Month,
+                    month.Movies,
+                    month.Episodes,
+                    month.Total)).ToList(),
+                result.YourYear.ActiveDays,
+                result.YourYear.PeakMonth is null
+                    ? null
+                    : new InsightsV3MonthHighlightResponse(
+                        result.YourYear.PeakMonth.Year,
+                        result.YourYear.PeakMonth.Month,
+                        result.YourYear.PeakMonth.Movies,
+                        result.YourYear.PeakMonth.Episodes,
+                        result.YourYear.PeakMonth.Total),
+                result.YourYear.FavoriteWeekday),
+            new InsightsV3TasteSectionResponse(
+                result.YourTaste.Genres.Select(ToInsightsTasteGenreResponse).ToList(),
+                result.YourTaste.RisingGenre is null
+                    ? null
+                    : new InsightsV3RisingGenreResponse(
+                        result.YourTaste.RisingGenre.GenreId,
+                        result.YourTaste.RisingGenre.Name,
+                        result.YourTaste.RisingGenre.CurrentYearSharePercent,
+                        result.YourTaste.RisingGenre.PreviousYearSharePercent,
+                        result.YourTaste.RisingGenre.ShareDeltaPercent)),
+            new InsightsV3TimeInStoriesResponse(
+                result.TimeInStories.TotalMinutes,
+                result.TimeInStories.MovieMinutes,
+                result.TimeInStories.EpisodeMinutes,
+                result.TimeInStories.YearMinutes,
+                result.TimeInStories.RuntimeCoveragePercent),
+            new InsightsV3RatingsSectionResponse(
+                result.YourRatings.Count,
+                result.YourRatings.AverageStars,
+                result.YourRatings.Distribution
+                    .Select(item => new InsightsRatingsDistributionItemResponse(item.Stars, item.Count))
+                    .ToList(),
+                ToInsightsV3GenreRatingResponse(result.YourRatings.HighestRatedGenre),
+                ToInsightsV3GenreRatingResponse(result.YourRatings.LowestRatedGenre)),
+            new InsightsV3EraSectionResponse(
+                result.YourEra.Decades
+                    .Select(bucket => new InsightsEraBucketResponse(bucket.Bucket, bucket.Count, bucket.Percent))
+                    .ToList(),
+                result.YourEra.FavoriteDecade,
+                result.YourEra.UnknownCount,
+                result.YourEra.OldestTitle is null
+                    ? null
+                    : new InsightsV3OldestTitleResponse(
+                        result.YourEra.OldestTitle.ContentType,
+                        result.YourEra.OldestTitle.ContentId,
+                        result.YourEra.OldestTitle.Title,
+                        result.YourEra.OldestTitle.Year,
+                        result.YourEra.OldestTitle.PosterPath)),
+            new InsightsV3RecordsSectionResponse(
+                result.YourRecords.LongestStreakDays,
+                ToInsightsV3WeeklyPeakResponse(result.YourRecords.BestMovieWeek),
+                ToInsightsV3WeeklyPeakResponse(result.YourRecords.BestEpisodeWeek),
+                result.YourRecords.HighestRatingStars),
+            result.Achievements
+                .Select(milestone => new InsightsMilestoneResponse(
+                    milestone.Id,
+                    milestone.Category,
+                    milestone.Title,
+                    milestone.CurrentValue,
+                    milestone.TargetValue,
+                    milestone.Achieved,
+                    milestone.AchievedAt))
+                .ToList());
+
+    private static InsightsV3GenreRatingResponse? ToInsightsV3GenreRatingResponse(
+        InsightsV3GenreRatingResult? genre) =>
+        genre is null
+            ? null
+            : new InsightsV3GenreRatingResponse(
+                genre.GenreId,
+                genre.Name,
+                genre.RatingCount,
+                genre.AverageStars);
+
+    private static InsightsV3WeeklyPeakResponse? ToInsightsV3WeeklyPeakResponse(
+        InsightsV3WeeklyPeakResult? week) =>
+        week is null
+            ? null
+            : new InsightsV3WeeklyPeakResponse(week.Year, week.Week, week.Count);
 }

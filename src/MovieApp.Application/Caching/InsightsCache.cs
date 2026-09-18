@@ -51,6 +51,30 @@ public sealed class InsightsCache(ICacheService cacheService) : IInsightsCache
         await cacheService.SetAsync(cacheKey, analytics, ttl, cancellationToken);
     }
 
+    public async Task<InsightsV3Result?> GetV3Async(
+        Guid userId,
+        string? timeZoneId,
+        int year,
+        CancellationToken cancellationToken = default)
+    {
+        var generation = await GetGenerationAsync(userId, cancellationToken);
+        var cacheKey = InsightsCacheKeys.V3(userId, timeZoneId, year, generation);
+        return await cacheService.GetAsync<InsightsV3Result>(cacheKey, cancellationToken);
+    }
+
+    public async Task SetV3Async(
+        Guid userId,
+        string? timeZoneId,
+        int year,
+        InsightsV3Result insights,
+        TimeSpan ttl,
+        CancellationToken cancellationToken = default)
+    {
+        var generation = await GetGenerationAsync(userId, cancellationToken);
+        var cacheKey = InsightsCacheKeys.V3(userId, timeZoneId, year, generation);
+        await cacheService.SetAsync(cacheKey, insights, ttl, cancellationToken);
+    }
+
     public async Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         try

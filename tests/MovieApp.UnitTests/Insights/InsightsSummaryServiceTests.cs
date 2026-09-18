@@ -233,6 +233,13 @@ public sealed class InsightsSummaryServiceTests
             DateTime activityUtcStart,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(
+            Guid userId,
+            TimeZoneInfo timeZone,
+            int year,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingInsightsCacheService : ICacheService

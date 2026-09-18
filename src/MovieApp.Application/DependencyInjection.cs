@@ -74,6 +74,7 @@ public static class DependencyInjection
         services.AddScoped<IUserAnalyticsCacheInvalidator, UserAnalyticsCacheInvalidator>();
         services.AddScoped<IInsightsSummaryService, InsightsSummaryService>();
         services.AddScoped<IInsightsAnalyticsService, InsightsAnalyticsService>();
+        services.AddScoped<IInsightsV3Service, InsightsV3Service>();
         services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
         services.AddScoped<IResetPasswordService, ResetPasswordService>();

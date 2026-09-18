@@ -145,6 +145,13 @@ public sealed class InsightsAnalyticsServiceTests
 
             return Task.FromResult((raw, new InsightsAnalyticsQueryMetrics { DbRoundTrips = 8, DbTotalMs = 20 }));
         }
+
+        public Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(
+            Guid userId,
+            TimeZoneInfo timeZone,
+            int year,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingInsightsCacheService : ICacheService

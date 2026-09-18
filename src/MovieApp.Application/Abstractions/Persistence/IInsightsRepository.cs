@@ -12,4 +12,10 @@ public interface IInsightsRepository
         Guid userId,
         DateTime activityUtcStart,
         CancellationToken cancellationToken = default);
+
+    Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(
+        Guid userId,
+        TimeZoneInfo timeZone,
+        int year,
+        CancellationToken cancellationToken = default);
 }
