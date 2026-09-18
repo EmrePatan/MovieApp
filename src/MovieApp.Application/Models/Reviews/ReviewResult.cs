@@ -7,4 +7,5 @@ public sealed record ReviewResult(
     ReviewAuthorResult Author,
     string Content,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    int? UserRating = null);

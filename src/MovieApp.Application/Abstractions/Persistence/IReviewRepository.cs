@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Reviews;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Abstractions.Persistence;
@@ -48,15 +49,17 @@ public interface IReviewRepository
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
-    Task<(IReadOnlyList<Review> Reviews, int TotalCount)> GetPublicReviewsForMovieAsync(
+    Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForMovieAsync(
         Guid movieId,
         int page,
         int pageSize,
+        ReviewListSort sort,
         CancellationToken cancellationToken = default);
 
-    Task<(IReadOnlyList<Review> Reviews, int TotalCount)> GetPublicReviewsForTvShowAsync(
+    Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForTvShowAsync(
         Guid tvShowId,
         int page,
         int pageSize,
+        ReviewListSort sort,
         CancellationToken cancellationToken = default);
 }

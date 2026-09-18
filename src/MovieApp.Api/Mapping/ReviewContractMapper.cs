@@ -12,7 +12,8 @@ public static class ReviewContractMapper
             new ReviewAuthorResponse(result.Author.Id, result.Author.DisplayName),
             result.Content,
             result.CreatedAt,
-            result.UpdatedAt);
+            result.UpdatedAt,
+            result.UserRating);
 
     public static ReviewListResponse ToListResponse(PaginatedResult<ReviewResult> result) =>
         new(

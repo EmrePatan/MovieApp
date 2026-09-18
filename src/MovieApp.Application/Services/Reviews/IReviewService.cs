@@ -41,11 +41,13 @@ public interface IReviewService
         Guid movieId,
         int page,
         int pageSize,
+        ReviewListSort sort,
         CancellationToken cancellationToken = default);
 
     Task<PaginatedResult<ReviewResult>> GetTvShowReviewsAsync(
         Guid tvShowId,
         int page,
         int pageSize,
+        ReviewListSort sort,
         CancellationToken cancellationToken = default);
 }

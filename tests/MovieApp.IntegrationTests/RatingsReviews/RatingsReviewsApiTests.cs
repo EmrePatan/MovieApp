@@ -70,6 +70,7 @@ public sealed class RatingsReviewsApiTests(RatingsReviewsApiFixture fixture)
         Assert.NotNull(reviews);
         Assert.Single(reviews.Items);
         Assert.Equal("Excellent movie.", reviews.Items[0].Content);
+        Assert.Equal(8, reviews.Items[0].UserRating);
 
         var tvRatingResponse = await SendAuthorizedPostAsync(
             $"/api/ratings/tvshows/{tvShowId}",

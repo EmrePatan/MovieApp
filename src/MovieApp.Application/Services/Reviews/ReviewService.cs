@@ -160,6 +160,7 @@ public sealed class ReviewService(
         Guid movieId,
         int page,
         int pageSize,
+        ReviewListSort sort,
         CancellationToken cancellationToken = default)
     {
         ValidatePagination(page, pageSize);
@@ -169,6 +170,7 @@ public sealed class ReviewService(
             movieId,
             page,
             pageSize,
+            sort,
             cancellationToken);
 
         return ToPaginatedResult(reviews, page, pageSize, totalCount);
@@ -178,6 +180,7 @@ public sealed class ReviewService(
         Guid tvShowId,
         int page,
         int pageSize,
+        ReviewListSort sort,
         CancellationToken cancellationToken = default)
     {
         ValidatePagination(page, pageSize);
@@ -187,6 +190,7 @@ public sealed class ReviewService(
             tvShowId,
             page,
             pageSize,
+            sort,
             cancellationToken);
 
         return ToPaginatedResult(reviews, page, pageSize, totalCount);
@@ -227,13 +231,15 @@ public sealed class ReviewService(
     }
 
     private static PaginatedResult<ReviewResult> ToPaginatedResult(
-        IReadOnlyList<Review> reviews,
+        IReadOnlyList<PublicReviewListItem> reviews,
         int page,
         int pageSize,
         int totalCount)
     {
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
-        var items = reviews.Select(ReviewMapper.ToResult).ToList();
+        var items = reviews
+            .Select(item => ReviewMapper.ToResult(item.Review, item.UserRating))
+            .ToList();
         return new PaginatedResult<ReviewResult>(items, page, pageSize, totalCount, totalPages);
     }
 }

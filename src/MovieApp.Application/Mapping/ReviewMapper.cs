@@ -5,7 +5,7 @@ namespace MovieApp.Application.Mapping;
 
 public static class ReviewMapper
 {
-    public static ReviewResult ToResult(Review review) =>
+    public static ReviewResult ToResult(Review review, int? userRating = null) =>
         new(
             review.Id,
             review.MovieId,
@@ -13,5 +13,6 @@ public static class ReviewMapper
             new ReviewAuthorResult(review.User.Id, review.User.DisplayName),
             review.Content,
             review.CreatedAt,
-            review.UpdatedAt);
+            review.UpdatedAt,
+            userRating);
 }

@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
+using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Services.Reviews;
+using MovieApp.Application.Validation;
 using MovieApp.Contracts.Reviews;
 
 namespace MovieApp.Api.Controllers;
@@ -309,14 +311,24 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
         Guid movieId,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] string? sort,
         CancellationToken cancellationToken)
     {
         try
         {
+            var sortValidation = ReviewListValidator.ValidateSort(sort);
+            if (!sortValidation.IsValid)
+            {
+                throw new ValidationException(sortValidation.ErrorMessage!);
+            }
+
+            _ = ReviewListValidator.TryParseSort(sort, out var parsedSort);
+
             var result = await reviewService.GetMovieReviewsAsync(
                 movieId,
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                parsedSort,
                 cancellationToken);
 
             return Ok(ReviewContractMapper.ToListResponse(result));
@@ -325,7 +337,7 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
         {
             return BadRequest(CreateProblemDetails(
                 StatusCodes.Status400BadRequest,
-                "Invalid pagination request.",
+                "Invalid review list request.",
                 exception.Message));
         }
         catch (NotFoundException exception)
@@ -346,14 +358,24 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
         Guid tvShowId,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] string? sort,
         CancellationToken cancellationToken)
     {
         try
         {
+            var sortValidation = ReviewListValidator.ValidateSort(sort);
+            if (!sortValidation.IsValid)
+            {
+                throw new ValidationException(sortValidation.ErrorMessage!);
+            }
+
+            _ = ReviewListValidator.TryParseSort(sort, out var parsedSort);
+
             var result = await reviewService.GetTvShowReviewsAsync(
                 tvShowId,
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                parsedSort,
                 cancellationToken);
 
             return Ok(ReviewContractMapper.ToListResponse(result));
@@ -362,7 +384,7 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
         {
             return BadRequest(CreateProblemDetails(
                 StatusCodes.Status400BadRequest,
-                "Invalid pagination request.",
+                "Invalid review list request.",
                 exception.Message));
         }
         catch (NotFoundException exception)
