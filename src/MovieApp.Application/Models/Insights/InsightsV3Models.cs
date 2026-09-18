@@ -82,6 +82,11 @@ public sealed record InsightsV3WeeklyPeakResult(
     int Week,
     int Count);
 
+public sealed record InsightsV3RecordsRawData(
+    int? LongestStreakDays,
+    InsightsV3WeeklyPeakResult? BestMovieWeek,
+    InsightsV3WeeklyPeakResult? BestEpisodeWeek);
+
 public sealed record InsightsV3RecordsSectionResult(
     int? LongestStreakDays,
     InsightsV3WeeklyPeakResult? BestMovieWeek,
@@ -133,12 +138,9 @@ public sealed record InsightsV3RawData(
     IReadOnlyList<InsightsDnaTitleData> CurrentYearTvShowTitles,
     IReadOnlyList<InsightsDnaTitleData> PreviousYearMovieTitles,
     IReadOnlyList<InsightsDnaTitleData> PreviousYearTvShowTitles,
-    IReadOnlyList<DateTime> YearMovieWatchedAtUtc,
-    IReadOnlyList<DateTime> YearEpisodeWatchedAtUtc,
     IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)> YearMovieWatches,
     IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)> YearEpisodeWatches,
-    IReadOnlyList<DateTime> AllMovieWatchedAtUtc,
-    IReadOnlyList<DateTime> AllEpisodeWatchedAtUtc,
+    InsightsV3RecordsRawData Records,
     int MovieEstimatedMinutes,
     int EpisodeEstimatedMinutes,
     int MoviesWithKnownRuntime,
@@ -153,4 +155,18 @@ public sealed class InsightsV3QueryMetrics
     public int DbRoundTrips { get; set; }
 
     public long DbTotalMs { get; set; }
+
+    public long SummaryMs { get; set; }
+
+    public long DnaMs { get; set; }
+
+    public long YearActivityMs { get; set; }
+
+    public long RecordsMs { get; set; }
+
+    public long RuntimeMs { get; set; }
+
+    public long RatingsMs { get; set; }
+
+    public long MilestonesMs { get; set; }
 }

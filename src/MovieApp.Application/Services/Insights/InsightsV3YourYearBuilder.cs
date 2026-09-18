@@ -13,9 +13,9 @@ public static class InsightsV3YourYearBuilder
     {
         var dayCounts = new Dictionary<DateOnly, (int Movies, int Episodes)>();
 
-        foreach (var watchedAt in raw.YearMovieWatchedAtUtc)
+        foreach (var (watchedAtUtc, _) in raw.YearMovieWatches)
         {
-            var date = InsightsV3TimeRangeHelper.ToLocalDate(watchedAt, timeZone);
+            var date = InsightsV3TimeRangeHelper.ToLocalDate(watchedAtUtc, timeZone);
             if (date.Year != year)
             {
                 continue;
@@ -30,9 +30,9 @@ public static class InsightsV3YourYearBuilder
             dayCounts[date] = counts;
         }
 
-        foreach (var watchedAt in raw.YearEpisodeWatchedAtUtc)
+        foreach (var (watchedAtUtc, _) in raw.YearEpisodeWatches)
         {
-            var date = InsightsV3TimeRangeHelper.ToLocalDate(watchedAt, timeZone);
+            var date = InsightsV3TimeRangeHelper.ToLocalDate(watchedAtUtc, timeZone);
             if (date.Year != year)
             {
                 continue;

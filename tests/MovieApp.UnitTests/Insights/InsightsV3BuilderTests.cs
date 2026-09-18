@@ -15,14 +15,14 @@ public sealed class InsightsV3BuilderTests
     {
         var year = 2026;
         var raw = CreateRawData(
-            yearMovieWatchedAtUtc:
+            yearMovieWatches:
             [
-                new DateTime(2025, 12, 31, 21, 30, 0, DateTimeKind.Utc),
-                new DateTime(2026, 1, 1, 0, 30, 0, DateTimeKind.Utc),
-                new DateTime(2026, 12, 31, 20, 30, 0, DateTimeKind.Utc),
-                new DateTime(2027, 1, 1, 0, 30, 0, DateTimeKind.Utc),
+                (new DateTime(2025, 12, 31, 21, 30, 0, DateTimeKind.Utc), 120),
+                (new DateTime(2026, 1, 1, 0, 30, 0, DateTimeKind.Utc), 120),
+                (new DateTime(2026, 12, 31, 20, 30, 0, DateTimeKind.Utc), 120),
+                (new DateTime(2027, 1, 1, 0, 30, 0, DateTimeKind.Utc), 120),
             ],
-            yearEpisodeWatchedAtUtc: []);
+            yearEpisodeWatches: []);
 
         var yourYear = InsightsV3YourYearBuilder.Build(raw, Istanbul, year);
 
@@ -44,19 +44,13 @@ public sealed class InsightsV3BuilderTests
     }
 
     [Fact]
-    public void RecordsUseAllTimeTimestamps()
+    public void RecordsUsePrecomputedSqlAggregates()
     {
         var raw = CreateRawData(
-            allMovieWatchedAtUtc:
-            [
-                new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc),
-                new DateTime(2026, 1, 02, 12, 0, 0, DateTimeKind.Utc),
-                new DateTime(2026, 1, 03, 12, 0, 0, DateTimeKind.Utc),
-            ],
-            allEpisodeWatchedAtUtc:
-            [
-                new DateTime(2026, 1, 04, 12, 0, 0, DateTimeKind.Utc),
-            ],
+            records: new InsightsV3RecordsRawData(
+                4,
+                new InsightsV3WeeklyPeakResult(2026, 1, 3),
+                new InsightsV3WeeklyPeakResult(2026, 1, 1)),
             ratingScoreCounts: [(10, 1), (8, 2)]);
 
         var records = InsightsV3RecordsBuilder.Build(raw, TimeZoneInfo.Utc);
@@ -114,10 +108,9 @@ public sealed class InsightsV3BuilderTests
     }
 
     private static InsightsV3RawData CreateRawData(
-        IReadOnlyList<DateTime>? yearMovieWatchedAtUtc = null,
-        IReadOnlyList<DateTime>? yearEpisodeWatchedAtUtc = null,
-        IReadOnlyList<DateTime>? allMovieWatchedAtUtc = null,
-        IReadOnlyList<DateTime>? allEpisodeWatchedAtUtc = null,
+        IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)>? yearMovieWatches = null,
+        IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)>? yearEpisodeWatches = null,
+        InsightsV3RecordsRawData? records = null,
         IReadOnlyList<(int Score, int Count)>? ratingScoreCounts = null,
         IReadOnlyList<InsightsV3GenreRatingRow>? genreRatings = null)
     {
@@ -159,12 +152,9 @@ public sealed class InsightsV3BuilderTests
             [],
             [],
             [],
-            yearMovieWatchedAtUtc ?? [],
-            yearEpisodeWatchedAtUtc ?? [],
-            [],
-            [],
-            allMovieWatchedAtUtc ?? [],
-            allEpisodeWatchedAtUtc ?? [],
+            yearMovieWatches ?? [],
+            yearEpisodeWatches ?? [],
+            records ?? new InsightsV3RecordsRawData(null, null, null),
             0,
             0,
             0,

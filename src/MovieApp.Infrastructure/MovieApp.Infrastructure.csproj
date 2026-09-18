@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MovieApp.UnitTests" />
+    <InternalsVisibleTo Include="MovieApp.IntegrationTests" />
   </ItemGroup>
 
 </Project>

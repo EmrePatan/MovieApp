@@ -41,6 +41,7 @@ public sealed class InsightsV3Service(
                 logger,
                 userId,
                 totalStopwatch.ElapsedMilliseconds,
+                cacheLookupStopwatch.ElapsedMilliseconds,
                 resolvedYear,
                 timeZoneId);
             return cached;
@@ -56,17 +57,28 @@ public sealed class InsightsV3Service(
         var result = InsightsV3Builder.Build(raw, timeZone, resolvedYear, utcNow);
         buildStopwatch.Stop();
 
+        var cacheWriteStopwatch = Stopwatch.StartNew();
         var ttl = TimeSpan.FromMinutes(options.Value.AnalyticsCacheTtlMinutes);
         await insightsCache.SetV3Async(userId, timeZoneId, resolvedYear, result, ttl, cancellationToken);
+        cacheWriteStopwatch.Stop();
 
         totalStopwatch.Stop();
         InsightsV3LogMessages.LogCacheMiss(
             logger,
             userId,
             totalStopwatch.ElapsedMilliseconds,
+            cacheLookupStopwatch.ElapsedMilliseconds,
             metrics.DbTotalMs,
-            buildStopwatch.ElapsedMilliseconds,
             metrics.DbRoundTrips,
+            metrics.SummaryMs,
+            metrics.DnaMs,
+            metrics.YearActivityMs,
+            metrics.RecordsMs,
+            metrics.RuntimeMs,
+            metrics.RatingsMs,
+            metrics.MilestonesMs,
+            buildStopwatch.ElapsedMilliseconds,
+            cacheWriteStopwatch.ElapsedMilliseconds,
             resolvedYear);
 
         return result;

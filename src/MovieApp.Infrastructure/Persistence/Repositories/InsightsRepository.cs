@@ -14,6 +14,21 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         int ShowsStarted,
         int RatingsCount);
 
+    private sealed record V3SummaryRow(
+        DateTime MemberSince,
+        int MoviesWatched,
+        int EpisodesWatched,
+        int ShowsStarted,
+        int RatingsCount,
+        int DistinctMovieCount,
+        int DistinctSeriesCount);
+
+    private sealed record V3RuntimeTotalsRow(
+        int MovieTotalMinutes,
+        int MovieKnownCount,
+        int EpisodeTotalMinutes,
+        int EpisodeKnownCount);
+
     public async Task<(InsightsSummaryRawData Raw, InsightsSummaryQueryMetrics Metrics)> GetSummaryRawDataAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -216,53 +231,64 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var rows = await dbContext.WatchedMovies
+        var totals = await dbContext.WatchedMovies
             .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId)
-            .Select(watchedMovie => watchedMovie.Movie!.RuntimeMinutes)
-            .ToListAsync(cancellationToken);
+            .Where(watchedMovie => watchedMovie.UserId == userId && watchedMovie.Movie!.RuntimeMinutes > 0)
+            .GroupBy(_ => 1)
+            .Select(group => new RuntimeAggregateRow(
+                group.Sum(watchedMovie => watchedMovie.Movie!.RuntimeMinutes ?? 0),
+                group.Count()))
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var known = rows.Where(runtime => runtime is > 0).ToList();
-        return new RuntimeAggregateRow(known.Sum(runtime => runtime ?? 0), known.Count);
+        return totals ?? new RuntimeAggregateRow(0, 0);
     }
 
     private async Task<RuntimeAggregateRow> GetEpisodeRuntimeAggregateAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var rows = await dbContext.WatchedEpisodes
+        var totals = await dbContext.WatchedEpisodes
             .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId)
-            .Select(watchedEpisode => watchedEpisode.Episode!.RuntimeMinutes)
-            .ToListAsync(cancellationToken);
+            .Where(watchedEpisode => watchedEpisode.UserId == userId && watchedEpisode.Episode!.RuntimeMinutes > 0)
+            .GroupBy(_ => 1)
+            .Select(group => new RuntimeAggregateRow(
+                group.Sum(watchedEpisode => watchedEpisode.Episode!.RuntimeMinutes ?? 0),
+                group.Count()))
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var known = rows.Where(runtime => runtime is > 0).ToList();
-        return new RuntimeAggregateRow(known.Sum(runtime => runtime ?? 0), known.Count);
+        return totals ?? new RuntimeAggregateRow(0, 0);
+    }
+
+    private async Task<V3RuntimeTotalsRow> GetV3RuntimeTotalsAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var movieRuntime = await GetMovieRuntimeAggregateAsync(userId, cancellationToken);
+        var episodeRuntime = await GetEpisodeRuntimeAggregateAsync(userId, cancellationToken);
+
+        return new V3RuntimeTotalsRow(
+            movieRuntime.TotalMinutes,
+            movieRuntime.KnownCount,
+            episodeRuntime.TotalMinutes,
+            episodeRuntime.KnownCount);
     }
 
     private async Task<IReadOnlyList<InsightsShowCompletionData>> GetShowCompletionProjectionAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.TvShows
+        return await dbContext.WatchedEpisodes
             .AsNoTracking()
-            .Where(tvShow => dbContext.WatchedEpisodes.Any(
-                watchedEpisode => watchedEpisode.UserId == userId &&
-                                  watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
-            .Select(tvShow => new InsightsShowCompletionData(
-                tvShow.Seasons
-                    .Where(season => season.SeasonNumber >= 1)
-                    .SelectMany(season => season.Episodes)
-                    .Count(),
-                dbContext.WatchedEpisodes.Count(
-                    watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                      watchedEpisode.Episode.Season.SeasonNumber >= 1),
-                dbContext.WatchedEpisodes
-                    .Where(watchedEpisode => watchedEpisode.UserId == userId &&
-                                             watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                             watchedEpisode.Episode.Season.SeasonNumber >= 1)
-                    .Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt)))
+            .Where(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                watchedEpisode.Episode!.Season.SeasonNumber >= 1)
+            .GroupBy(watchedEpisode => watchedEpisode.Episode!.Season.TvShowId)
+            .Select(group => new InsightsShowCompletionData(
+                dbContext.Episodes.Count(episode =>
+                    episode.Season.TvShowId == group.Key &&
+                    episode.Season.SeasonNumber >= 1),
+                group.Count(),
+                group.Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt)))
             .ToListAsync(cancellationToken);
     }
 
@@ -404,156 +430,254 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
     {
         var metrics = new InsightsV3QueryMetrics();
         var dbStopwatch = Stopwatch.StartNew();
+        var timeZoneId = timeZone.Id;
 
         var (currentYearStart, currentYearEnd) = GetCalendarYearUtcBounds(year, timeZone);
         var (previousYearStart, previousYearEnd) = GetCalendarYearUtcBounds(year - 1, timeZone);
 
-        var counts = await ExecuteTimedV3QueryAsync(metrics, () => GetSummaryCountsAsync(userId, cancellationToken));
-        var distinctMovieCount = await ExecuteTimedV3QueryAsync(
+        var summaryStopwatch = Stopwatch.StartNew();
+        var summary = await ExecuteTimedV3QueryAsync(
             metrics,
-            () => dbContext.WatchedMovies
-                .AsNoTracking()
-                .Where(watchedMovie => watchedMovie.UserId == userId)
-                .Select(watchedMovie => watchedMovie.MovieId)
-                .Distinct()
-                .CountAsync(cancellationToken));
-        var distinctSeriesCount = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => dbContext.WatchedEpisodes
-                .AsNoTracking()
-                .Where(watchedEpisode => watchedEpisode.UserId == userId)
-                .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-                .Distinct()
-                .CountAsync(cancellationToken));
+            () => GetV3SummaryAsync(userId, cancellationToken));
+        summaryStopwatch.Stop();
+        metrics.SummaryMs = summaryStopwatch.ElapsedMilliseconds;
+
+        var dnaStopwatch = Stopwatch.StartNew();
         var movieTitles = await ExecuteTimedV3QueryAsync(metrics, () => GetMovieDnaTitlesAsync(userId, cancellationToken));
         var tvShowTitles = await ExecuteTimedV3QueryAsync(metrics, () => GetTvShowDnaTitlesAsync(userId, cancellationToken));
-        var currentYearMovieTitles = await ExecuteTimedV3QueryAsync(
+        var (currentYearMovieTitles, previousYearMovieTitles) = await ExecuteTimedV3QueryAsync(
             metrics,
-            () => GetMovieDnaTitlesInRangeAsync(userId, currentYearStart, currentYearEnd, cancellationToken));
-        var currentYearTvShowTitles = await ExecuteTimedV3QueryAsync(
+            () => GetMovieDnaTitlesSplitByYearAsync(
+                userId,
+                previousYearStart,
+                previousYearEnd,
+                currentYearStart,
+                currentYearEnd,
+                cancellationToken));
+        var (currentYearTvShowTitles, previousYearTvShowTitles) = await ExecuteTimedV3QueryAsync(
             metrics,
-            () => GetTvShowDnaTitlesInRangeAsync(userId, currentYearStart, currentYearEnd, cancellationToken));
-        var previousYearMovieTitles = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => GetMovieDnaTitlesInRangeAsync(userId, previousYearStart, previousYearEnd, cancellationToken));
-        var previousYearTvShowTitles = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => GetTvShowDnaTitlesInRangeAsync(userId, previousYearStart, previousYearEnd, cancellationToken));
-        var yearMovieWatchedAt = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => GetMovieWatchedAtInRangeAsync(userId, currentYearStart, currentYearEnd, cancellationToken));
-        var yearEpisodeWatchedAt = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => GetEpisodeWatchedAtInRangeAsync(userId, currentYearStart, currentYearEnd, cancellationToken));
+            () => GetTvShowDnaTitlesSplitByYearAsync(
+                userId,
+                previousYearStart,
+                previousYearEnd,
+                currentYearStart,
+                currentYearEnd,
+                cancellationToken));
+        dnaStopwatch.Stop();
+        metrics.DnaMs = dnaStopwatch.ElapsedMilliseconds;
+
+        var yearActivityStopwatch = Stopwatch.StartNew();
         var yearMovieWatches = await ExecuteTimedV3QueryAsync(
             metrics,
             () => GetMovieWatchesInRangeAsync(userId, currentYearStart, currentYearEnd, cancellationToken));
         var yearEpisodeWatches = await ExecuteTimedV3QueryAsync(
             metrics,
             () => GetEpisodeWatchesInRangeAsync(userId, currentYearStart, currentYearEnd, cancellationToken));
-        var allMovieWatchedAt = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => dbContext.WatchedMovies
-                .AsNoTracking()
-                .Where(watchedMovie => watchedMovie.UserId == userId)
-                .Select(watchedMovie => watchedMovie.WatchedAt)
-                .ToListAsync(cancellationToken));
-        var allEpisodeWatchedAt = await ExecuteTimedV3QueryAsync(
-            metrics,
-            () => dbContext.WatchedEpisodes
-                .AsNoTracking()
-                .Where(watchedEpisode => watchedEpisode.UserId == userId)
-                .Select(watchedEpisode => watchedEpisode.WatchedAt)
-                .ToListAsync(cancellationToken));
-        var movieRuntime = await ExecuteTimedV3QueryAsync(metrics, () => GetMovieRuntimeAggregateAsync(userId, cancellationToken));
-        var episodeRuntime = await ExecuteTimedV3QueryAsync(metrics, () => GetEpisodeRuntimeAggregateAsync(userId, cancellationToken));
-        var ratingScoreCounts = await ExecuteTimedV3QueryAsync(metrics, () => GetRatingScoreCountsAsync(userId, cancellationToken));
-        var genreRatings = await ExecuteTimedV3QueryAsync(metrics, () => GetGenreRatingsAsync(userId, cancellationToken));
-        var oldestTitle = await ExecuteTimedV3QueryAsync(metrics, () => GetOldestWatchedTitleAsync(userId, cancellationToken));
-        var showCompletions = await ExecuteTimedV3QueryAsync(metrics, () => GetShowCompletionProjectionAsync(userId, cancellationToken));
+        yearActivityStopwatch.Stop();
+        metrics.YearActivityMs = yearActivityStopwatch.ElapsedMilliseconds;
 
-        var firstMovieWatchedAt = counts.MoviesWatched >= 1
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthMovieWatchedAtAsync(userId, 1, cancellationToken))
-            : null;
-        var tenthMovieWatchedAt = counts.MoviesWatched >= 10
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthMovieWatchedAtAsync(userId, 10, cancellationToken))
-            : null;
-        var fiftiethMovieWatchedAt = counts.MoviesWatched >= 50
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthMovieWatchedAtAsync(userId, 50, cancellationToken))
-            : null;
-        var hundredthEpisodeWatchedAt = counts.EpisodesWatched >= 100
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthEpisodeWatchedAtAsync(userId, 100, cancellationToken))
-            : null;
-        var fiveHundredthEpisodeWatchedAt = counts.EpisodesWatched >= 500
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthEpisodeWatchedAtAsync(userId, 500, cancellationToken))
-            : null;
-        var tenthRatingAt = counts.RatingsCount >= 10
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthRatingAtAsync(userId, 10, cancellationToken))
-            : null;
-        var twentyFifthRatingAt = counts.RatingsCount >= 25
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthRatingAtAsync(userId, 25, cancellationToken))
-            : null;
-        var fiftiethRatingAt = counts.RatingsCount >= 50
-            ? await ExecuteTimedV3QueryAsync(metrics, () => GetNthRatingAtAsync(userId, 50, cancellationToken))
-            : null;
+        var recordsStopwatch = Stopwatch.StartNew();
+        var records = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => InsightsV3SqlQueries.GetRecordsAsync(dbContext, userId, timeZoneId, cancellationToken));
+        recordsStopwatch.Stop();
+        metrics.RecordsMs = recordsStopwatch.ElapsedMilliseconds;
+
+        var runtimeStopwatch = Stopwatch.StartNew();
+        var runtimeTotals = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => GetV3RuntimeTotalsAsync(userId, cancellationToken));
+        runtimeStopwatch.Stop();
+        metrics.RuntimeMs = runtimeStopwatch.ElapsedMilliseconds;
+
+        var ratingsStopwatch = Stopwatch.StartNew();
+        var ratingScoreCounts = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => GetRatingScoreCountsAsync(userId, cancellationToken));
+        var genreRatings = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => GetGenreRatingsAsync(userId, cancellationToken));
+        ratingsStopwatch.Stop();
+        metrics.RatingsMs = ratingsStopwatch.ElapsedMilliseconds;
+
+        var oldestTitle = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => GetOldestWatchedTitleAsync(userId, cancellationToken));
+
+        var milestonesStopwatch = Stopwatch.StartNew();
+        var showCompletions = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => GetShowCompletionProjectionAsync(userId, cancellationToken));
+        var milestoneTimestamps = await ExecuteTimedV3QueryAsync(
+            metrics,
+            () => InsightsV3SqlQueries.GetMilestoneTimestampsAsync(dbContext, userId, cancellationToken));
+        milestonesStopwatch.Stop();
+        metrics.MilestonesMs = milestonesStopwatch.ElapsedMilliseconds;
 
         var milestoneRaw = new InsightsAnalyticsRawData(
-            counts.MemberSince,
-            counts.MoviesWatched,
-            counts.EpisodesWatched,
-            counts.ShowsStarted,
-            counts.RatingsCount,
+            summary.MemberSince,
+            summary.MoviesWatched,
+            summary.EpisodesWatched,
+            summary.ShowsStarted,
+            summary.RatingsCount,
             [],
             movieTitles,
             tvShowTitles,
-            movieRuntime.TotalMinutes,
-            movieRuntime.KnownCount,
-            episodeRuntime.TotalMinutes,
-            episodeRuntime.KnownCount,
+            runtimeTotals.MovieTotalMinutes,
+            runtimeTotals.MovieKnownCount,
+            runtimeTotals.EpisodeTotalMinutes,
+            runtimeTotals.EpisodeKnownCount,
             ratingScoreCounts,
             showCompletions,
-            firstMovieWatchedAt,
-            tenthMovieWatchedAt,
-            fiftiethMovieWatchedAt,
-            hundredthEpisodeWatchedAt,
-            fiveHundredthEpisodeWatchedAt,
-            tenthRatingAt,
-            twentyFifthRatingAt,
-            fiftiethRatingAt);
+            milestoneTimestamps.FirstMovieWatchedAt,
+            milestoneTimestamps.TenthMovieWatchedAt,
+            milestoneTimestamps.FiftiethMovieWatchedAt,
+            milestoneTimestamps.HundredthEpisodeWatchedAt,
+            milestoneTimestamps.FiveHundredthEpisodeWatchedAt,
+            milestoneTimestamps.TenthRatingAt,
+            milestoneTimestamps.TwentyFifthRatingAt,
+            milestoneTimestamps.FiftiethRatingAt);
 
         dbStopwatch.Stop();
         metrics.DbTotalMs = dbStopwatch.ElapsedMilliseconds;
 
         var raw = new InsightsV3RawData(
-            counts.MemberSince,
-            distinctMovieCount,
-            distinctSeriesCount,
-            counts.MoviesWatched,
-            counts.EpisodesWatched,
-            counts.ShowsStarted,
-            counts.RatingsCount,
+            summary.MemberSince,
+            summary.DistinctMovieCount,
+            summary.DistinctSeriesCount,
+            summary.MoviesWatched,
+            summary.EpisodesWatched,
+            summary.ShowsStarted,
+            summary.RatingsCount,
             movieTitles,
             tvShowTitles,
             currentYearMovieTitles,
             currentYearTvShowTitles,
             previousYearMovieTitles,
             previousYearTvShowTitles,
-            yearMovieWatchedAt,
-            yearEpisodeWatchedAt,
             yearMovieWatches,
             yearEpisodeWatches,
-            allMovieWatchedAt,
-            allEpisodeWatchedAt,
-            movieRuntime.TotalMinutes,
-            episodeRuntime.TotalMinutes,
-            movieRuntime.KnownCount,
-            episodeRuntime.KnownCount,
+            records,
+            runtimeTotals.MovieTotalMinutes,
+            runtimeTotals.EpisodeTotalMinutes,
+            runtimeTotals.MovieKnownCount,
+            runtimeTotals.EpisodeKnownCount,
             ratingScoreCounts,
             genreRatings,
             oldestTitle,
             milestoneRaw);
 
         return (raw, metrics);
+    }
+
+    private async Task<V3SummaryRow> GetV3SummaryAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return await dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => new V3SummaryRow(
+                user.CreatedAt,
+                dbContext.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
+                dbContext.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId),
+                dbContext.WatchedEpisodes
+                    .Where(watchedEpisode => watchedEpisode.UserId == userId)
+                    .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
+                    .Distinct()
+                    .Count(),
+                dbContext.Ratings.Count(rating => rating.UserId == userId),
+                dbContext.WatchedMovies
+                    .Where(watchedMovie => watchedMovie.UserId == userId)
+                    .Select(watchedMovie => watchedMovie.MovieId)
+                    .Distinct()
+                    .Count(),
+                dbContext.WatchedEpisodes
+                    .Where(watchedEpisode => watchedEpisode.UserId == userId)
+                    .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
+                    .Distinct()
+                    .Count()))
+            .FirstAsync(cancellationToken);
+    }
+
+    private async Task<(IReadOnlyList<InsightsDnaTitleData> CurrentYear, IReadOnlyList<InsightsDnaTitleData> PreviousYear)>
+        GetMovieDnaTitlesSplitByYearAsync(
+            Guid userId,
+            DateTime previousYearStart,
+            DateTime previousYearEnd,
+            DateTime currentYearStart,
+            DateTime currentYearEnd,
+            CancellationToken cancellationToken)
+    {
+        var watches = await dbContext.WatchedMovies
+            .AsNoTracking()
+            .Where(watchedMovie =>
+                watchedMovie.UserId == userId &&
+                watchedMovie.WatchedAt >= previousYearStart &&
+                watchedMovie.WatchedAt < currentYearEnd)
+            .Select(watchedMovie => new
+            {
+                watchedMovie.WatchedAt,
+                Title = new InsightsDnaTitleData(
+                    watchedMovie.Movie!.ReleaseDate.HasValue
+                        ? watchedMovie.Movie.ReleaseDate.Value.Year
+                        : null,
+                    watchedMovie.Movie!.MovieGenres
+                        .Select(movieGenre => new InsightsDnaGenreData(
+                            movieGenre.GenreId,
+                            movieGenre.Genre.Name))
+                        .ToList()),
+            })
+            .ToListAsync(cancellationToken);
+
+        return (
+            watches
+                .Where(watch => watch.WatchedAt >= currentYearStart && watch.WatchedAt < currentYearEnd)
+                .Select(watch => watch.Title)
+                .ToList(),
+            watches
+                .Where(watch => watch.WatchedAt >= previousYearStart && watch.WatchedAt < previousYearEnd)
+                .Select(watch => watch.Title)
+                .ToList());
+    }
+
+    private async Task<(IReadOnlyList<InsightsDnaTitleData> CurrentYear, IReadOnlyList<InsightsDnaTitleData> PreviousYear)>
+        GetTvShowDnaTitlesSplitByYearAsync(
+            Guid userId,
+            DateTime previousYearStart,
+            DateTime previousYearEnd,
+            DateTime currentYearStart,
+            DateTime currentYearEnd,
+            CancellationToken cancellationToken)
+    {
+        var watches = await dbContext.WatchedEpisodes
+            .AsNoTracking()
+            .Where(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                watchedEpisode.WatchedAt >= previousYearStart &&
+                watchedEpisode.WatchedAt < currentYearEnd)
+            .Select(watchedEpisode => new
+            {
+                watchedEpisode.WatchedAt,
+                Title = new InsightsDnaTitleData(
+                    watchedEpisode.Episode!.Season.TvShow.FirstAirDate.HasValue
+                        ? watchedEpisode.Episode.Season.TvShow.FirstAirDate.Value.Year
+                        : null,
+                    watchedEpisode.Episode.Season.TvShow.TvShowGenres
+                        .Select(tvGenre => new InsightsDnaGenreData(
+                            tvGenre.GenreId,
+                            tvGenre.Genre.Name))
+                        .ToList()),
+            })
+            .ToListAsync(cancellationToken);
+
+        return (
+            watches
+                .Where(watch => watch.WatchedAt >= currentYearStart && watch.WatchedAt < currentYearEnd)
+                .Select(watch => watch.Title)
+                .ToList(),
+            watches
+                .Where(watch => watch.WatchedAt >= previousYearStart && watch.WatchedAt < previousYearEnd)
+                .Select(watch => watch.Title)
+                .ToList());
     }
 
     private static (DateTime UtcStartInclusive, DateTime UtcEndExclusive) GetCalendarYearUtcBounds(
@@ -566,86 +690,6 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         return (
             TimeZoneInfo.ConvertTimeToUtc(localStart, timeZone),
             TimeZoneInfo.ConvertTimeToUtc(localEndExclusive, timeZone));
-    }
-
-    private async Task<IReadOnlyList<InsightsDnaTitleData>> GetMovieDnaTitlesInRangeAsync(
-        Guid userId,
-        DateTime utcStartInclusive,
-        DateTime utcEndExclusive,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.WatchedMovies
-            .AsNoTracking()
-            .Where(watchedMovie =>
-                watchedMovie.UserId == userId &&
-                watchedMovie.WatchedAt >= utcStartInclusive &&
-                watchedMovie.WatchedAt < utcEndExclusive)
-            .Select(watchedMovie => new InsightsDnaTitleData(
-                watchedMovie.Movie!.ReleaseDate.HasValue
-                    ? watchedMovie.Movie.ReleaseDate.Value.Year
-                    : null,
-                watchedMovie.Movie!.MovieGenres
-                    .Select(movieGenre => new InsightsDnaGenreData(
-                        movieGenre.GenreId,
-                        movieGenre.Genre.Name))
-                    .ToList()))
-            .ToListAsync(cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<InsightsDnaTitleData>> GetTvShowDnaTitlesInRangeAsync(
-        Guid userId,
-        DateTime utcStartInclusive,
-        DateTime utcEndExclusive,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode =>
-                watchedEpisode.UserId == userId &&
-                watchedEpisode.WatchedAt >= utcStartInclusive &&
-                watchedEpisode.WatchedAt < utcEndExclusive)
-            .Select(watchedEpisode => new InsightsDnaTitleData(
-                watchedEpisode.Episode!.Season.TvShow.FirstAirDate.HasValue
-                    ? watchedEpisode.Episode.Season.TvShow.FirstAirDate.Value.Year
-                    : null,
-                watchedEpisode.Episode.Season.TvShow.TvShowGenres
-                    .Select(tvGenre => new InsightsDnaGenreData(
-                        tvGenre.GenreId,
-                        tvGenre.Genre.Name))
-                    .ToList()))
-            .ToListAsync(cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<DateTime>> GetMovieWatchedAtInRangeAsync(
-        Guid userId,
-        DateTime utcStartInclusive,
-        DateTime utcEndExclusive,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.WatchedMovies
-            .AsNoTracking()
-            .Where(watchedMovie =>
-                watchedMovie.UserId == userId &&
-                watchedMovie.WatchedAt >= utcStartInclusive &&
-                watchedMovie.WatchedAt < utcEndExclusive)
-            .Select(watchedMovie => watchedMovie.WatchedAt)
-            .ToListAsync(cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<DateTime>> GetEpisodeWatchedAtInRangeAsync(
-        Guid userId,
-        DateTime utcStartInclusive,
-        DateTime utcEndExclusive,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode =>
-                watchedEpisode.UserId == userId &&
-                watchedEpisode.WatchedAt >= utcStartInclusive &&
-                watchedEpisode.WatchedAt < utcEndExclusive)
-            .Select(watchedEpisode => watchedEpisode.WatchedAt)
-            .ToListAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)>> GetMovieWatchesInRangeAsync(

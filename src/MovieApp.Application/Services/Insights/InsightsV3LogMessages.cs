@@ -7,24 +7,34 @@ internal static partial class InsightsV3LogMessages
     [LoggerMessage(
         EventId = 7103,
         Level = LogLevel.Information,
-        Message = "Insights V3 cache HIT for user {UserId} in {ElapsedMs}ms (year={Year}, timeZone={TimeZone})")]
+        Message = "InsightsPerf V3 Cache=HIT TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} UserId={UserId} Year={Year} TimeZone={TimeZone}")]
     public static partial void LogCacheHit(
         ILogger logger,
         Guid userId,
-        long elapsedMs,
+        long totalMs,
+        long cacheLookupMs,
         int year,
         string timeZone);
 
     [LoggerMessage(
         EventId = 7104,
         Level = LogLevel.Information,
-        Message = "Insights V3 cache MISS for user {UserId} in {ElapsedMs}ms (db={DbMs}ms, build={BuildMs}ms, roundTrips={RoundTrips}, year={Year})")]
+        Message = "InsightsPerf V3 Cache=MISS TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} DbTotalMs={DbTotalMs} DbRoundTrips={DbRoundTrips} SummaryMs={SummaryMs} DnaMs={DnaMs} YearActivityMs={YearActivityMs} RecordsMs={RecordsMs} RuntimeMs={RuntimeMs} RatingsMs={RatingsMs} MilestonesMs={MilestonesMs} BuildCpuMs={BuildCpuMs} CacheWriteMs={CacheWriteMs} UserId={UserId} Year={Year}")]
     public static partial void LogCacheMiss(
         ILogger logger,
         Guid userId,
-        long elapsedMs,
-        long dbMs,
-        long buildMs,
-        int roundTrips,
+        long totalMs,
+        long cacheLookupMs,
+        long dbTotalMs,
+        int dbRoundTrips,
+        long summaryMs,
+        long dnaMs,
+        long yearActivityMs,
+        long recordsMs,
+        long runtimeMs,
+        long ratingsMs,
+        long milestonesMs,
+        long buildCpuMs,
+        long cacheWriteMs,
         int year);
 }
