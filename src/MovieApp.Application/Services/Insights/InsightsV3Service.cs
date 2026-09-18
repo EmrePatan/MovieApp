@@ -37,8 +37,8 @@ public sealed class InsightsV3Service(
         if (cached is not null)
         {
             totalStopwatch.Stop();
-            logger.LogInformation(
-                "Insights V3 cache HIT for user {UserId} in {ElapsedMs}ms (year={Year}, timeZone={TimeZone})",
+            InsightsV3LogMessages.LogCacheHit(
+                logger,
                 userId,
                 totalStopwatch.ElapsedMilliseconds,
                 resolvedYear,
@@ -56,14 +56,12 @@ public sealed class InsightsV3Service(
         var result = InsightsV3Builder.Build(raw, timeZone, resolvedYear, utcNow);
         buildStopwatch.Stop();
 
-        var cacheWriteStopwatch = Stopwatch.StartNew();
         var ttl = TimeSpan.FromMinutes(options.Value.AnalyticsCacheTtlMinutes);
         await insightsCache.SetV3Async(userId, timeZoneId, resolvedYear, result, ttl, cancellationToken);
-        cacheWriteStopwatch.Stop();
 
         totalStopwatch.Stop();
-        logger.LogInformation(
-            "Insights V3 cache MISS for user {UserId} in {ElapsedMs}ms (db={DbMs}ms, build={BuildMs}ms, roundTrips={RoundTrips}, year={Year})",
+        InsightsV3LogMessages.LogCacheMiss(
+            logger,
             userId,
             totalStopwatch.ElapsedMilliseconds,
             metrics.DbTotalMs,
