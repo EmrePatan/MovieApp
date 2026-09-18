@@ -206,16 +206,6 @@ public sealed class ReviewServiceTests
             int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
-
-        public Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForMovieAsync(
-            Guid movieId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(ReviewMapper.ToEmptyReviewRatingDistribution());
-
-        public Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForTvShowAsync(
-            Guid tvShowId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(ReviewMapper.ToEmptyReviewRatingDistribution());
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository

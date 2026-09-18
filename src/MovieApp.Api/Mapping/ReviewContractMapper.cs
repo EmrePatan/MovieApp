@@ -24,11 +24,4 @@ public static class ReviewContractMapper
             result.TotalPages,
             result.HasNextPage,
             result.HasPreviousPage);
-
-    public static ReviewRatingDistributionResponse ToRatingDistributionResponse(
-        ReviewRatingDistributionResult result) =>
-        new(
-            result.AverageScore,
-            result.RatedReviewCount,
-            result.ScoreDistribution);
 }

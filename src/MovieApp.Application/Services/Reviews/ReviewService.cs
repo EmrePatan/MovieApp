@@ -202,22 +202,6 @@ public sealed class ReviewService(
         return ToPaginatedResult(reviews, page, pageSize, totalCount);
     }
 
-    public async Task<ReviewRatingDistributionResult> GetMovieReviewRatingDistributionAsync(
-        Guid movieId,
-        CancellationToken cancellationToken = default)
-    {
-        await EnsureMovieExistsAsync(movieId, cancellationToken);
-        return await reviewRepository.GetReviewRatingDistributionForMovieAsync(movieId, cancellationToken);
-    }
-
-    public async Task<ReviewRatingDistributionResult> GetTvShowReviewRatingDistributionAsync(
-        Guid tvShowId,
-        CancellationToken cancellationToken = default)
-    {
-        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
-        return await reviewRepository.GetReviewRatingDistributionForTvShowAsync(tvShowId, cancellationToken);
-    }
-
     private static void ValidateRatingStars(int? ratingStars)
     {
         var validationResult = ReviewListValidator.ValidateRatingStars(ratingStars);

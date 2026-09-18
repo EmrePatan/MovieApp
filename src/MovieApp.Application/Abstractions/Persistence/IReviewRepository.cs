@@ -64,12 +64,4 @@ public interface IReviewRepository
         ReviewListSort sort,
         int? ratingStars = null,
         CancellationToken cancellationToken = default);
-
-    Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForMovieAsync(
-        Guid movieId,
-        CancellationToken cancellationToken = default);
-
-    Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForTvShowAsync(
-        Guid tvShowId,
-        CancellationToken cancellationToken = default);
 }
