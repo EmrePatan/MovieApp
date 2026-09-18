@@ -30,6 +30,8 @@ RUN dotnet publish MovieApp.Api.csproj \
     /p:UseAppHost=false
 
 FROM base AS final
+ARG MOVIEAPP_SOURCE_VERSION=unknown
+ENV MOVIEAPP_SOURCE_VERSION=${MOVIEAPP_SOURCE_VERSION}
 WORKDIR /app
 COPY --from=build /app/publish .
 

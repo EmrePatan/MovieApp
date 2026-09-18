@@ -63,6 +63,7 @@ public sealed class InsightsV3Service(
         cacheWriteStopwatch.Stop();
 
         totalStopwatch.Stop();
+        var sourceVersion = ApplicationSourceVersion.Resolve();
         InsightsV3LogMessages.LogCacheMiss(
             logger,
             userId,
@@ -70,6 +71,7 @@ public sealed class InsightsV3Service(
             cacheLookupStopwatch.ElapsedMilliseconds,
             metrics.DbTotalMs,
             metrics.DbRoundTrips,
+            metrics.PgCommandRoundTrips,
             metrics.SummaryMs,
             metrics.DnaMs,
             metrics.YearActivityMs,
@@ -79,6 +81,7 @@ public sealed class InsightsV3Service(
             metrics.MilestonesMs,
             buildStopwatch.ElapsedMilliseconds,
             cacheWriteStopwatch.ElapsedMilliseconds,
+            sourceVersion,
             resolvedYear);
 
         return result;

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Application;
 using MovieApp.Contracts.Health;
 
 namespace MovieApp.Api.Controllers;
@@ -21,5 +22,6 @@ public sealed class HealthController(IWebHostEnvironment environment) : Controll
         new(
             Status: "Healthy",
             Timestamp: DateTimeOffset.UtcNow,
-            Environment: environment.EnvironmentName);
+            Environment: environment.EnvironmentName,
+            SourceVersion: ApplicationSourceVersion.Resolve());
 }

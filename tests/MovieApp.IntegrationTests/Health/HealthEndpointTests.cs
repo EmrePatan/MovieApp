@@ -26,6 +26,7 @@ public sealed class HealthEndpointTests : IClassFixture<MovieAppWebApplicationFa
         Assert.NotNull(payload);
         Assert.Equal("Healthy", payload.Status);
         Assert.False(string.IsNullOrWhiteSpace(payload.Environment));
+        Assert.False(string.IsNullOrWhiteSpace(payload.SourceVersion));
     }
 
     [Fact]

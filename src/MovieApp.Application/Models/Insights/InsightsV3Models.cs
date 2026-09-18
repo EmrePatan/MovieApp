@@ -152,7 +152,15 @@ public sealed record InsightsV3RawData(
 
 public sealed class InsightsV3QueryMetrics
 {
+    /// <summary>
+    /// Logical repository phases executed by <c>GetV3RawDataAsync</c>.
+    /// </summary>
     public int DbRoundTrips { get; set; }
+
+    /// <summary>
+    /// Actual PostgreSQL commands issued while loading V3 raw data.
+    /// </summary>
+    public int PgCommandRoundTrips { get; set; }
 
     public long DbTotalMs { get; set; }
 

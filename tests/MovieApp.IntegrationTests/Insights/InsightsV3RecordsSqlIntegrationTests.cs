@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Services.Insights;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
@@ -132,6 +133,36 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
         Assert.Equal(4, records.LongestStreakDays);
         Assert.Equal(3, records.BestMovieWeek?.Count);
         Assert.Equal(1, records.BestEpisodeWeek?.Count);
+    }
+
+    [Fact]
+    public async Task GetV3RawDataAsyncCountsRepositoryPhasesAndPgCommandsSeparately()
+    {
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+
+        var userId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Email = $"metrics-{userId:N}@example.com",
+            NormalizedEmail = $"metrics-{userId:N}@example.com".ToUpperInvariant(),
+            UserName = $"metrics-{userId:N}",
+            DisplayName = "Metrics User",
+            PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid(),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        await context.SaveChangesAsync();
+
+        var repository = new InsightsRepository(context);
+        var timeZone = InsightsTimeZoneGuard.RequireValidTimeZone("Europe/Istanbul");
+        var (_, metrics) = await repository.GetV3RawDataAsync(userId, timeZone, 2026);
+
+        Assert.Equal(14, metrics.DbRoundTrips);
+        Assert.Equal(17, metrics.PgCommandRoundTrips);
     }
 
     private static ApplicationDbContext CreateContext()
