@@ -303,6 +303,50 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
     }
 
     [AllowAnonymous]
+    [HttpGet("movies/{movieId:guid}/rating-distribution")]
+    [ProducesResponseType(typeof(ReviewRatingDistributionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReviewRatingDistributionResponse>> GetMovieReviewRatingDistribution(
+        Guid movieId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await reviewService.GetMovieReviewRatingDistributionAsync(movieId, cancellationToken);
+            return Ok(ReviewContractMapper.ToRatingDistributionResponse(result));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("tvshows/{tvShowId:guid}/rating-distribution")]
+    [ProducesResponseType(typeof(ReviewRatingDistributionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReviewRatingDistributionResponse>> GetTvShowReviewRatingDistribution(
+        Guid tvShowId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await reviewService.GetTvShowReviewRatingDistributionAsync(tvShowId, cancellationToken);
+            return Ok(ReviewContractMapper.ToRatingDistributionResponse(result));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [AllowAnonymous]
     [HttpGet("movies/{movieId:guid}")]
     [ProducesResponseType(typeof(ReviewListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

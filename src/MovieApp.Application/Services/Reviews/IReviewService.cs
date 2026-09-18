@@ -52,4 +52,12 @@ public interface IReviewService
         ReviewListSort sort,
         int? ratingStars = null,
         CancellationToken cancellationToken = default);
+
+    Task<ReviewRatingDistributionResult> GetMovieReviewRatingDistributionAsync(
+        Guid movieId,
+        CancellationToken cancellationToken = default);
+
+    Task<ReviewRatingDistributionResult> GetTvShowReviewRatingDistributionAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
 }

@@ -84,6 +84,52 @@ public sealed class RatingsReviewsApiTests(RatingsReviewsApiFixture fixture)
     }
 
     [Fact]
+    public async Task ReviewRatingDistributionOnlyIncludesWrittenReviews()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("rating-only-user");
+        var movieId = await SeedMovieAsync();
+
+        await SendAuthorizedPostAsync(
+            $"/api/ratings/movies/{movieId}",
+            token,
+            new CreateRatingRequest(8));
+
+        var ratingSummaryResponse = await _client.GetAsync($"/api/ratings/movies/{movieId}");
+        Assert.Equal(HttpStatusCode.OK, ratingSummaryResponse.StatusCode);
+
+        var ratingSummary = await ratingSummaryResponse.Content.ReadFromJsonAsync<RatingSummaryResponse>();
+        Assert.NotNull(ratingSummary);
+        Assert.Equal(1, ratingSummary.RatingCount);
+
+        var reviewDistributionResponse = await _client.GetAsync(
+            $"/api/reviews/movies/{movieId}/rating-distribution");
+        Assert.Equal(HttpStatusCode.OK, reviewDistributionResponse.StatusCode);
+
+        var reviewDistribution =
+            await reviewDistributionResponse.Content.ReadFromJsonAsync<ReviewRatingDistributionResponse>();
+        Assert.NotNull(reviewDistribution);
+        Assert.Equal(0, reviewDistribution.RatedReviewCount);
+        Assert.Equal(0m, reviewDistribution.AverageScore);
+        Assert.Equal(0, reviewDistribution.ScoreDistribution.Values.Sum());
+
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/movies/{movieId}",
+            token,
+            new CreateReviewRequest("Finally writing it down."));
+
+        reviewDistributionResponse = await _client.GetAsync(
+            $"/api/reviews/movies/{movieId}/rating-distribution");
+        reviewDistribution =
+            await reviewDistributionResponse.Content.ReadFromJsonAsync<ReviewRatingDistributionResponse>();
+        Assert.NotNull(reviewDistribution);
+        Assert.Equal(1, reviewDistribution.RatedReviewCount);
+        Assert.Equal(8m, reviewDistribution.AverageScore);
+        Assert.Equal(1, reviewDistribution.ScoreDistribution[8]);
+    }
+
+    [Fact]
     public async Task PublicReviewsCanFilterByRatingStars()
     {
         await fixture.ResetAsync();

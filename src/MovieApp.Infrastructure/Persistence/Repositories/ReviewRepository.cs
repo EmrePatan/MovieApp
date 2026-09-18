@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Domain.Entities;
 
@@ -237,5 +238,68 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             .ToList();
 
         return (reviews, totalCount);
+    }
+
+    public Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForMovieAsync(
+        Guid movieId,
+        CancellationToken cancellationToken = default)
+    {
+        var reviewsQuery = dbContext.Reviews
+            .AsNoTracking()
+            .Where(item => item.MovieId == movieId);
+
+        var ratingsQuery = dbContext.Ratings
+            .AsNoTracking()
+            .Where(item => item.MovieId == movieId);
+
+        return GetReviewRatingDistributionAsync(reviewsQuery, ratingsQuery, cancellationToken);
+    }
+
+    public Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForTvShowAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        var reviewsQuery = dbContext.Reviews
+            .AsNoTracking()
+            .Where(item => item.TvShowId == tvShowId);
+
+        var ratingsQuery = dbContext.Ratings
+            .AsNoTracking()
+            .Where(item => item.TvShowId == tvShowId);
+
+        return GetReviewRatingDistributionAsync(reviewsQuery, ratingsQuery, cancellationToken);
+    }
+
+    private static async Task<ReviewRatingDistributionResult> GetReviewRatingDistributionAsync(
+        IQueryable<Review> reviewsQuery,
+        IQueryable<Rating> ratingsQuery,
+        CancellationToken cancellationToken)
+    {
+        var query =
+            from review in reviewsQuery
+            join rating in ratingsQuery on review.UserId equals rating.UserId
+            select rating.Score;
+
+        var ratedReviewCount = await query.CountAsync(cancellationToken);
+        if (ratedReviewCount == 0)
+        {
+            return ReviewMapper.ToEmptyReviewRatingDistribution();
+        }
+
+        var averageScore = await query.AverageAsync(score => (decimal)score, cancellationToken);
+        var roundedAverage = decimal.Round(averageScore, 2, MidpointRounding.AwayFromZero);
+
+        var distributionRows = await query
+            .GroupBy(score => score)
+            .Select(group => new { group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        var distribution = RatingMapper.CreateEmptyDistribution().ToDictionary(pair => pair.Key, pair => pair.Value);
+        foreach (var row in distributionRows)
+        {
+            distribution[row.Key] = row.Count;
+        }
+
+        return ReviewMapper.ToReviewRatingDistribution(ratedReviewCount, roundedAverage, distribution);
     }
 }

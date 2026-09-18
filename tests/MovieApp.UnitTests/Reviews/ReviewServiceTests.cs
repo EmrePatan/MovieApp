@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
@@ -205,6 +206,16 @@ public sealed class ReviewServiceTests
             int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
+
+        public Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForMovieAsync(
+            Guid movieId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ReviewMapper.ToEmptyReviewRatingDistribution());
+
+        public Task<ReviewRatingDistributionResult> GetReviewRatingDistributionForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ReviewMapper.ToEmptyReviewRatingDistribution());
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository
