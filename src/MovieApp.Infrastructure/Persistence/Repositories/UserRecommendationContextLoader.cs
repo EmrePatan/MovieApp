@@ -22,6 +22,38 @@ internal sealed class UserRecommendationContextLoader(
         var totalStopwatch = Stopwatch.StartNew();
         var metrics = new RecommendationQueryMetrics();
         long dbTotalMs = 0;
+        long probeMs = 0;
+
+        if (minimumInteractionsForEnrichment > 0)
+        {
+            var probeStopwatch = Stopwatch.StartNew();
+            metrics.RecordRoundTrip();
+            var prefetchedMeaningfulInteractionCount =
+                await UserRecommendationContextInteractionProbe.CountDistinctMeaningfulInteractionsAsync(
+                    dbContext,
+                    userId,
+                    cancellationToken);
+            probeStopwatch.Stop();
+            probeMs = probeStopwatch.ElapsedMilliseconds;
+            dbTotalMs += probeMs;
+
+            if (prefetchedMeaningfulInteractionCount < minimumInteractionsForEnrichment)
+            {
+                totalStopwatch.Stop();
+                LogPreflightShortCircuit(
+                    totalStopwatch.ElapsedMilliseconds,
+                    dbTotalMs,
+                    probeMs,
+                    prefetchedMeaningfulInteractionCount,
+                    metrics.DbRoundTrips);
+
+                return new UserRecommendationContext(
+                    [],
+                    new HashSet<Guid>(),
+                    new HashSet<Guid>(),
+                    prefetchedMeaningfulInteractionCount);
+            }
+        }
 
         var interactions = await UserRecommendationContextInteractionLoader.LoadAsync(
             dbContext,
@@ -52,6 +84,7 @@ internal sealed class UserRecommendationContextLoader(
             LogLoadSummary(
                 totalStopwatch.ElapsedMilliseconds,
                 dbTotalMs,
+                probeMs,
                 interactions,
                 fullyWatchedTvMs: 0,
                 tvTitleLookupMs: 0,
@@ -136,6 +169,7 @@ internal sealed class UserRecommendationContextLoader(
         LogLoadSummary(
             totalStopwatch.ElapsedMilliseconds,
             dbTotalMs,
+            probeMs,
             interactions,
             fullyWatchedTvStopwatch.ElapsedMilliseconds,
             tvTitleLookupStopwatch.ElapsedMilliseconds,
@@ -156,9 +190,29 @@ internal sealed class UserRecommendationContextLoader(
             meaningfulInteractionCount);
     }
 
+    private void LogPreflightShortCircuit(
+        long totalMs,
+        long dbTotalMs,
+        long probeMs,
+        int meaningfulInteractionCount,
+        int dbRoundTrips)
+    {
+        var cpuMs = Math.Max(0, totalMs - dbTotalMs);
+
+        UserRecommendationContextLoaderLogMessages.LogPreflightShortCircuit(
+            logger,
+            totalMs,
+            dbTotalMs,
+            cpuMs,
+            probeMs,
+            meaningfulInteractionCount,
+            dbRoundTrips);
+    }
+
     private void LogLoadSummary(
         long totalMs,
         long dbTotalMs,
+        long probeMs,
         UserRecommendationContextInteractionLoader.UserInteractionSnapshot interactions,
         long fullyWatchedTvMs,
         long tvTitleLookupMs,
@@ -179,6 +233,7 @@ internal sealed class UserRecommendationContextLoader(
             totalMs,
             dbTotalMs,
             cpuMs,
+            probeMs,
             interactions.ExecutionMode,
             interactions.RatingsMs,
             interactions.FavoritesMs,
@@ -300,7 +355,7 @@ internal sealed class UserRecommendationContextLoader(
         return excludedTvShowIds;
     }
 
-    private static int CountMeaningfulInteractions(
+    internal static int CountMeaningfulInteractions(
         IReadOnlyList<UserRecommendationContextModels.RatingRow> ratingRows,
         IReadOnlyList<UserRecommendationContextModels.TimestampedContentRow> favoriteRows,
         IReadOnlyList<UserRecommendationContextModels.WatchedMovieRow> watchedMovieRows,

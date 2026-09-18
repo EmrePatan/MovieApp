@@ -7,6 +7,7 @@ public sealed class RecommendationQueryRoundTripTests
     public const int BaselineUserContextDbRoundTrips = 18;
     public const int OptimizedUserContextDbRoundTripsWithoutSearch = 11;
     public const int OptimizedUserContextDbRoundTripsWithSearch = 13;
+    public const int ColdUserContextPreflightDbRoundTrips = 1;
     public const int BaselineCandidateFetchDbRoundTrips = 6;
     public const int OptimizedCandidateFetchDbRoundTrips = 2;
 
@@ -20,6 +21,12 @@ public sealed class RecommendationQueryRoundTripTests
         metrics.RecordRoundTrip();
 
         Assert.Equal(3, metrics.DbRoundTrips);
+    }
+
+    [Fact]
+    public void ColdUserPreflightTargetsSingleDbRoundTrip()
+    {
+        Assert.Equal(1, ColdUserContextPreflightDbRoundTrips);
     }
 
     [Fact]
