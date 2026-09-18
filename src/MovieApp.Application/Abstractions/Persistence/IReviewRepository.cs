@@ -54,6 +54,7 @@ public interface IReviewRepository
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForTvShowAsync(
@@ -61,5 +62,6 @@ public interface IReviewRepository
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default);
 }

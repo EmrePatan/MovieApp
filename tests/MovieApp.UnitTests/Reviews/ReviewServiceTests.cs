@@ -193,6 +193,7 @@ public sealed class ReviewServiceTests
             int page,
             int pageSize,
             ReviewListSort sort,
+            int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
 
@@ -201,6 +202,7 @@ public sealed class ReviewServiceTests
             int page,
             int pageSize,
             ReviewListSort sort,
+            int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
     }

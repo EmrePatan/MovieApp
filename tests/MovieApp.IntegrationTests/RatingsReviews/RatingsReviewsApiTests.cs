@@ -84,6 +84,44 @@ public sealed class RatingsReviewsApiTests(RatingsReviewsApiFixture fixture)
     }
 
     [Fact]
+    public async Task PublicReviewsCanFilterByRatingStars()
+    {
+        await fixture.ResetAsync();
+
+        var highRaterToken = await RegisterAndGetTokenAsync("high-rater");
+        var lowRaterToken = await RegisterAndGetTokenAsync("low-rater");
+        var movieId = await SeedMovieAsync();
+
+        await SendAuthorizedPostAsync(
+            $"/api/ratings/movies/{movieId}",
+            highRaterToken,
+            new CreateRatingRequest(8));
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/movies/{movieId}",
+            highRaterToken,
+            new CreateReviewRequest("Loved it."));
+
+        await SendAuthorizedPostAsync(
+            $"/api/ratings/movies/{movieId}",
+            lowRaterToken,
+            new CreateRatingRequest(3));
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/movies/{movieId}",
+            lowRaterToken,
+            new CreateReviewRequest("Not for me."));
+
+        var filteredResponse = await _client.GetAsync(
+            $"/api/reviews/movies/{movieId}?page=1&pageSize=20&ratingStars=4");
+        Assert.Equal(HttpStatusCode.OK, filteredResponse.StatusCode);
+
+        var filteredReviews = await filteredResponse.Content.ReadFromJsonAsync<ReviewListResponse>();
+        Assert.NotNull(filteredReviews);
+        Assert.Single(filteredReviews.Items);
+        Assert.Equal("Loved it.", filteredReviews.Items[0].Content);
+        Assert.Equal(8, filteredReviews.Items[0].UserRating);
+    }
+
+    [Fact]
     public async Task UserBCannotUpdateUserAReview()
     {
         await fixture.ResetAsync();

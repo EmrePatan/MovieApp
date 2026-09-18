@@ -42,6 +42,7 @@ public interface IReviewService
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default);
 
     Task<PaginatedResult<ReviewResult>> GetTvShowReviewsAsync(
@@ -49,5 +50,6 @@ public interface IReviewService
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default);
 }

@@ -141,6 +141,7 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default)
     {
         var reviewsQuery = dbContext.Reviews
@@ -158,6 +159,7 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             page,
             pageSize,
             sort,
+            ratingStars,
             cancellationToken);
     }
 
@@ -166,6 +168,7 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default)
     {
         var reviewsQuery = dbContext.Reviews
@@ -183,6 +186,7 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             page,
             pageSize,
             sort,
+            ratingStars,
             cancellationToken);
     }
 
@@ -192,6 +196,7 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars,
         CancellationToken cancellationToken)
     {
         var query =
@@ -199,6 +204,14 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             join rating in ratingsQuery on review.UserId equals rating.UserId into ratings
             from rating in ratings.DefaultIfEmpty()
             select new { review, rating };
+
+        if (ratingStars.HasValue)
+        {
+            var stars = ratingStars.Value;
+            query = query.Where(item =>
+                item.rating != null &&
+                (item.rating.Score + 1) / 2 == stars);
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
 

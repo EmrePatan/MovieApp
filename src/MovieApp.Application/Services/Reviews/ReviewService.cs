@@ -161,9 +161,11 @@ public sealed class ReviewService(
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default)
     {
         ValidatePagination(page, pageSize);
+        ValidateRatingStars(ratingStars);
         await EnsureMovieExistsAsync(movieId, cancellationToken);
 
         var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForMovieAsync(
@@ -171,6 +173,7 @@ public sealed class ReviewService(
             page,
             pageSize,
             sort,
+            ratingStars,
             cancellationToken);
 
         return ToPaginatedResult(reviews, page, pageSize, totalCount);
@@ -181,9 +184,11 @@ public sealed class ReviewService(
         int page,
         int pageSize,
         ReviewListSort sort,
+        int? ratingStars = null,
         CancellationToken cancellationToken = default)
     {
         ValidatePagination(page, pageSize);
+        ValidateRatingStars(ratingStars);
         await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
 
         var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForTvShowAsync(
@@ -191,9 +196,19 @@ public sealed class ReviewService(
             page,
             pageSize,
             sort,
+            ratingStars,
             cancellationToken);
 
         return ToPaginatedResult(reviews, page, pageSize, totalCount);
+    }
+
+    private static void ValidateRatingStars(int? ratingStars)
+    {
+        var validationResult = ReviewListValidator.ValidateRatingStars(ratingStars);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ErrorMessage!);
+        }
     }
 
     private static void ValidateContent(string content)

@@ -45,4 +45,16 @@ public static class ReviewListValidator
                 return false;
         }
     }
+
+    public static SearchQueryValidationResult ValidateRatingStars(int? ratingStars)
+    {
+        if (!ratingStars.HasValue)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        return ratingStars.Value is >= 1 and <= 5
+            ? SearchQueryValidationResult.Success()
+            : SearchQueryValidationResult.Failure("RatingStars must be between 1 and 5.");
+    }
 }

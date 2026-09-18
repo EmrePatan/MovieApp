@@ -312,6 +312,7 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         [FromQuery] string? sort,
+        [FromQuery] int? ratingStars,
         CancellationToken cancellationToken)
     {
         try
@@ -322,6 +323,12 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
                 throw new ValidationException(sortValidation.ErrorMessage!);
             }
 
+            var ratingStarsValidation = ReviewListValidator.ValidateRatingStars(ratingStars);
+            if (!ratingStarsValidation.IsValid)
+            {
+                throw new ValidationException(ratingStarsValidation.ErrorMessage!);
+            }
+
             _ = ReviewListValidator.TryParseSort(sort, out var parsedSort);
 
             var result = await reviewService.GetMovieReviewsAsync(
@@ -329,6 +336,7 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
                 parsedSort,
+                ratingStars,
                 cancellationToken);
 
             return Ok(ReviewContractMapper.ToListResponse(result));
@@ -359,6 +367,7 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         [FromQuery] string? sort,
+        [FromQuery] int? ratingStars,
         CancellationToken cancellationToken)
     {
         try
@@ -369,6 +378,12 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
                 throw new ValidationException(sortValidation.ErrorMessage!);
             }
 
+            var ratingStarsValidation = ReviewListValidator.ValidateRatingStars(ratingStars);
+            if (!ratingStarsValidation.IsValid)
+            {
+                throw new ValidationException(ratingStarsValidation.ErrorMessage!);
+            }
+
             _ = ReviewListValidator.TryParseSort(sort, out var parsedSort);
 
             var result = await reviewService.GetTvShowReviewsAsync(
@@ -376,6 +391,7 @@ public sealed class ReviewsController(IReviewService reviewService) : Controller
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
                 parsedSort,
+                ratingStars,
                 cancellationToken);
 
             return Ok(ReviewContractMapper.ToListResponse(result));
