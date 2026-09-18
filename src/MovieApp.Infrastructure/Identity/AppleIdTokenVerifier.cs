@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Linq;
+using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MovieApp.Application.Abstractions.Identity;
@@ -13,7 +14,8 @@ namespace MovieApp.Infrastructure.Identity;
 
 public sealed class AppleIdTokenVerifier(
     IOptions<SocialAuthOptions> options,
-    AppleJwksProvider jwksProvider) : ISocialIdentityTokenVerifier
+    AppleJwksProvider jwksProvider,
+    ILogger<AppleIdTokenVerifier> logger) : ISocialIdentityTokenVerifier
 {
     private const string AppleIssuer = "https://appleid.apple.com";
 
@@ -35,7 +37,10 @@ public sealed class AppleIdTokenVerifier(
         }
 
         var signingKeys = await jwksProvider.GetSigningKeysAsync(cancellationToken);
-        var handler = new JwtSecurityTokenHandler();
+        var handler = new JwtSecurityTokenHandler
+        {
+            MapInboundClaims = false,
+        };
 
         ClaimsPrincipal principal;
         try
@@ -55,18 +60,19 @@ public sealed class AppleIdTokenVerifier(
                 },
                 out _);
         }
-        catch (SecurityTokenException)
+        catch (SecurityTokenException exception)
         {
+            LogValidationFailure(handler, identityToken, clientIds, exception);
             throw new AuthenticationException("Apple identity token is invalid.");
         }
 
-        var subject = principal.FindFirst("sub")?.Value;
+        var subject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         if (string.IsNullOrWhiteSpace(subject))
         {
             throw new AuthenticationException("Apple identity token is invalid.");
         }
 
-        var email = principal.FindFirst("email")?.Value;
+        var email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
         var emailVerifiedClaim = principal.FindFirst("email_verified")?.Value;
         var emailVerified = string.Equals(emailVerifiedClaim, "true", StringComparison.OrdinalIgnoreCase);
 
@@ -76,5 +82,38 @@ public sealed class AppleIdTokenVerifier(
             email,
             emailVerified,
             null);
+    }
+
+    private void LogValidationFailure(
+        JwtSecurityTokenHandler handler,
+        string identityToken,
+        string[] configuredAudiences,
+        SecurityTokenException exception)
+    {
+        string tokenIssuer = "unknown";
+        string tokenAudiences = "unknown";
+        string tokenExpiresAtUtc = "unknown";
+
+        try
+        {
+            var jwt = handler.ReadJwtToken(identityToken);
+            tokenIssuer = jwt.Issuer ?? "unknown";
+            tokenAudiences = jwt.Audiences.Any()
+                ? string.Join(", ", jwt.Audiences)
+                : "none";
+            tokenExpiresAtUtc = jwt.ValidTo.ToUniversalTime().ToString("O");
+        }
+        catch (Exception)
+        {
+            // Best-effort diagnostics only.
+        }
+
+        AppleIdTokenVerifierLogMessages.LogValidationFailed(
+            logger,
+            exception.GetType().Name,
+            string.Join(", ", configuredAudiences),
+            tokenIssuer,
+            tokenAudiences,
+            tokenExpiresAtUtc);
     }
 }
