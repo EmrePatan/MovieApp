@@ -1,30 +1,13 @@
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.AiRecommendations;
-using MovieApp.Application.Configuration;
-using MovieApp.Application.Exceptions;
 
 namespace MovieApp.Infrastructure.AiRecommendations;
 
-internal sealed class AiRecommendationEntitlementService(
-    IOptions<AiRecommendationOptions> options,
-    IHostEnvironment hostEnvironment) : IAiRecommendationEntitlementService
+internal sealed class AiRecommendationEntitlementService : IAiRecommendationEntitlementService
 {
     public Task EnsurePremiumEntitledAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var entitlement = options.Value.Entitlement;
-
-        if (entitlement.PremiumUserIds.Contains(userId))
-        {
-            return Task.CompletedTask;
-        }
-
-        if (hostEnvironment.IsDevelopment() && entitlement.AllowDevelopmentBypass)
-        {
-            return Task.CompletedTask;
-        }
-
-        throw new AiRecommendationEntitlementException(
-            "Premium subscription is required for AI movie recommendations.");
+        // AI Recommendations V1 is available to every authenticated user.
+        // Premium entitlement options and exception mapping remain for future premium-only features.
+        return Task.CompletedTask;
     }
 }

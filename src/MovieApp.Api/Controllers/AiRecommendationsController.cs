@@ -4,6 +4,7 @@ using MovieApp.Api.Mapping;
 using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Contracts.AiRecommendations;
 
 namespace MovieApp.Api.Controllers;
@@ -118,7 +119,7 @@ public sealed class AiRecommendationsController(
                 StatusCodes.Status400BadRequest => "Invalid request.",
                 StatusCodes.Status403Forbidden => "Premium required.",
                 StatusCodes.Status422UnprocessableEntity => "No valid recommendations.",
-                StatusCodes.Status429TooManyRequests => "Quota exceeded.",
+                StatusCodes.Status429TooManyRequests => AiRecommendationQuotaMessages.DailyLimitTitle,
                 StatusCodes.Status503ServiceUnavailable => "Service unavailable.",
                 _ => "Request failed."
             },

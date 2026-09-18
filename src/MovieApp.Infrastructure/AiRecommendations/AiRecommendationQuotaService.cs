@@ -6,6 +6,7 @@ using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.AiRecommendations;
+using static MovieApp.Application.Models.AiRecommendations.AiRecommendationQuotaMessages;
 using MovieApp.Infrastructure.Configuration;
 using StackExchange.Redis;
 
@@ -224,12 +225,13 @@ internal sealed class AiRecommendationQuotaService : IAiRecommendationQuotaServi
         }
     }
 
-    private static AiRecommendationQuotaExceededException CreateQuotaExceededException(RedisResult[]? result)
+    private AiRecommendationQuotaExceededException CreateQuotaExceededException(RedisResult[]? result)
     {
         var reason = result is { Length: > 1 } ? (int)result[1] : 0;
+        var dailyLimit = _options.Value.UserDailyMessageLimit;
         var message = reason switch
         {
-            1 => "Daily AI recommendation message limit reached.",
+            1 => DailyUserLimitReached(dailyLimit),
             2 => "Global AI recommendation capacity reached.",
             3 => "AI recommendation rate limit reached.",
             _ => "AI recommendation quota exceeded."
@@ -286,7 +288,8 @@ internal sealed class InMemoryAiRecommendationQuotaStore
 
             if (userState.Committed + userState.Reserved >= settings.UserDailyMessageLimit)
             {
-                throw new AiRecommendationQuotaExceededException("Daily AI recommendation message limit reached.");
+                throw new AiRecommendationQuotaExceededException(
+                    DailyUserLimitReached(settings.UserDailyMessageLimit));
             }
 
             if (globalState.Committed + globalState.Reserved >= settings.GlobalDailyRequestCap)

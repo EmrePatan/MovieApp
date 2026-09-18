@@ -39,24 +39,9 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     }
 
     [Fact]
-    public async Task PostReturnsForbiddenWhenNotEntitled()
+    public async Task PostReturnsSuccessfulAiResponseForAuthenticatedUser()
     {
         fixture.Factory.ResetTestState();
-
-        var token = await RegisterAndGetTokenAsync();
-
-        var response = await SendAuthorizedAsync(
-            new AiRecommendationRequest("mystery movie please", null),
-            token);
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task PostReturnsSuccessfulAiResponseForEntitledUser()
-    {
-        fixture.Factory.ResetTestState();
-        fixture.Factory.AllowEntitlement = true;
 
         var token = await RegisterAndGetTokenAsync();
 
@@ -70,6 +55,7 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
         Assert.NotNull(payload);
         Assert.True(payload.IsAiGenerated);
         Assert.Equal(1, payload.ReturnedCount);
+        Assert.Equal(2, payload.QuotaRemaining);
         Assert.Equal("Arrival", payload.Recommendations[0].Title);
     }
 
@@ -77,7 +63,6 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     public async Task PostReturns422WhenValidationProducesZeroResults()
     {
         fixture.Factory.ResetTestState();
-        fixture.Factory.AllowEntitlement = true;
         fixture.Factory.ProviderResult = new AiProviderGenerationResult(
             [new AiProviderSuggestion("Unknown", 2099, "movie", null, "Reason")],
             null);
@@ -94,6 +79,62 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(json.GetProperty("isAiGenerated").GetBoolean());
         Assert.Equal(0, json.GetProperty("returnedCount").GetInt32());
+        Assert.Equal(2, json.GetProperty("quotaRemaining").GetInt32());
+    }
+
+    [Fact]
+    public async Task PostReturns429WhenDailyQuotaIsExhausted()
+    {
+        fixture.Factory.ResetTestState();
+
+        var token = await RegisterAndGetTokenAsync();
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var success = await SendAuthorizedAsync(
+                new AiRecommendationRequest($"mystery movie attempt {attempt}", null),
+                token);
+            success.EnsureSuccessStatusCode();
+        }
+
+        var response = await SendAuthorizedAsync(
+            new AiRecommendationRequest("one more mystery movie", null),
+            token);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(AiRecommendationQuotaMessages.DailyLimitTitle, problem.GetProperty("title").GetString());
+        Assert.Contains(
+            "3 AI recommendation requests",
+            problem.GetProperty("detail").GetString(),
+            StringComparison.Ordinal);
+        Assert.Contains("tomorrow", problem.GetProperty("detail").GetString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostReturns503WithoutConsumingQuotaWhenProviderUnavailable()
+    {
+        fixture.Factory.ResetTestState();
+        fixture.Factory.ProviderShouldFail = true;
+
+        var token = await RegisterAndGetTokenAsync();
+
+        var failed = await SendAuthorizedAsync(
+            new AiRecommendationRequest("mystery movie please", null),
+            token);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+
+        fixture.Factory.ProviderShouldFail = false;
+
+        var retry = await SendAuthorizedAsync(
+            new AiRecommendationRequest("mystery movie retry", null),
+            token);
+        retry.EnsureSuccessStatusCode();
+
+        var payload = await retry.Content.ReadFromJsonAsync<AiRecommendationResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(2, payload.QuotaRemaining);
     }
 
     private async Task<string> RegisterAndGetTokenAsync()
@@ -150,17 +191,17 @@ public sealed class AiRecommendationsApiFixture : IAsyncLifetime
 
 public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFactory<Program>
 {
-    public bool AllowEntitlement { get; set; }
-
     public AiProviderGenerationResult ProviderResult { get; set; } = CreateDefaultProviderResult();
 
     public AiValidationResult ValidatorResult { get; set; } = CreateDefaultValidatorResult();
 
+    public bool ProviderShouldFail { get; set; }
+
     public void ResetTestState()
     {
-        AllowEntitlement = false;
         ProviderResult = CreateDefaultProviderResult();
         ValidatorResult = CreateDefaultValidatorResult();
+        ProviderShouldFail = false;
     }
 
     private static AiProviderGenerationResult CreateDefaultProviderResult() => new(
@@ -222,7 +263,6 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
 
             services.AddSingleton<IAiMovieRecommendationProvider, TestAiProvider>();
             services.AddSingleton<IAiMovieRecommendationValidator, TestAiValidator>();
-            services.AddSingleton<IAiRecommendationEntitlementService, TestEntitlementService>();
         });
     }
 
@@ -230,8 +270,15 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
     {
         public Task<AiProviderGenerationResult> GenerateAsync(
             AiProviderRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(factory.ProviderResult);
+            CancellationToken cancellationToken = default)
+        {
+            if (factory.ProviderShouldFail)
+            {
+                throw new MovieApp.Application.Exceptions.AiRecommendationProviderException("Provider failed.");
+            }
+
+            return Task.FromResult(factory.ProviderResult);
+        }
     }
 
     private sealed class TestAiValidator(AiRecommendationsWebApplicationFactory factory) : IAiMovieRecommendationValidator
@@ -243,19 +290,5 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
             int maxReturnedCount,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(factory.ValidatorResult);
-    }
-
-    private sealed class TestEntitlementService(AiRecommendationsWebApplicationFactory factory)
-        : IAiRecommendationEntitlementService
-    {
-        public Task EnsurePremiumEntitledAsync(Guid userId, CancellationToken cancellationToken = default)
-        {
-            if (factory.AllowEntitlement)
-            {
-                return Task.CompletedTask;
-            }
-
-            throw new MovieApp.Application.Exceptions.AiRecommendationEntitlementException("Premium required.");
-        }
     }
 }

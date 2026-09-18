@@ -12,16 +12,40 @@ public sealed class AiMovieRecommendationServiceTests
     private readonly Guid _userId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     [Fact]
-    public async Task GetRecommendationsAsyncThrowsWhenNotEntitled()
+    public async Task GetRecommendationsAsyncSucceedsWithoutPremiumEntitlement()
     {
         var service = CreateService(
-            new FakeEntitlementService(shouldAllow: false),
+            new FakeEntitlementService(),
             new FakeQuotaService(),
             new FakeProvider(),
-            new FakeValidator());
+            new FakeValidator(
+                new AiValidationResult(
+                    [
+                        new AiValidatedRecommendation(
+                            new ResolvedMovieIdentity(
+                                Guid.NewGuid(),
+                                1,
+                                "Arrival",
+                                2016,
+                                116,
+                                "Arrival",
+                                "Overview",
+                                null,
+                                null,
+                                new DateOnly(2016, 1, 1),
+                                8m,
+                                100,
+                                ["Science Fiction"]),
+                            "Mind-bending")
+                    ],
+                    1,
+                    1,
+                    0,
+                    false)));
 
-        await Assert.ThrowsAsync<AiRecommendationEntitlementException>(() =>
-            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+
+        Assert.Equal(1, result.ReturnedCount);
     }
 
     [Fact]

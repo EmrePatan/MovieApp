@@ -81,7 +81,7 @@ internal static class ApiExceptionMappings
             case MovieApp.Application.Exceptions.AiRecommendationQuotaExceededException quota:
                 mapping = new ApiExceptionMapping(
                     StatusCodes.Status429TooManyRequests,
-                    "Quota exceeded.",
+                    MovieApp.Application.Models.AiRecommendations.AiRecommendationQuotaMessages.DailyLimitTitle,
                     quota.Message,
                     ApiErrorCodes.TooManyRequests,
                     LogAsError: false);
