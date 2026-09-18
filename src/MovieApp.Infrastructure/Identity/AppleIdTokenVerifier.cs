@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
@@ -36,13 +37,17 @@ public sealed class AppleIdTokenVerifier(
             throw new AuthenticationException("Apple sign-in is not configured.");
         }
 
+        var jwksStopwatch = Stopwatch.StartNew();
         var signingKeys = await jwksProvider.GetSigningKeysAsync(cancellationToken);
+        var jwksMs = jwksStopwatch.ElapsedMilliseconds;
+
         var handler = new JwtSecurityTokenHandler
         {
             MapInboundClaims = false,
         };
 
         ClaimsPrincipal principal;
+        var validateStopwatch = Stopwatch.StartNew();
         try
         {
             principal = handler.ValidateToken(
@@ -64,6 +69,10 @@ public sealed class AppleIdTokenVerifier(
         {
             LogValidationFailure(handler, identityToken, clientIds, exception);
             throw new AuthenticationException("Apple identity token is invalid.");
+        }
+        finally
+        {
+            AppleIdTokenVerifierLogMessages.LogTokenValidation(logger, jwksMs, validateStopwatch.ElapsedMilliseconds);
         }
 
         var subject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;

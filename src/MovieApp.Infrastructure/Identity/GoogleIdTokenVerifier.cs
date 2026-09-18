@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Google.Apis.Auth;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Exceptions;
@@ -8,7 +10,9 @@ using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.Infrastructure.Identity;
 
-public sealed class GoogleIdTokenVerifier(IOptions<SocialAuthOptions> options) : ISocialIdentityTokenVerifier
+public sealed class GoogleIdTokenVerifier(
+    IOptions<SocialAuthOptions> options,
+    ILogger<GoogleIdTokenVerifier> logger) : ISocialIdentityTokenVerifier
 {
     public string Provider => ExternalLoginProviders.Google;
 
@@ -28,6 +32,7 @@ public sealed class GoogleIdTokenVerifier(IOptions<SocialAuthOptions> options) :
         }
 
         GoogleJsonWebSignature.Payload payload;
+        var validationStopwatch = Stopwatch.StartNew();
         try
         {
             payload = await GoogleJsonWebSignature.ValidateAsync(
@@ -40,6 +45,10 @@ public sealed class GoogleIdTokenVerifier(IOptions<SocialAuthOptions> options) :
         catch (InvalidJwtException)
         {
             throw new AuthenticationException("Google identity token is invalid.");
+        }
+        finally
+        {
+            GoogleIdTokenVerifierLogMessages.LogTokenValidation(logger, validationStopwatch.ElapsedMilliseconds);
         }
 
         if (string.IsNullOrWhiteSpace(payload.Subject))

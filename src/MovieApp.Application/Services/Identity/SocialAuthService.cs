@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -13,7 +15,8 @@ public sealed class SocialAuthService(
     IUserExternalLoginRepository externalLoginRepository,
     IUserRepository userRepository,
     IEnumerable<ISocialIdentityTokenVerifier> tokenVerifiers,
-    ITokenService tokenService) : ISocialAuthService
+    ITokenService tokenService,
+    ILogger<SocialAuthService> logger) : ISocialAuthService
 {
     private const string ExistingPasswordAccountMessage =
         "An account with this email already exists. Sign in with your password to continue.";
@@ -37,60 +40,120 @@ public sealed class SocialAuthService(
             throw new ValidationException("Unsupported social provider.");
         }
 
-        VerifiedSocialIdentity identity;
+        var totalStopwatch = Stopwatch.StartNew();
+        var perf = new SocialAuthPerfState();
+        var shouldLogPerf = false;
+
         try
         {
-            identity = await verifier.VerifyIdentityTokenAsync(request.IdentityToken, cancellationToken);
+            shouldLogPerf = true;
+
+            VerifiedSocialIdentity identity;
+            try
+            {
+                var tokenStopwatch = Stopwatch.StartNew();
+                identity = await verifier.VerifyIdentityTokenAsync(request.IdentityToken, cancellationToken);
+                perf.TokenVerificationMs = tokenStopwatch.ElapsedMilliseconds;
+            }
+            catch (AuthenticationException)
+            {
+                perf.Complete("authentication_failed");
+                throw;
+            }
+            catch (Exception)
+            {
+                perf.Complete("authentication_failed");
+                throw new AuthenticationException("Social authentication failed.");
+            }
+
+            if (!string.Equals(identity.Provider, provider, StringComparison.Ordinal))
+            {
+                perf.Complete("authentication_failed");
+                throw new AuthenticationException("Social authentication failed.");
+            }
+
+            var lookupStopwatch = Stopwatch.StartNew();
+            var existingUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
+                provider,
+                identity.Subject,
+                cancellationToken);
+            perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
+
+            if (existingUser is not null)
+            {
+                var result = await IssueAuthenticationResultAsync(existingUser, identity, perf, cancellationToken);
+                perf.Complete("existing_login");
+                return result;
+            }
+
+            if (identity.IsEmailVerified && !string.IsNullOrWhiteSpace(identity.Email))
+            {
+                lookupStopwatch.Restart();
+                var normalizedEmail = UserEmailNormalizer.Normalize(identity.Email);
+                var userByEmail = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
+                perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
+
+                if (userByEmail is not null)
+                {
+                    if (userByEmail.HasPassword)
+                    {
+                        perf.Complete("password_account_conflict");
+                        throw new ConflictException(ExistingPasswordAccountMessage);
+                    }
+
+                    var result = await LinkExternalLoginAndAuthenticateAsync(
+                        userByEmail,
+                        identity,
+                        perf,
+                        cancellationToken);
+                    perf.Complete("linked_existing_account");
+                    return result;
+                }
+            }
+
+            var createdResult = await CreateUserAndAuthenticateAsync(identity, perf, cancellationToken);
+            perf.Complete("new_user");
+            return createdResult;
         }
         catch (AuthenticationException)
         {
+            if (perf.Outcome is null)
+            {
+                perf.Complete("authentication_failed");
+            }
+
             throw;
         }
-        catch (Exception)
+        catch (ConflictException)
         {
-            throw new AuthenticationException("Social authentication failed.");
-        }
-
-        if (!string.Equals(identity.Provider, provider, StringComparison.Ordinal))
-        {
-            throw new AuthenticationException("Social authentication failed.");
-        }
-
-        var existingUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
-            provider,
-            identity.Subject,
-            cancellationToken);
-
-        if (existingUser is not null)
-        {
-            return await IssueAuthenticationResultAsync(existingUser, identity, cancellationToken);
-        }
-
-        if (identity.IsEmailVerified && !string.IsNullOrWhiteSpace(identity.Email))
-        {
-            var normalizedEmail = UserEmailNormalizer.Normalize(identity.Email);
-            var userByEmail = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
-
-            if (userByEmail is not null)
+            if (perf.Outcome is null)
             {
-                if (userByEmail.HasPassword)
-                {
-                    throw new ConflictException(ExistingPasswordAccountMessage);
-                }
+                perf.Complete("conflict");
+            }
 
-                return await LinkExternalLoginAndAuthenticateAsync(
-                    userByEmail,
-                    identity,
-                    cancellationToken);
+            throw;
+        }
+        finally
+        {
+            if (shouldLogPerf && perf.Outcome is not null)
+            {
+                SocialAuthServiceLogMessages.LogPerf(
+                    logger,
+                    provider,
+                    perf.Outcome,
+                    totalStopwatch.ElapsedMilliseconds,
+                    perf.TokenVerificationMs,
+                    perf.DbLookupMs,
+                    perf.PersistenceMs,
+                    perf.IssueTokenMs);
             }
         }
-
-        return await CreateUserAndAuthenticateAsync(identity, cancellationToken);
     }
 
     private async Task<AuthenticationResult> LinkExternalLoginAndAuthenticateAsync(
         User user,
         VerifiedSocialIdentity identity,
+        SocialAuthPerfState perf,
         CancellationToken cancellationToken)
     {
         if (!user.IsActive)
@@ -110,30 +173,37 @@ public sealed class SocialAuthService(
 
         try
         {
+            var persistenceStopwatch = Stopwatch.StartNew();
             await externalLoginRepository.CreateAsync(externalLogin, cancellationToken);
+            perf.PersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
         }
         catch (ConflictException)
         {
+            var lookupStopwatch = Stopwatch.StartNew();
             var linkedUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
                 identity.Provider,
                 identity.Subject,
                 cancellationToken);
+            perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
 
             if (linkedUser is null)
             {
                 throw;
             }
 
-            return await IssueAuthenticationResultAsync(linkedUser, identity, cancellationToken);
+            return await IssueAuthenticationResultAsync(linkedUser, identity, perf, cancellationToken);
         }
 
+        var updateStopwatch = Stopwatch.StartNew();
         await userRepository.UpdateAsync(user, cancellationToken);
+        perf.PersistenceMs += updateStopwatch.ElapsedMilliseconds;
 
-        return await IssueAuthenticationResultAsync(user, identity, cancellationToken);
+        return await IssueAuthenticationResultAsync(user, identity, perf, cancellationToken);
     }
 
     private async Task<AuthenticationResult> CreateUserAndAuthenticateAsync(
         VerifiedSocialIdentity identity,
+        SocialAuthPerfState perf,
         CancellationToken cancellationToken)
     {
         var utcNow = DateTime.UtcNow;
@@ -156,28 +226,35 @@ public sealed class SocialAuthService(
 
         try
         {
+            var persistenceStopwatch = Stopwatch.StartNew();
             await userRepository.CreateAsync(user, cancellationToken);
             await externalLoginRepository.CreateAsync(externalLogin, cancellationToken);
+            perf.PersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
         }
         catch (ConflictException)
         {
+            var lookupStopwatch = Stopwatch.StartNew();
             var linkedUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
                 identity.Provider,
                 identity.Subject,
                 cancellationToken);
+            perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
 
             if (linkedUser is not null)
             {
-                return await IssueAuthenticationResultAsync(linkedUser, identity, cancellationToken);
+                return await IssueAuthenticationResultAsync(linkedUser, identity, perf, cancellationToken);
             }
 
             if (identity.IsEmailVerified && !string.IsNullOrWhiteSpace(identity.Email))
             {
                 var normalizedEmail = UserEmailNormalizer.Normalize(identity.Email);
+                lookupStopwatch.Restart();
                 var userByEmail = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
+                perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
+
                 if (userByEmail is not null && !userByEmail.HasPassword)
                 {
-                    return await LinkExternalLoginAndAuthenticateAsync(userByEmail, identity, cancellationToken);
+                    return await LinkExternalLoginAndAuthenticateAsync(userByEmail, identity, perf, cancellationToken);
                 }
 
                 if (userByEmail is not null && userByEmail.HasPassword)
@@ -189,12 +266,13 @@ public sealed class SocialAuthService(
             throw;
         }
 
-        return IssueAuthenticationResult(user);
+        return IssueAuthenticationResult(user, perf);
     }
 
     private async Task<AuthenticationResult> IssueAuthenticationResultAsync(
         User user,
         VerifiedSocialIdentity identity,
+        SocialAuthPerfState perf,
         CancellationToken cancellationToken)
     {
         if (!user.IsActive)
@@ -204,14 +282,19 @@ public sealed class SocialAuthService(
 
         user.SetInitialDisplayNameIfEmpty(identity.DisplayName, DateTime.UtcNow);
         user.RecordSuccessfulLogin(DateTime.UtcNow);
-        await userRepository.UpdateAsync(user, cancellationToken);
 
-        return IssueAuthenticationResult(user);
+        var persistenceStopwatch = Stopwatch.StartNew();
+        await userRepository.UpdateAsync(user, cancellationToken);
+        perf.PersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
+
+        return IssueAuthenticationResult(user, perf);
     }
 
-    private AuthenticationResult IssueAuthenticationResult(User user)
+    private AuthenticationResult IssueAuthenticationResult(User user, SocialAuthPerfState perf)
     {
+        var issueTokenStopwatch = Stopwatch.StartNew();
         var token = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
+        perf.IssueTokenMs += issueTokenStopwatch.ElapsedMilliseconds;
 
         return new AuthenticationResult(
             token.AccessToken,
@@ -238,5 +321,20 @@ public sealed class SocialAuthService(
 
         var atIndex = email.IndexOf('@');
         return atIndex > 0 ? email[..atIndex] : email;
+    }
+
+    private sealed class SocialAuthPerfState
+    {
+        public long TokenVerificationMs { get; set; }
+
+        public long DbLookupMs { get; set; }
+
+        public long PersistenceMs { get; set; }
+
+        public long IssueTokenMs { get; set; }
+
+        public string? Outcome { get; private set; }
+
+        public void Complete(string outcome) => Outcome = outcome;
     }
 }

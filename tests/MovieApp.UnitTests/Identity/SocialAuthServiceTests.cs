@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Identity;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Users;
@@ -238,7 +239,8 @@ public sealed class SocialAuthServiceTests
             externalLoginRepository,
             userRepository,
             verifiers,
-            new FakeTokenService());
+            new FakeTokenService(),
+            NullLogger<SocialAuthService>.Instance);
 
     private sealed class FakeSocialIdentityTokenVerifier : ISocialIdentityTokenVerifier
     {

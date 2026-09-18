@@ -84,7 +84,10 @@ public sealed class AppleIdTokenVerifierTests
         var memoryCache = new MemoryCache(new MemoryCacheOptions());
         memoryCache.Set(AppleJwksCacheKey, CreateJsonWebKeySet(signingKey), TimeSpan.FromHours(12));
 
-        var jwksProvider = new AppleJwksProvider(new TestHttpClientFactory(), memoryCache);
+        var jwksProvider = new AppleJwksProvider(
+            new TestHttpClientFactory(),
+            memoryCache,
+            NullLogger<AppleJwksProvider>.Instance);
         return new AppleIdTokenVerifier(options, jwksProvider, NullLogger<AppleIdTokenVerifier>.Instance);
     }
 
