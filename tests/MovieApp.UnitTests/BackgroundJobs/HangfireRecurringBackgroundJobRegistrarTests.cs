@@ -204,5 +204,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             {
                 Enabled = tvUpcomingEpisodeSyncEnabled
             }),
+            Options.Create(new HotThisWeekTrendingRefreshOptions
+            {
+                Enabled = true
+            }),
             NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 }

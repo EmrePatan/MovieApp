@@ -15,6 +15,8 @@ public static class RecurringJobIds
     public const string TvUpcomingEpisodeSync = "movieapp:tv-upcoming-episode-sync";
     public const string NotificationInboxCleanup = "movieapp:notification-inbox-cleanup";
 
+    public const string HotThisWeekTrendingRefresh = "movieapp:hot-this-week-trending-refresh";
+
     public static IReadOnlyList<string> All =>
     [
         TmdbTvChanges,
@@ -27,6 +29,7 @@ public static class RecurringJobIds
         PushReceipts,
         CatalogKeywordBackfill,
         TvUpcomingEpisodeSync,
-        NotificationInboxCleanup
+        NotificationInboxCleanup,
+        HotThisWeekTrendingRefresh
     ];
 }

@@ -1,8 +1,8 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
-using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
 
@@ -10,8 +10,10 @@ namespace MovieApp.Application.Services.Home;
 
 public sealed class HotThisWeekService(
     IDiscoveryService discoveryService,
+    IHotThisWeekTrendingSnapshotService trendingSnapshotService,
     ICacheService cacheService,
-    IOptions<HomeOptions> options) : IHotThisWeekService
+    IOptions<HomeOptions> options,
+    ILogger<HotThisWeekService> logger) : IHotThisWeekService
 {
     private readonly HomeOptions _options = options.Value;
 
@@ -32,11 +34,32 @@ public sealed class HotThisWeekService(
             return cached.Items;
         }
 
-        var discovery = await discoveryService.GetTrendingAsync(
-            new DiscoveryCriteria(type, 1, maxItems),
-            cancellationToken);
+        var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
+        IReadOnlyList<SearchItem> items;
+        DateTimeOffset? snapshotRefreshedAt = null;
 
-        var items = discovery.Items;
+        if (snapshot is { Items.Count: > 0 })
+        {
+            items = FilterAndTake(snapshot.Items, type, maxItems);
+            snapshotRefreshedAt = snapshot.RefreshedAt;
+            HotThisWeekTrendingSnapshotLogMessages.LogReadSource(
+                logger,
+                HotThisWeekReadSources.WeeklySnapshot,
+                items.Count,
+                snapshotRefreshedAt);
+        }
+        else
+        {
+            var discovery = await discoveryService.GetTrendingAsync(
+                new DiscoveryCriteria(type, 1, maxItems),
+                cancellationToken);
+            items = discovery.Items;
+            HotThisWeekTrendingSnapshotLogMessages.LogReadSource(
+                logger,
+                HotThisWeekReadSources.CatalogFallback,
+                items.Count,
+                null);
+        }
 
         await cacheService.SetAsync(
             cacheKey,
@@ -45,6 +68,21 @@ public sealed class HotThisWeekService(
             cancellationToken);
 
         return items;
+    }
+
+    internal static List<SearchItem> FilterAndTake(
+        IReadOnlyList<SearchItem> items,
+        SearchContentType type,
+        int maxItems)
+    {
+        IEnumerable<SearchItem> filtered = type switch
+        {
+            SearchContentType.Movie => items.Where(item => item.Type == "movie"),
+            SearchContentType.Tv => items.Where(item => item.Type == "tv"),
+            _ => items.Where(item => item.Type is "movie" or "tv"),
+        };
+
+        return filtered.Take(maxItems).ToList();
     }
 }
 

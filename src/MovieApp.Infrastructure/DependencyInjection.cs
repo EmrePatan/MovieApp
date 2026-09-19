@@ -89,6 +89,9 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<TvUpcomingEpisodeSyncOptions>, TvUpcomingEpisodeSyncOptionsValidator>();
 
+        services.Configure<HotThisWeekTrendingRefreshOptions>(
+            configuration.GetSection(HotThisWeekTrendingRefreshOptions.SectionName));
+
         services.AddOptions<ReleaseRegionOptions>()
             .Bind(configuration.GetSection(ReleaseRegionOptions.SectionName))
             .ValidateOnStart();

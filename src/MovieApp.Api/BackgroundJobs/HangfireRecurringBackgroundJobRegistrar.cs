@@ -11,6 +11,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
     IOptions<PushNotificationsOptions> pushNotificationsOptions,
     IOptions<CatalogKeywordBackfillOptions> catalogKeywordBackfillOptions,
     IOptions<TvUpcomingEpisodeSyncOptions> tvUpcomingEpisodeSyncOptions,
+    IOptions<HotThisWeekTrendingRefreshOptions> hotThisWeekTrendingRefreshOptions,
     ILogger<HangfireRecurringBackgroundJobRegistrar> logger) : IRecurringBackgroundJobRegistrar
 {
     private static readonly RecurringJobOptions UtcOptions = new()
@@ -159,6 +160,21 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             SkipRecurringJob(
                 RecurringJobIds.NotificationInboxCleanup,
                 "NotificationInboxCleanupEnabled=false");
+        }
+
+        if (hotThisWeekTrendingRefreshOptions.Value.Enabled)
+        {
+            recurringJobManager.AddOrUpdate<HotThisWeekTrendingRefreshJob>(
+                RecurringJobIds.HotThisWeekTrendingRefresh,
+                job => job.ExecuteAsync(),
+                Cron.HourInterval(6),
+                UtcOptions);
+        }
+        else
+        {
+            SkipRecurringJob(
+                RecurringJobIds.HotThisWeekTrendingRefresh,
+                "HotThisWeekTrendingRefresh:Enabled=false");
         }
     }
 

@@ -1,7 +1,8 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
-using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
@@ -28,73 +29,129 @@ public sealed class HotThisWeekServiceTests
     }
 
     [Fact]
-    public async Task GetItemsAsyncCachesCatalogTrendingResults()
+    public async Task GetItemsAsyncReadsWeeklySnapshotWithoutCallingDiscovery()
     {
         var cache = new TrackingCacheService();
         var discovery = new RecordingDiscoveryService(CreateTrendingItems());
-        var service = CreateService(cache, discovery);
+        var snapshot = new RecordingTrendingSnapshotService(CreateSnapshotItems());
+        var service = CreateService(cache, discovery, snapshot);
 
-        var first = await service.GetItemsAsync(SearchContentType.All, 5);
-        var second = await service.GetItemsAsync(SearchContentType.All, 5);
+        var items = await service.GetItemsAsync(SearchContentType.All, 5);
 
-        Assert.Equal(3, first.Count);
-        Assert.Equal(first.Select(item => item.Id), second.Select(item => item.Id));
-        Assert.Equal(2, cache.GetCount);
-        Assert.Equal(1, cache.SetCount);
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(
+            ["Weekly Movie One", "Weekly Show One", "Weekly Movie Two"],
+            items.Select(item => item.Title).ToList());
+        Assert.Equal(0, discovery.TrendingCallCount);
+        Assert.Equal(1, snapshot.GetSnapshotCallCount);
     }
 
     [Fact]
-    public async Task GetItemsAsyncDoesNotInvokeTmdbTrendingProvider()
+    public async Task GetItemsAsyncUsesCatalogFallbackWhenSnapshotMissing()
     {
         var discovery = new RecordingDiscoveryService(CreateTrendingItems());
-        var service = CreateService(new TrackingCacheService(), discovery);
+        var service = CreateService(new TrackingCacheService(), discovery, new RecordingTrendingSnapshotService(null));
 
         var items = await service.GetItemsAsync(SearchContentType.All, 5);
 
         Assert.Equal(3, items.Count);
         Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(["Trending Movie One", "Trending Show One", "Trending Movie Two"], items.Select(item => item.Title).ToList());
     }
 
     [Fact]
-    public async Task GetItemsAsyncPopulatesHeroFromCatalogTrending()
+    public async Task GetItemsAsyncFiltersSnapshotByMovieType()
     {
-        var discovery = new RecordingDiscoveryService(CreateTrendingItems());
-        var service = CreateService(new TrackingCacheService(), discovery);
+        var service = CreateService(
+            new TrackingCacheService(),
+            new RecordingDiscoveryService([]),
+            new RecordingTrendingSnapshotService(CreateSnapshotItems()));
+
+        var items = await service.GetItemsAsync(SearchContentType.Movie, 5);
+
+        Assert.Equal(
+            ["Weekly Movie One", "Weekly Movie Two"],
+            items.Select(item => item.Title).ToList());
+        Assert.All(items, item => Assert.Equal("movie", item.Type));
+    }
+
+    [Fact]
+    public async Task GetItemsAsyncFiltersSnapshotByTvType()
+    {
+        var service = CreateService(
+            new TrackingCacheService(),
+            new RecordingDiscoveryService([]),
+            new RecordingTrendingSnapshotService(CreateSnapshotItems()));
+
+        var items = await service.GetItemsAsync(SearchContentType.Tv, 5);
+
+        Assert.Single(items);
+        Assert.Equal("Weekly Show One", items[0].Title);
+        Assert.Equal("tv", items[0].Type);
+    }
+
+    [Fact]
+    public async Task GetItemsAsyncRespectsMaxItemsFromWeeklySnapshot()
+    {
+        var service = CreateService(
+            new TrackingCacheService(),
+            new RecordingDiscoveryService([]),
+            new RecordingTrendingSnapshotService(CreateSnapshotItems()));
 
         var items = await service.GetItemsAsync(SearchContentType.All, 2);
 
-        Assert.Equal(
-            ["Trending Movie One", "Trending Show One"],
-            items.Select(item => item.Title).ToList());
-        Assert.Equal(["movie", "tv"], items.Select(item => item.Type).ToList());
+        Assert.Equal(["Weekly Movie One", "Weekly Show One"], items.Select(item => item.Title).ToList());
     }
 
     [Fact]
-    public async Task GetItemsAsyncReturnsEmptyWhenCatalogTrendingIsEmpty()
+    public async Task GetItemsAsyncCachesSliceResults()
     {
-        var discovery = new RecordingDiscoveryService([]);
-        var service = CreateService(new TrackingCacheService(), discovery);
+        var cache = new TrackingCacheService();
+        var discovery = new RecordingDiscoveryService(CreateTrendingItems());
+        var snapshot = new RecordingTrendingSnapshotService(CreateSnapshotItems());
+        var service = CreateService(cache, discovery, snapshot);
 
-        var items = await service.GetItemsAsync(SearchContentType.All, 5);
+        var first = await service.GetItemsAsync(SearchContentType.All, 5);
+        var second = await service.GetItemsAsync(SearchContentType.All, 5);
 
-        Assert.Empty(items);
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(first.Select(item => item.Id), second.Select(item => item.Id));
+        Assert.Equal(2, cache.GetCount);
+        Assert.Equal(1, cache.SetCount);
+        Assert.Equal(1, snapshot.GetSnapshotCallCount);
+    }
+
+    [Fact]
+    public void FilterAndTakePreservesSnapshotOrderForAllType()
+    {
+        var items = HotThisWeekService.FilterAndTake(CreateSnapshotItems(), SearchContentType.All, 10);
+
+        Assert.Equal(
+            ["Weekly Movie One", "Weekly Show One", "Weekly Movie Two"],
+            items.Select(item => item.Title).ToList());
     }
 
     private static HotThisWeekService CreateService(
         ICacheService cache,
-        IDiscoveryService discovery) =>
+        IDiscoveryService discovery,
+        IHotThisWeekTrendingSnapshotService snapshotService) =>
         new(
             discovery,
+            snapshotService,
             cache,
-            Options.Create(new HomeOptions { HotThisWeekCacheTtlMinutes = 30 }));
+            Options.Create(new HomeOptions { HotThisWeekCacheTtlMinutes = 30 }),
+            NullLogger<HotThisWeekService>.Instance);
 
     private static IReadOnlyList<SearchItem> CreateTrendingItems() =>
     [
         CreateSearchItem("movie", Guid.Parse("11111111-1111-1111-1111-111111111101"), "Trending Movie One"),
         CreateSearchItem("tv", Guid.Parse("22222222-2222-2222-2222-222222222201"), "Trending Show One"),
         CreateSearchItem("movie", Guid.Parse("11111111-1111-1111-1111-111111111102"), "Trending Movie Two"),
+    ];
+
+    private static IReadOnlyList<SearchItem> CreateSnapshotItems() =>
+    [
+        CreateSearchItem("movie", Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "Weekly Movie One"),
+        CreateSearchItem("tv", Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Weekly Show One"),
+        CreateSearchItem("movie", Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "Weekly Movie Two"),
     ];
 
     private static SearchItem CreateSearchItem(string type, Guid id, string title) =>
@@ -151,6 +208,33 @@ public sealed class HotThisWeekServiceTests
                 SearchContentType.Tv => item.Type == "tv",
                 _ => item.Type is "movie" or "tv"
             };
+    }
+
+    private sealed class RecordingTrendingSnapshotService(IReadOnlyList<SearchItem>? items)
+        : IHotThisWeekTrendingSnapshotService
+    {
+        public int GetSnapshotCallCount { get; private set; }
+
+        public Task<HotThisWeekTrendingSnapshotEntry?> GetSnapshotAsync(
+            CancellationToken cancellationToken = default)
+        {
+            GetSnapshotCallCount++;
+
+            if (items is null || items.Count == 0)
+            {
+                return Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(null);
+            }
+
+            return Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(new HotThisWeekTrendingSnapshotEntry
+            {
+                RefreshedAt = DateTimeOffset.UtcNow.AddHours(-1),
+                Items = items,
+            });
+        }
+
+        public Task<HotThisWeekTrendingSnapshotRefreshResult> RefreshAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class TrackingCacheService : ICacheService

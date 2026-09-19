@@ -191,4 +191,15 @@ internal static partial class BackgroundJobLogMessages
         Level = LogLevel.Information,
         Message = "Background jobs disabled; recurring job registration skipped")]
     internal static partial void LogBackgroundJobsDisabled(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 6015,
+        Level = LogLevel.Information,
+        Message = "Hot This Week trending snapshot refresh completed: snapshotUpdated={SnapshotUpdated} providerItems={ProviderItemCount} mappedItems={MappedItemCount} skippedItems={SkippedItemCount}")]
+    internal static partial void LogHotThisWeekTrendingRefreshCompleted(
+        ILogger logger,
+        bool snapshotUpdated,
+        int providerItemCount,
+        int mappedItemCount,
+        int skippedItemCount);
 }

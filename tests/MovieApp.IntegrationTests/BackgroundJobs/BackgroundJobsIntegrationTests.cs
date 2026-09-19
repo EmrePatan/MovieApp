@@ -146,6 +146,10 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
             {
                 Enabled = tvUpcomingEpisodeSyncEnabled
             }),
+            Options.Create(new HotThisWeekTrendingRefreshOptions
+            {
+                Enabled = true
+            }),
             NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 
     private static async Task SeedFanoutDiscoveryDataAsync()
