@@ -10,6 +10,9 @@ public static class DiscoveryBrowseCacheKeys
 {
     public const string Prefix = "discovery-browse:";
 
+    public static string Create(DiscoverBrowseCriteria criteria, string contentLocale) =>
+        ContentLocaleCacheKeySegment.Append(Create(criteria), contentLocale);
+
     public static string Create(DiscoverBrowseCriteria criteria)
     {
         var effectiveSort = DiscoverBrowseValidator.GetEffectiveSort(criteria);

@@ -7,5 +7,6 @@ public interface IAdvancedDiscoverService
 {
     Task<PaginatedResult<SearchItem>> DiscoverAsync(
         AdvancedDiscoverCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

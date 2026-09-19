@@ -4,6 +4,7 @@ using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.Application.Services.Home;
@@ -103,25 +104,37 @@ public sealed class HomeGlobalSectionsProvider(
         var trending = await HomeSectionBuilders.BuildDiscoverySectionAsync(
             HomeSectionType.Trending,
             "Trending",
-            discoveryService.GetTrendingAsync(discoveryCriteria, cancellationToken),
+            discoveryService.GetTrendingAsync(
+                discoveryCriteria,
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellationToken),
             criteria,
             cancellationToken);
         var popular = await HomeSectionBuilders.BuildDiscoverySectionAsync(
             HomeSectionType.Popular,
             "Popular",
-            discoveryService.GetPopularAsync(discoveryCriteria, cancellationToken),
+            discoveryService.GetPopularAsync(
+                discoveryCriteria,
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellationToken),
             criteria,
             cancellationToken);
         var newReleases = await HomeSectionBuilders.BuildDiscoverySectionAsync(
             HomeSectionType.NewReleases,
             "New Releases",
-            discoveryService.GetNewReleasesAsync(discoveryCriteria, cancellationToken),
+            discoveryService.GetNewReleasesAsync(
+                discoveryCriteria,
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellationToken),
             criteria,
             cancellationToken);
         var topRated = await HomeSectionBuilders.BuildDiscoverySectionAsync(
             HomeSectionType.TopRated,
             "Top Rated",
-            discoveryService.GetTopRatedAsync(discoveryCriteria, cancellationToken),
+            discoveryService.GetTopRatedAsync(
+                discoveryCriteria,
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellationToken),
             criteria,
             cancellationToken);
         var genreSections = await HomeSectionBuilders.BuildGenreSectionsAsync(

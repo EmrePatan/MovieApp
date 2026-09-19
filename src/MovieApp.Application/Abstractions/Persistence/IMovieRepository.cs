@@ -20,6 +20,11 @@ public interface IMovieRepository
 
     Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<Guid, int>> GetTmdbIdsByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
         IReadOnlyList<int> tmdbIds,
         CancellationToken cancellationToken = default) =>

@@ -17,6 +17,7 @@ public sealed class HomeTopRatedService(
     public async Task<IReadOnlyList<SearchItem>> GetItemsAsync(
         SearchContentType type,
         int sectionSize,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         if (sectionSize <= 0)
@@ -27,6 +28,7 @@ public sealed class HomeTopRatedService(
         var fetchSize = Math.Max(sectionSize, _options.HomeRailCandidateFetchSize);
         var discovery = await discoveryService.GetTopRatedAsync(
             new DiscoveryCriteria(type, 1, fetchSize),
+            contentLocale,
             cancellationToken);
 
         var rankedCandidates = discovery.Items;

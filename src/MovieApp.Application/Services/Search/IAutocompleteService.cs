@@ -6,5 +6,6 @@ public interface IAutocompleteService
 {
     Task<IReadOnlyList<SearchSuggestion>> GetSuggestionsAsync(
         string query,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

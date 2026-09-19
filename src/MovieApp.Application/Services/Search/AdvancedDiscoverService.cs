@@ -8,6 +8,7 @@ using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.Search;
@@ -15,6 +16,7 @@ namespace MovieApp.Application.Services.Search;
 public sealed class AdvancedDiscoverService(
     IMovieDataProvider movieDataProvider,
     ITvShowDataProvider tvShowDataProvider,
+    ILocalizedListDataProvider localizedListDataProvider,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IGenreReadRepository genreReadRepository,
@@ -25,6 +27,7 @@ public sealed class AdvancedDiscoverService(
 
     public async Task<PaginatedResult<SearchItem>> DiscoverAsync(
         AdvancedDiscoverCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = AdvancedDiscoverValidator.Validate(criteria);
@@ -33,7 +36,7 @@ public sealed class AdvancedDiscoverService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = AdvancedDiscoverCacheKeys.Create(criteria);
+        var cacheKey = AdvancedDiscoverCacheKeys.Create(criteria, contentLocale);
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -44,8 +47,16 @@ public sealed class AdvancedDiscoverService(
 
         PaginatedResult<SearchItem> result = criteria.MediaType switch
         {
-            SearchContentType.Movie => await DiscoverMoviesAsync(criteria, providerCriteria, cancellationToken),
-            SearchContentType.Tv => await DiscoverTvShowsAsync(criteria, providerCriteria, cancellationToken),
+            SearchContentType.Movie => await DiscoverMoviesAsync(
+                criteria,
+                providerCriteria,
+                contentLocale,
+                cancellationToken),
+            SearchContentType.Tv => await DiscoverTvShowsAsync(
+                criteria,
+                providerCriteria,
+                contentLocale,
+                cancellationToken),
             _ => throw new ValidationException("Media type must be movie or tv.")
         };
 
@@ -103,10 +114,28 @@ public sealed class AdvancedDiscoverService(
     private async Task<PaginatedResult<SearchItem>> DiscoverMoviesAsync(
         AdvancedDiscoverCriteria criteria,
         AdvancedDiscoverProviderCriteria providerCriteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
-        var searchResult = await DiscoverMoviesSafeAsync(providerCriteria, cancellationToken);
-        var movieIds = await movieRepository.EnsureFromSummariesAsync(searchResult.Results, cancellationToken);
+        var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
+        MovieProviderSearchResult searchResult;
+        MovieProviderSearchResult ingestResult;
+
+        if (useLocalizedDisplay)
+        {
+            var localizedTask = DiscoverMoviesLocalizedSafeAsync(providerCriteria, contentLocale, cancellationToken);
+            var canonicalTask = DiscoverMoviesSafeAsync(providerCriteria, cancellationToken);
+            await Task.WhenAll(localizedTask, canonicalTask);
+            searchResult = await localizedTask;
+            ingestResult = await canonicalTask;
+        }
+        else
+        {
+            searchResult = await DiscoverMoviesSafeAsync(providerCriteria, cancellationToken);
+            ingestResult = searchResult;
+        }
+
+        var movieIds = await movieRepository.EnsureFromSummariesAsync(ingestResult.Results, cancellationToken);
         var items = MapMovieResults(searchResult.Results, movieIds);
 
         return DiscoverBrowseMerger.CreateSingleTypeResult(
@@ -119,10 +148,28 @@ public sealed class AdvancedDiscoverService(
     private async Task<PaginatedResult<SearchItem>> DiscoverTvShowsAsync(
         AdvancedDiscoverCriteria criteria,
         AdvancedDiscoverProviderCriteria providerCriteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
-        var searchResult = await DiscoverTvShowsSafeAsync(providerCriteria, cancellationToken);
-        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(searchResult.Results, cancellationToken);
+        var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
+        TvShowProviderSearchResult searchResult;
+        TvShowProviderSearchResult ingestResult;
+
+        if (useLocalizedDisplay)
+        {
+            var localizedTask = DiscoverTvShowsLocalizedSafeAsync(providerCriteria, contentLocale, cancellationToken);
+            var canonicalTask = DiscoverTvShowsSafeAsync(providerCriteria, cancellationToken);
+            await Task.WhenAll(localizedTask, canonicalTask);
+            searchResult = await localizedTask;
+            ingestResult = await canonicalTask;
+        }
+        else
+        {
+            searchResult = await DiscoverTvShowsSafeAsync(providerCriteria, cancellationToken);
+            ingestResult = searchResult;
+        }
+
+        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(ingestResult.Results, cancellationToken);
         var items = MapTvResults(searchResult.Results, tvIds);
 
         return DiscoverBrowseMerger.CreateSingleTypeResult(
@@ -154,6 +201,44 @@ public sealed class AdvancedDiscoverService(
         try
         {
             return await tvShowDataProvider.AdvancedDiscoverTvShowsAsync(criteria, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            DiscoverBrowseLogMessages.LogTvDiscoverFailed(logger, criteria.Page, exception);
+            throw new SearchProviderUnavailableException();
+        }
+    }
+
+    private async Task<MovieProviderSearchResult> DiscoverMoviesLocalizedSafeAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await localizedListDataProvider.AdvancedDiscoverMoviesAsync(
+                criteria,
+                contentLocale,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            DiscoverBrowseLogMessages.LogMovieDiscoverFailed(logger, criteria.Page, exception);
+            throw new SearchProviderUnavailableException();
+        }
+    }
+
+    private async Task<TvShowProviderSearchResult> DiscoverTvShowsLocalizedSafeAsync(
+        AdvancedDiscoverProviderCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await localizedListDataProvider.AdvancedDiscoverTvShowsAsync(
+                criteria,
+                contentLocale,
+                cancellationToken);
         }
         catch (Exception exception)
         {

@@ -38,6 +38,26 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
             .FirstOrDefaultAsync(movie => movie.TmdbId == tmdbId, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, int>> GetTmdbIdsByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var movies = await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => ids.Contains(movie.Id))
+            .Select(movie => new { movie.Id, movie.TmdbId })
+            .ToListAsync(cancellationToken);
+
+        return movies
+            .Where(movie => movie.TmdbId.HasValue)
+            .ToDictionary(movie => movie.Id, movie => movie.TmdbId!.Value);
+    }
+
     public async Task<Movie> UpsertFromProviderAsync(
         MovieProviderDetails details,
         CancellationToken cancellationToken = default)

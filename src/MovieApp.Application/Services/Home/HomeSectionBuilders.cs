@@ -1,6 +1,7 @@
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.Application.Services.Home;
@@ -34,7 +35,11 @@ internal static class HomeSectionBuilders
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var discovery = await discoveryService.GetByGenreAsync(genreName, discoveryCriteria, cancellationToken);
+            var discovery = await discoveryService.GetByGenreAsync(
+                genreName,
+                discoveryCriteria,
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellationToken);
             var items = DeduplicateItems(discovery.Items.Select(HomeMapper.FromSearchItem), criteria.SectionSize);
             var filteredItems = FilterByType(items, criteria.Type);
 

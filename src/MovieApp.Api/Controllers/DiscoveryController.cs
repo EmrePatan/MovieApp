@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -101,7 +102,7 @@ public sealed class DiscoveryController(
         try
         {
             var criteria = BuildDiscoveryCriteria(page, pageSize, type);
-            var result = await discoveryService.GetPopularAsync(criteria, cancellationToken);
+            var result = await discoveryService.GetPopularAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -125,7 +126,7 @@ public sealed class DiscoveryController(
         try
         {
             var criteria = BuildDiscoveryCriteria(page, pageSize, type);
-            var result = await discoveryService.GetTrendingAsync(criteria, cancellationToken);
+            var result = await discoveryService.GetTrendingAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -335,7 +336,7 @@ public sealed class DiscoveryController(
                 watchMonetizationType,
                 sort);
 
-            var result = await advancedDiscoverService.DiscoverAsync(criteria, cancellationToken);
+            var result = await advancedDiscoverService.DiscoverAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -376,7 +377,7 @@ public sealed class DiscoveryController(
                 language,
                 sort);
 
-            var result = await discoverBrowseService.BrowseAsync(criteria, cancellationToken);
+            var result = await discoverBrowseService.BrowseAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)

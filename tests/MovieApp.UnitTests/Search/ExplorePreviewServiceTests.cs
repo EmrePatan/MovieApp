@@ -63,42 +63,31 @@ public sealed class ExplorePreviewServiceTests
 
         public int GenreCallCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             PopularCallCount++;
             return Task.FromResult(CreatePage("popular"));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             TrendingCallCount++;
             return Task.FromResult(CreatePage("trending"));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             NewReleasesCallCount++;
             return Task.FromResult(CreatePage("new-releases"));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             TopRatedCallCount++;
             return Task.FromResult(CreatePage("top-rated"));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             GenreCallCount++;
             return Task.FromResult(CreatePage(genreName));

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
@@ -47,7 +48,7 @@ public sealed class SearchController(
                 maxRating,
                 sort);
 
-            var result = await searchService.SearchAsync(criteria, cancellationToken);
+            var result = await searchService.SearchAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -68,7 +69,10 @@ public sealed class SearchController(
     {
         try
         {
-            var items = await autocompleteService.GetSuggestionsAsync(query ?? string.Empty, cancellationToken);
+            var items = await autocompleteService.GetSuggestionsAsync(
+                query ?? string.Empty,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(SearchContractMapper.ToAutocompleteResponse(items));
         }
         catch (ValidationException exception)

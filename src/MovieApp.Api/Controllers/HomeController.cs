@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
@@ -33,7 +34,10 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
                 return criteriaError;
             }
 
-            var result = await homeService.GetHomeAsync(criteria!, cancellationToken);
+            var result = await homeService.GetHomeAsync(
+                criteria!,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(HomeContractMapper.ToHomeResponse(result));
         }
         catch (AuthenticationException exception)
@@ -69,7 +73,10 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
                 return criteriaError;
             }
 
-            var result = await homeService.GetHomeBrowseAsync(criteria!, cancellationToken);
+            var result = await homeService.GetHomeBrowseAsync(
+                criteria!,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(HomeContractMapper.ToHomeBrowseResponse(result));
         }
         catch (AuthenticationException exception)
@@ -105,7 +112,10 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
                 return criteriaError;
             }
 
-            var result = await homeService.GetHomePersonalizedAsync(criteria!, cancellationToken);
+            var result = await homeService.GetHomePersonalizedAsync(
+                criteria!,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(HomeContractMapper.ToHomePersonalizedResponse(result));
         }
         catch (AuthenticationException exception)

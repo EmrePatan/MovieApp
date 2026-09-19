@@ -7,6 +7,9 @@ public static class UnifiedSearchCacheKeys
 {
     public const string Prefix = "search:";
 
+    public static string Create(SearchCriteria criteria, string contentLocale) =>
+        ContentLocaleCacheKeySegment.Append(Create(criteria), contentLocale);
+
     public static string Create(SearchCriteria criteria)
     {
         var normalizedQuery = string.IsNullOrWhiteSpace(criteria.Query)

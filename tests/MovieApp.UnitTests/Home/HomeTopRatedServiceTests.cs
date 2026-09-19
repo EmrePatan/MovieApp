@@ -4,6 +4,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.UnitTests.Home;
@@ -18,7 +19,7 @@ public sealed class HomeTopRatedServiceTests
         var discovery = new RecordingDiscoveryService();
         var service = CreateService(discovery);
 
-        await service.GetItemsAsync(SearchContentType.All, 10);
+        await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(50, discovery.LastCriteria?.PageSize);
     }
@@ -45,7 +46,7 @@ public sealed class HomeTopRatedServiceTests
         var searchRepository = new FakeSearchRepository();
         var service = CreateService(discovery, genreRepository, searchRepository);
 
-        await service.GetItemsAsync(SearchContentType.All, 10);
+        await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal("Animation", genreRepository.LastRequestedGenreName);
     }
@@ -74,21 +75,25 @@ public sealed class HomeTopRatedServiceTests
 
         public Task<PaginatedResult<SearchItem>> GetPopularAsync(
             DiscoveryCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
             DiscoveryCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
             DiscoveryCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
             DiscoveryCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default)
         {
             LastCriteria = criteria;
@@ -103,6 +108,7 @@ public sealed class HomeTopRatedServiceTests
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
             string genreName,
             DiscoveryCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

@@ -7,5 +7,6 @@ public interface IHomeTopRatedService
     Task<IReadOnlyList<SearchItem>> GetItemsAsync(
         SearchContentType type,
         int sectionSize,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

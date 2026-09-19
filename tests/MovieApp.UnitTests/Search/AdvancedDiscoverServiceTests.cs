@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +23,7 @@ public sealed class AdvancedDiscoverServiceTests
         var tvTracker = new TvShowDataProviderCallTracker();
         var service = CreateService(cache, movieTracker, tvTracker);
 
-        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie));
+        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(cachedItem.Id, result.Items[0].Id);
@@ -38,7 +39,7 @@ public sealed class AdvancedDiscoverServiceTests
         var tvTracker = new TvShowDataProviderCallTracker();
         var service = CreateService(cache, movieTracker, tvTracker);
 
-        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie));
+        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Items);
         Assert.Equal(1, movieTracker.AdvancedDiscoverMoviesCallCount);
@@ -54,7 +55,7 @@ public sealed class AdvancedDiscoverServiceTests
         var tvTracker = new TvShowDataProviderCallTracker();
         var service = CreateService(cache, movieTracker, tvTracker);
 
-        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Tv));
+        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Tv), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Items);
         Assert.Equal(0, movieTracker.AdvancedDiscoverMoviesCallCount);
@@ -71,13 +72,14 @@ public sealed class AdvancedDiscoverServiceTests
         var service = new AdvancedDiscoverService(
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             movieRepository,
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
             cache,
             NullLogger<AdvancedDiscoverService>.Instance);
 
-        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie));
+        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(movieRepository.EnsureCount > 0);
         Assert.NotEmpty(result.Items);
@@ -95,7 +97,7 @@ public sealed class AdvancedDiscoverServiceTests
             new TvShowDataProviderCallTracker());
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.DiscoverAsync(CreateCriteria(SearchContentType.Movie)));
+            service.DiscoverAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -107,7 +109,7 @@ public sealed class AdvancedDiscoverServiceTests
             new TvShowDataProviderCallTracker());
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.DiscoverAsync(CreateCriteria(SearchContentType.All)));
+            service.DiscoverAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     private static AdvancedDiscoverService CreateService(
@@ -117,6 +119,7 @@ public sealed class AdvancedDiscoverServiceTests
         new(
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),

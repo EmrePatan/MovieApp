@@ -7,6 +7,7 @@ using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
@@ -59,6 +60,7 @@ public sealed class PickSomethingService(
         var discoveryType = MapToSearchContentType(criteria.MediaType);
         var trending = await discoveryService.GetTrendingAsync(
             new DiscoveryCriteria(discoveryType, 1, PickSomethingSelector.CandidatePoolSize),
+            ContentLocaleResolver.EnglishUnitedStates,
             cancellationToken);
 
         var trendingItems = FilterColdStartItems(trending.Items, criteria);
@@ -69,6 +71,7 @@ public sealed class PickSomethingService(
 
         var popular = await discoveryService.GetPopularAsync(
             new DiscoveryCriteria(discoveryType, 1, PickSomethingSelector.CandidatePoolSize),
+            ContentLocaleResolver.EnglishUnitedStates,
             cancellationToken);
         var popularItems = FilterColdStartItems(popular.Items, criteria);
         if (popularItems.Count == 0)

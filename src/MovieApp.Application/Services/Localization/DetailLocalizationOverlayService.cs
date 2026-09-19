@@ -240,10 +240,4 @@ public sealed class DetailLocalizationOverlayService(
 
         return overlay;
     }
-
-    private sealed class DetailLocalizationCacheEntry<T>
-        where T : class
-    {
-        public T Data { get; init; } = null!;
-    }
 }

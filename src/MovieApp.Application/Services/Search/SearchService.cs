@@ -9,6 +9,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.Search;
@@ -20,6 +21,7 @@ public sealed class SearchService(
     ICurrentUser currentUser,
     ICacheService cacheService,
     IUnifiedSearchProviderIngestionService providerIngestionService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ISearchRefreshLockService refreshLockService,
     ISearchRefreshCompletionSignal refreshCompletionSignal,
     IOptions<SearchOptions> searchOptions,
@@ -31,6 +33,7 @@ public sealed class SearchService(
 
     public async Task<PaginatedResult<SearchItem>> SearchAsync(
         SearchCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = AdvancedSearchValidator.Validate(criteria);
@@ -40,7 +43,7 @@ public sealed class SearchService(
         }
 
         var options = searchOptions.Value;
-        var cacheKey = UnifiedSearchCacheKeys.Create(criteria);
+        var cacheKey = UnifiedSearchCacheKeys.Create(criteria, contentLocale);
         var cachedEntry = await cacheService.GetAsync<UnifiedSearchCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -52,18 +55,22 @@ public sealed class SearchService(
         if (!UnifiedSearchProviderPolicy.IsProviderScope(criteria))
         {
             var dbResult = await searchRepository.SearchAsync(criteria, cancellationToken);
+            var localizedDbResult = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+                dbResult,
+                contentLocale,
+                cancellationToken);
 
-            if (UnifiedSearchProviderPolicy.ShouldCacheDbResult(dbResult))
+            if (UnifiedSearchProviderPolicy.ShouldCacheDbResult(localizedDbResult))
             {
                 await cacheService.SetAsync(
                     cacheKey,
-                    new UnifiedSearchCacheEntry { Result = dbResult },
+                    new UnifiedSearchCacheEntry { Result = localizedDbResult },
                     options.CacheDuration,
                     cancellationToken);
             }
 
             await TryRecordSearchHistoryAsync(criteria, cancellationToken);
-            return dbResult;
+            return localizedDbResult;
         }
 
         var lockKey = SearchRefreshLockKeys.Create(criteria);
@@ -78,6 +85,7 @@ public sealed class SearchService(
                 lockKey,
                 cacheKey,
                 criteria,
+                contentLocale,
                 options,
                 cancellationToken);
 
@@ -108,6 +116,7 @@ public sealed class SearchService(
             {
                 result = await ExecuteProviderSearchAsync(
                     criteria,
+                    contentLocale,
                     cacheKey,
                     options,
                     refreshCancellation.Token);
@@ -178,6 +187,7 @@ public sealed class SearchService(
 
     private async Task<PaginatedResult<SearchItem>> ExecuteProviderSearchAsync(
         SearchCriteria criteria,
+        string contentLocale,
         string cacheKey,
         SearchOptions options,
         CancellationToken cancellationToken)
@@ -186,16 +196,16 @@ public sealed class SearchService(
 
         try
         {
-            ingestionResult = await providerIngestionService.IngestAsync(criteria, cancellationToken);
+            ingestionResult = await providerIngestionService.IngestAsync(criteria, contentLocale, cancellationToken);
         }
         catch (Exception)
         {
-            return await FallbackToDatabaseAsync(criteria, cancellationToken);
+            return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
         }
 
         if (!ingestionResult.IsFullySuccessful || ingestionResult.Result is null)
         {
-            return await FallbackToDatabaseAsync(criteria, cancellationToken);
+            return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
         }
 
         var normalizedQuery = GetNormalizedQuery(criteria);
@@ -220,14 +230,19 @@ public sealed class SearchService(
 
     private async Task<PaginatedResult<SearchItem>> FallbackToDatabaseAsync(
         SearchCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var dbResult = await searchRepository.SearchAsync(criteria, cancellationToken);
+        var localizedDbResult = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+            dbResult,
+            contentLocale,
+            cancellationToken);
 
-        if (dbResult.TotalCount > 0)
+        if (localizedDbResult.TotalCount > 0)
         {
             SearchServiceLogMessages.LogDbFallback(logger, criteria.Query, criteria.Type, criteria.Page);
-            return dbResult;
+            return localizedDbResult;
         }
 
         SearchServiceLogMessages.LogProviderUnavailable(logger, criteria.Query, criteria.Type, criteria.Page);
@@ -238,6 +253,7 @@ public sealed class SearchService(
         string lockKey,
         string cacheKey,
         SearchCriteria criteria,
+        string contentLocale,
         SearchOptions options,
         CancellationToken cancellationToken)
     {
@@ -256,7 +272,7 @@ public sealed class SearchService(
             var completionOutcome = await refreshCompletionSignal.TryGetOutcomeAsync(lockKey, cancellationToken);
             if (completionOutcome == SearchRefreshAttemptOutcome.Failed)
             {
-                return await FallbackToDatabaseAsync(criteria, cancellationToken);
+                return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
             }
 
             await Task.Delay(RefreshPollInterval, cancellationToken);
@@ -271,7 +287,7 @@ public sealed class SearchService(
         var finalOutcome = await refreshCompletionSignal.TryGetOutcomeAsync(lockKey, cancellationToken);
         if (finalOutcome == SearchRefreshAttemptOutcome.Failed)
         {
-            return await FallbackToDatabaseAsync(criteria, cancellationToken);
+            return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
         }
 
         if (finalOutcome == SearchRefreshAttemptOutcome.Succeeded)
@@ -283,7 +299,7 @@ public sealed class SearchService(
             }
         }
 
-        return await FallbackToDatabaseAsync(criteria, cancellationToken);
+        return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
     }
 
     private async Task<PaginatedResult<SearchItem>?> TryGetCachedResultAsync(

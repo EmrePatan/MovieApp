@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +23,7 @@ public sealed class DiscoverBrowseServiceTests
         var tvTracker = new TvShowDataProviderCallTracker();
         var service = CreateService(cache, movieTracker, tvTracker);
 
-        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.Movie));
+        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(cachedItem.Id, result.Items[0].Id);
@@ -38,7 +39,7 @@ public sealed class DiscoverBrowseServiceTests
         var tvTracker = new TvShowDataProviderCallTracker();
         var service = CreateService(cache, movieTracker, tvTracker);
 
-        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.Movie));
+        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Items);
         Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
@@ -54,7 +55,7 @@ public sealed class DiscoverBrowseServiceTests
         var tvTracker = new TvShowDataProviderCallTracker();
         var service = CreateService(cache, movieTracker, tvTracker);
 
-        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All));
+        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Items);
         Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
@@ -75,13 +76,14 @@ public sealed class DiscoverBrowseServiceTests
             new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             movieRepository,
             tvRepository,
             new FakeGenreReadRepository(),
             cache,
             NullLogger<DiscoverBrowseService>.Instance);
 
-        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All));
+        var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(movieRepository.EnsureCount > 0);
         Assert.True(tvRepository.EnsureCount > 0);
@@ -100,7 +102,7 @@ public sealed class DiscoverBrowseServiceTests
             new TvShowDataProviderCallTracker());
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.BrowseAsync(CreateCriteria(SearchContentType.Movie)));
+            service.BrowseAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -116,7 +118,7 @@ public sealed class DiscoverBrowseServiceTests
 
         var result = await service.BrowseAsync(CreateCriteria(
             SearchContentType.Movie,
-            DiscoverBrowseMode.NewReleases));
+            DiscoverBrowseMode.NewReleases), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, discoveryTracker.NewReleasesCallCount);
         Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
@@ -135,16 +137,18 @@ public sealed class DiscoverBrowseServiceTests
             new TvShowDataProviderCallTracker(),
             discoveryTracker);
 
-        var result = await service.BrowseAsync(new DiscoverBrowseCriteria(
-            DiscoverBrowseMode.NewReleases,
-            SearchContentType.Movie,
-            [Guid.NewGuid()],
-            null,
-            null,
-            null,
-            null,
-            1,
-            20));
+        var result = await service.BrowseAsync(
+            new DiscoverBrowseCriteria(
+                DiscoverBrowseMode.NewReleases,
+                SearchContentType.Movie,
+                [Guid.NewGuid()],
+                null,
+                null,
+                null,
+                null,
+                1,
+                20),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(0, discoveryTracker.NewReleasesCallCount);
         Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
@@ -162,8 +166,8 @@ public sealed class DiscoverBrowseServiceTests
             new TvShowDataProviderCallTracker());
         var criteria = CreateCriteria(SearchContentType.Movie);
 
-        await service.BrowseAsync(criteria);
-        await service.BrowseAsync(criteria);
+        await service.BrowseAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+        await service.BrowseAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, cache.SetCount);
         Assert.Equal(2, cache.GetCount);
@@ -179,6 +183,7 @@ public sealed class DiscoverBrowseServiceTests
             discoveryTracker ?? new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
@@ -335,19 +340,13 @@ public sealed class DiscoverBrowseServiceTests
     {
         public int NewReleasesCallCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             NewReleasesCallCount++;
             return Task.FromResult(new PaginatedResult<SearchItem>(
@@ -358,15 +357,10 @@ public sealed class DiscoverBrowseServiceTests
                 1));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 

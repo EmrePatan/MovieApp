@@ -51,12 +51,16 @@ internal static class MovieDataProviderServiceCollectionExtensions
 
             services.AddScoped<TmdbMovieDataProvider>();
             services.AddScoped<TmdbLocalizedDetailDataProvider>();
+            services.AddScoped<TmdbLocalizedListDataProvider>();
             services.AddScoped<ILocalizedDetailDataProvider>(serviceProvider =>
                 serviceProvider.GetRequiredService<TmdbLocalizedDetailDataProvider>());
+            services.AddScoped<ILocalizedListDataProvider>(serviceProvider =>
+                serviceProvider.GetRequiredService<TmdbLocalizedListDataProvider>());
         }
         else
         {
             services.AddScoped<ILocalizedDetailDataProvider, NullLocalizedDetailDataProvider>();
+            services.AddScoped<ILocalizedListDataProvider, NullLocalizedListDataProvider>();
         }
 
         services.AddScoped<IMovieDataProvider>(serviceProvider =>

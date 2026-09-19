@@ -160,9 +160,7 @@ public sealed class WorldCinemaServiceTests
 
         public bool ShouldThrow { get; init; }
 
-        public Task<PaginatedResult<SearchItem>> DiscoverAsync(
-            AdvancedDiscoverCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> DiscoverAsync(AdvancedDiscoverCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             CallCount++;
             LastCriteria = criteria;

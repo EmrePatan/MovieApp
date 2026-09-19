@@ -56,6 +56,26 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             .FirstOrDefaultAsync(tvShow => tvShow.TmdbId == tmdbId, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, int>> GetTmdbIdsByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var tvShows = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => ids.Contains(tvShow.Id))
+            .Select(tvShow => new { tvShow.Id, tvShow.TmdbId })
+            .ToListAsync(cancellationToken);
+
+        return tvShows
+            .Where(tvShow => tvShow.TmdbId.HasValue)
+            .ToDictionary(tvShow => tvShow.Id, tvShow => tvShow.TmdbId!.Value);
+    }
+
     public async Task<TvShow> UpsertFromProviderAsync(
         TvShowProviderDetails details,
         CancellationToken cancellationToken = default)

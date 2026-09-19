@@ -12,6 +12,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 
@@ -22,6 +23,7 @@ public sealed class RecommendationService(
     IDiscoveryService discoveryService,
     ICurrentUser currentUser,
     ICacheService cacheService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     IOptions<RecommendationOptions> options,
     ILogger<RecommendationService> logger) : IRecommendationService
 {
@@ -33,11 +35,12 @@ public sealed class RecommendationService(
     public async Task<PaginatedResult<RecommendationItem>> GetSimilarMoviesAsync(
         Guid movieId,
         SimilarContentCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         ValidateSimilarCriteria(criteria);
 
-        var cacheKey = RecommendationCacheKeys.SimilarMovie(movieId, criteria.Page, criteria.PageSize);
+        var cacheKey = RecommendationCacheKeys.SimilarMovie(movieId, criteria.Page, criteria.PageSize, contentLocale);
         var cached = await cacheService.GetAsync<RecommendationCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -64,24 +67,29 @@ public sealed class RecommendationService(
             .ToList();
 
         var result = Paginate(ranked, criteria.Page, criteria.PageSize);
+        var localizedResult = await summaryLocalizationOverlayService.ApplyToRecommendationItemsAsync(
+            result,
+            contentLocale,
+            cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,
-            new RecommendationCacheEntry { Result = result },
+            new RecommendationCacheEntry { Result = localizedResult },
             SimilarCacheTtl,
             cancellationToken);
 
-        return result;
+        return localizedResult;
     }
 
     public async Task<PaginatedResult<RecommendationItem>> GetSimilarTvShowsAsync(
         Guid tvShowId,
         SimilarContentCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         ValidateSimilarCriteria(criteria);
 
-        var cacheKey = RecommendationCacheKeys.SimilarTv(tvShowId, criteria.Page, criteria.PageSize);
+        var cacheKey = RecommendationCacheKeys.SimilarTv(tvShowId, criteria.Page, criteria.PageSize, contentLocale);
         var cached = await cacheService.GetAsync<RecommendationCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -108,24 +116,29 @@ public sealed class RecommendationService(
             .ToList();
 
         var result = Paginate(ranked, criteria.Page, criteria.PageSize);
+        var localizedResult = await summaryLocalizationOverlayService.ApplyToRecommendationItemsAsync(
+            result,
+            contentLocale,
+            cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,
-            new RecommendationCacheEntry { Result = result },
+            new RecommendationCacheEntry { Result = localizedResult },
             SimilarCacheTtl,
             cancellationToken);
 
-        return result;
+        return localizedResult;
     }
 
     public async Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(
         RecommendationCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         ValidateRecommendationCriteria(criteria);
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var cacheKey = RecommendationCacheKeys.User(userId, criteria.Type, criteria.Page, criteria.PageSize);
+        var cacheKey = RecommendationCacheKeys.User(userId, criteria.Type, criteria.Page, criteria.PageSize, contentLocale);
         var cached = await cacheService.GetAsync<RecommendationCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -140,11 +153,15 @@ public sealed class RecommendationService(
 
         if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
         {
-            result = await BuildColdStartRecommendationsAsync(criteria, cancellationToken);
+            result = await BuildColdStartRecommendationsAsync(criteria, contentLocale, cancellationToken);
         }
         else
         {
             result = await BuildPersonalizedRecommendationsAsync(context, criteria, cancellationToken);
+            result = await summaryLocalizationOverlayService.ApplyToRecommendationItemsAsync(
+                result,
+                contentLocale,
+                cancellationToken);
         }
 
         await cacheService.SetAsync(
@@ -158,12 +175,13 @@ public sealed class RecommendationService(
 
     public async Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
         bool includeColdStartDiscoverySections = true,
+        string contentLocale = ContentLocaleResolver.EnglishUnitedStates,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var cacheKey = RecommendationCacheKeys.Home(userId);
+        var cacheKey = RecommendationCacheKeys.Home(userId, contentLocale);
         var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<RecommendationHomeCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
@@ -193,14 +211,19 @@ public sealed class RecommendationService(
         if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
         {
             sections = includeColdStartDiscoverySections
-                ? await BuildColdStartHomeSectionsAsync(cancellationToken)
+                ? await BuildColdStartHomeSectionsAsync(contentLocale, cancellationToken)
                 : [];
         }
         else
         {
             (sections, personalizedSectionMs, becauseYouWatchedMs) =
-                await BuildPersonalizedHomeSectionsTimedAsync(context, cancellationToken);
+                await BuildPersonalizedHomeSectionsTimedAsync(context, contentLocale, cancellationToken);
         }
+
+        sections = await summaryLocalizationOverlayService.ApplyToRecommendationSectionsAsync(
+            sections,
+            contentLocale,
+            cancellationToken);
 
         var cacheWriteStopwatch = Stopwatch.StartNew();
         await cacheService.SetAsync(
@@ -228,11 +251,13 @@ public sealed class RecommendationService(
 
     private async Task<PaginatedResult<RecommendationItem>> BuildColdStartRecommendationsAsync(
         RecommendationCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var discoveryType = MapToSearchContentType(criteria.Type);
         var discovery = await discoveryService.GetPopularAsync(
             new DiscoveryCriteria(discoveryType, criteria.Page, criteria.PageSize),
+            contentLocale,
             cancellationToken);
 
         var items = discovery.Items
@@ -314,17 +339,21 @@ public sealed class RecommendationService(
     }
 
     private async Task<IReadOnlyList<RecommendationSection>> BuildColdStartHomeSectionsAsync(
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var sectionSize = _options.HomeSectionItemCount;
         var popular = await discoveryService.GetPopularAsync(
             new DiscoveryCriteria(SearchContentType.All, 1, sectionSize),
+            contentLocale,
             cancellationToken);
         var trending = await discoveryService.GetTrendingAsync(
             new DiscoveryCriteria(SearchContentType.All, 1, sectionSize),
+            contentLocale,
             cancellationToken);
         var topRated = await discoveryService.GetTopRatedAsync(
             new DiscoveryCriteria(SearchContentType.All, 1, sectionSize),
+            contentLocale,
             cancellationToken);
 
         return
@@ -356,6 +385,7 @@ public sealed class RecommendationService(
     private async Task<(IReadOnlyList<RecommendationSection> Sections, long PersonalizedSectionMs, long BecauseYouWatchedMs)>
         BuildPersonalizedHomeSectionsTimedAsync(
             UserRecommendationContext context,
+            string contentLocale,
             CancellationToken cancellationToken)
     {
         var sections = new List<RecommendationSection>();

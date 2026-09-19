@@ -7,5 +7,6 @@ public interface IDiscoverBrowseService
 {
     Task<PaginatedResult<SearchItem>> BrowseAsync(
         DiscoverBrowseCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

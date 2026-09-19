@@ -8,8 +8,11 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Caching;
 
@@ -41,7 +44,7 @@ public sealed class SearchLoadConcurrencyTests
         var environment = LoadTestEnvironment.CreateStaleCatalog(query: "batman");
         var metrics = await LoadTestRunner.ExecuteAsync(
             concurrency: 100,
-            () => environment.Service.SearchAsync(environment.Criteria));
+            () => environment.Service.SearchAsync(environment.Criteria, ContentLocaleResolver.EnglishUnitedStates));
 
         environment.OutputScenarioSummary("Scenario A - same stale search", metrics);
 
@@ -59,7 +62,7 @@ public sealed class SearchLoadConcurrencyTests
         var environment = LoadTestEnvironment.CreateEmptyCatalog(query: "friends");
         var metrics = await LoadTestRunner.ExecuteAsync(
             concurrency: 100,
-            () => environment.Service.SearchAsync(environment.Criteria));
+            () => environment.Service.SearchAsync(environment.Criteria, ContentLocaleResolver.EnglishUnitedStates));
 
         environment.OutputScenarioSummary("Scenario B - same cache miss", metrics);
 
@@ -88,7 +91,7 @@ public sealed class SearchLoadConcurrencyTests
                     1,
                     20);
 
-                return environment.Service.SearchAsync(criteria);
+                return environment.Service.SearchAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
             });
 
         environment.OutputScenarioSummary("Scenario C - different queries", metrics);
@@ -105,7 +108,7 @@ public sealed class SearchLoadConcurrencyTests
         var environment = LoadTestEnvironment.CreateStaleCatalog(query: "matrix");
         var metrics = await LoadTestRunner.ExecuteAsync(
             concurrency: 100,
-            () => environment.Service.SearchAsync(environment.Criteria));
+            () => environment.Service.SearchAsync(environment.Criteria, ContentLocaleResolver.EnglishUnitedStates));
 
         environment.OutputScenarioSummary("Scenario D - local single-flight fallback", metrics);
 
@@ -122,7 +125,7 @@ public sealed class SearchLoadConcurrencyTests
         var environment = LoadTestEnvironment.CreateEmptyCatalog(query: "slow", providerDelayMs: 2_000);
         var metrics = await LoadTestRunner.ExecuteAsync(
             concurrency: 50,
-            () => environment.Service.SearchAsync(environment.Criteria));
+            () => environment.Service.SearchAsync(environment.Criteria, ContentLocaleResolver.EnglishUnitedStates));
 
         environment.OutputScenarioSummary("Scenario E - slow provider", metrics);
 
@@ -143,7 +146,7 @@ public sealed class SearchLoadConcurrencyTests
             {
                 try
                 {
-                    await environment.Service.SearchAsync(environment.Criteria);
+                    await environment.Service.SearchAsync(environment.Criteria, ContentLocaleResolver.EnglishUnitedStates);
                     return false;
                 }
                 catch (SearchProviderUnavailableException)
@@ -168,7 +171,7 @@ public sealed class SearchLoadConcurrencyTests
         var environment = LoadTestEnvironment.CreateFreshEmptyCatalog(query: "nonexistent-title");
         var metrics = await LoadTestRunner.ExecuteSequentialAsync(
             requestCount: 20,
-            () => environment.Service.SearchAsync(environment.Criteria));
+            () => environment.Service.SearchAsync(environment.Criteria, ContentLocaleResolver.EnglishUnitedStates));
 
         environment.OutputScenarioSummary("Scenario G - fresh empty repeat", metrics);
 
@@ -441,6 +444,7 @@ internal sealed class LoadTestEnvironment
             new LoadTestCurrentUser(),
             new LoadTestCacheService(),
             providerIngestionService,
+            new LoadTestSummaryLocalizationOverlayService(),
             lockService,
             completionSignal,
             Options.Create(new SearchOptions
@@ -481,9 +485,7 @@ internal sealed class LoadTestProviderIngestionService(int delayMs, bool provide
 
     public int IngestCount => _ingestCount;
 
-    public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(
-        SearchCriteria criteria,
-        CancellationToken cancellationToken = default)
+    public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _ingestCount);
 
@@ -512,10 +514,7 @@ internal sealed class LoadTestProviderIngestionService(int delayMs, bool provide
                 : null);
     }
 
-    public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
-        string query,
-        int limit,
-        CancellationToken cancellationToken = default) =>
+    public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
 }
 
@@ -525,9 +524,7 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
 
     public int SearchCount => _searchCount;
 
-    public Task<PaginatedResult<SearchItem>> SearchAsync(
-        SearchCriteria criteria,
-        CancellationToken cancellationToken = default)
+    public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _searchCount);
 
@@ -555,24 +552,16 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
 
-    public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-        DiscoveryCriteria criteria,
-        CancellationToken cancellationToken = default) =>
+    public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-    public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-        DiscoveryCriteria criteria,
-        CancellationToken cancellationToken = default) =>
+    public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-    public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-        DiscoveryCriteria criteria,
-        CancellationToken cancellationToken = default) =>
+    public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-    public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-        DiscoveryCriteria criteria,
-        CancellationToken cancellationToken = default) =>
+    public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
     public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -591,10 +580,7 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
 
-    public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-        string genreName,
-        DiscoveryCriteria criteria,
-        CancellationToken cancellationToken = default) =>
+    public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
         Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
 }
@@ -672,4 +658,37 @@ internal sealed class LoadTestCurrentUser : ICurrentUser
     public bool IsAuthenticated => false;
 
     public Guid? UserId => null;
+}
+
+internal sealed class LoadTestSummaryLocalizationOverlayService : ISummaryLocalizationOverlayService
+{
+    public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+        PaginatedResult<SearchItem> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
+
+    public Task<IReadOnlyList<SearchSuggestion>> ApplyToSearchSuggestionsAsync(
+        IReadOnlyList<SearchSuggestion> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
+
+    public Task<PaginatedResult<RecommendationItem>> ApplyToRecommendationItemsAsync(
+        PaginatedResult<RecommendationItem> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
+
+    public Task<HomeResult> ApplyToHomeResultAsync(
+        HomeResult canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
+
+    public Task<IReadOnlyList<RecommendationSection>> ApplyToRecommendationSectionsAsync(
+        IReadOnlyList<RecommendationSection> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
 }

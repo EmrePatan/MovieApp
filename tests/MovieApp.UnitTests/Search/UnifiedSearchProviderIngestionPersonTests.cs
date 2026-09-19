@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Providers;
@@ -31,7 +32,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             1,
             20);
 
-        var result = await service.IngestAsync(criteria);
+        var result = await service.IngestAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(result.IsFullySuccessful);
         Assert.NotNull(result.Result);
@@ -59,7 +60,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             1,
             20);
 
-        var result = await service.IngestAsync(criteria);
+        var result = await service.IngestAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.False(result.IsFullySuccessful);
         Assert.Null(result.Result);
@@ -84,7 +85,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             1,
             20);
 
-        var result = await service.IngestAsync(criteria);
+        var result = await service.IngestAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(result.IsFullySuccessful);
         Assert.NotNull(result.Result);
@@ -111,7 +112,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             1,
             20);
 
-        var result = await service.IngestAsync(criteria);
+        var result = await service.IngestAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(result.IsFullySuccessful);
         Assert.NotNull(result.Result);
@@ -127,6 +128,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             movieDataProvider,
             tvShowDataProvider,
             personDataProvider,
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new InMemoryMovieRepository(),
             new InMemoryTvShowRepository(),
             new InMemoryPersonRepository(),

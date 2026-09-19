@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.Search;
@@ -11,6 +12,7 @@ namespace MovieApp.Application.Services.Search;
 public sealed class AutocompleteService(
     ISearchRepository searchRepository,
     IUnifiedSearchProviderIngestionService providerIngestionService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ICacheService cacheService,
     ILogger<AutocompleteService> logger) : IAutocompleteService
 {
@@ -19,6 +21,7 @@ public sealed class AutocompleteService(
 
     public async Task<IReadOnlyList<SearchSuggestion>> GetSuggestionsAsync(
         string query,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = AdvancedSearchValidator.ValidateQuery(query, required: true);
@@ -27,7 +30,7 @@ public sealed class AutocompleteService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = SearchAutocompleteCacheKeys.Create(query);
+        var cacheKey = SearchAutocompleteCacheKeys.Create(query, contentLocale);
         var cachedEntry = await cacheService.GetAsync<SearchAutocompleteCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -39,6 +42,7 @@ public sealed class AutocompleteService(
             var items = await providerIngestionService.GetAutocompleteSuggestionsAsync(
                 query,
                 MaxSuggestions,
+                contentLocale,
                 cancellationToken);
 
             await cacheService.SetAsync(
@@ -54,7 +58,10 @@ public sealed class AutocompleteService(
             AutocompleteServiceLogMessages.LogDbFallback(logger, query, exception);
 
             var fallbackItems = await searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
-            return fallbackItems;
+            return await summaryLocalizationOverlayService.ApplyToSearchSuggestionsAsync(
+                fallbackItems,
+                contentLocale,
+                cancellationToken);
         }
     }
 }

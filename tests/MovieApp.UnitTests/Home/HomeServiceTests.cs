@@ -1,3 +1,4 @@
+using MovieApp.Application.Services.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -38,7 +39,7 @@ public sealed class HomeServiceTests
             discoveryService: new FakeDiscoveryService(),
             watchHistoryService: new FakeWatchHistoryService([]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 10));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 10), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(cache.WasRead);
         Assert.False(cache.WasWritten);
@@ -61,7 +62,7 @@ public sealed class HomeServiceTests
             discoveryService: discovery,
             watchHistoryService: new FakeWatchHistoryService([]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 2));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 2), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.False(result.IsPersonalized);
         Assert.Equal(
@@ -98,7 +99,7 @@ public sealed class HomeServiceTests
             discoveryService: new FakeDiscoveryService(),
             comingUpService: new FakeHomeComingUpService(comingUpItems));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             [
@@ -129,7 +130,7 @@ public sealed class HomeServiceTests
             discoveryService: new FakeDiscoveryService(),
             comingUpService: new FakeHomeComingUpService([]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ComingUp);
     }
@@ -150,7 +151,7 @@ public sealed class HomeServiceTests
             ]),
             discoveryService: discovery);
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(result.IsPersonalized);
         Assert.Equal(
@@ -184,7 +185,7 @@ public sealed class HomeServiceTests
             discoveryService: new FakeDiscoveryService(includeGenre: false),
             watchHistoryService: new FakeWatchHistoryService([]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.BecauseYouWatched);
     }
@@ -216,7 +217,7 @@ public sealed class HomeServiceTests
                     DateTime.UtcNow)
             ]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.Movie, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.Movie, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.All(
             result.Sections.SelectMany(section => section.Items),
@@ -236,7 +237,7 @@ public sealed class HomeServiceTests
             discoveryService: new FakeDiscoveryService(),
             watchHistoryService: new FakeWatchHistoryService([]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
         var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
 
         Assert.Equal(2, recommended.Items.Count);
@@ -249,7 +250,7 @@ public sealed class HomeServiceTests
         var service = CreateService();
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 21)));
+            service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 21), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -262,7 +263,10 @@ public sealed class HomeServiceTests
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), cts.Token));
+            service.GetHomeAsync(
+                new HomeCriteria(SearchContentType.All, 5),
+                ContentLocaleResolver.EnglishUnitedStates,
+                cts.Token));
     }
 
     [Fact]
@@ -273,7 +277,7 @@ public sealed class HomeServiceTests
             recommendationService: new FakeRecommendationService([]),
             discoveryService: discovery);
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.False(result.IsPersonalized);
         Assert.Equal(
@@ -321,7 +325,7 @@ public sealed class HomeServiceTests
                 HeroSectionSize = 5
             });
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 10));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 10), ContentLocaleResolver.EnglishUnitedStates);
 
         var hero = result.Sections.Single(section => section.Type == HomeSectionType.HotThisWeek);
         var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
@@ -343,7 +347,7 @@ public sealed class HomeServiceTests
             ]),
             discoveryService: discovery);
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         var trending = result.Sections.Single(section => section.Type == HomeSectionType.Trending);
 
@@ -375,7 +379,7 @@ public sealed class HomeServiceTests
                     2025)
             ]));
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.Trending);
@@ -389,7 +393,7 @@ public sealed class HomeServiceTests
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new EmptyTrendingDiscoveryService());
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
@@ -408,7 +412,7 @@ public sealed class HomeServiceTests
             hotThisWeekService: new FakeHotThisWeekService([]),
             discoveryService: new FakeDiscoveryService());
 
-        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
@@ -427,7 +431,7 @@ public sealed class HomeServiceTests
             ]),
             discoveryService: new FakeDiscoveryService());
 
-        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
@@ -443,7 +447,7 @@ public sealed class HomeServiceTests
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new EmptyTrendingDiscoveryService());
 
-        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
@@ -477,7 +481,7 @@ public sealed class HomeServiceTests
             discoveryService: new FakeDiscoveryService(),
             comingUpService: new FakeHomeComingUpService(comingUpItems));
 
-        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(result.IsPersonalized);
         Assert.Equal(
@@ -498,7 +502,7 @@ public sealed class HomeServiceTests
             ]),
             discoveryService: new FakeDiscoveryService());
 
-        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.False(result.IsPersonalized);
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
@@ -539,7 +543,7 @@ public sealed class HomeServiceTests
                 HeroSectionSize = 5
             });
 
-        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 10));
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 10), ContentLocaleResolver.EnglishUnitedStates);
         var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
 
         Assert.Equal(10, recommended.Items.Count);
@@ -557,7 +561,7 @@ public sealed class HomeServiceTests
             ]),
             discoveryService: new FakeDiscoveryService());
 
-        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomePersonalizedAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.True(result.IsPersonalized);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
@@ -570,7 +574,7 @@ public sealed class HomeServiceTests
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new FakeDiscoveryService());
 
-        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.Movie, 5));
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.Movie, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.All(
             result.Sections.SelectMany(section => section.Items),
@@ -590,7 +594,7 @@ public sealed class HomeServiceTests
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new FakeDiscoveryService());
 
-        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5));
+        var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.False(cache.WasWritten);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
@@ -733,51 +737,31 @@ public sealed class HomeServiceTests
 
     private sealed class FakeRecommendationService(IReadOnlyList<RecommendationSection> sections) : IRecommendationService
     {
-        public Task<PaginatedResult<RecommendationItem>> GetSimilarMoviesAsync(
-            Guid movieId,
-            SimilarContentCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<RecommendationItem>> GetSimilarMoviesAsync(Guid movieId, SimilarContentCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<RecommendationItem>> GetSimilarTvShowsAsync(
-            Guid tvShowId,
-            SimilarContentCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<RecommendationItem>> GetSimilarTvShowsAsync(Guid tvShowId, SimilarContentCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(
-            RecommendationCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(RecommendationCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
-            bool includeColdStartDiscoverySections = true,
-            CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(bool includeColdStartDiscoverySections = true, string contentLocale = "en-US", CancellationToken cancellationToken = default) =>
             Task.FromResult(sections);
     }
 
     private sealed class CancellingRecommendationService : IRecommendationService
     {
-        public Task<PaginatedResult<RecommendationItem>> GetSimilarMoviesAsync(
-            Guid movieId,
-            SimilarContentCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<RecommendationItem>> GetSimilarMoviesAsync(Guid movieId, SimilarContentCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<RecommendationItem>> GetSimilarTvShowsAsync(
-            Guid tvShowId,
-            SimilarContentCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<RecommendationItem>> GetSimilarTvShowsAsync(Guid tvShowId, SimilarContentCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(
-            RecommendationCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(RecommendationCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
-            bool includeColdStartDiscoverySections = true,
-            CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(bool includeColdStartDiscoverySections = true, string contentLocale = "en-US", CancellationToken cancellationToken = default) =>
             Task.FromCanceled<IReadOnlyList<RecommendationSection>>(cancellationToken);
     }
 
@@ -889,42 +873,31 @@ public sealed class HomeServiceTests
 
         public int GenreCallCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             PopularCallCount++;
             return Task.FromResult(CreateResult(criteria, "movie", 10));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             TrendingCallCount++;
             return Task.FromResult(CreateResult(criteria, "tv", 20));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             NewReleasesCallCount++;
             return Task.FromResult(CreateResult(criteria, "movie", 30));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             TopRatedCallCount++;
             return Task.FromResult(CreateResult(criteria, "tv", 40));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             GenreCallCount++;
             return Task.FromResult(CreateResult(criteria, "movie", 50));
@@ -954,38 +927,25 @@ public sealed class HomeServiceTests
 
     private sealed class EmptyTrendingDiscoveryService : FakeDiscoveryService
     {
-        public override Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public override Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, criteria.PageSize, 0, 0));
     }
 
     private class FakeDiscoveryService(bool includeGenre = true) : IDiscoveryService
     {
-        public virtual Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public virtual Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult(criteria, "movie", 10));
 
-        public virtual Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public virtual Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult(criteria, "tv", 20));
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult(criteria, "movie", 30));
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult(criteria, "tv", 40));
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(includeGenre
                 ? CreateResult(criteria, "movie", 50)
                 : new PaginatedResult<SearchItem>([], 1, criteria.PageSize, 0, 0));
@@ -1116,9 +1076,7 @@ public sealed class HomeServiceTests
 
     private sealed class PassthroughSearchRepository : ISearchRepository
     {
-        public Task<PaginatedResult<SearchItem>> SearchAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
@@ -1127,24 +1085,16 @@ public sealed class HomeServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -1164,10 +1114,7 @@ public sealed class HomeServiceTests
             Task.FromResult<IReadOnlySet<CatalogContentKey>>(
                 items.Select(item => new CatalogContentKey(item.Id, item.Type)).ToHashSet());
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 
@@ -1200,10 +1147,7 @@ public sealed class HomeServiceTests
                 2025)
         ];
 
-        public Task<IReadOnlyList<SearchItem>> GetItemsAsync(
-            SearchContentType type,
-            int maxItems,
-            CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<SearchItem>> GetItemsAsync(SearchContentType type, int maxItems, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<SearchItem>>(_items.Take(maxItems).ToList());
     }
 }

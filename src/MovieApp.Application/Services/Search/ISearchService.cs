@@ -7,5 +7,6 @@ public interface ISearchService
 {
     Task<PaginatedResult<SearchItem>> SearchAsync(
         SearchCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

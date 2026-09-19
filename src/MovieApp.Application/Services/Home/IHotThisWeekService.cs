@@ -7,5 +7,6 @@ public interface IHotThisWeekService
     Task<IReadOnlyList<SearchItem>> GetItemsAsync(
         SearchContentType type,
         int maxItems,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

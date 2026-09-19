@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -27,7 +28,11 @@ public sealed class RecommendationsController(IRecommendationService recommendat
         try
         {
             var criteria = BuildSimilarCriteria(page, pageSize);
-            var result = await recommendationService.GetSimilarMoviesAsync(movieId, criteria, cancellationToken);
+            var result = await recommendationService.GetSimilarMoviesAsync(
+                movieId,
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(RecommendationContractMapper.ToRecommendationResponse(result));
         }
         catch (ValidationException exception)
@@ -59,7 +64,11 @@ public sealed class RecommendationsController(IRecommendationService recommendat
         try
         {
             var criteria = BuildSimilarCriteria(page, pageSize);
-            var result = await recommendationService.GetSimilarTvShowsAsync(tvShowId, criteria, cancellationToken);
+            var result = await recommendationService.GetSimilarTvShowsAsync(
+                tvShowId,
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(RecommendationContractMapper.ToRecommendationResponse(result));
         }
         catch (ValidationException exception)
@@ -92,7 +101,10 @@ public sealed class RecommendationsController(IRecommendationService recommendat
         try
         {
             var criteria = BuildRecommendationCriteria(page, pageSize, type);
-            var result = await recommendationService.GetRecommendationsForCurrentUserAsync(criteria, cancellationToken);
+            var result = await recommendationService.GetRecommendationsForCurrentUserAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(RecommendationContractMapper.ToRecommendationResponse(result));
         }
         catch (ValidationException exception)
@@ -121,6 +133,7 @@ public sealed class RecommendationsController(IRecommendationService recommendat
         try
         {
             var sections = await recommendationService.GetHomeRecommendationsForCurrentUserAsync(
+                contentLocale: Request.ResolveContentLocale(),
                 cancellationToken: cancellationToken);
             return Ok(RecommendationContractMapper.ToRecommendationHomeResponse(sections));
         }

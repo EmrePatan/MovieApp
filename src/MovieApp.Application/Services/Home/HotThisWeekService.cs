@@ -20,6 +20,7 @@ public sealed class HotThisWeekService(
     public async Task<IReadOnlyList<SearchItem>> GetItemsAsync(
         SearchContentType type,
         int maxItems,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         if (maxItems <= 0)
@@ -27,7 +28,7 @@ public sealed class HotThisWeekService(
             return [];
         }
 
-        var cacheKey = HotThisWeekCacheKeys.Create(type, maxItems);
+        var cacheKey = HotThisWeekCacheKeys.Create(type, maxItems, contentLocale);
         var cached = await cacheService.GetAsync<HotThisWeekCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -52,6 +53,7 @@ public sealed class HotThisWeekService(
         {
             var discovery = await discoveryService.GetTrendingAsync(
                 new DiscoveryCriteria(type, 1, maxItems),
+                contentLocale,
                 cancellationToken);
             items = discovery.Items;
             HotThisWeekTrendingSnapshotLogMessages.LogReadSource(

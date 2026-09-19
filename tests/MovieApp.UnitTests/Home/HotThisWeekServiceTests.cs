@@ -6,6 +6,7 @@ using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
@@ -36,7 +37,7 @@ public sealed class HotThisWeekServiceTests
         var snapshot = new RecordingTrendingSnapshotService(CreateSnapshotItems());
         var service = CreateService(cache, discovery, snapshot);
 
-        var items = await service.GetItemsAsync(SearchContentType.All, 5);
+        var items = await service.GetItemsAsync(SearchContentType.All, 5, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             ["Weekly Movie One", "Weekly Show One", "Weekly Movie Two"],
@@ -51,7 +52,7 @@ public sealed class HotThisWeekServiceTests
         var discovery = new RecordingDiscoveryService(CreateTrendingItems());
         var service = CreateService(new TrackingCacheService(), discovery, new RecordingTrendingSnapshotService(null));
 
-        var items = await service.GetItemsAsync(SearchContentType.All, 5);
+        var items = await service.GetItemsAsync(SearchContentType.All, 5, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(3, items.Count);
         Assert.Equal(1, discovery.TrendingCallCount);
@@ -66,7 +67,7 @@ public sealed class HotThisWeekServiceTests
             new RecordingDiscoveryService([]),
             new RecordingTrendingSnapshotService(CreateSnapshotItems()));
 
-        var items = await service.GetItemsAsync(SearchContentType.Movie, 5);
+        var items = await service.GetItemsAsync(SearchContentType.Movie, 5, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             ["Weekly Movie One", "Weekly Movie Two"],
@@ -82,7 +83,7 @@ public sealed class HotThisWeekServiceTests
             new RecordingDiscoveryService([]),
             new RecordingTrendingSnapshotService(CreateSnapshotItems()));
 
-        var items = await service.GetItemsAsync(SearchContentType.Tv, 5);
+        var items = await service.GetItemsAsync(SearchContentType.Tv, 5, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(items);
         Assert.Equal("Weekly Show One", items[0].Title);
@@ -97,7 +98,7 @@ public sealed class HotThisWeekServiceTests
             new RecordingDiscoveryService([]),
             new RecordingTrendingSnapshotService(CreateSnapshotItems()));
 
-        var items = await service.GetItemsAsync(SearchContentType.All, 2);
+        var items = await service.GetItemsAsync(SearchContentType.All, 2, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(["Weekly Movie One", "Weekly Show One"], items.Select(item => item.Title).ToList());
     }
@@ -110,8 +111,8 @@ public sealed class HotThisWeekServiceTests
         var snapshot = new RecordingTrendingSnapshotService(CreateSnapshotItems());
         var service = CreateService(cache, discovery, snapshot);
 
-        var first = await service.GetItemsAsync(SearchContentType.All, 5);
-        var second = await service.GetItemsAsync(SearchContentType.All, 5);
+        var first = await service.GetItemsAsync(SearchContentType.All, 5, ContentLocaleResolver.EnglishUnitedStates);
+        var second = await service.GetItemsAsync(SearchContentType.All, 5, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(first.Select(item => item.Id), second.Select(item => item.Id));
         Assert.Equal(2, cache.GetCount);
@@ -161,9 +162,7 @@ public sealed class HotThisWeekServiceTests
     {
         public int TrendingCallCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             TrendingCallCount++;
 
@@ -180,25 +179,16 @@ public sealed class HotThisWeekServiceTests
                 items.Count == 0 ? 0 : 1));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         private static bool MatchesType(SearchItem item, SearchContentType type) =>

@@ -113,6 +113,7 @@ public sealed class RecommendationQueryFanOutTests
             discoveryService,
             new FakeCurrentUser(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")),
             new PassthroughCacheService(),
+            new MovieApp.UnitTests.Search.SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             Options.Create(new RecommendationOptions
             {
                 MinimumPersonalizationInteractions = 1,
@@ -144,39 +145,28 @@ public sealed class RecommendationQueryFanOutTests
     {
         public int CallCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             CallCount++;
             return Task.FromResult(EmptyResult(criteria));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             CallCount++;
             return Task.FromResult(EmptyResult(criteria));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(EmptyResult(criteria));
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             CallCount++;
             return Task.FromResult(EmptyResult(criteria));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(EmptyResult(criteria));
 
         private static PaginatedResult<SearchItem> EmptyResult(DiscoveryCriteria criteria) =>

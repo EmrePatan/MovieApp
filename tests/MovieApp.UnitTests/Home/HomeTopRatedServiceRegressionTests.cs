@@ -4,6 +4,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.UnitTests.Home;
@@ -18,7 +19,7 @@ public sealed class HomeTopRatedServiceRegressionTests
         var candidates = CreateMixedCandidates(animationCount: 6, dramaCount: 10);
         var service = CreateService(candidates, ConfigureAllWithDramaGenre, ConfigureAnimationGenre);
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(10, result.Count);
         Assert.Equal(3, CountAnimation(result));
@@ -51,7 +52,7 @@ public sealed class HomeTopRatedServiceRegressionTests
                 .Select(item => new CatalogContentKey(item.Id, item.Type))
                 .ToHashSet());
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(10, result.Count);
         Assert.Equal(3, CountAnimation(result));
@@ -83,7 +84,7 @@ public sealed class HomeTopRatedServiceRegressionTests
                 .ToHashSet(),
             _ => new HashSet<CatalogContentKey>());
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result, item => item.Title == "genre-less");
     }
@@ -114,7 +115,7 @@ public sealed class HomeTopRatedServiceRegressionTests
                 .ToHashSet(),
             _ => new HashSet<CatalogContentKey>());
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result, item => item.Title == "genre-less-hit");
     }
@@ -125,7 +126,7 @@ public sealed class HomeTopRatedServiceRegressionTests
         var candidates = CreateMixedCandidates(animationCount: 6, dramaCount: 10);
         var service = CreateService(candidates, ConfigureAllWithDramaGenre, ConfigureAnimationGenre);
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             ["animation-0", "animation-1", "animation-2"],
@@ -138,7 +139,7 @@ public sealed class HomeTopRatedServiceRegressionTests
         var candidates = CreateMixedCandidates(animationCount: 6, dramaCount: 10);
         var service = CreateService(candidates, ConfigureAllWithDramaGenre, ConfigureAnimationGenre);
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             ["drama-0", "drama-1", "drama-2", "drama-3", "drama-4", "drama-5", "drama-6"],
@@ -151,7 +152,7 @@ public sealed class HomeTopRatedServiceRegressionTests
         var candidates = CreateMixedCandidates(animationCount: 6, dramaCount: 2);
         var service = CreateService(candidates, ConfigureAllWithDramaGenre, ConfigureAnimationGenre);
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(5, result.Count);
         Assert.Equal(3, CountAnimation(result));
@@ -169,7 +170,7 @@ public sealed class HomeTopRatedServiceRegressionTests
                 .ToHashSet(),
             ConfigureAnimationGenre);
 
-        var result = await service.GetItemsAsync(SearchContentType.All, 10);
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(3, result.Count);
         Assert.All(result, item => Assert.StartsWith("drama", item.Title, StringComparison.Ordinal));
@@ -243,24 +244,16 @@ public sealed class HomeTopRatedServiceRegressionTests
 
     private sealed class RecordingDiscoveryService(IReadOnlyList<SearchItem> items) : IDiscoveryService
     {
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>(
                 items.Take(criteria.PageSize).ToList(),
                 criteria.Page,
@@ -268,10 +261,7 @@ public sealed class HomeTopRatedServiceRegressionTests
                 items.Count,
                 1));
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 
@@ -294,9 +284,7 @@ public sealed class HomeTopRatedServiceRegressionTests
         Func<IReadOnlyList<SearchItem>, IReadOnlySet<CatalogContentKey>> genreQualifiedKeys,
         Func<IReadOnlyList<SearchItem>, IReadOnlySet<CatalogContentKey>> animationKeys) : ISearchRepository
     {
-        public Task<PaginatedResult<SearchItem>> SearchAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
@@ -305,24 +293,16 @@ public sealed class HomeTopRatedServiceRegressionTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -341,10 +321,7 @@ public sealed class HomeTopRatedServiceRegressionTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(genreQualifiedKeys(items));
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 }

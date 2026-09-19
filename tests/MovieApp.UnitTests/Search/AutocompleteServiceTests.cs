@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,10 +21,11 @@ public sealed class AutocompleteServiceTests
         var service = new AutocompleteService(
             new FakeSearchRepository(suggestions),
             new FakeProviderIngestionService(),
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             new FakeCacheService(suggestions),
             NullLogger<AutocompleteService>.Instance);
 
-        var result = await service.GetSuggestionsAsync("bat");
+        var result = await service.GetSuggestionsAsync("bat", ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result);
         Assert.Equal("/fake/batman-poster.jpg", result[0].PosterUrl);
@@ -36,10 +38,11 @@ public sealed class AutocompleteServiceTests
         var service = new AutocompleteService(
             new FakeSearchRepository([]),
             provider,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             new FakeCacheService(null),
             NullLogger<AutocompleteService>.Instance);
 
-        var result = await service.GetSuggestionsAsync("ava");
+        var result = await service.GetSuggestionsAsync("ava", ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("/poster.jpg", result[0].PosterUrl);
@@ -58,10 +61,11 @@ public sealed class AutocompleteServiceTests
         var service = new AutocompleteService(
             repository,
             new FakeProviderIngestionService { ThrowOnAutocomplete = true },
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             new FakeCacheService(null),
             NullLogger<AutocompleteService>.Instance);
 
-        var result = await service.GetSuggestionsAsync("ava");
+        var result = await service.GetSuggestionsAsync("ava", ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("/fake/avatar-poster.jpg", result[0].PosterUrl);
@@ -75,10 +79,11 @@ public sealed class AutocompleteServiceTests
         var service = new AutocompleteService(
             new FakeSearchRepository([]),
             new FakeProviderIngestionService(),
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             new FakeCacheService(null),
             NullLogger<AutocompleteService>.Instance);
 
-        await Assert.ThrowsAsync<ValidationException>(() => service.GetSuggestionsAsync("a"));
+        await Assert.ThrowsAsync<ValidationException>(() => service.GetSuggestionsAsync("a", ContentLocaleResolver.EnglishUnitedStates));
     }
 
     private sealed class FakeProviderIngestionService : IUnifiedSearchProviderIngestionService
@@ -87,15 +92,10 @@ public sealed class AutocompleteServiceTests
 
         public bool ThrowOnAutocomplete { get; set; }
 
-        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(UnifiedSearchProviderIngestionResult.NotRequired());
 
-        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
-            string query,
-            int limit,
-            CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default)
         {
             AutocompleteCount++;
 
@@ -116,9 +116,7 @@ public sealed class AutocompleteServiceTests
     {
         public int AutocompleteCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> SearchAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
         public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
@@ -130,24 +128,16 @@ public sealed class AutocompleteServiceTests
             return Task.FromResult(suggestions);
         }
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -166,10 +156,7 @@ public sealed class AutocompleteServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
     }
 

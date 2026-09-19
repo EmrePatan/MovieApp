@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
@@ -48,7 +49,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("inception"));
+        var result = await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(0, repository.SearchCount);
@@ -64,7 +65,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("inception"));
+        var result = await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, providerIngestion.IngestCount);
         Assert.Equal(0, repository.SearchCount);
@@ -80,7 +81,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("friends"));
+        var result = await service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, providerIngestion.IngestCount);
         Assert.Equal(0, repository.SearchCount);
@@ -98,7 +99,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion, refreshRepository);
 
-        await service.SearchAsync(CreateCriteria("inception"));
+        await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, providerIngestion.IngestCount);
         Assert.Equal(0, repository.SearchCount);
@@ -112,7 +113,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("batman", SearchContentType.Movie));
+        var result = await service.SearchAsync(CreateCriteria("batman", SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(SearchContentType.Movie, providerIngestion.LastCriteria!.Type);
         Assert.Single(result.Items);
@@ -127,7 +128,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("friends", SearchContentType.Tv));
+        var result = await service.SearchAsync(CreateCriteria("friends", SearchContentType.Tv), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(SearchContentType.Tv, providerIngestion.LastCriteria!.Type);
         Assert.Single(result.Items);
@@ -142,7 +143,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("friends", SearchContentType.All));
+        var result = await service.SearchAsync(CreateCriteria("friends", SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Contains(result.Items, item => item.Type == "movie");
         Assert.Contains(result.Items, item => item.Type == "tv");
@@ -162,7 +163,7 @@ public sealed class SearchServiceTests
         var service = CreateService(repository, cache, providerIngestion, refreshRepository);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("missing-title")));
+            service.SearchAsync(CreateCriteria("missing-title"), ContentLocaleResolver.EnglishUnitedStates));
 
         Assert.Equal(0, cache.SetCount);
     }
@@ -176,7 +177,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion, refreshRepository);
 
-        await service.SearchAsync(CreateCriteria("missing-title"));
+        await service.SearchAsync(CreateCriteria("missing-title"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, refreshRepository.SetCount);
         Assert.Equal(1, cache.SetCount);
@@ -194,7 +195,7 @@ public sealed class SearchServiceTests
         };
         var service = CreateService(repository, cache, providerIngestion);
 
-        var result = await service.SearchAsync(CreateCriteria("inception"));
+        var result = await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, repository.SearchCount);
         Assert.Equal(0, cache.SetCount);
@@ -215,7 +216,7 @@ public sealed class SearchServiceTests
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var tasks = Enumerable.Range(0, 10)
-            .Select(_ => service.SearchAsync(CreateCriteria("friends")))
+            .Select(_ => service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates))
             .ToArray();
         await Task.WhenAll(tasks);
         stopwatch.Stop();
@@ -262,7 +263,7 @@ public sealed class SearchServiceTests
         var service = CreateService(repository, cache, providerIngestion, refreshRepository);
 
         var tasks = Enumerable.Range(0, 10)
-            .Select(_ => service.SearchAsync(CreateCriteria("missing-title")))
+            .Select(_ => service.SearchAsync(CreateCriteria("missing-title"), ContentLocaleResolver.EnglishUnitedStates))
             .ToArray();
 
         await Task.WhenAll(tasks);
@@ -286,7 +287,7 @@ public sealed class SearchServiceTests
             providerIngestion);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("missing-title")));
+            service.SearchAsync(CreateCriteria("missing-title"), ContentLocaleResolver.EnglishUnitedStates));
 
         Assert.Equal(0, cache.SetCount);
     }
@@ -306,7 +307,7 @@ public sealed class SearchServiceTests
             refreshRepository);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("friends")));
+            service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates));
 
         Assert.Equal(0, refreshRepository.SetCount);
     }
@@ -320,7 +321,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion, refreshRepository);
 
-        await service.SearchAsync(CreateCriteria("friends", SearchContentType.All));
+        await service.SearchAsync(CreateCriteria("friends", SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, refreshRepository.SetCount);
     }
@@ -344,7 +345,7 @@ public sealed class SearchServiceTests
             1,
             20);
 
-        await service.SearchAsync(criteria);
+        await service.SearchAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(0, providerIngestion.IngestCount);
         Assert.Equal(1, repository.SearchCount);
@@ -363,7 +364,7 @@ public sealed class SearchServiceTests
         var service = CreateService(repository, cache, providerIngestion);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("friends")));
+            service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -377,7 +378,7 @@ public sealed class SearchServiceTests
         var service = CreateService(repository, cache, providerIngestion, refreshRepository, lockService);
 
         var tasks = Enumerable.Range(0, 20)
-            .Select(_ => service.SearchAsync(CreateCriteria("friends")))
+            .Select(_ => service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates))
             .ToArray();
 
         await Task.WhenAll(tasks);
@@ -402,7 +403,7 @@ public sealed class SearchServiceTests
 
         Assert.NotNull(lockHandle);
 
-        var waitingTask = service.SearchAsync(CreateCriteria("friends"));
+        var waitingTask = service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates);
         await cache.SetAsync(
             UnifiedSearchCacheKeys.Create(CreateCriteria("friends")),
             new UnifiedSearchCacheEntry
@@ -430,7 +431,7 @@ public sealed class SearchServiceTests
         var service = CreateService(repository, cache, providerIngestion, lockService: lockService);
 
         var tasks = Enumerable.Range(0, 10)
-            .Select(_ => service.SearchAsync(CreateCriteria("friends")))
+            .Select(_ => service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates))
             .ToArray();
 
         await Task.WhenAll(tasks);
@@ -448,7 +449,7 @@ public sealed class SearchServiceTests
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
         var service = CreateService(repository, cache, providerIngestion, options: options);
 
-        await service.SearchAsync(CreateCriteria("inception"));
+        await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(TimeSpan.FromMinutes(30), cache.LastExpiry);
     }
@@ -462,14 +463,14 @@ public sealed class SearchServiceTests
             new SearchTestDoubles.FakeProviderIngestionService());
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.SearchAsync(CreateCriteria("a")));
+            service.SearchAsync(CreateCriteria("a"), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     private static async Task<(bool Succeeded, Exception? Error)> RecordOutcomeAsync(SearchService service)
     {
         try
         {
-            await service.SearchAsync(CreateCriteria("friends"));
+            await service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates);
             return (true, null);
         }
         catch (Exception exception)
@@ -493,6 +494,7 @@ public sealed class SearchServiceTests
             new FakeCurrentUser(null),
             cache,
             providerIngestion,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             lockService ?? new SearchTestDoubles.InMemorySearchRefreshLockService(),
             completionSignal ?? SearchTestDoubles.CreateCompletionSignal(),
             SearchTestDoubles.CreateOptionsMonitor(options),
@@ -527,9 +529,7 @@ public sealed class SearchServiceTests
 
         public int SearchCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> SearchAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default)
         {
             SearchCount++;
 
@@ -547,24 +547,16 @@ public sealed class SearchServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -583,10 +575,7 @@ public sealed class SearchServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
     }
 

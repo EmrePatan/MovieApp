@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.Search;
@@ -27,9 +28,18 @@ public sealed class ExplorePreviewService(
 
         var discoveryCriteria = new DiscoveryCriteria(SearchContentType.All, 1, criteria.SectionSize);
 
-        var trendingTask = discoveryService.GetTrendingAsync(discoveryCriteria, cancellationToken);
-        var topRatedTask = discoveryService.GetTopRatedAsync(discoveryCriteria, cancellationToken);
-        var newReleasesTask = discoveryService.GetNewReleasesAsync(discoveryCriteria, cancellationToken);
+        var trendingTask = discoveryService.GetTrendingAsync(
+            discoveryCriteria,
+            ContentLocaleResolver.EnglishUnitedStates,
+            cancellationToken);
+        var topRatedTask = discoveryService.GetTopRatedAsync(
+            discoveryCriteria,
+            ContentLocaleResolver.EnglishUnitedStates,
+            cancellationToken);
+        var newReleasesTask = discoveryService.GetNewReleasesAsync(
+            discoveryCriteria,
+            ContentLocaleResolver.EnglishUnitedStates,
+            cancellationToken);
 
         await Task.WhenAll(trendingTask, topRatedTask, newReleasesTask);
 

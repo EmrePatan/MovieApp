@@ -1,9 +1,14 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Home;
+using MovieApp.Application.Models.Recommendations;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using Microsoft.Extensions.DependencyInjection;
@@ -221,9 +226,7 @@ internal static class SearchTestDoubles
 
         public int ArtificialDelayMilliseconds { get; set; }
 
-        public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _ingestCount);
             LastCriteria = criteria;
@@ -269,10 +272,7 @@ internal static class SearchTestDoubles
                 result);
         }
 
-        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
-            string query,
-            int limit,
-            CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default)
         {
             if (ThrowOnAutocomplete)
             {
@@ -358,9 +358,7 @@ internal static class SearchTestDoubles
 
         public int ArtificialDelayMilliseconds { get; set; }
 
-        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _ingestCount);
 
@@ -393,10 +391,91 @@ internal static class SearchTestDoubles
                 result));
         }
 
-        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
-            string query,
-            int limit,
-            CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
+    }
+
+    internal sealed class FakeLocalizedListDataProvider : ILocalizedListDataProvider
+    {
+        public Task<MovieProviderSearchResult> SearchMoviesAsync(
+            string query,
+            int page,
+            int pageSize,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderSearchResult> SearchTvShowsAsync(
+            string query,
+            int page,
+            int pageSize,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PersonProviderSearchResult> SearchPersonsAsync(
+            string query,
+            int page,
+            int pageSize,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+            DiscoverProviderCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+            DiscoverProviderCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieProviderSearchResult> AdvancedDiscoverMoviesAsync(
+            AdvancedDiscoverProviderCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderSearchResult> AdvancedDiscoverTvShowsAsync(
+            AdvancedDiscoverProviderCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    internal sealed class PassthroughSummaryLocalizationOverlayService : ISummaryLocalizationOverlayService
+    {
+        public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+            PaginatedResult<SearchItem> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<SearchSuggestion>> ApplyToSearchSuggestionsAsync(
+            IReadOnlyList<SearchSuggestion> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<PaginatedResult<RecommendationItem>> ApplyToRecommendationItemsAsync(
+            PaginatedResult<RecommendationItem> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<HomeResult> ApplyToHomeResultAsync(
+            HomeResult canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<RecommendationSection>> ApplyToRecommendationSectionsAsync(
+            IReadOnlyList<RecommendationSection> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
     }
 }

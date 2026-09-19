@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
@@ -35,7 +36,7 @@ public sealed class SearchServiceProviderFailureTests
                 TvSucceeds = false
             });
 
-        var result = await service.SearchAsync(CreateCriteria("inception"));
+        var result = await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(20, result.TotalCount);
         Assert.Equal(1, repository.SearchCount);
@@ -64,7 +65,7 @@ public sealed class SearchServiceProviderFailureTests
             providerIngestion);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("friends")));
+            service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -113,7 +114,7 @@ public sealed class SearchServiceProviderFailureTests
             refreshRepository);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("friends")));
+            service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates));
 
         Assert.Equal(0, refreshRepository.SetCount);
     }
@@ -131,7 +132,7 @@ public sealed class SearchServiceProviderFailureTests
                 TvSucceeds = false
             });
 
-        await service.SearchAsync(CreateCriteria("friends", SearchContentType.All));
+        await service.SearchAsync(CreateCriteria("friends", SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(0, cache.SetCount);
     }
@@ -154,7 +155,7 @@ public sealed class SearchServiceProviderFailureTests
             completionSignal: completionSignal);
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(() =>
-            service.SearchAsync(CreateCriteria("unexpected failure")));
+            service.SearchAsync(CreateCriteria("unexpected failure"), ContentLocaleResolver.EnglishUnitedStates));
 
         Assert.Equal(SearchRefreshAttemptOutcome.Failed, completionSignal.LastPublishedOutcome);
         Assert.Equal(1, lockService.ReleaseCount);
@@ -178,7 +179,7 @@ public sealed class SearchServiceProviderFailureTests
             lockService: lockService,
             completionSignal: completionSignal);
 
-        var result = await service.SearchAsync(CreateCriteria("catalog fallback"));
+        var result = await service.SearchAsync(CreateCriteria("catalog fallback"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(SearchRefreshAttemptOutcome.Succeeded, completionSignal.LastPublishedOutcome);
@@ -198,7 +199,7 @@ public sealed class SearchServiceProviderFailureTests
             lockService: lockService,
             completionSignal: completionSignal);
 
-        await service.SearchAsync(CreateCriteria("success path"));
+        await service.SearchAsync(CreateCriteria("success path"), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(SearchRefreshAttemptOutcome.Succeeded, completionSignal.LastPublishedOutcome);
     }
@@ -207,7 +208,7 @@ public sealed class SearchServiceProviderFailureTests
     {
         try
         {
-            await service.SearchAsync(CreateCriteria("friends"));
+            await service.SearchAsync(CreateCriteria("friends"), ContentLocaleResolver.EnglishUnitedStates);
             return (true, null);
         }
         catch (Exception exception)
@@ -256,6 +257,7 @@ internal static class SearchServiceTestsHelper
             new FakeCurrentUser(null),
             cache,
             providerIngestion,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             lockService ?? new SearchTestDoubles.InMemorySearchRefreshLockService(),
             completionSignal ?? SearchTestDoubles.CreateCompletionSignal(),
             SearchTestDoubles.CreateOptionsMonitor(),
@@ -308,9 +310,7 @@ internal static class SearchServiceTestsHelper
 
         public int SearchCount => _searchCount;
 
-        public Task<PaginatedResult<SearchItem>> SearchAsync(
-            SearchCriteria criteria,
-            CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default)
         {
             _searchCount++;
             return Task.FromResult(new PaginatedResult<SearchItem>(
@@ -327,24 +327,16 @@ internal static class SearchServiceTestsHelper
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
 
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -363,10 +355,7 @@ internal static class SearchServiceTestsHelper
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<CatalogContentKey>>(new HashSet<CatalogContentKey>());
 
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
-            string genreName,
-            DiscoveryCriteria criteria,
-            CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
     }
 

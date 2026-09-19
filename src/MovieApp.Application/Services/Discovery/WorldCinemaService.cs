@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 
@@ -39,6 +40,7 @@ public sealed class WorldCinemaService(
         {
             result = await advancedDiscoverService.DiscoverAsync(
                 ToAdvancedDiscoverCriteria(criteria),
+                ContentLocaleResolver.EnglishUnitedStates,
                 cancellationToken);
         }
         catch (SearchProviderUnavailableException)

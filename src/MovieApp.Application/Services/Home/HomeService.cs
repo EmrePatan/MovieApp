@@ -52,14 +52,17 @@ public sealed class HomeService(
 
     private readonly HomeOptions _options = options.Value;
 
-    public async Task<HomeResult> GetHomeAsync(HomeCriteria criteria, CancellationToken cancellationToken = default)
+    public async Task<HomeResult> GetHomeAsync(
+        HomeCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
 
         ValidateCriteria(criteria);
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var cacheKey = HomeCacheKeys.Create(userId, criteria.Type, criteria.SectionSize);
+        var cacheKey = HomeCacheKeys.Create(userId, criteria.Type, criteria.SectionSize, contentLocale);
         var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
@@ -81,7 +84,10 @@ public sealed class HomeService(
         var recommendationSectionsTask = RunScopedTimedAsync(
             (services, ct) => services
                 .GetRequiredService<IRecommendationService>()
-                .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
+                .GetHomeRecommendationsForCurrentUserAsync(
+                    includeColdStartDiscoverySections: false,
+                    contentLocale,
+                    ct),
             cancellationToken);
 
         var hotThisWeekTask = RunScopedTimedAsync(
@@ -89,6 +95,7 @@ public sealed class HomeService(
                 services,
                 criteria,
                 heroSize,
+                contentLocale,
                 ct),
             cancellationToken);
 
@@ -101,13 +108,13 @@ public sealed class HomeService(
                 HomeSectionType.Trending,
                 "Trending Now",
                 services.GetRequiredService<IDiscoveryService>()
-                    .GetTrendingAsync(discoveryCriteria, ct),
+                    .GetTrendingAsync(discoveryCriteria, contentLocale, ct),
                 criteria,
                 ct),
             cancellationToken);
 
         var topRatedTask = RunScopedTimedAsync(
-            (services, ct) => BuildTopRatedSectionAsync(services, criteria, ct),
+            (services, ct) => BuildTopRatedSectionAsync(services, criteria, contentLocale, ct),
             cancellationToken);
 
         var newReleasesTask = RunScopedTimedAsync(
@@ -115,7 +122,7 @@ public sealed class HomeService(
                 HomeSectionType.NewReleases,
                 "New Releases",
                 services.GetRequiredService<IDiscoveryService>()
-                    .GetNewReleasesAsync(discoveryCriteria, ct),
+                    .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
                 criteria,
                 ct),
             cancellationToken);
@@ -193,6 +200,7 @@ public sealed class HomeService(
 
     public async Task<HomeBrowseResult> GetHomeBrowseAsync(
         HomeCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -208,6 +216,7 @@ public sealed class HomeService(
                 services,
                 criteria,
                 heroSize,
+                contentLocale,
                 ct),
             cancellationToken);
 
@@ -216,13 +225,13 @@ public sealed class HomeService(
                 HomeSectionType.Trending,
                 "Trending Now",
                 services.GetRequiredService<IDiscoveryService>()
-                    .GetTrendingAsync(discoveryCriteria, ct),
+                    .GetTrendingAsync(discoveryCriteria, contentLocale, ct),
                 criteria,
                 ct),
             cancellationToken);
 
         var topRatedTask = RunScopedTimedAsync(
-            (services, ct) => BuildTopRatedSectionAsync(services, criteria, ct),
+            (services, ct) => BuildTopRatedSectionAsync(services, criteria, contentLocale, ct),
             cancellationToken);
 
         var newReleasesTask = RunScopedTimedAsync(
@@ -230,7 +239,7 @@ public sealed class HomeService(
                 HomeSectionType.NewReleases,
                 "New Releases",
                 services.GetRequiredService<IDiscoveryService>()
-                    .GetNewReleasesAsync(discoveryCriteria, ct),
+                    .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
                 criteria,
                 ct),
             cancellationToken);
@@ -267,6 +276,7 @@ public sealed class HomeService(
 
     public async Task<HomePersonalizedResult> GetHomePersonalizedAsync(
         HomeCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -279,7 +289,10 @@ public sealed class HomeService(
         var recommendationSectionsTask = RunScopedTimedAsync(
             (services, ct) => services
                 .GetRequiredService<IRecommendationService>()
-                .GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false, ct),
+                .GetHomeRecommendationsForCurrentUserAsync(
+                    includeColdStartDiscoverySections: false,
+                    contentLocale,
+                    ct),
             cancellationToken);
 
         var comingUpTask = RunScopedTimedAsync(
@@ -291,6 +304,7 @@ public sealed class HomeService(
                 services,
                 criteria,
                 heroSize,
+                contentLocale,
                 ct),
             cancellationToken);
 
@@ -358,11 +372,12 @@ public sealed class HomeService(
     private static async Task<HomeSection> BuildTopRatedSectionAsync(
         IServiceProvider services,
         HomeCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var items = await services
             .GetRequiredService<IHomeTopRatedService>()
-            .GetItemsAsync(criteria.Type, criteria.SectionSize, cancellationToken);
+            .GetItemsAsync(criteria.Type, criteria.SectionSize, contentLocale, cancellationToken);
 
         var homeItems = HomeSectionBuilders.DeduplicateItems(
             items.Select(HomeMapper.FromSearchItem),
@@ -379,11 +394,12 @@ public sealed class HomeService(
         IServiceProvider services,
         HomeCriteria criteria,
         int heroSize,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var items = await services
             .GetRequiredService<IHotThisWeekService>()
-            .GetItemsAsync(criteria.Type, heroSize, cancellationToken);
+            .GetItemsAsync(criteria.Type, heroSize, contentLocale, cancellationToken);
 
         var homeItems = HomeSectionBuilders.DeduplicateItems(
             items.Select(HomeMapper.FromSearchItem),

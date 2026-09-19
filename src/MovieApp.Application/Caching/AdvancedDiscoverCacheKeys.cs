@@ -5,6 +5,9 @@ namespace MovieApp.Application.Caching;
 
 public static class AdvancedDiscoverCacheKeys
 {
+    public static string Create(AdvancedDiscoverCriteria criteria, string contentLocale) =>
+        ContentLocaleCacheKeySegment.Append(Create(criteria), contentLocale);
+
     public static string Create(AdvancedDiscoverCriteria criteria)
     {
         var genreSegment = criteria.GenreIds.Count == 0
