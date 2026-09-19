@@ -280,6 +280,18 @@ public sealed class ResetPasswordServiceTests
             InvalidationCount++;
             return Task.CompletedTask;
         }
+
+        public Task<PasswordResetDeliveryTarget?> GetDeliveryTargetAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<PasswordResetDeliveryTarget?>(null);
+
+        public Task CompleteDeliveryAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakePasswordHasher(bool newPasswordMatchesCurrent = false) : IPasswordHasher

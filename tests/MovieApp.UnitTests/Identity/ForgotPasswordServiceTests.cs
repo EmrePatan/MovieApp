@@ -19,8 +19,8 @@ public sealed class ForgotPasswordServiceTests
     public async Task ForgotPasswordAsyncReturnsSameMessageForExistingAndMissingEmail()
     {
         var existingUser = CreateUser();
-        var existingService = CreateService(new FakeUserRepository(existingUser), new CapturingEmailSender());
-        var missingService = CreateService(new FakeUserRepository(null), new CapturingEmailSender());
+        var existingService = CreateService(new FakeUserRepository(existingUser), new RecordingEnqueuer());
+        var missingService = CreateService(new FakeUserRepository(null), new RecordingEnqueuer());
 
         var existingResult = await existingService.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
         var missingResult = await missingService.ForgotPasswordAsync(new ForgotPasswordRequest("missing@example.com"));
@@ -30,25 +30,19 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
-    public async Task ForgotPasswordAsyncCreatesHashedTokenAndSendsEmail()
+    public async Task ForgotPasswordAsyncCreatesHashedTokenAndEnqueuesDelivery()
     {
         var user = CreateUser();
         var tokenRepository = new FakePasswordResetTokenRepository();
-        var emailSender = new CapturingEmailSender();
-        var service = CreateService(new FakeUserRepository(user), emailSender, tokenRepository);
+        var enqueuer = new RecordingEnqueuer();
+        var service = CreateService(new FakeUserRepository(user), enqueuer, tokenRepository);
 
         await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
 
         Assert.Single(tokenRepository.CreatedTokens);
-        Assert.Single(emailSender.SentEmails);
-        Assert.Equal(user.Email, emailSender.SentEmails[0].Email);
-        Assert.DoesNotContain(
-            emailSender.LastRawToken!,
-            tokenRepository.CreatedTokens[0].TokenHash,
-            StringComparison.Ordinal);
-        Assert.Equal(
-            PasswordResetTokenHasher.HashToken(emailSender.LastRawToken!),
-            tokenRepository.CreatedTokens[0].TokenHash);
+        Assert.Single(enqueuer.EnqueuedTokenIds);
+        Assert.NotNull(tokenRepository.CreatedTokens[0].ProtectedDeliverySecret);
+        Assert.NotNull(tokenRepository.CreatedTokens[0].TokenHash);
     }
 
     [Fact]
@@ -56,7 +50,7 @@ public sealed class ForgotPasswordServiceTests
     {
         var user = CreateUser();
         var tokenRepository = new FakePasswordResetTokenRepository();
-        var service = CreateService(new FakeUserRepository(user), new CapturingEmailSender(), tokenRepository);
+        var service = CreateService(new FakeUserRepository(user), new RecordingEnqueuer(), tokenRepository);
 
         await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
         await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
@@ -66,36 +60,34 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
-    public async Task ForgotPasswordAsyncDoesNotSendEmailForInactiveUser()
+    public async Task ForgotPasswordAsyncDoesNotEnqueueForInactiveUser()
     {
         var user = CreateUser();
         user.IsActive = false;
-        var emailSender = new CapturingEmailSender();
-        var service = CreateService(new FakeUserRepository(user), emailSender);
+        var enqueuer = new RecordingEnqueuer();
+        var service = CreateService(new FakeUserRepository(user), enqueuer);
 
         var result = await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
 
         Assert.Equal(ForgotPasswordService.SuccessMessage, result.Message);
-        Assert.Empty(emailSender.SentEmails);
+        Assert.Empty(enqueuer.EnqueuedTokenIds);
     }
 
     [Fact]
     public async Task ForgotPasswordAsyncThrowsValidationExceptionForInvalidEmail()
     {
-        var service = CreateService(new FakeUserRepository(null), new CapturingEmailSender());
+        var service = CreateService(new FakeUserRepository(null), new RecordingEnqueuer());
 
         await Assert.ThrowsAsync<ValidationException>(() =>
             service.ForgotPasswordAsync(new ForgotPasswordRequest("not-an-email")));
     }
 
     [Fact]
-    public async Task ForgotPasswordAsyncReturnsGenericSuccessWhenEmailSenderFails()
+    public async Task ForgotPasswordAsyncReturnsGenericSuccessWhenEnqueueFails()
     {
         var user = CreateUser();
-        var missingService = CreateService(new FakeUserRepository(null), new CapturingEmailSender());
-        var failingService = CreateService(
-            new FakeUserRepository(user),
-            new FailingEmailSender("SmtpProviderFailureDetail"));
+        var missingService = CreateService(new FakeUserRepository(null), new RecordingEnqueuer());
+        var failingService = CreateService(new FakeUserRepository(user), new FailingEnqueuer());
 
         var missingResult = await missingService.ForgotPasswordAsync(new ForgotPasswordRequest("missing@example.com"));
         var failingResult = await failingService.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
@@ -106,14 +98,11 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
-    public async Task ForgotPasswordAsyncEmailFailureStillPersistsResetToken()
+    public async Task ForgotPasswordAsyncEnqueueFailureStillPersistsResetToken()
     {
         var user = CreateUser();
         var tokenRepository = new FakePasswordResetTokenRepository();
-        var service = CreateService(
-            new FakeUserRepository(user),
-            new FailingEmailSender(),
-            tokenRepository);
+        var service = CreateService(new FakeUserRepository(user), new FailingEnqueuer(), tokenRepository);
 
         await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
 
@@ -121,13 +110,11 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
-    public async Task ForgotPasswordAsyncEmailFailureDoesNotExposeSensitiveDetailsInResponse()
+    public async Task ForgotPasswordAsyncEnqueueFailureDoesNotExposeSensitiveDetailsInResponse()
     {
-        const string sensitiveMarker = "SmtpProviderFailureDetail";
+        const string sensitiveMarker = "EnqueueFailureDetail";
         var user = CreateUser();
-        var service = CreateService(
-            new FakeUserRepository(user),
-            new FailingEmailSender(sensitiveMarker));
+        var service = CreateService(new FakeUserRepository(user), new FailingEnqueuer(sensitiveMarker));
 
         var result = await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
 
@@ -138,14 +125,15 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
-    public async Task ForgotPasswordAsyncEmailFailureLogsWithoutSensitiveValues()
+    public async Task ForgotPasswordAsyncEnqueueFailureLogsWithoutSensitiveValues()
     {
         const string rawTokenMarker = "raw-token-marker-value";
         var user = CreateUser();
         var logger = new CollectingLogger<ForgotPasswordService>();
         var service = CreateService(
             new FakeUserRepository(user),
-            new FailingEmailSenderWithResetUrl(rawTokenMarker),
+            new FailingEnqueuer("enqueue failed"),
+            protector: new TrackingProtector(rawTokenMarker),
             logger: logger);
 
         await service.ForgotPasswordAsync(new ForgotPasswordRequest("user@example.com"));
@@ -171,8 +159,9 @@ public sealed class ForgotPasswordServiceTests
 
     private static ForgotPasswordService CreateService(
         FakeUserRepository userRepository,
-        IEmailSender emailSender,
+        IPasswordResetDeliveryEnqueuer enqueuer,
         FakePasswordResetTokenRepository? tokenRepository = null,
+        IPasswordResetDeliverySecretProtector? protector = null,
         ILogger<ForgotPasswordService>? logger = null)
     {
         tokenRepository ??= new FakePasswordResetTokenRepository();
@@ -185,7 +174,8 @@ public sealed class ForgotPasswordServiceTests
         return new ForgotPasswordService(
             userRepository,
             tokenRepository,
-            emailSender,
+            protector ?? new PassthroughProtector(),
+            enqueuer,
             options,
             logger ?? NullLogger<ForgotPasswordService>.Instance);
     }
@@ -198,29 +188,35 @@ public sealed class ForgotPasswordServiceTests
             "Display Name",
             DateTime.UtcNow);
 
-    private sealed class FailingEmailSender(string failureDetail = "SmtpProviderFailureDetail") : IEmailSender
+    private sealed class PassthroughProtector : IPasswordResetDeliverySecretProtector
     {
-        public Task SendPasswordResetEmailAsync(
-            string toEmail,
-            string resetUrl,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException($"SMTP failed: {failureDetail}");
+        public string Protect(string rawToken) => rawToken;
+
+        public string Unprotect(string protectedPayload) => protectedPayload;
     }
 
-    private sealed class FailingEmailSenderWithResetUrl(string resetUrlTokenMarker) : IEmailSender
+    private sealed class TrackingProtector(string marker) : IPasswordResetDeliverySecretProtector
     {
-        public Task SendPasswordResetEmailAsync(
-            string toEmail,
-            string resetUrl,
-            CancellationToken cancellationToken = default)
-        {
-            if (!resetUrl.Contains(resetUrlTokenMarker, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("Expected reset URL token marker was not passed to email sender.");
-            }
+        public string Protect(string rawToken) => marker;
 
-            throw new InvalidOperationException("SMTP failed.");
+        public string Unprotect(string protectedPayload) => protectedPayload;
+    }
+
+    private sealed class RecordingEnqueuer : IPasswordResetDeliveryEnqueuer
+    {
+        public List<Guid> EnqueuedTokenIds { get; } = [];
+
+        public Task EnqueueAsync(Guid tokenId, CancellationToken cancellationToken = default)
+        {
+            EnqueuedTokenIds.Add(tokenId);
+            return Task.CompletedTask;
         }
+    }
+
+    private sealed class FailingEnqueuer(string failureDetail = "EnqueueFailureDetail") : IPasswordResetDeliveryEnqueuer
+    {
+        public Task EnqueueAsync(Guid tokenId, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException($"Enqueue failed: {failureDetail}");
     }
 
     private sealed class CollectingLogger<T> : ILogger<T>
@@ -249,45 +245,6 @@ public sealed class ForgotPasswordServiceTests
             public void Dispose()
             {
             }
-        }
-    }
-
-    private sealed class CapturingEmailSender : IEmailSender
-    {
-        public List<(string Email, string ResetUrl)> SentEmails { get; } = [];
-
-        public string? LastRawToken { get; private set; }
-
-        public Task SendPasswordResetEmailAsync(
-            string toEmail,
-            string resetUrl,
-            CancellationToken cancellationToken = default)
-        {
-            SentEmails.Add((toEmail, resetUrl));
-            LastRawToken = ExtractTokenFromResetUrl(resetUrl);
-            return Task.CompletedTask;
-        }
-
-        private static string? ExtractTokenFromResetUrl(string resetUrl)
-        {
-            var queryIndex = resetUrl.IndexOf('?', StringComparison.Ordinal);
-            if (queryIndex < 0)
-            {
-                return null;
-            }
-
-            var query = resetUrl[(queryIndex + 1)..];
-            foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var pair = part.Split('=', 2);
-                if (pair.Length == 2 &&
-                    string.Equals(pair[0], "token", StringComparison.OrdinalIgnoreCase))
-                {
-                    return Uri.UnescapeDataString(pair[1]);
-                }
-            }
-
-            return null;
         }
     }
 
@@ -350,5 +307,17 @@ public sealed class ForgotPasswordServiceTests
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<PasswordResetTokenConsumptionResult?>(null);
+
+        public Task<PasswordResetDeliveryTarget?> GetDeliveryTargetAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<PasswordResetDeliveryTarget?>(null);
+
+        public Task CompleteDeliveryAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

@@ -4,6 +4,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Users;
@@ -15,7 +16,8 @@ namespace MovieApp.Application.Services.Identity;
 public sealed class ForgotPasswordService(
     IUserRepository userRepository,
     IPasswordResetTokenRepository passwordResetTokenRepository,
-    IEmailSender emailSender,
+    IPasswordResetDeliverySecretProtector deliverySecretProtector,
+    IPasswordResetDeliveryEnqueuer deliveryEnqueuer,
     IOptions<PasswordResetOptions> passwordResetOptions,
     ILogger<ForgotPasswordService> logger) : IForgotPasswordService
 {
@@ -37,6 +39,7 @@ public sealed class ForgotPasswordService(
 
         if (user is not null && user.IsActive)
         {
+            var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(request.ContentLocale);
             var utcNow = DateTime.UtcNow;
             await passwordResetTokenRepository.InvalidateActiveTokensForUserAsync(
                 user.Id,
@@ -53,15 +56,16 @@ public sealed class ForgotPasswordService(
                 UserId = user.Id,
                 TokenHash = tokenHash,
                 CreatedAtUtc = utcNow,
-                ExpiresAtUtc = utcNow.Add(lifetime)
+                ExpiresAtUtc = utcNow.Add(lifetime),
+                ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken),
+                ContentLocale = normalizedContentLocale
             };
 
             await passwordResetTokenRepository.CreateAsync(resetToken, cancellationToken);
 
-            var resetUrl = BuildResetUrl(passwordResetOptions.Value.BaseUrl, rawToken);
             try
             {
-                await emailSender.SendPasswordResetEmailAsync(user.Email, resetUrl, cancellationToken);
+                await deliveryEnqueuer.EnqueueAsync(resetToken.Id, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -69,8 +73,9 @@ public sealed class ForgotPasswordService(
             }
             catch (Exception exception)
             {
-                ForgotPasswordLogMessages.LogPasswordResetEmailDeliveryFailed(
+                PasswordResetLogMessages.LogDeliveryEnqueueFailed(
                     logger,
+                    resetToken.Id,
                     user.Id,
                     exception.GetType().Name);
             }

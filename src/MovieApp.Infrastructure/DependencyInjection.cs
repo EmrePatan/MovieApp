@@ -110,6 +110,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<PasswordResetOptions>, PasswordResetOptionsValidator>();
 
+        services.AddOptions<ResendPasswordResetEmailOptions>()
+            .Bind(configuration.GetSection(ResendPasswordResetEmailOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<ResendPasswordResetEmailOptions>, ResendPasswordResetEmailOptionsValidator>();
+
         services.AddOptions<EmailVerificationOptions>()
             .Bind(configuration.GetSection(EmailVerificationOptions.SectionName))
             .ValidateOnStart();
@@ -411,11 +417,15 @@ public static class DependencyInjection
 
 
 
-        if (provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
+        if (provider.Equals("Resend", StringComparison.OrdinalIgnoreCase))
 
         {
 
-            return serviceProvider.GetRequiredService<SmtpEmailSender>();
+            throw new InvalidOperationException(
+
+                "Password reset email delivery is handled by the Resend delivery pipeline. " +
+
+                "ForgotPasswordService does not use IEmailSender.");
 
         }
 
@@ -425,7 +435,7 @@ public static class DependencyInjection
 
             $"Unsupported password reset email provider '{provider}'. " +
 
-            "Use 'Development' in development or 'Smtp' with configured SMTP settings in production.");
+            "Use 'Development' in development or 'Resend' with configured Resend settings in production.");
 
     }
 

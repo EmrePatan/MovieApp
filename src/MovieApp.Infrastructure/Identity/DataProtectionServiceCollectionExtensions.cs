@@ -24,6 +24,7 @@ public static class DataProtectionServiceCollectionExtensions
 
         services.AddSingleton<IValidateOptions<MovieAppDataProtectionOptions>, MovieAppDataProtectionOptionsValidator>();
         services.AddSingleton<IEmailVerificationDeliverySecretProtector, DataProtectionEmailVerificationDeliverySecretProtector>();
+        services.AddSingleton<IPasswordResetDeliverySecretProtector, DataProtectionPasswordResetDeliverySecretProtector>();
 
         var dataProtectionOptions = configuration
             .GetSection(MovieAppDataProtectionOptions.SectionName)

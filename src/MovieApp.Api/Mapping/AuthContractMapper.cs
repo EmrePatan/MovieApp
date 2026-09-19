@@ -45,8 +45,9 @@ public static class AuthContractMapper
             result.CreatedAt);
 
     public static Application.Models.Identity.ForgotPasswordRequest ToForgotPasswordRequest(
-        Contracts.Auth.ForgotPasswordRequest request) =>
-        new(request.Email);
+        Contracts.Auth.ForgotPasswordRequest request,
+        string contentLocale) =>
+        new(request.Email, contentLocale);
 
     public static Application.Models.Identity.ResetPasswordRequest ToResetPasswordRequest(
         Contracts.Auth.ResetPasswordRequest request) =>

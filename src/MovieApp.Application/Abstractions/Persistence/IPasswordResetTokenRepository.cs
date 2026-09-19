@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Identity;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Abstractions.Persistence;
@@ -21,6 +22,16 @@ public interface IPasswordResetTokenRepository
 
     Task InvalidateActiveTokensForUserAsync(
         Guid userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
+    Task<PasswordResetDeliveryTarget?> GetDeliveryTargetAsync(
+        Guid tokenId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteDeliveryAsync(
+        Guid tokenId,
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 }

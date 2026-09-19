@@ -5,11 +5,23 @@ namespace MovieApp.Infrastructure.Email;
 /// <summary>
 /// Captures password reset and verification emails for integration tests. Registered only in the Testing environment.
 /// </summary>
-public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmailSender
+public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmailSender, IPasswordResetEmailSender
 {
     private readonly object _sync = new();
     private readonly List<(string Email, string ResetUrl)> _sentPasswordResetEmails = [];
+    private readonly List<(Guid TokenId, string Email, string ResetUrl, string ContentLocale)> _sentPasswordResetDeliveryEmails = [];
     private readonly List<(Guid TokenId, string Email, string VerifyUrl, string ContentLocale)> _sentVerificationEmails = [];
+
+    public IReadOnlyList<(Guid TokenId, string Email, string ResetUrl, string ContentLocale)> SentPasswordResetDeliveryEmails
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _sentPasswordResetDeliveryEmails.ToList();
+            }
+        }
+    }
 
     public IReadOnlyList<(string Email, string ResetUrl)> SentEmails
     {
@@ -40,6 +52,22 @@ public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmail
     {
         lock (_sync)
         {
+            _sentPasswordResetEmails.Add((toEmail, resetUrl));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetEmailAsync(
+        Guid tokenId,
+        string toEmail,
+        string resetUrl,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            _sentPasswordResetDeliveryEmails.Add((tokenId, toEmail, resetUrl, contentLocale));
             _sentPasswordResetEmails.Add((toEmail, resetUrl));
         }
 

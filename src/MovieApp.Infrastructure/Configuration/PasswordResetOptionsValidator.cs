@@ -5,8 +5,7 @@ using MovieApp.Application.Configuration;
 namespace MovieApp.Infrastructure.Configuration;
 
 public sealed class PasswordResetOptionsValidator(
-    IHostEnvironment hostEnvironment,
-    IOptions<SmtpEmailOptions> smtpEmailOptions) : IValidateOptions<PasswordResetOptions>
+    IHostEnvironment hostEnvironment) : IValidateOptions<PasswordResetOptions>
 {
     public ValidateOptionsResult Validate(string? name, PasswordResetOptions options)
     {
@@ -15,18 +14,11 @@ public sealed class PasswordResetOptionsValidator(
             return ValidateOptionsResult.Success;
         }
 
-        if (!string.Equals(options.EmailProvider, "Smtp", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(options.EmailProvider, "Resend", StringComparison.OrdinalIgnoreCase))
         {
             return ValidateOptionsResult.Fail(
-                "Production requires Authentication:PasswordReset:EmailProvider to be set to 'Smtp'. " +
+                "Production requires Authentication:PasswordReset:EmailProvider to be set to 'Resend'. " +
                 "Password reset must not run with a non-deliverable email sender.");
-        }
-
-        if (!smtpEmailOptions.Value.IsConfigured())
-        {
-            return ValidateOptionsResult.Fail(
-                "Production SMTP email is not configured. Set Authentication:Email:Smtp:Host and FromAddress " +
-                "(and credentials via secrets or environment variables).");
         }
 
         if (string.IsNullOrWhiteSpace(options.BaseUrl))

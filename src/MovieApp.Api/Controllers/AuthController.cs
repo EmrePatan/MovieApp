@@ -204,7 +204,7 @@ public sealed class AuthController(
         try
         {
             var result = await forgotPasswordService.ForgotPasswordAsync(
-                AuthContractMapper.ToForgotPasswordRequest(request),
+                AuthContractMapper.ToForgotPasswordRequest(request, Request.ResolveContentLocale()),
                 cancellationToken);
 
             return Ok(AuthContractMapper.ToMessageResponse(result));

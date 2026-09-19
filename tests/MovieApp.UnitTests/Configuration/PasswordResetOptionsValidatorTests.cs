@@ -21,7 +21,7 @@ public sealed class PasswordResetOptionsValidatorTests
     }
 
     [Fact]
-    public void ValidateFailsProductionWithoutSmtpProvider()
+    public void ValidateFailsProductionWithoutResendProvider()
     {
         var validator = CreateValidator(new FakeHostEnvironment("Production"));
 
@@ -31,54 +31,27 @@ public sealed class PasswordResetOptionsValidatorTests
 
         Assert.False(result.Succeeded);
         Assert.Contains("EmailProvider", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("Resend", result.FailureMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ValidateFailsProductionWhenSmtpIsNotConfigured()
+    public void ValidateSucceedsProductionWithResendProviderAndBaseUrl()
     {
-        var validator = CreateValidator(
-            new FakeHostEnvironment("Production"),
-            new SmtpEmailOptions());
-
-        var result = validator.Validate(
-            PasswordResetOptions.SectionName,
-            new PasswordResetOptions { EmailProvider = "Smtp", BaseUrl = "movieapp://reset-password" });
-
-        Assert.False(result.Succeeded);
-        Assert.Contains("SMTP", result.FailureMessage, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ValidateSucceedsProductionWithConfiguredSmtp()
-    {
-        var validator = CreateValidator(
-            new FakeHostEnvironment("Production"),
-            new SmtpEmailOptions
-            {
-                Host = "smtp.example.com",
-                FromAddress = "noreply@example.com"
-            });
+        var validator = CreateValidator(new FakeHostEnvironment("Production"));
 
         var result = validator.Validate(
             PasswordResetOptions.SectionName,
             new PasswordResetOptions
             {
-                EmailProvider = "Smtp",
+                EmailProvider = "Resend",
                 BaseUrl = "movieapp://reset-password"
             });
 
         Assert.True(result.Succeeded);
     }
 
-    private static PasswordResetOptionsValidator CreateValidator(
-        IHostEnvironment hostEnvironment,
-        SmtpEmailOptions? smtpEmailOptions = null)
-    {
-        smtpEmailOptions ??= new SmtpEmailOptions();
-        return new PasswordResetOptionsValidator(
-            hostEnvironment,
-            Options.Create(smtpEmailOptions));
-    }
+    private static PasswordResetOptionsValidator CreateValidator(IHostEnvironment hostEnvironment) =>
+        new(hostEnvironment);
 
     private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
     {

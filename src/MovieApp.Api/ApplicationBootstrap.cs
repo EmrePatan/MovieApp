@@ -33,7 +33,8 @@ public static class ApplicationBootstrap
             .AddMovieAppDataProtection(builder.Configuration, builder.Environment)
             .AddApi(builder.Configuration)
             .AddBackgroundJobs(builder.Configuration)
-            .AddEmailVerificationDelivery(builder.Configuration, builder.Environment);
+            .AddEmailVerificationDelivery(builder.Configuration, builder.Environment)
+            .AddPasswordResetDelivery(builder.Configuration, builder.Environment);
     }
 
     public static void ConfigurePipeline(WebApplication app)

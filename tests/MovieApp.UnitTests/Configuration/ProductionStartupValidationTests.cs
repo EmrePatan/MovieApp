@@ -178,22 +178,20 @@ public sealed class ProductionStartupValidationTests
     }
 
     [Fact]
-    public void PasswordResetValidatorFailsProductionWithMissingSmtpConfiguration()
+    public void PasswordResetValidatorFailsProductionWithoutResendProvider()
     {
-        var validator = new PasswordResetOptionsValidator(
-            new FakeHostEnvironment("Production"),
-            Options.Create(new SmtpEmailOptions()));
+        var validator = new PasswordResetOptionsValidator(new FakeHostEnvironment("Production"));
 
         var result = validator.Validate(
             PasswordResetOptions.SectionName,
             new PasswordResetOptions
             {
-                EmailProvider = "Smtp",
+                EmailProvider = "Development",
                 BaseUrl = "movieapp://reset-password"
             });
 
         Assert.False(result.Succeeded);
-        Assert.Contains("SMTP", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("Resend", result.FailureMessage, StringComparison.Ordinal);
     }
 
     [Fact]

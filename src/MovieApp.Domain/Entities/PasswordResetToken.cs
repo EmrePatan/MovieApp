@@ -14,6 +14,12 @@ public sealed class PasswordResetToken
 
     public DateTime? UsedAtUtc { get; set; }
 
+    public string? ProtectedDeliverySecret { get; set; }
+
+    public string ContentLocale { get; set; } = "en-US";
+
+    public DateTime? DeliveryCompletedAtUtc { get; set; }
+
     public User User { get; set; } = null!;
 
     public bool IsActive(DateTime utcNow) =>

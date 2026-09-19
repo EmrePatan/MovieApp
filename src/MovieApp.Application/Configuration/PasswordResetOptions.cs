@@ -6,9 +6,11 @@ public sealed class PasswordResetOptions
 
     public int TokenLifetimeMinutes { get; set; } = 60;
 
+    public int DeliveryTimeoutSeconds { get; set; } = 30;
+
     /// <summary>
     /// Email delivery provider. Development uses <c>Development</c>.
-    /// Production requires <c>Smtp</c> with configured SMTP settings.
+    /// Production requires <c>Resend</c> with configured Resend settings.
     /// </summary>
     public string EmailProvider { get; set; } = "Development";
 
