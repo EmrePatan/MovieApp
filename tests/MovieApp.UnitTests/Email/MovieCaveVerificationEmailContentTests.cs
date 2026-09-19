@@ -6,7 +6,7 @@ public sealed class MovieCaveVerificationEmailContentTests
 {
     private const string VerifyUrl = "movieapp://verify-email?token=raw-token-value";
     private const string HeroImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/verification-hero-v2.jpg";
-    private const string LogoImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/movie-cave-horizontal-logo-v1.png";
+    private const string LogoImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/movie-cave-horizontal-logo-v2.png";
 
     private static string CommittedSnapshotPath =>
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Email", "Snapshots", "movie-cave-verification-email.snapshot.html"));

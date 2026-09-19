@@ -109,7 +109,7 @@ public sealed class ResendVerificationEmailSenderTests
             html,
             StringComparison.Ordinal);
         Assert.Contains(
-            "src=\"https://api.example.com/email-assets/movie-cave-horizontal-logo-v1.png\"",
+            "src=\"https://api.example.com/email-assets/movie-cave-horizontal-logo-v2.png\"",
             html,
             StringComparison.Ordinal);
         Assert.Contains(MovieCaveVerificationEmailContent.HeaderLogoMarkerClass, html, StringComparison.Ordinal);

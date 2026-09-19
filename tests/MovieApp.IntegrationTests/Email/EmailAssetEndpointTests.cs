@@ -30,7 +30,7 @@ public sealed class EmailAssetEndpointTests : IClassFixture<MovieAppWebApplicati
     [Fact]
     public async Task VerificationHeaderLogoAssetIsPublicAndCacheable()
     {
-        using var response = await _client.GetAsync("/email-assets/movie-cave-horizontal-logo-v1.png");
+        using var response = await _client.GetAsync("/email-assets/movie-cave-horizontal-logo-v2.png");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);

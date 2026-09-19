@@ -15,7 +15,7 @@ public sealed class VerificationEmailLogoUrlResolverTests
     public void ResolveBuildsAbsoluteLogoUrlFromPublicBaseUrl()
     {
         Assert.Equal(
-            "https://movieapp-fpkg.onrender.com/email-assets/movie-cave-horizontal-logo-v1.png",
+            "https://movieapp-fpkg.onrender.com/email-assets/movie-cave-horizontal-logo-v2.png",
             VerificationEmailLogoUrlResolver.Resolve("https://movieapp-fpkg.onrender.com"));
     }
 }
