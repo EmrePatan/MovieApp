@@ -67,12 +67,6 @@ public sealed class AiMovieRecommendationService(
                         "AI recommendation provider is temporarily unavailable.");
                 }
 
-                var quotaCommitStopwatch = Stopwatch.StartNew();
-                await quotaService.CommitAsync(userId, reservation, cancellationToken);
-                quotaCommitStopwatch.Stop();
-                perfContext.RecordQuotaCommitMs(quotaCommitStopwatch.ElapsedMilliseconds);
-                quotaCommitted = true;
-
                 AiSessionConstraintMerger.Merge(session, generation.ConstraintUpdates);
 
                 var validation = await validator.ValidateAsync(
@@ -89,10 +83,19 @@ public sealed class AiMovieRecommendationService(
                 sessionSaveStopwatch.Stop();
                 perfContext.RecordSessionSaveMs(sessionSaveStopwatch.ElapsedMilliseconds);
 
+                var quotaCommitStopwatch = Stopwatch.StartNew();
+                await quotaService.CommitAsync(userId, reservation, cancellationToken);
+                quotaCommitStopwatch.Stop();
+                perfContext.RecordQuotaCommitMs(quotaCommitStopwatch.ElapsedMilliseconds);
+                quotaCommitted = true;
+
                 var quotaRemaining = await quotaService.GetRemainingUserQuotaAsync(userId, cancellationToken);
 
                 perfContext.SetOutcome("Success");
-                perfContext.SetResultCounts(validation.GeminiSuggestionCount, validation.ValidatedCount);
+                perfContext.SetResultCounts(
+                    settings.SuggestionCount,
+                    validation.GeminiSuggestionCount,
+                    validation.ValidatedCount);
 
                 return new AiRecommendationServiceResult(
                     session.SessionId,

@@ -57,7 +57,7 @@ public sealed class NullAiRecommendationPerfContext : IAiRecommendationPerfConte
     {
     }
 
-    public void SetResultCounts(int suggestionCount, int returnedCount)
+    public void SetResultCounts(int configuredSuggestionCount, int geminiSuggestionCount, int returnedCount)
     {
     }
 }

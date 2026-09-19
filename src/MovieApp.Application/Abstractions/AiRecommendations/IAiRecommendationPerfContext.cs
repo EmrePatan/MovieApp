@@ -32,5 +32,5 @@ public interface IAiRecommendationPerfContext
 
     void SetOutcome(string outcome);
 
-    void SetResultCounts(int suggestionCount, int returnedCount);
+    void SetResultCounts(int configuredSuggestionCount, int geminiSuggestionCount, int returnedCount);
 }

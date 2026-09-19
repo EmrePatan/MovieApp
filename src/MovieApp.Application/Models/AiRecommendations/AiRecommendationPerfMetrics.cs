@@ -52,5 +52,7 @@ public sealed class AiRecommendationPerfMetrics
 
     public int SuggestionCount { get; set; }
 
+    public int GeminiSuggestionCount { get; set; }
+
     public int ReturnedCount { get; set; }
 }

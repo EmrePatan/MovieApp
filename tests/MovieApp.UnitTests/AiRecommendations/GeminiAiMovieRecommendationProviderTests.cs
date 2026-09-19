@@ -93,5 +93,7 @@ public sealed class GeminiAiMovieRecommendationProviderTests
         Assert.Contains("suggestions", body, StringComparison.Ordinal);
         Assert.Contains("movies and/or TV series", body, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggest movies only", body, StringComparison.Ordinal);
+        Assert.Contains("\"maxItems\":10", body, StringComparison.Ordinal);
+        Assert.Contains("Return exactly up to 10 recommendations", body, StringComparison.Ordinal);
     }
 }

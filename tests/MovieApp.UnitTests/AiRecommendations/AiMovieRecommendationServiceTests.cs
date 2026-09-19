@@ -118,6 +118,95 @@ public sealed class AiMovieRecommendationServiceTests
     }
 
     [Fact]
+    public async Task GetRecommendationsAsyncPassesConfiguredSuggestionCountToProvider()
+    {
+        var provider = new FakeProvider();
+        var service = CreateService(
+            new FakeEntitlementService(),
+            new FakeQuotaService(),
+            provider,
+            new FakeValidator());
+
+        await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+
+        Assert.Equal(10, provider.LastSuggestionCount);
+    }
+
+    [Fact]
+    public async Task GetRecommendationsAsyncCommitsQuotaOnlyAfterValidationSucceeds()
+    {
+        var quota = new TrackingQuotaService();
+        var service = CreateService(
+            new FakeEntitlementService(),
+            quota,
+            new FakeProvider(),
+            new FakeValidator(
+                new AiValidationResult(
+                    [
+                        new AiValidatedRecommendation(
+                            new ResolvedMovieIdentity(
+                                "movie",
+                                Guid.NewGuid(),
+                                1,
+                                "Arrival",
+                                2016,
+                                116,
+                                "Arrival",
+                                "Overview",
+                                null,
+                                null,
+                                new DateOnly(2016, 1, 1),
+                                8m,
+                                100,
+                                ["Science Fiction"]),
+                            "Mind-bending")
+                    ],
+                    10,
+                    1,
+                    9,
+                    false)));
+
+        await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+
+        Assert.Equal(1, quota.CommitCount);
+        Assert.Equal(0, quota.ReleaseCount);
+    }
+
+    [Fact]
+    public async Task GetRecommendationsAsyncReleasesQuotaWhenValidationFails()
+    {
+        var quota = new TrackingQuotaService();
+        var service = CreateService(
+            new FakeEntitlementService(),
+            quota,
+            new FakeProvider(),
+            new ThrowingValidator());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+
+        Assert.Equal(0, quota.CommitCount);
+        Assert.Equal(1, quota.ReleaseCount);
+    }
+
+    [Fact]
+    public async Task GetRecommendationsAsyncReleasesQuotaWhenProviderFails()
+    {
+        var quota = new TrackingQuotaService();
+        var service = CreateService(
+            new FakeEntitlementService(),
+            quota,
+            new FakeProvider(shouldFail: true),
+            new FakeValidator());
+
+        await Assert.ThrowsAsync<AiRecommendationProviderUnavailableException>(() =>
+            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+
+        Assert.Equal(0, quota.CommitCount);
+        Assert.Equal(1, quota.ReleaseCount);
+    }
+
+    [Fact]
     public async Task GetRecommendationsAsyncReturnsZeroValidatedWithoutSecondProviderCall()
     {
         var provider = new FakeProvider();
@@ -196,6 +285,31 @@ public sealed class AiMovieRecommendationServiceTests
             Task.FromResult(Math.Max(0, 3 - _committed));
     }
 
+    private sealed class TrackingQuotaService : IAiRecommendationQuotaService
+    {
+        public int CommitCount { get; private set; }
+
+        public int ReleaseCount { get; private set; }
+
+        public Task<AiQuotaReservation> CheckAndReserveAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AiQuotaReservation("reservation"));
+
+        public Task CommitAsync(Guid userId, AiQuotaReservation reservation, CancellationToken cancellationToken = default)
+        {
+            CommitCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task ReleaseAsync(Guid userId, AiQuotaReservation reservation, CancellationToken cancellationToken = default)
+        {
+            ReleaseCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task<int> GetRemainingUserQuotaAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(2);
+    }
+
     private sealed class FakeTasteProfileBuilder : IAiTasteProfileBuilder
     {
         public Task<AiTasteProfile> BuildAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -221,11 +335,14 @@ public sealed class AiMovieRecommendationServiceTests
     {
         public int CallCount { get; private set; }
 
+        public int LastSuggestionCount { get; private set; }
+
         public Task<AiProviderGenerationResult> GenerateAsync(
             AiProviderRequest request,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
+            LastSuggestionCount = request.SuggestionCount;
             if (shouldFail)
             {
                 throw new AiRecommendationProviderException("Provider failed.");
@@ -246,5 +363,16 @@ public sealed class AiMovieRecommendationServiceTests
             int maxReturnedCount,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(result ?? new AiValidationResult([], suggestions.Count, 0, suggestions.Count, false));
+    }
+
+    private sealed class ThrowingValidator : IAiMovieRecommendationValidator
+    {
+        public Task<AiValidationResult> ValidateAsync(
+            Guid userId,
+            IReadOnlyList<AiProviderSuggestion> suggestions,
+            AiRecommendationSessionState session,
+            int maxReturnedCount,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Validation failed.");
     }
 }

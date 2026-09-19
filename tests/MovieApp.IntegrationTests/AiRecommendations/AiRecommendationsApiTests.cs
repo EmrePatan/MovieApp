@@ -113,6 +113,31 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
     }
 
     [Fact]
+    public async Task PostReturns500WithoutConsumingQuotaWhenValidationThrows()
+    {
+        fixture.Factory.ResetTestState();
+        fixture.Factory.ValidatorShouldThrow = true;
+
+        var token = await RegisterAndGetTokenAsync();
+
+        var failed = await SendAuthorizedAsync(
+            new AiRecommendationRequest("mystery movie please", null),
+            token);
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+
+        fixture.Factory.ValidatorShouldThrow = false;
+
+        var retry = await SendAuthorizedAsync(
+            new AiRecommendationRequest("mystery movie retry", null),
+            token);
+        retry.EnsureSuccessStatusCode();
+
+        var payload = await retry.Content.ReadFromJsonAsync<AiRecommendationResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(2, payload.QuotaRemaining);
+    }
+
+    [Fact]
     public async Task PostReturns503WithoutConsumingQuotaWhenProviderUnavailable()
     {
         fixture.Factory.ResetTestState();
@@ -197,11 +222,14 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
 
     public bool ProviderShouldFail { get; set; }
 
+    public bool ValidatorShouldThrow { get; set; }
+
     public void ResetTestState()
     {
         ProviderResult = CreateDefaultProviderResult();
         ValidatorResult = CreateDefaultValidatorResult();
         ProviderShouldFail = false;
+        ValidatorShouldThrow = false;
     }
 
     private static AiProviderGenerationResult CreateDefaultProviderResult() => new(
@@ -289,7 +317,14 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
             IReadOnlyList<AiProviderSuggestion> suggestions,
             AiRecommendationSessionState session,
             int maxReturnedCount,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(factory.ValidatorResult);
+            CancellationToken cancellationToken = default)
+        {
+            if (factory.ValidatorShouldThrow)
+            {
+                throw new InvalidOperationException("Validation infrastructure failure.");
+            }
+
+            return Task.FromResult(factory.ValidatorResult);
+        }
     }
 }

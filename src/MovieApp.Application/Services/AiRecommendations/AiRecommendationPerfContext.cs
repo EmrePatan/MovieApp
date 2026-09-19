@@ -85,9 +85,10 @@ public sealed class AiRecommendationPerfContext : IAiRecommendationPerfContext
     public void SetOutcome(string outcome) =>
         Metrics.Outcome = outcome;
 
-    public void SetResultCounts(int suggestionCount, int returnedCount)
+    public void SetResultCounts(int configuredSuggestionCount, int geminiSuggestionCount, int returnedCount)
     {
-        Metrics.SuggestionCount = suggestionCount;
+        Metrics.SuggestionCount = configuredSuggestionCount;
+        Metrics.GeminiSuggestionCount = geminiSuggestionCount;
         Metrics.ReturnedCount = returnedCount;
     }
 }

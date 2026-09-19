@@ -39,16 +39,19 @@ public sealed class AiRecommendationQuotaTests
     }
 
     [Fact]
-    public async Task InMemoryQuotaCommitConsumesMessageEvenWhenValidationWouldFailLater()
+    public async Task InMemoryQuotaReleaseRestoresCapacityWithoutCommit()
     {
         var service = CreateService(new AiRecommendationOptions { UserDailyMessageLimit = 1 });
         var userId = Guid.NewGuid();
 
         var reservation = await service.CheckAndReserveAsync(userId);
-        await service.CommitAsync(userId, reservation);
+        await service.ReleaseAsync(userId, reservation);
+
+        var retry = await service.CheckAndReserveAsync(userId);
+        Assert.NotNull(retry);
 
         var remaining = await service.GetRemainingUserQuotaAsync(userId);
-        Assert.Equal(0, remaining);
+        Assert.Equal(1, remaining);
     }
 
     [Fact]

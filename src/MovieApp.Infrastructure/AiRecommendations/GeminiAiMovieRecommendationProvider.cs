@@ -138,6 +138,7 @@ internal sealed class GeminiAiMovieRecommendationProvider(
                         suggestions = new
                         {
                             type = "array",
+                            maxItems = request.SuggestionCount,
                             items = new
                             {
                                 type = "object",
