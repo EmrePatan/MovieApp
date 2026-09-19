@@ -10,9 +10,12 @@ public static class ProductMetricNames
     public const string WorldCinemaOpened = "world_cinema_opened";
     public const string ContentDetailOpened = "content_detail_opened";
     public const string PickSomethingUsed = "pick_something_used";
+    public const string AiRecommendationsOpened = "ai_recommendations_opened";
+    public const string AiRecommendationsUsed = "ai_recommendations_used";
 
     public const string LibraryOpened = "library_opened";
     public const string LibraryFilterSelected = "library_filter_selected";
+    public const string InsightsOpened = "insights_opened";
 
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
     {
@@ -24,8 +27,11 @@ public static class ProductMetricNames
         WorldCinemaOpened,
         ContentDetailOpened,
         PickSomethingUsed,
+        AiRecommendationsOpened,
+        AiRecommendationsUsed,
         LibraryOpened,
         LibraryFilterSelected,
+        InsightsOpened,
     };
 
     public static bool IsAllowed(string? metricName) =>

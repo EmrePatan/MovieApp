@@ -10,6 +10,9 @@ public sealed class ProductMetricValidatorTests
     [InlineData(ProductMetricNames.StreamingServicesOpened)]
     [InlineData(ProductMetricNames.ContentDetailOpened)]
     [InlineData(ProductMetricNames.PickSomethingUsed)]
+    [InlineData(ProductMetricNames.AiRecommendationsOpened)]
+    [InlineData(ProductMetricNames.AiRecommendationsUsed)]
+    [InlineData(ProductMetricNames.InsightsOpened)]
     public void ValidateAcceptsAllowListedMetrics(string metricName)
     {
         var result = ProductMetricValidator.Validate(metricName);

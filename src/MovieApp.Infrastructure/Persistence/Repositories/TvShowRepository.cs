@@ -12,6 +12,7 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
     {
         return await dbContext.TvShows
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(tvShow => tvShow.TvShowGenres)
             .ThenInclude(tvShowGenre => tvShowGenre.Genre)
             .Include(tvShow => tvShow.Seasons)
@@ -40,7 +41,6 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         return await dbContext.TvShows
             .Include(tvShow => tvShow.TvShowGenres)
             .ThenInclude(tvShowGenre => tvShowGenre.Genre)
-            .Include(tvShow => tvShow.Seasons)
             .FirstOrDefaultAsync(tvShow => tvShow.TmdbId == tmdbId, cancellationToken);
     }
 
@@ -53,6 +53,7 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         if (details.TmdbId.HasValue)
         {
             tvShow = await dbContext.TvShows
+                .AsSplitQuery()
                 .Include(existingTvShow => existingTvShow.TvShowGenres)
                 .ThenInclude(tvShowGenre => tvShowGenre.Genre)
                 .Include(existingTvShow => existingTvShow.Seasons)
@@ -101,6 +102,7 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         var existingTvShows = tmdbIds.Count == 0
             ? []
             : await dbContext.TvShows
+                .AsSplitQuery()
                 .Include(tvShow => tvShow.TvShowGenres)
                 .ThenInclude(tvShowGenre => tvShowGenre.Genre)
                 .Include(tvShow => tvShow.Seasons)

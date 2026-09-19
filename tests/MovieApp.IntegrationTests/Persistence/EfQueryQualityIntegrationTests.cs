@@ -48,6 +48,17 @@ public sealed class EfQueryQualityIntegrationTests
         _ = await repository.GetUserRecommendationContextAsync(userId);
     }
 
+    [Fact]
+    public async Task TvShowRepositoryLookupPathsDoNotEmitCollectionQueryWarnings()
+    {
+        await using var context = CreateStrictQueryContext();
+        var (tvShowId, tmdbId) = await SeedTvShowCatalogAsync(context);
+
+        var repository = new TvShowRepository(context);
+        _ = await repository.GetByTmdbIdAsync(tmdbId);
+        _ = await repository.GetByIdAsync(tvShowId);
+    }
+
     private static ApplicationDbContext CreateStrictQueryContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -180,5 +191,49 @@ public sealed class EfQueryQualityIntegrationTests
 
         await context.SaveChangesAsync();
         return (movieId, userId);
+    }
+
+    private static async Task<(Guid TvShowId, int TmdbId)> SeedTvShowCatalogAsync(ApplicationDbContext context)
+    {
+        var utcNow = DateTime.UtcNow;
+        var genreId = Guid.NewGuid();
+        var tvShowId = Guid.NewGuid();
+        const int tmdbId = 4242;
+
+        context.Genres.Add(new Genre
+        {
+            Id = genreId,
+            Name = $"EF TV Query Quality {genreId:N}",
+            CreatedAt = utcNow
+        });
+        context.TvShows.Add(new TvShow
+        {
+            Id = tvShowId,
+            TmdbId = tmdbId,
+            Title = "EF TV Query Quality Show",
+            FirstAirDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            VoteAverage = 7.5m,
+            VoteCount = 120,
+            Status = TvShowStatus.ReturningSeries,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.TvShowGenres.Add(new TvShowGenre
+        {
+            TvShowId = tvShowId,
+            GenreId = genreId
+        });
+        context.Seasons.Add(new Season
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = tvShowId,
+            SeasonNumber = 1,
+            Name = "Season 1",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+
+        await context.SaveChangesAsync();
+        return (tvShowId, tmdbId);
     }
 }

@@ -31,6 +31,26 @@ public sealed class ProductMetricsApiTests(ProductMetricsFixture fixture)
         Assert.Equal(1, metric.Count);
     }
 
+    [Theory]
+    [InlineData(ProductMetricNames.AiRecommendationsOpened)]
+    [InlineData(ProductMetricNames.AiRecommendationsUsed)]
+    [InlineData(ProductMetricNames.InsightsOpened)]
+    public async Task IncrementAcceptsMobileFeatureMetrics(string metricName)
+    {
+        await ProductMetricsFixture.ResetAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/product-metrics/increment",
+            new IncrementProductMetricRequest(metricName));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        await using var context = ProductMetricsFixture.CreateContext();
+        var metric = await context.ProductMetricDaily.SingleAsync();
+        Assert.Equal(metricName, metric.MetricName);
+        Assert.Equal(1, metric.Count);
+    }
+
     [Fact]
     public async Task IncrementRejectsUnknownMetricName()
     {
