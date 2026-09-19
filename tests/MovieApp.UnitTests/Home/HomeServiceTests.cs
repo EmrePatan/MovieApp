@@ -357,6 +357,44 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
+    public async Task GetHomeAsyncRequestsHotThisWeekItemsUsingHeroSectionSize()
+    {
+        var hotItems = Enumerable.Range(1, 15)
+            .Select(seed => new SearchItem(
+                Guid.Parse($"11111111-1111-1111-1111-{seed:D12}"),
+                "movie",
+                $"Hot Title {seed}",
+                null,
+                null,
+                null,
+                null,
+                new DateOnly(2025, 1, 1),
+                8m,
+                1000,
+                2025))
+            .ToList();
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: new FakeDiscoveryService(),
+            hotThisWeekService: new FakeHotThisWeekService(hotItems),
+            options: new HomeOptions
+            {
+                DefaultSectionSize = 10,
+                MaximumSectionSize = 20,
+                HeroSectionSize = 10,
+            });
+
+        var result = await service.GetHomeAsync(
+            new HomeCriteria(SearchContentType.All, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        var hotThisWeek = result.Sections.Single(section => section.Type == HomeSectionType.HotThisWeek);
+
+        Assert.Equal(10, hotThisWeek.Items.Count);
+    }
+
+    [Fact]
     public async Task GetHomeAsyncKeepsTrendingIndependentFromHotThisWeek()
     {
         var discovery = new CountingDiscoveryService();

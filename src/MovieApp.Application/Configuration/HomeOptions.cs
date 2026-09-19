@@ -6,7 +6,7 @@ public sealed class HomeOptions
 
     public int DefaultSectionSize { get; set; } = 10;
 
-    public int HeroSectionSize { get; set; } = 5;
+    public int HeroSectionSize { get; set; } = 10;
 
     public int ComingUpSectionSize { get; set; } = 5;
 
