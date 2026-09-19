@@ -40,8 +40,23 @@ public sealed class MovieCaveVerificationEmailContentTests
         Assert.Contains("Enjoy", html, StringComparison.Ordinal);
         Assert.Contains("Your Next Favorite", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<img", html, StringComparison.Ordinal);
-        Assert.Contains("background-color:#121216", html, StringComparison.Ordinal);
-        Assert.Contains("#c8a24a", html, StringComparison.Ordinal);
+        Assert.Contains(MovieCaveVerificationEmailContent.CardColor, html, StringComparison.Ordinal);
+        Assert.Contains(MovieCaveVerificationEmailContent.GoldAccentColor, html, StringComparison.Ordinal);
+        Assert.Contains(MovieCaveVerificationEmailContent.PrimaryTextColor, html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildHtmlUsesGmailDarkModeHardeningAndCompactFallbackHero()
+    {
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, heroImageUrl: null);
+
+        Assert.Contains("color-scheme: light only", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("supported-color-schemes: light only", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("bgcolor=\"" + MovieCaveVerificationEmailContent.CardColor + "\"", html, StringComparison.Ordinal);
+        Assert.Contains("background-image:linear-gradient(" + MovieCaveVerificationEmailContent.CardColor, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("height:180px", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("feature-column { display: block", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("border-top:1px solid " + MovieCaveVerificationEmailContent.GoldAccentColor, html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -53,6 +68,7 @@ public sealed class MovieCaveVerificationEmailContentTests
         Assert.Contains($"src=\"{heroImageUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("alt=\"Movie Cave cinematic hero\"", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"{VerifyUrl}\"", html, StringComparison.Ordinal);
+        Assert.Contains("hero-headline", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -62,5 +78,6 @@ public sealed class MovieCaveVerificationEmailContentTests
 
         Assert.DoesNotContain("<img", html, StringComparison.Ordinal);
         Assert.Contains("One more step to the good stuff.", html, StringComparison.Ordinal);
+        Assert.Contains("border-top:1px solid " + MovieCaveVerificationEmailContent.GoldAccentColor, html, StringComparison.Ordinal);
     }
 }
