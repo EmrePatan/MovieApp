@@ -21,14 +21,14 @@ public static class EmailVerificationDeliveryServiceCollectionExtensions
             .GetSection(BackgroundJobsOptions.SectionName)
             .GetValue<bool>(nameof(BackgroundJobsOptions.Enabled));
 
-        if (backgroundJobsEnabled)
+        if (hostEnvironment.IsEnvironment("Testing"))
+        {
+            services.AddSingleton<IEmailVerificationDeliveryEnqueuer, SynchronousEmailVerificationDeliveryEnqueuer>();
+        }
+        else if (backgroundJobsEnabled)
         {
             services.AddScoped<EmailVerificationDeliveryJob>();
             services.AddSingleton<IEmailVerificationDeliveryEnqueuer, HangfireEmailVerificationDeliveryEnqueuer>();
-        }
-        else if (hostEnvironment.IsEnvironment("Testing"))
-        {
-            services.AddSingleton<IEmailVerificationDeliveryEnqueuer, SynchronousEmailVerificationDeliveryEnqueuer>();
         }
         else
         {

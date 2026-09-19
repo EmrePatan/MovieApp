@@ -93,4 +93,12 @@ jobs:
         run: dotnet build tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-restore
 
       - name: Run integration tests (Release)
-        run: dotnet test tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-build --no-restore --verbosity normal
+        run: dotnet test tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-build --no-restore --verbosity normal --logger "trx;LogFileName=integration-tests.trx" --results-directory "${{ runner.temp }}/test-results"
+
+      - name: Upload integration test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: ${{ runner.temp }}/test-results
+          retention-days: 7
