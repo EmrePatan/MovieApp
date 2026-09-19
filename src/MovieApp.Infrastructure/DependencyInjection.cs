@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
@@ -9,6 +10,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Infrastructure.Caching;
 using MovieApp.Infrastructure.Configuration;
+using MovieApp.Infrastructure.Health;
 using MovieApp.Infrastructure.Email;
 using MovieApp.Infrastructure.Identity;
 using MovieApp.Infrastructure.Persistence;
@@ -351,6 +353,9 @@ public static class DependencyInjection
         {
 
             healthChecksBuilder.AddNpgSql(postgreSqlConnectionString, name: "postgresql");
+            healthChecksBuilder.AddCheck<PendingDatabaseMigrationsHealthCheck>(
+                "database-migrations",
+                failureStatus: HealthStatus.Unhealthy);
 
         }
 
