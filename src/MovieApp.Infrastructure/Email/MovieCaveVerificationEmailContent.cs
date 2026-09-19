@@ -148,10 +148,11 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(GoldAccentColor);
         builder.Append(";font-weight:700;\">Movie Cave</p></td></tr>");
         builder.Append(heroSectionHtml);
-        builder.Append("<tr><td class=\"section-padding dark-surface\" ");
+        builder.Append("<tr><td align=\"center\" class=\"section-padding dark-surface\" ");
         builder.Append(cardBackground);
         builder.Append(" style=\"padding:24px 32px 8px 32px;");
         builder.Append(cardBackground);
+        builder.Append("\">");
         builder.Append(BuildEnvelopeBadgeHtml());
         builder.Append("<h1 style=\"margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:");
         builder.Append(PrimaryTextColor);
@@ -171,10 +172,10 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(cardBackground);
         builder.Append(" style=\"padding:0 20px 24px 20px;");
         builder.Append(cardBackground);
-        builder.Append("\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>");
-        builder.Append(FeatureColumn("Discover", "Movies &amp; TV Shows", "33%"));
-        builder.Append(FeatureColumn("Save", "Your Watchlist", "34%"));
-        builder.Append(FeatureColumn("Enjoy", "Your Next Favorite", "33%"));
+        builder.Append("\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;table-layout:fixed;\"><tr>");
+        builder.Append(FeatureColumn("Discover", "Movies &amp; TV Shows"));
+        builder.Append(FeatureColumn("Save", "Your Watchlist"));
+        builder.Append(FeatureColumn("Enjoy", "Your Next Favorite"));
         builder.Append("</tr></table></td></tr><tr><td align=\"center\" class=\"section-padding\" ");
         builder.Append(footerBackground);
         builder.Append(" style=\"padding:18px 32px 24px 32px;");
@@ -255,15 +256,15 @@ public static class MovieCaveVerificationEmailContent
     private static string BuildEnvelopeBadgeHtml()
     {
         var builder = new StringBuilder();
-        builder.Append("<table role=\"presentation\" width=\"48\" height=\"48\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\" style=\"margin:0 auto 16px auto;\"><tr><td align=\"center\" valign=\"middle\" width=\"48\" height=\"48\" bgcolor=\"#1A1712\" style=\"width:48px;height:48px;background-color:#1A1712;background-image:linear-gradient(#1A1712,#1A1712);border:1px solid ");
+        builder.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td align=\"center\" style=\"padding:0 0 16px 0;\"><table role=\"presentation\" width=\"48\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\" style=\"width:48px;max-width:48px;min-width:48px;\"><tr><td align=\"center\" valign=\"middle\" width=\"48\" height=\"48\" bgcolor=\"#1A1712\" style=\"width:48px;min-width:48px;max-width:48px;height:48px;background-color:#1A1712;background-image:linear-gradient(#1A1712,#1A1712);border:1px solid ");
         builder.Append(GoldAccentColor);
-        builder.Append(";border-radius:24px;-webkit-border-radius:24px;font-size:20px;line-height:48px;color:");
+        builder.Append(";border-radius:24px;font-size:20px;line-height:20px;color:");
         builder.Append(GoldAccentColor);
         builder.Append(";font-family:");
         builder.Append(SansFontStack);
         builder.Append(";font-weight:700;\"><span style=\"color:");
         builder.Append(GoldAccentColor);
-        builder.Append(";font-size:20px;line-height:48px;\">&#9993;</span></td></tr></table>");
+        builder.Append(";font-size:20px;line-height:20px;\">&#9993;</span></td></tr></table></td></tr></table>");
         return builder.ToString();
     }
 
@@ -277,40 +278,28 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(cardBackground);
         builder.Append(" style=\"padding:20px 32px 12px 32px;");
         builder.Append(cardBackground);
-        builder.Append("\"><table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\"><tr><td align=\"center\" ");
+        builder.Append("\"><table role=\"presentation\" width=\"320\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\" style=\"width:320px;max-width:320px;margin:0 auto;\"><tr><td align=\"center\" ");
         builder.Append(ctaBackground);
-        builder.Append(" style=\"border-radius:28px;-webkit-border-radius:28px;\"><!--[if mso]><v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:office\" href=\"");
-        builder.Append(encodedVerifyUrl);
-        builder.Append("\" style=\"height:52px;v-text-anchor:middle;width:300px;\" arcsize=\"50%\" strokecolor=\"");
-        builder.Append(GoldAccentColor);
-        builder.Append("\" fillcolor=\"");
-        builder.Append(GoldAccentColor);
-        builder.Append("\"><w:anchorlock/><center style=\"color:");
-        builder.Append(CtaTextColor);
-        builder.Append(";font-family:Arial,sans-serif;font-size:16px;font-weight:bold;\">Verify Email Address &rarr;</center></v:roundrect><![endif]--><!--[if !mso]><!--><table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td align=\"center\" class=\"cta-button-cell\" ");
+        builder.Append(" style=\"padding:16px 24px;border-radius:28px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td align=\"center\" ");
         builder.Append(ctaBackground);
-        builder.Append(" style=\"border-radius:28px;-webkit-border-radius:28px;padding:16px 36px;mso-padding-alt:16px 36px;\"><a class=\"cta-button-link\" href=\"");
+        builder.Append(" style=\"padding:0;\"><a class=\"cta-button-link\" href=\"");
         builder.Append(encodedVerifyUrl);
         builder.Append("\" target=\"_blank\" style=\"font-family:");
         builder.Append(SansFontStack);
         builder.Append(";font-size:16px;line-height:20px;font-weight:700;color:");
         builder.Append(CtaTextColor);
-        builder.Append(";text-decoration:none;display:block;\"><font color=\"");
+        builder.Append(";text-decoration:none;\"><font color=\"");
         builder.Append(CtaTextColor);
         builder.Append("\"><span style=\"color:");
         builder.Append(CtaTextColor);
-        builder.Append(";text-decoration:none;display:inline-block;\">Verify Email Address &rarr;</span></font></a></td></tr></table><!--<![endif]--></td></tr></table></td></tr>");
+        builder.Append(";text-decoration:none;\">Verify Email Address &rarr;</span></font></a></td></tr></table></td></tr></table></td></tr>");
         return builder.ToString();
     }
 
-    private static string FeatureColumn(string label, string text, string widthPercent)
+    private static string FeatureColumn(string label, string text)
     {
         var builder = new StringBuilder();
-        builder.Append("<td class=\"feature-column\" width=\"");
-        builder.Append(widthPercent);
-        builder.Append("\" valign=\"top\" style=\"width:");
-        builder.Append(widthPercent);
-        builder.Append(";padding:0 6px;text-align:center;\"><p class=\"feature-label\" style=\"margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:");
+        builder.Append("<td class=\"feature-column\" width=\"33.33%\" align=\"center\" valign=\"top\" style=\"width:33.33%;padding:0 4px;text-align:center;\"><p class=\"feature-label\" style=\"margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:");
         builder.Append(GoldAccentColor);
         builder.Append(";font-weight:700;\">");
         builder.Append(label);
