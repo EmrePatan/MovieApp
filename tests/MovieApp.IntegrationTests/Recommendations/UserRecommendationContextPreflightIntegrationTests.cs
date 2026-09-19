@@ -239,7 +239,7 @@ public sealed class UserRecommendationContextPreflightIntegrationTests
             minimumInteractionsForEnrichment: PersonalizationThreshold);
     }
 
-    private static int _nextTmdbId = 80_000;
+    private static int _nextTmdbId = 100_000;
 
     private static int NextTmdbId() => Interlocked.Increment(ref _nextTmdbId);
 
