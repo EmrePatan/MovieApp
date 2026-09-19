@@ -134,6 +134,80 @@ public sealed class AiMovieRecommendationValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsyncFiltersMixedMovieAndTvCandidatesByWatchedStatus()
+    {
+        var watchedMovieId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var unwatchedMovieId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var watchedTvShowId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+        var unwatchedTvShowId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        var resolver = new FakeIdentityResolver();
+        resolver.SetResolver(
+            "Watched Movie",
+            CreateContent("movie", watchedMovieId, "Watched Movie", 2016, 100, ["Drama"]));
+        resolver.SetResolver(
+            "Fresh Movie",
+            CreateContent("movie", unwatchedMovieId, "Fresh Movie", 2017, 100, ["Drama"]));
+        resolver.SetResolver(
+            "Watched Show",
+            CreateContent("tv", watchedTvShowId, "Watched Show", 2018, null, ["Crime"]));
+        resolver.SetResolver(
+            "Fresh Show",
+            CreateContent("tv", unwatchedTvShowId, "Fresh Show", 2019, null, ["Crime"]));
+
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(
+                new HashSet<Guid> { watchedMovieId },
+                new HashSet<Guid> { watchedTvShowId }),
+            NullAiRecommendationPerfContext.Instance);
+
+        var result = await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [
+                new AiProviderSuggestion("Watched Movie", 2016, "movie", null, "watched movie"),
+                new AiProviderSuggestion("Fresh Movie", 2017, "movie", null, "fresh movie"),
+                new AiProviderSuggestion("Watched Show", 2018, "tv", null, "watched show"),
+                new AiProviderSuggestion("Fresh Show", 2019, "tv", null, "fresh show"),
+            ],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            CancellationToken.None);
+
+        Assert.Equal(2, result.ValidatedCount);
+        Assert.Equal(
+            ["Fresh Movie", "Fresh Show"],
+            result.Recommendations.Select(recommendation => recommendation.Movie.Title).ToArray());
+        Assert.Equal("movie", result.Recommendations[0].Movie.MediaType);
+        Assert.Equal("tv", result.Recommendations[1].Movie.MediaType);
+    }
+
+    [Fact]
+    public async Task ValidateAsyncLoadsWatchedIdsSequentially()
+    {
+        var resolver = new FakeIdentityResolver();
+        resolver.SetResolver(
+            "Fresh Movie",
+            CreateContent("movie", _movie1, "Fresh Movie", 2016, 100, ["Drama"]));
+
+        var tasteDataSource = new SequentialTasteDataSource();
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            tasteDataSource,
+            NullAiRecommendationPerfContext.Instance);
+
+        await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [new AiProviderSuggestion("Fresh Movie", 2016, "movie", null, "fresh movie")],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            CancellationToken.None);
+
+        Assert.Equal(1, tasteDataSource.MaxConcurrentCalls);
+        Assert.Equal(["GetWatchedMovieIdsAsync", "GetWatchedTvShowIdsAsync"], tasteDataSource.CallOrder);
+    }
+
+    [Fact]
     public async Task ValidateAsyncRejectsWatchedTvShow()
     {
         var tvShowId = Guid.Parse("55555555-5555-5555-5555-555555555555");
@@ -233,5 +307,42 @@ public sealed class AiMovieRecommendationValidatorTests
             Guid userId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(watchedTvShowIds ?? new HashSet<Guid>());
+    }
+
+    private sealed class SequentialTasteDataSource : IAiTasteProfileDataSource
+    {
+        private int _activeCalls;
+
+        public int MaxConcurrentCalls { get; private set; }
+
+        public List<string> CallOrder { get; } = [];
+
+        public Task<AiTasteProfileRawData> LoadAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AiTasteProfileRawData([], [], [], [], []));
+
+        public async Task<IReadOnlySet<Guid>> GetWatchedMovieIdsAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            await TrackCallAsync(nameof(GetWatchedMovieIdsAsync), cancellationToken);
+            return new HashSet<Guid>();
+        }
+
+        public async Task<IReadOnlySet<Guid>> GetWatchedTvShowIdsAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            await TrackCallAsync(nameof(GetWatchedTvShowIdsAsync), cancellationToken);
+            return new HashSet<Guid>();
+        }
+
+        private async Task TrackCallAsync(string methodName, CancellationToken cancellationToken)
+        {
+            var active = Interlocked.Increment(ref _activeCalls);
+            MaxConcurrentCalls = Math.Max(MaxConcurrentCalls, active);
+            CallOrder.Add(methodName);
+            await Task.Delay(10, cancellationToken);
+            Interlocked.Decrement(ref _activeCalls);
+        }
     }
 }

@@ -19,11 +19,8 @@ public sealed class AiMovieRecommendationValidator(
         var totalStopwatch = Stopwatch.StartNew();
 
         var watchedIdsStopwatch = Stopwatch.StartNew();
-        var watchedMovieIdsTask = tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
-        var watchedTvShowIdsTask = tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
-        await Task.WhenAll(watchedMovieIdsTask, watchedTvShowIdsTask);
-        var watchedMovieIds = await watchedMovieIdsTask;
-        var watchedTvShowIds = await watchedTvShowIdsTask;
+        var watchedMovieIds = await tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
+        var watchedTvShowIds = await tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
         watchedIdsStopwatch.Stop();
 
         var accepted = new List<AiValidatedRecommendation>();
