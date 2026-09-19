@@ -154,7 +154,8 @@ public sealed class SummaryIngestionKeywordRegressionTests
             new CatalogKeywordIngestionService(
                 keywordsProvider,
                 new UnsupportedKeywordCatalogRepository(),
-                NullLogger<CatalogKeywordIngestionService>.Instance));
+                NullLogger<CatalogKeywordIngestionService>.Instance),
+            new NoOpMovieCatalogDetailsCacheInvalidator());
 
         public Task<Movie> UpsertMovieFromProviderAsync(
             MovieProviderDetails details,
@@ -229,5 +230,11 @@ public sealed class SummaryIngestionKeywordRegressionTests
             DateTime syncedAtUtc,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class NoOpMovieCatalogDetailsCacheInvalidator : IMovieCatalogDetailsCacheInvalidator
+    {
+        public Task InvalidateAsync(Guid movieId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
@@ -7,7 +8,8 @@ namespace MovieApp.Application.Services.Keywords;
 public sealed class CatalogProviderUpsertService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
-    ICatalogKeywordIngestionService keywordIngestionService) : ICatalogProviderUpsertService
+    ICatalogKeywordIngestionService keywordIngestionService,
+    IMovieCatalogDetailsCacheInvalidator movieCatalogDetailsCacheInvalidator) : ICatalogProviderUpsertService
 {
     public async Task<Movie> UpsertMovieFromProviderAsync(
         MovieProviderDetails details,
@@ -15,6 +17,7 @@ public sealed class CatalogProviderUpsertService(
         CancellationToken cancellationToken = default)
     {
         var movie = await movieRepository.UpsertFromProviderAsync(details, cancellationToken);
+        await movieCatalogDetailsCacheInvalidator.InvalidateAsync(movie.Id, cancellationToken);
 
         if (enrichKeywords)
         {
@@ -33,6 +36,11 @@ public sealed class CatalogProviderUpsertService(
         CancellationToken cancellationToken = default)
     {
         var movies = await movieRepository.UpsertFromProviderBatchAsync(details, cancellationToken);
+
+        foreach (var movie in movies)
+        {
+            await movieCatalogDetailsCacheInvalidator.InvalidateAsync(movie.Id, cancellationToken);
+        }
 
         if (!enrichKeywords)
         {

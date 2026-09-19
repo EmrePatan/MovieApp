@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
@@ -81,7 +82,8 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
             new FakeMovieRepository(movie),
             new FakeMovieRegionalReleaseRepository(regionalRelease),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
-            new NoOpCatalogKeywordIngestionService());
+            new NoOpCatalogKeywordIngestionService(),
+            new NoOpCacheService());
 
     private static Movie CreateMovie(DateOnly? releaseDate) =>
         new()
@@ -130,6 +132,20 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
             MovieRegionalRelease regionalRelease,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(regionalRelease);
+    }
+
+    private sealed class NoOpCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class NoOpCatalogKeywordIngestionService : ICatalogKeywordIngestionService

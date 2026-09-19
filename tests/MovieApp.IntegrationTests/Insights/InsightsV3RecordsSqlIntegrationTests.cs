@@ -136,6 +136,144 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
     }
 
     [Fact]
+    public async Task GetMilestoneTimestampsAsyncUsesRowNumberSemantics()
+    {
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+
+        var userId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Email = $"milestones-{userId:N}@example.com",
+            NormalizedEmail = $"milestones-{userId:N}@example.com".ToUpperInvariant(),
+            UserName = $"milestones-{userId:N}",
+            DisplayName = "Milestones User",
+            PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid(),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+
+        var movieIds = Enumerable.Range(0, 10).Select(_ => Guid.NewGuid()).ToArray();
+        for (var index = 0; index < movieIds.Length; index++)
+        {
+            context.Movies.Add(new Movie
+            {
+                Id = movieIds[index],
+                TmdbId = Random.Shared.Next(10_000_000, 90_000_000),
+                Title = $"Milestone Movie {index + 1}",
+                RuntimeMinutes = 100,
+                VoteAverage = 7,
+                VoteCount = 1,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            });
+            context.WatchedMovies.Add(new WatchedMovie
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                MovieId = movieIds[index],
+                WatchedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(index),
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var milestones = await InsightsV3SqlQueries.GetMilestoneTimestampsAsync(
+            context,
+            userId,
+            CancellationToken.None);
+
+        Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), milestones.FirstMovieWatchedAt);
+        Assert.Equal(new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc), milestones.TenthMovieWatchedAt);
+        Assert.Null(milestones.FiftiethMovieWatchedAt);
+    }
+
+    [Fact]
+    public async Task GetShowCompletionsAsyncPreAggregatesEpisodeTotals()
+    {
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+
+        var userId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Email = $"completions-{userId:N}@example.com",
+            NormalizedEmail = $"completions-{userId:N}@example.com".ToUpperInvariant(),
+            UserName = $"completions-{userId:N}",
+            DisplayName = "Completions User",
+            PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid(),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+
+        var tvShowId = Guid.NewGuid();
+        var seasonId = Guid.NewGuid();
+        var episodeIds = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        context.TvShows.Add(new TvShow
+        {
+            Id = tvShowId,
+            TmdbId = Random.Shared.Next(10_000_000, 90_000_000),
+            Title = "Completion Show",
+            Status = TvShowStatus.Ended,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        context.Seasons.Add(new Season
+        {
+            Id = seasonId,
+            TvShowId = tvShowId,
+            SeasonNumber = 1,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        for (var index = 0; index < episodeIds.Length; index++)
+        {
+            context.Episodes.Add(new Episode
+            {
+                Id = episodeIds[index],
+                SeasonId = seasonId,
+                EpisodeNumber = index + 1,
+                Name = $"Episode {index + 1}",
+                RuntimeMinutes = 40,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            });
+            if (index < 2)
+            {
+                context.WatchedEpisodes.Add(new WatchedEpisode
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    EpisodeId = episodeIds[index],
+                    WatchedAt = new DateTime(2026, 2, index + 1, 12, 0, 0, DateTimeKind.Utc),
+                    CreatedAt = utcNow,
+                    UpdatedAt = utcNow,
+                });
+            }
+        }
+
+        await context.SaveChangesAsync();
+
+        var completions = await InsightsV3SqlQueries.GetShowCompletionsAsync(
+            context,
+            userId,
+            CancellationToken.None);
+
+        Assert.Single(completions);
+        Assert.Equal(3, completions[0].TotalEpisodes);
+        Assert.Equal(2, completions[0].WatchedEpisodes);
+        Assert.Equal(new DateTime(2026, 2, 2, 12, 0, 0, DateTimeKind.Utc), completions[0].LastWatchedAtUtc);
+    }
+
+    [Fact]
     public async Task GetV3RawDataAsyncCountsRepositoryPhasesAndPgCommandsSeparately()
     {
         await using var context = CreateContext();
@@ -161,8 +299,8 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
         var timeZone = InsightsTimeZoneGuard.RequireValidTimeZone("Europe/Istanbul");
         var (_, metrics) = await repository.GetV3RawDataAsync(userId, timeZone, 2026);
 
-        Assert.Equal(14, metrics.DbRoundTrips);
-        Assert.Equal(14, metrics.PgCommandRoundTrips);
+        Assert.Equal(10, metrics.DbRoundTrips);
+        Assert.Equal(10, metrics.PgCommandRoundTrips);
     }
 
     private static ApplicationDbContext CreateContext()

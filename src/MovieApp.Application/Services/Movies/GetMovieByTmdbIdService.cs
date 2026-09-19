@@ -46,6 +46,6 @@ public sealed class GetMovieByTmdbIdService(
                 cancellationToken);
         }
 
-        return await getMovieByIdService.GetByIdAsync(movie.Id, cancellationToken);
+        return await getMovieByIdService.GetByIdAsync(movie.Id, movie, cancellationToken);
     }
 }

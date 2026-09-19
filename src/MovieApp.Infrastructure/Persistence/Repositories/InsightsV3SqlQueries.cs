@@ -144,51 +144,94 @@ internal static class InsightsV3SqlQueries
     {
         var row = await dbContext.Database
             .SqlQuery<MilestoneTimestampRow>($"""
+                WITH ranked_movies AS (
+                    SELECT
+                        wm."WatchedAt" AS watched_at,
+                        ROW_NUMBER() OVER (ORDER BY wm."WatchedAt") AS row_number
+                    FROM watched_movies AS wm
+                    WHERE wm."UserId" = {userId}
+                ),
+                ranked_episodes AS (
+                    SELECT
+                        we."WatchedAt" AS watched_at,
+                        ROW_NUMBER() OVER (ORDER BY we."WatchedAt") AS row_number
+                    FROM watched_episodes AS we
+                    WHERE we."UserId" = {userId}
+                ),
+                ranked_ratings AS (
+                    SELECT
+                        r."CreatedAt" AS created_at,
+                        ROW_NUMBER() OVER (ORDER BY r."CreatedAt") AS row_number
+                    FROM ratings AS r
+                    WHERE r."UserId" = {userId}
+                )
                 SELECT
-                    (SELECT wm."WatchedAt"
-                     FROM watched_movies AS wm
-                     WHERE wm."UserId" = {userId}
-                     ORDER BY wm."WatchedAt"
-                     OFFSET 0 LIMIT 1) AS "FirstMovieWatchedAt",
-                    (SELECT wm."WatchedAt"
-                     FROM watched_movies AS wm
-                     WHERE wm."UserId" = {userId}
-                     ORDER BY wm."WatchedAt"
-                     OFFSET 9 LIMIT 1) AS "TenthMovieWatchedAt",
-                    (SELECT wm."WatchedAt"
-                     FROM watched_movies AS wm
-                     WHERE wm."UserId" = {userId}
-                     ORDER BY wm."WatchedAt"
-                     OFFSET 49 LIMIT 1) AS "FiftiethMovieWatchedAt",
-                    (SELECT we."WatchedAt"
-                     FROM watched_episodes AS we
-                     WHERE we."UserId" = {userId}
-                     ORDER BY we."WatchedAt"
-                     OFFSET 99 LIMIT 1) AS "HundredthEpisodeWatchedAt",
-                    (SELECT we."WatchedAt"
-                     FROM watched_episodes AS we
-                     WHERE we."UserId" = {userId}
-                     ORDER BY we."WatchedAt"
-                     OFFSET 499 LIMIT 1) AS "FiveHundredthEpisodeWatchedAt",
-                    (SELECT r."CreatedAt"
-                     FROM ratings AS r
-                     WHERE r."UserId" = {userId}
-                     ORDER BY r."CreatedAt"
-                     OFFSET 9 LIMIT 1) AS "TenthRatingAt",
-                    (SELECT r."CreatedAt"
-                     FROM ratings AS r
-                     WHERE r."UserId" = {userId}
-                     ORDER BY r."CreatedAt"
-                     OFFSET 24 LIMIT 1) AS "TwentyFifthRatingAt",
-                    (SELECT r."CreatedAt"
-                     FROM ratings AS r
-                     WHERE r."UserId" = {userId}
-                     ORDER BY r."CreatedAt"
-                     OFFSET 49 LIMIT 1) AS "FiftiethRatingAt"
+                    (SELECT watched_at FROM ranked_movies WHERE row_number = 1) AS "FirstMovieWatchedAt",
+                    (SELECT watched_at FROM ranked_movies WHERE row_number = 10) AS "TenthMovieWatchedAt",
+                    (SELECT watched_at FROM ranked_movies WHERE row_number = 50) AS "FiftiethMovieWatchedAt",
+                    (SELECT watched_at FROM ranked_episodes WHERE row_number = 100) AS "HundredthEpisodeWatchedAt",
+                    (SELECT watched_at FROM ranked_episodes WHERE row_number = 500) AS "FiveHundredthEpisodeWatchedAt",
+                    (SELECT created_at FROM ranked_ratings WHERE row_number = 10) AS "TenthRatingAt",
+                    (SELECT created_at FROM ranked_ratings WHERE row_number = 25) AS "TwentyFifthRatingAt",
+                    (SELECT created_at FROM ranked_ratings WHERE row_number = 50) AS "FiftiethRatingAt"
                 """)
             .FirstOrDefaultAsync(cancellationToken);
 
         return row ?? new MilestoneTimestampRow();
+    }
+
+    internal sealed class ShowCompletionSqlRow
+    {
+        public int TotalEpisodes { get; init; }
+
+        public int WatchedEpisodes { get; init; }
+
+        public DateTime? LastWatchedAtUtc { get; init; }
+    }
+
+    internal static async Task<IReadOnlyList<InsightsShowCompletionData>> GetShowCompletionsAsync(
+        ApplicationDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Database
+            .SqlQuery<ShowCompletionSqlRow>($"""
+                WITH watched_counts AS (
+                    SELECT
+                        s."TvShowId" AS tv_show_id,
+                        COUNT(*)::integer AS watched_count,
+                        MAX(we."WatchedAt") AS last_watched_at
+                    FROM watched_episodes AS we
+                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                    WHERE we."UserId" = {userId}
+                      AND s."SeasonNumber" >= 1
+                    GROUP BY s."TvShowId"
+                ),
+                episode_totals AS (
+                    SELECT
+                        s."TvShowId" AS tv_show_id,
+                        COUNT(*)::integer AS total_episodes
+                    FROM episodes AS e
+                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                    WHERE s."SeasonNumber" >= 1
+                    GROUP BY s."TvShowId"
+                )
+                SELECT
+                    et.total_episodes AS "TotalEpisodes",
+                    wc.watched_count AS "WatchedEpisodes",
+                    wc.last_watched_at AS "LastWatchedAtUtc"
+                FROM watched_counts AS wc
+                INNER JOIN episode_totals AS et ON et.tv_show_id = wc.tv_show_id
+                """)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new InsightsShowCompletionData(
+                row.TotalEpisodes,
+                row.WatchedEpisodes,
+                row.LastWatchedAtUtc))
+            .ToList();
     }
 
     internal sealed class V3RuntimeTotalsSqlRow

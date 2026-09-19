@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Keywords;
@@ -15,7 +16,8 @@ public sealed class CatalogProviderUpsertServiceTests
         var service = new CatalogProviderUpsertService(
             movieRepository,
             new FakeTvShowRepository(),
-            keywordIngestion);
+            keywordIngestion,
+            new NoOpMovieCatalogDetailsCacheInvalidator());
 
         await service.UpsertMovieFromProviderAsync(CreateMovieDetails());
 
@@ -30,7 +32,8 @@ public sealed class CatalogProviderUpsertServiceTests
         var service = new CatalogProviderUpsertService(
             movieRepository,
             new FakeTvShowRepository(),
-            keywordIngestion);
+            keywordIngestion,
+            new NoOpMovieCatalogDetailsCacheInvalidator());
 
         await service.UpsertMovieFromProviderAsync(CreateMovieDetails(), enrichKeywords: true);
 
@@ -97,6 +100,12 @@ public sealed class CatalogProviderUpsertServiceTests
             IReadOnlyList<TvShowProviderDetails> details,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class NoOpMovieCatalogDetailsCacheInvalidator : IMovieCatalogDetailsCacheInvalidator
+    {
+        public Task InvalidateAsync(Guid movieId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class TrackingKeywordIngestionService : ICatalogKeywordIngestionService
