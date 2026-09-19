@@ -8,7 +8,7 @@ internal static partial class AiRecommendationPerfLogMessages
     [LoggerMessage(
         EventId = 7201,
         Level = LogLevel.Information,
-        Message = "AiRecommendationPerf Outcome={Outcome} TotalMs={TotalMs} QuotaReserveMs={QuotaReserveMs} TasteProfileCache={TasteProfileCache} TasteProfileTotalMs={TasteProfileTotalMs} TasteProfileCacheLookupMs={TasteProfileCacheLookupMs} TasteProfileBuildCpuMs={TasteProfileBuildCpuMs} TasteProfileCacheWriteMs={TasteProfileCacheWriteMs} TasteProfileRatingsMs={TasteProfileRatingsMs} TasteProfileFavoritesMs={TasteProfileFavoritesMs} TasteProfileWatchlistMs={TasteProfileWatchlistMs} TasteProfileWatchedMoviesMs={TasteProfileWatchedMoviesMs} TasteProfileWatchedTvGenresMs={TasteProfileWatchedTvGenresMs} TasteProfileDbRoundTrips={TasteProfileDbRoundTrips} SessionLoadMs={SessionLoadMs} GeminiTotalMs={GeminiTotalMs} GeminiHttpMs={GeminiHttpMs} GeminiParseMs={GeminiParseMs} ValidationMs={ValidationMs} ValidationWatchedIdsMs={ValidationWatchedIdsMs} TmdbResolutionCalls={TmdbResolutionCalls} SessionSaveMs={SessionSaveMs} QuotaCommitMs={QuotaCommitMs} DbRoundTrips={DbRoundTrips} SuggestionCount={SuggestionCount} GeminiSuggestionCount={GeminiSuggestionCount} ReturnedCount={ReturnedCount}")]
+        Message = "AiRecommendationPerf Outcome={Outcome} TotalMs={TotalMs} QuotaReserveMs={QuotaReserveMs} TasteProfileCache={TasteProfileCache} TasteProfileTotalMs={TasteProfileTotalMs} TasteProfileCacheLookupMs={TasteProfileCacheLookupMs} TasteProfileBuildCpuMs={TasteProfileBuildCpuMs} TasteProfileCacheWriteMs={TasteProfileCacheWriteMs} TasteProfileRatingsMs={TasteProfileRatingsMs} TasteProfileFavoritesMs={TasteProfileFavoritesMs} TasteProfileWatchlistMs={TasteProfileWatchlistMs} TasteProfileWatchedMoviesMs={TasteProfileWatchedMoviesMs} TasteProfileWatchedTvGenresMs={TasteProfileWatchedTvGenresMs} TasteProfileDbRoundTrips={TasteProfileDbRoundTrips} SessionLoadMs={SessionLoadMs} GeminiTotalMs={GeminiTotalMs} GeminiHttpMs={GeminiHttpMs} GeminiParseMs={GeminiParseMs} ValidationMs={ValidationMs} ValidationWatchedIdsMs={ValidationWatchedIdsMs} ValidationResolutionMs={ValidationResolutionMs} ValidationCatalogHits={ValidationCatalogHits} ValidationProviderFallbacks={ValidationProviderFallbacks} ValidationSearchFallbacks={ValidationSearchFallbacks} ValidationDedupHits={ValidationDedupHits} TmdbResolutionCalls={TmdbResolutionCalls} SessionSaveMs={SessionSaveMs} QuotaCommitMs={QuotaCommitMs} DbRoundTrips={DbRoundTrips} SuggestionCount={SuggestionCount} GeminiSuggestionCount={GeminiSuggestionCount} ReturnedCount={ReturnedCount}")]
     public static partial void LogRequest(
         ILogger logger,
         string outcome,
@@ -31,6 +31,11 @@ internal static partial class AiRecommendationPerfLogMessages
         long geminiParseMs,
         long validationMs,
         long validationWatchedIdsMs,
+        long validationResolutionMs,
+        int validationCatalogHits,
+        int validationProviderFallbacks,
+        int validationSearchFallbacks,
+        int validationDedupHits,
         int tmdbResolutionCalls,
         long sessionSaveMs,
         long quotaCommitMs,
@@ -62,6 +67,11 @@ internal static partial class AiRecommendationPerfLogMessages
             metrics.GeminiParseMs,
             metrics.ValidationMs,
             metrics.ValidationWatchedIdsMs,
+            metrics.ValidationResolutionMs,
+            metrics.ValidationCatalogHits,
+            metrics.ValidationProviderFallbacks,
+            metrics.ValidationSearchFallbacks,
+            metrics.ValidationDedupHits,
             metrics.TmdbResolutionCalls,
             metrics.SessionSaveMs,
             metrics.QuotaCommitMs,

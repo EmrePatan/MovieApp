@@ -42,6 +42,16 @@ public sealed class AiRecommendationPerfMetrics
 
     public long ValidationWatchedIdsMs { get; set; }
 
+    public long ValidationResolutionMs { get; set; }
+
+    public int ValidationCatalogHits { get; set; }
+
+    public int ValidationProviderFallbacks { get; set; }
+
+    public int ValidationSearchFallbacks { get; set; }
+
+    public int ValidationDedupHits { get; set; }
+
     public int TmdbResolutionCalls { get; set; }
 
     public long SessionSaveMs { get; set; }

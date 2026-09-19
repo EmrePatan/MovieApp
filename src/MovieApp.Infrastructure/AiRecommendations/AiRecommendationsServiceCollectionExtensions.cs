@@ -18,7 +18,7 @@ public static class AiRecommendationsServiceCollectionExtensions
         services.AddScoped<IAiRecommendationPerfContext, AiRecommendationPerfContext>();
         services.AddScoped<IAiTasteProfileDataSource, AiTasteProfileDataSource>();
         services.AddScoped<IAiTasteProfileBuilder, AiTasteProfileBuilder>();
-        services.AddScoped<IMovieIdentityResolver, MovieIdentityResolver>();
+        services.AddScoped<IMovieIdentityResolver, AiMovieIdentityResolver>();
         services.AddScoped<IAiMovieRecommendationValidator, AiMovieRecommendationValidator>();
         services.AddScoped<IAiMovieRecommendationService, AiMovieRecommendationService>();
         services.AddSingleton<IAiRecommendationSessionStore, RedisAiRecommendationSessionStore>();

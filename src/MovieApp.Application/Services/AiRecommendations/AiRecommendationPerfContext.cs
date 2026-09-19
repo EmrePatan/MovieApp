@@ -66,12 +66,25 @@ public sealed class AiRecommendationPerfContext : IAiRecommendationPerfContext
         Metrics.GeminiParseMs = parseMs;
     }
 
-    public void RecordValidationTimings(long totalMs, long watchedIdsMs)
+    public void RecordValidationTimings(long totalMs, long watchedIdsMs, long resolutionMs)
     {
         Metrics.ValidationMs = totalMs;
         Metrics.ValidationWatchedIdsMs = watchedIdsMs;
+        Metrics.ValidationResolutionMs = resolutionMs;
         Metrics.DbRoundTrips++;
     }
+
+    public void RecordValidationCatalogHit() =>
+        Metrics.ValidationCatalogHits++;
+
+    public void RecordValidationProviderFallback() =>
+        Metrics.ValidationProviderFallbacks++;
+
+    public void RecordValidationSearchFallback() =>
+        Metrics.ValidationSearchFallbacks++;
+
+    public void RecordValidationDedupHit() =>
+        Metrics.ValidationDedupHits++;
 
     public void RecordTmdbResolutionCall() =>
         Metrics.TmdbResolutionCalls++;

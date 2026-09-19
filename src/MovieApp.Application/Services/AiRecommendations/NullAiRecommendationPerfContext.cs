@@ -37,7 +37,23 @@ public sealed class NullAiRecommendationPerfContext : IAiRecommendationPerfConte
     {
     }
 
-    public void RecordValidationTimings(long totalMs, long watchedIdsMs)
+    public void RecordValidationTimings(long totalMs, long watchedIdsMs, long resolutionMs)
+    {
+    }
+
+    public void RecordValidationCatalogHit()
+    {
+    }
+
+    public void RecordValidationProviderFallback()
+    {
+    }
+
+    public void RecordValidationSearchFallback()
+    {
+    }
+
+    public void RecordValidationDedupHit()
     {
     }
 

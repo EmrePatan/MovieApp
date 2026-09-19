@@ -27,6 +27,7 @@ public sealed class AiMovieRecommendationValidator(
         var seenContentIds = new HashSet<Guid>();
         var rejectedCount = 0;
 
+        var resolutionStopwatch = Stopwatch.StartNew();
         foreach (var suggestion in suggestions)
         {
             if (!IsSupportedMediaType(suggestion.MediaType))
@@ -80,10 +81,12 @@ public sealed class AiMovieRecommendationValidator(
             }
         }
 
+        resolutionStopwatch.Stop();
         totalStopwatch.Stop();
         perfContext.RecordValidationTimings(
             totalStopwatch.ElapsedMilliseconds,
-            watchedIdsStopwatch.ElapsedMilliseconds);
+            watchedIdsStopwatch.ElapsedMilliseconds,
+            resolutionStopwatch.ElapsedMilliseconds);
 
         var partialResults = accepted.Count > 0 && accepted.Count < maxReturnedCount;
         return new AiValidationResult(

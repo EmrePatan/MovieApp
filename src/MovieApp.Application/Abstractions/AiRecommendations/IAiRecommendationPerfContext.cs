@@ -22,7 +22,15 @@ public interface IAiRecommendationPerfContext
 
     void RecordGeminiTimings(long totalMs, long httpMs, long parseMs);
 
-    void RecordValidationTimings(long totalMs, long watchedIdsMs);
+    void RecordValidationTimings(long totalMs, long watchedIdsMs, long resolutionMs);
+
+    void RecordValidationCatalogHit();
+
+    void RecordValidationProviderFallback();
+
+    void RecordValidationSearchFallback();
+
+    void RecordValidationDedupHit();
 
     void RecordTmdbResolutionCall();
 
