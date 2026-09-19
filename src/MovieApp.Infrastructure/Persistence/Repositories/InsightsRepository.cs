@@ -470,22 +470,20 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         metrics.RecordsMs = recordsStopwatch.ElapsedMilliseconds;
 
         var runtimeStopwatch = Stopwatch.StartNew();
-        var runtimeTotals = await ExecuteTimedV3PhaseAsync(
+        var runtimeTotals = await ExecuteTimedV3PgCommandAsync(
             metrics,
-            async phaseMetrics =>
+            async () =>
             {
-                var movieRuntime = await ExecutePgCommandAsync(
-                    phaseMetrics,
-                    () => GetMovieRuntimeAggregateAsync(userId, cancellationToken));
-                var episodeRuntime = await ExecutePgCommandAsync(
-                    phaseMetrics,
-                    () => GetEpisodeRuntimeAggregateAsync(userId, cancellationToken));
+                var totals = await InsightsV3SqlQueries.GetRuntimeTotalsAsync(
+                    dbContext,
+                    userId,
+                    cancellationToken);
 
                 return new V3RuntimeTotalsRow(
-                    movieRuntime.TotalMinutes,
-                    movieRuntime.KnownCount,
-                    episodeRuntime.TotalMinutes,
-                    episodeRuntime.KnownCount);
+                    totals.MovieTotalMinutes,
+                    totals.MovieKnownCount,
+                    totals.EpisodeTotalMinutes,
+                    totals.EpisodeKnownCount);
             });
         runtimeStopwatch.Stop();
         metrics.RuntimeMs = runtimeStopwatch.ElapsedMilliseconds;
@@ -494,15 +492,15 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         var ratingScoreCounts = await ExecuteTimedV3PgCommandAsync(
             metrics,
             () => GetRatingScoreCountsAsync(userId, cancellationToken));
-        var genreRatings = await ExecuteTimedV3PhaseAsync(
+        var genreRatings = await ExecuteTimedV3PgCommandAsync(
             metrics,
-            phaseMetrics => GetGenreRatingsAsync(userId, phaseMetrics, cancellationToken));
+            () => InsightsV3SqlQueries.GetGenreRatingsAsync(dbContext, userId, cancellationToken));
         ratingsStopwatch.Stop();
         metrics.RatingsMs = ratingsStopwatch.ElapsedMilliseconds;
 
-        var oldestTitle = await ExecuteTimedV3PhaseAsync(
+        var oldestTitle = await ExecuteTimedV3PgCommandAsync(
             metrics,
-            phaseMetrics => GetOldestWatchedTitleAsync(userId, phaseMetrics, cancellationToken));
+            () => InsightsV3SqlQueries.GetOldestTitleAsync(dbContext, userId, cancellationToken));
 
         var milestonesStopwatch = Stopwatch.StartNew();
         var showCompletions = await ExecuteTimedV3PgCommandAsync(
@@ -726,97 +724,6 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
                 watchedEpisode.WatchedAt,
                 watchedEpisode.Episode!.RuntimeMinutes))
             .ToListAsync(cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<InsightsV3GenreRatingRow>> GetGenreRatingsAsync(
-        Guid userId,
-        InsightsV3QueryMetrics metrics,
-        CancellationToken cancellationToken)
-    {
-        var movieGenreRatings = await ExecutePgCommandAsync(
-            metrics,
-            () => dbContext.Ratings
-            .AsNoTracking()
-            .Where(rating => rating.UserId == userId && rating.MovieId != null)
-            .SelectMany(rating => rating.Movie!.MovieGenres.Select(movieGenre => new
-            {
-                movieGenre.GenreId,
-                movieGenre.Genre.Name,
-                rating.Score,
-            }))
-            .ToListAsync(cancellationToken));
-
-        var tvGenreRatings = await ExecutePgCommandAsync(
-            metrics,
-            () => dbContext.Ratings
-            .AsNoTracking()
-            .Where(rating => rating.UserId == userId && rating.TvShowId != null)
-            .SelectMany(rating => rating.TvShow!.TvShowGenres.Select(tvGenre => new
-            {
-                tvGenre.GenreId,
-                tvGenre.Genre.Name,
-                rating.Score,
-            }))
-            .ToListAsync(cancellationToken));
-
-        return movieGenreRatings
-            .Concat(tvGenreRatings)
-            .GroupBy(item => new { item.GenreId, item.Name })
-            .Select(group => new InsightsV3GenreRatingRow(
-                group.Key.GenreId,
-                group.Key.Name,
-                group.Count(),
-                group.Average(item => (decimal)item.Score)))
-            .ToList();
-    }
-
-    private async Task<InsightsV3OldestTitleRow?> GetOldestWatchedTitleAsync(
-        Guid userId,
-        InsightsV3QueryMetrics metrics,
-        CancellationToken cancellationToken)
-    {
-        var oldestMovie = await ExecutePgCommandAsync(
-            metrics,
-            () => dbContext.WatchedMovies
-            .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId && watchedMovie.Movie!.ReleaseDate != null)
-            .OrderBy(watchedMovie => watchedMovie.Movie!.ReleaseDate)
-            .Select(watchedMovie => new InsightsV3OldestTitleRow(
-                "movie",
-                watchedMovie.MovieId,
-                watchedMovie.Movie!.Title,
-                watchedMovie.Movie.ReleaseDate!.Value.Year,
-                watchedMovie.Movie.PosterPath,
-                watchedMovie.Movie.ReleaseDate))
-            .FirstOrDefaultAsync(cancellationToken));
-
-        var oldestTvShow = await ExecutePgCommandAsync(
-            metrics,
-            () => dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId &&
-                                     watchedEpisode.Episode!.Season.TvShow.FirstAirDate != null)
-            .OrderBy(watchedEpisode => watchedEpisode.Episode!.Season.TvShow.FirstAirDate)
-            .Select(watchedEpisode => new InsightsV3OldestTitleRow(
-                "tv",
-                watchedEpisode.Episode!.Season.TvShowId,
-                watchedEpisode.Episode.Season.TvShow.Title,
-                watchedEpisode.Episode.Season.TvShow.FirstAirDate!.Value.Year,
-                watchedEpisode.Episode.Season.TvShow.PosterPath,
-                watchedEpisode.Episode.Season.TvShow.FirstAirDate))
-            .FirstOrDefaultAsync(cancellationToken));
-
-        if (oldestMovie is null)
-        {
-            return oldestTvShow;
-        }
-
-        if (oldestTvShow is null)
-        {
-            return oldestMovie;
-        }
-
-        return oldestMovie.SortDate <= oldestTvShow.SortDate ? oldestMovie : oldestTvShow;
     }
 
     private static async Task<T> ExecuteTimedV3PhaseAsync<T>(

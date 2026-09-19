@@ -19,17 +19,6 @@ public sealed class GetMovieCreditsService(
         Guid movieId,
         CancellationToken cancellationToken = default)
     {
-        var movie = await movieRepository.GetByIdAsync(movieId, cancellationToken);
-        if (movie is null)
-        {
-            throw new NotFoundException($"Movie with id '{movieId}' was not found.");
-        }
-
-        if (movie.TmdbId is null)
-        {
-            return new CreditsResult([], []);
-        }
-
         var cacheKey = MovieCreditsCacheKeys.Create(movieId);
         var cached = await cacheService.GetAsync<CreditsCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -37,8 +26,19 @@ public sealed class GetMovieCreditsService(
             return cached.Result;
         }
 
+        var lookup = await movieRepository.GetProviderLookupByIdAsync(movieId, cancellationToken);
+        if (lookup is null)
+        {
+            throw new NotFoundException($"Movie with id '{movieId}' was not found.");
+        }
+
+        if (lookup.TmdbId is null)
+        {
+            return new CreditsResult([], []);
+        }
+
         var credits = CreditsNormalizer.Normalize(
-            await creditsProvider.GetMovieCreditsAsync(movie.TmdbId.Value, cancellationToken));
+            await creditsProvider.GetMovieCreditsAsync(lookup.TmdbId.Value, cancellationToken));
 
         await cacheService.SetAsync(
             cacheKey,

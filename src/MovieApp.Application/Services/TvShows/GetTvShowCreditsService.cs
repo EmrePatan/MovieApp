@@ -19,17 +19,6 @@ public sealed class GetTvShowCreditsService(
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
-        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
-        if (tvShow is null)
-        {
-            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
-        }
-
-        if (tvShow.TmdbId is null)
-        {
-            return new CreditsResult([], []);
-        }
-
         var cacheKey = TvShowCreditsCacheKeys.Create(tvShowId);
         var cached = await cacheService.GetAsync<CreditsCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -37,8 +26,19 @@ public sealed class GetTvShowCreditsService(
             return cached.Result;
         }
 
+        var lookup = await tvShowRepository.GetProviderLookupByIdAsync(tvShowId, cancellationToken);
+        if (lookup is null)
+        {
+            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
+        }
+
+        if (lookup.TmdbId is null)
+        {
+            return new CreditsResult([], []);
+        }
+
         var credits = CreditsNormalizer.Normalize(
-            await creditsProvider.GetTvShowCreditsAsync(tvShow.TmdbId.Value, cancellationToken));
+            await creditsProvider.GetTvShowCreditsAsync(lookup.TmdbId.Value, cancellationToken));
 
         await cacheService.SetAsync(
             cacheKey,

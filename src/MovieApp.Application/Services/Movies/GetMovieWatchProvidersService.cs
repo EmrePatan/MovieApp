@@ -27,18 +27,6 @@ public sealed class GetMovieWatchProvidersService(
         }
 
         var normalizedRegion = WatchProviderRegionValidator.Normalize(region);
-
-        var movie = await movieRepository.GetByIdAsync(movieId, cancellationToken);
-        if (movie is null)
-        {
-            throw new NotFoundException($"Movie with id '{movieId}' was not found.");
-        }
-
-        if (movie.TmdbId is null)
-        {
-            return new WatchProvidersResult(normalizedRegion, [], null);
-        }
-
         var cacheKey = MovieWatchProvidersCacheKeys.Create(movieId, normalizedRegion);
         var cached = await cacheService.GetAsync<WatchProvidersCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -46,8 +34,19 @@ public sealed class GetMovieWatchProvidersService(
             return cached.Result;
         }
 
+        var lookup = await movieRepository.GetProviderLookupByIdAsync(movieId, cancellationToken);
+        if (lookup is null)
+        {
+            throw new NotFoundException($"Movie with id '{movieId}' was not found.");
+        }
+
+        if (lookup.TmdbId is null)
+        {
+            return new WatchProvidersResult(normalizedRegion, [], null);
+        }
+
         var providers = await watchProviderService.GetMovieWatchProvidersAsync(
-            movie.TmdbId.Value,
+            lookup.TmdbId.Value,
             normalizedRegion,
             cancellationToken);
 

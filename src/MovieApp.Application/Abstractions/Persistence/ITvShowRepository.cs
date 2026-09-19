@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 
@@ -6,6 +7,16 @@ namespace MovieApp.Application.Abstractions.Persistence;
 public interface ITvShowRepository
 {
     Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var tvShow = await GetByIdAsync(id, cancellationToken);
+        return tvShow is null
+            ? null
+            : new CatalogProviderLookup(tvShow.TmdbId, tvShow.OriginalLanguage);
+    }
 
     Task<IReadOnlyDictionary<Guid, TvShow>> GetByIdsAsync(
         IReadOnlyList<Guid> ids,

@@ -19,17 +19,6 @@ public sealed class GetTvShowVideosService(
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
-        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
-        if (tvShow is null)
-        {
-            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
-        }
-
-        if (tvShow.TmdbId is null)
-        {
-            return new VideosResult(null);
-        }
-
         var cacheKey = TvShowVideosCacheKeys.Create(tvShowId);
         var cached = await cacheService.GetAsync<VideosCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -37,8 +26,19 @@ public sealed class GetTvShowVideosService(
             return cached.Result;
         }
 
-        var videos = await videoProvider.GetTvShowVideosAsync(tvShow.TmdbId.Value, cancellationToken);
-        var result = new VideosResult(TrailerSelectionService.SelectPrimary(videos, tvShow.OriginalLanguage));
+        var lookup = await tvShowRepository.GetProviderLookupByIdAsync(tvShowId, cancellationToken);
+        if (lookup is null)
+        {
+            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
+        }
+
+        if (lookup.TmdbId is null)
+        {
+            return new VideosResult(null);
+        }
+
+        var videos = await videoProvider.GetTvShowVideosAsync(lookup.TmdbId.Value, cancellationToken);
+        var result = new VideosResult(TrailerSelectionService.SelectPrimary(videos, lookup.OriginalLanguage));
 
         await cacheService.SetAsync(
             cacheKey,

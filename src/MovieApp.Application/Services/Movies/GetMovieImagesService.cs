@@ -18,23 +18,28 @@ public sealed class GetMovieImagesService(
         string? language,
         CancellationToken cancellationToken = default)
     {
-        var movie = await movieRepository.GetByIdAsync(movieId, cancellationToken);
-        if (movie is null)
+        var cacheKey = MovieImagesCacheKeys.Create(movieId, language);
+        var cached = await cacheService.GetAsync<ImagesCacheEntry>(cacheKey, cancellationToken);
+        if (cached is not null)
+        {
+            return cached.Result;
+        }
+
+        var lookup = await movieRepository.GetProviderLookupByIdAsync(movieId, cancellationToken);
+        if (lookup is null)
         {
             throw new NotFoundException($"Movie with id '{movieId}' was not found.");
         }
 
-        if (movie.TmdbId is null)
+        if (lookup.TmdbId is null)
         {
             return ImagesResult.Empty;
         }
 
-        var cacheKey = MovieImagesCacheKeys.Create(movieId, language);
-
         return await ImageGalleryServiceHelper.GetOrLoadAsync(
             cacheKey,
             cacheService,
-            () => imageProvider.GetMovieImagesAsync(movie.TmdbId.Value, language, cancellationToken),
+            () => imageProvider.GetMovieImagesAsync(lookup.TmdbId.Value, language, cancellationToken),
             language,
             cancellationToken);
     }

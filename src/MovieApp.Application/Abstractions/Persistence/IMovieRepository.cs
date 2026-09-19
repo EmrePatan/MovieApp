@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 
@@ -6,6 +7,16 @@ namespace MovieApp.Application.Abstractions.Persistence;
 public interface IMovieRepository
 {
     Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var movie = await GetByIdAsync(id, cancellationToken);
+        return movie is null
+            ? null
+            : new CatalogProviderLookup(movie.TmdbId, movie.OriginalLanguage);
+    }
 
     Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default);
 

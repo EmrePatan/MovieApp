@@ -5,6 +5,7 @@ using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.TvShows;
 using MovieApp.Domain.Enums;
 
@@ -51,9 +52,16 @@ public sealed class GetEpisodeService(
         }
 
         var season = await seasonRepository.GetByTvShowIdAndSeasonNumberAsync(tvShowId, seasonNumber, cancellationToken);
+        SeasonProviderDetails? providerSeason = null;
         var providerCatalogRefreshed = false;
-        if (season is null)
+
+        async Task<SeasonProviderDetails> LoadProviderSeasonAsync()
         {
+            if (providerSeason is not null)
+            {
+                return providerSeason;
+            }
+
             var externalId = externalIdResolver.Resolve(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
             if (externalId is null)
             {
@@ -61,7 +69,7 @@ public sealed class GetEpisodeService(
                     $"Episode {episodeNumber} in season {seasonNumber} for TV show '{tvShowId}' was not found.");
             }
 
-            var providerSeason = await tvShowDataProvider.GetSeasonAsync(
+            providerSeason = await tvShowDataProvider.GetSeasonAsync(
                 externalId,
                 seasonNumber,
                 cancellationToken);
@@ -72,7 +80,13 @@ public sealed class GetEpisodeService(
                     $"Season {seasonNumber} for TV show '{tvShowId}' was not found.");
             }
 
-            season = await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
+            return providerSeason;
+        }
+
+        if (season is null)
+        {
+            await LoadProviderSeasonAsync();
+            season = await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason!, cancellationToken);
             providerCatalogRefreshed = true;
         }
 
@@ -83,25 +97,8 @@ public sealed class GetEpisodeService(
 
         if (episode is null)
         {
-            var externalId = externalIdResolver.Resolve(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
-            if (externalId is null)
-            {
-                throw new NotFoundException(
-                    $"Episode {episodeNumber} in season {seasonNumber} for TV show '{tvShowId}' was not found.");
-            }
-
-            var providerSeason = await tvShowDataProvider.GetSeasonAsync(
-                externalId,
-                seasonNumber,
-                cancellationToken);
-
-            if (providerSeason is null)
-            {
-                throw new NotFoundException(
-                    $"Episode {episodeNumber} in season {seasonNumber} for TV show '{tvShowId}' was not found.");
-            }
-
-            season = await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
+            await LoadProviderSeasonAsync();
+            season = await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason!, cancellationToken);
             providerCatalogRefreshed = true;
             episode = await episodeRepository.GetBySeasonIdAndEpisodeNumberAsync(
                 season.Id,

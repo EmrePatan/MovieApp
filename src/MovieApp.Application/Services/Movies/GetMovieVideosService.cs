@@ -19,17 +19,6 @@ public sealed class GetMovieVideosService(
         Guid movieId,
         CancellationToken cancellationToken = default)
     {
-        var movie = await movieRepository.GetByIdAsync(movieId, cancellationToken);
-        if (movie is null)
-        {
-            throw new NotFoundException($"Movie with id '{movieId}' was not found.");
-        }
-
-        if (movie.TmdbId is null)
-        {
-            return new VideosResult(null);
-        }
-
         var cacheKey = MovieVideosCacheKeys.Create(movieId);
         var cached = await cacheService.GetAsync<VideosCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -37,8 +26,19 @@ public sealed class GetMovieVideosService(
             return cached.Result;
         }
 
-        var videos = await videoProvider.GetMovieVideosAsync(movie.TmdbId.Value, cancellationToken);
-        var result = new VideosResult(TrailerSelectionService.SelectPrimary(videos, movie.OriginalLanguage));
+        var lookup = await movieRepository.GetProviderLookupByIdAsync(movieId, cancellationToken);
+        if (lookup is null)
+        {
+            throw new NotFoundException($"Movie with id '{movieId}' was not found.");
+        }
+
+        if (lookup.TmdbId is null)
+        {
+            return new VideosResult(null);
+        }
+
+        var videos = await videoProvider.GetMovieVideosAsync(lookup.TmdbId.Value, cancellationToken);
+        var result = new VideosResult(TrailerSelectionService.SelectPrimary(videos, lookup.OriginalLanguage));
 
         await cacheService.SetAsync(
             cacheKey,

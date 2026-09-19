@@ -191,4 +191,184 @@ internal static class InsightsV3SqlQueries
         return row ?? new MilestoneTimestampRow();
     }
 
+    internal sealed class V3RuntimeTotalsSqlRow
+    {
+        public int MovieTotalMinutes { get; init; }
+
+        public int MovieKnownCount { get; init; }
+
+        public int EpisodeTotalMinutes { get; init; }
+
+        public int EpisodeKnownCount { get; init; }
+    }
+
+    internal sealed class V3GenreRatingSqlRow
+    {
+        public Guid GenreId { get; init; }
+
+        public string Name { get; init; } = string.Empty;
+
+        public int Score { get; init; }
+    }
+
+    internal sealed class V3OldestTitleSqlRow
+    {
+        public string ContentType { get; init; } = string.Empty;
+
+        public Guid ContentId { get; init; }
+
+        public string Title { get; init; } = string.Empty;
+
+        public int? Year { get; init; }
+
+        public string? PosterPath { get; init; }
+
+        public DateOnly? SortDate { get; init; }
+    }
+
+    internal static async Task<V3RuntimeTotalsSqlRow> GetRuntimeTotalsAsync(
+        ApplicationDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var row = await dbContext.Database
+            .SqlQuery<V3RuntimeTotalsSqlRow>($"""
+                SELECT
+                    COALESCE((
+                        SELECT SUM(m."RuntimeMinutes")
+                        FROM watched_movies AS wm
+                        INNER JOIN movies AS m ON m."Id" = wm."MovieId"
+                        WHERE wm."UserId" = {userId} AND m."RuntimeMinutes" > 0
+                    ), 0)::integer AS "MovieTotalMinutes",
+                    COALESCE((
+                        SELECT COUNT(*)::integer
+                        FROM watched_movies AS wm
+                        INNER JOIN movies AS m ON m."Id" = wm."MovieId"
+                        WHERE wm."UserId" = {userId} AND m."RuntimeMinutes" > 0
+                    ), 0) AS "MovieKnownCount",
+                    COALESCE((
+                        SELECT SUM(e."RuntimeMinutes")
+                        FROM watched_episodes AS we
+                        INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                        WHERE we."UserId" = {userId} AND e."RuntimeMinutes" > 0
+                    ), 0)::integer AS "EpisodeTotalMinutes",
+                    COALESCE((
+                        SELECT COUNT(*)::integer
+                        FROM watched_episodes AS we
+                        INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                        WHERE we."UserId" = {userId} AND e."RuntimeMinutes" > 0
+                    ), 0) AS "EpisodeKnownCount"
+                """)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return row ?? new V3RuntimeTotalsSqlRow();
+    }
+
+    internal static async Task<IReadOnlyList<InsightsV3GenreRatingRow>> GetGenreRatingsAsync(
+        ApplicationDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Database
+            .SqlQuery<V3GenreRatingSqlRow>($"""
+                SELECT
+                    mg."GenreId" AS "GenreId",
+                    g."Name" AS "Name",
+                    r."Score" AS "Score"
+                FROM ratings AS r
+                INNER JOIN movies AS m ON m."Id" = r."MovieId"
+                INNER JOIN movie_genres AS mg ON mg."MovieId" = m."Id"
+                INNER JOIN genres AS g ON g."Id" = mg."GenreId"
+                WHERE r."UserId" = {userId} AND r."MovieId" IS NOT NULL
+                UNION ALL
+                SELECT
+                    tg."GenreId" AS "GenreId",
+                    g."Name" AS "Name",
+                    r."Score" AS "Score"
+                FROM ratings AS r
+                INNER JOIN tv_shows AS t ON t."Id" = r."TvShowId"
+                INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = t."Id"
+                INNER JOIN genres AS g ON g."Id" = tg."GenreId"
+                WHERE r."UserId" = {userId} AND r."TvShowId" IS NOT NULL
+                """)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(item => new { item.GenreId, item.Name })
+            .Select(group => new InsightsV3GenreRatingRow(
+                group.Key.GenreId,
+                group.Key.Name,
+                group.Count(),
+                group.Average(item => (decimal)item.Score)))
+            .ToList();
+    }
+
+    internal static async Task<InsightsV3OldestTitleRow?> GetOldestTitleAsync(
+        ApplicationDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var row = await dbContext.Database
+            .SqlQuery<V3OldestTitleSqlRow>($"""
+                SELECT
+                    candidate."ContentType",
+                    candidate."ContentId",
+                    candidate."Title",
+                    candidate."Year",
+                    candidate."PosterPath",
+                    candidate."SortDate"
+                FROM (
+                    (
+                        SELECT
+                            'movie' AS "ContentType",
+                            wm."MovieId" AS "ContentId",
+                            m."Title" AS "Title",
+                            EXTRACT(YEAR FROM m."ReleaseDate")::integer AS "Year",
+                            m."PosterPath" AS "PosterPath",
+                            m."ReleaseDate" AS "SortDate",
+                            0 AS content_rank
+                        FROM watched_movies AS wm
+                        INNER JOIN movies AS m ON m."Id" = wm."MovieId"
+                        WHERE wm."UserId" = {userId} AND m."ReleaseDate" IS NOT NULL
+                        ORDER BY m."ReleaseDate" ASC
+                        LIMIT 1
+                    )
+                    UNION ALL
+                    (
+                        SELECT
+                            'tv' AS "ContentType",
+                            s."TvShowId" AS "ContentId",
+                            t."Title" AS "Title",
+                            EXTRACT(YEAR FROM t."FirstAirDate")::integer AS "Year",
+                            t."PosterPath" AS "PosterPath",
+                            t."FirstAirDate" AS "SortDate",
+                            1 AS content_rank
+                        FROM watched_episodes AS we
+                        INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                        INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                        INNER JOIN tv_shows AS t ON t."Id" = s."TvShowId"
+                        WHERE we."UserId" = {userId} AND t."FirstAirDate" IS NOT NULL
+                        ORDER BY t."FirstAirDate" ASC
+                        LIMIT 1
+                    )
+                ) AS candidate
+                ORDER BY candidate."SortDate" ASC, candidate.content_rank ASC
+                LIMIT 1
+                """)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        return new InsightsV3OldestTitleRow(
+            row.ContentType,
+            row.ContentId,
+            row.Title,
+            row.Year,
+            row.PosterPath,
+            row.SortDate);
+    }
+
 }

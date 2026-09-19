@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 
@@ -17,6 +18,17 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             .ThenInclude(tvShowGenre => tvShowGenre.Genre)
             .Include(tvShow => tvShow.Seasons)
             .FirstOrDefaultAsync(tvShow => tvShow.Id == id, cancellationToken);
+    }
+
+    public async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShow.Id == id)
+            .Select(tvShow => new CatalogProviderLookup(tvShow.TmdbId, tvShow.OriginalLanguage))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyDictionary<Guid, TvShow>> GetByIdsAsync(

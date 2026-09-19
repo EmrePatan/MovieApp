@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Common;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 
@@ -16,6 +17,17 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
             .Include(movie => movie.MovieGenres)
             .ThenInclude(movieGenre => movieGenre.Genre)
             .FirstOrDefaultAsync(movie => movie.Id == id, cancellationToken);
+    }
+
+    public async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movie.Id == id)
+            .Select(movie => new CatalogProviderLookup(movie.TmdbId, movie.OriginalLanguage))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default)

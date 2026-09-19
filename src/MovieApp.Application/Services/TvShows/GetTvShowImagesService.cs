@@ -18,23 +18,28 @@ public sealed class GetTvShowImagesService(
         string? language,
         CancellationToken cancellationToken = default)
     {
-        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
-        if (tvShow is null)
+        var cacheKey = TvShowImagesCacheKeys.Create(tvShowId, language);
+        var cached = await cacheService.GetAsync<ImagesCacheEntry>(cacheKey, cancellationToken);
+        if (cached is not null)
+        {
+            return cached.Result;
+        }
+
+        var lookup = await tvShowRepository.GetProviderLookupByIdAsync(tvShowId, cancellationToken);
+        if (lookup is null)
         {
             throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
         }
 
-        if (tvShow.TmdbId is null)
+        if (lookup.TmdbId is null)
         {
             return ImagesResult.Empty;
         }
 
-        var cacheKey = TvShowImagesCacheKeys.Create(tvShowId, language);
-
         return await ImageGalleryServiceHelper.GetOrLoadAsync(
             cacheKey,
             cacheService,
-            () => imageProvider.GetTvShowImagesAsync(tvShow.TmdbId.Value, language, cancellationToken),
+            () => imageProvider.GetTvShowImagesAsync(lookup.TmdbId.Value, language, cancellationToken),
             language,
             cancellationToken);
     }

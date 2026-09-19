@@ -162,7 +162,7 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
         var (_, metrics) = await repository.GetV3RawDataAsync(userId, timeZone, 2026);
 
         Assert.Equal(14, metrics.DbRoundTrips);
-        Assert.Equal(17, metrics.PgCommandRoundTrips);
+        Assert.Equal(14, metrics.PgCommandRoundTrips);
     }
 
     private static ApplicationDbContext CreateContext()

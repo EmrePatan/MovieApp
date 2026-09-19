@@ -27,18 +27,6 @@ public sealed class GetTvShowWatchProvidersService(
         }
 
         var normalizedRegion = WatchProviderRegionValidator.Normalize(region);
-
-        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
-        if (tvShow is null)
-        {
-            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
-        }
-
-        if (tvShow.TmdbId is null)
-        {
-            return new WatchProvidersResult(normalizedRegion, [], null);
-        }
-
         var cacheKey = TvShowWatchProvidersCacheKeys.Create(tvShowId, normalizedRegion);
         var cached = await cacheService.GetAsync<WatchProvidersCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -46,8 +34,19 @@ public sealed class GetTvShowWatchProvidersService(
             return cached.Result;
         }
 
+        var lookup = await tvShowRepository.GetProviderLookupByIdAsync(tvShowId, cancellationToken);
+        if (lookup is null)
+        {
+            throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
+        }
+
+        if (lookup.TmdbId is null)
+        {
+            return new WatchProvidersResult(normalizedRegion, [], null);
+        }
+
         var providers = await watchProviderService.GetTvShowWatchProvidersAsync(
-            tvShow.TmdbId.Value,
+            lookup.TmdbId.Value,
             normalizedRegion,
             cancellationToken);
 
