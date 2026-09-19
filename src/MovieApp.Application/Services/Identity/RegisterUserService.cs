@@ -42,7 +42,10 @@ public sealed class RegisterUserService(
             DateTime.UtcNow);
 
         await userRepository.CreateAsync(user, cancellationToken);
-        await resendVerificationService.SendVerificationEmailAsync(user, cancellationToken);
+        await resendVerificationService.SendVerificationEmailAsync(
+            user,
+            request.ContentLocale,
+            cancellationToken);
 
         return new RegistrationResult(
             UserMapper.ToCurrentUserResult(user),

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Configuration;
 using MovieApp.Infrastructure.Email;
 
@@ -21,8 +22,16 @@ public sealed class ResendVerificationEmailSenderTests
         var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var sender = CreateSender(handler);
 
-        await sender.SendVerificationEmailAsync(tokenId, "user@example.com", VerifyUrl);
-        await sender.SendVerificationEmailAsync(tokenId, "user@example.com", VerifyUrl);
+        await sender.SendVerificationEmailAsync(
+            tokenId,
+            "user@example.com",
+            VerifyUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
+        await sender.SendVerificationEmailAsync(
+            tokenId,
+            "user@example.com",
+            VerifyUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.All(
@@ -42,7 +51,8 @@ public sealed class ResendVerificationEmailSenderTests
         await sender.SendVerificationEmailAsync(
             Guid.NewGuid(),
             "user@example.com",
-            VerifyUrl);
+            VerifyUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
 
         var request = handler.Requests.Single();
         var body = await request.Content!.ReadAsStringAsync();
@@ -78,7 +88,11 @@ public sealed class ResendVerificationEmailSenderTests
         var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var sender = CreateSender(handler, heroImageUrl: heroImageUrl);
 
-        await sender.SendVerificationEmailAsync(Guid.NewGuid(), "user@example.com", VerifyUrl);
+        await sender.SendVerificationEmailAsync(
+            Guid.NewGuid(),
+            "user@example.com",
+            VerifyUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
 
         var body = await handler.Requests.Single().Content!.ReadAsStringAsync();
         using var document = JsonDocument.Parse(body);
@@ -97,7 +111,11 @@ public sealed class ResendVerificationEmailSenderTests
             heroImageUrl: VerificationEmailHeroUrlResolver.DefaultHeroImagePath,
             publicBaseUrl: "https://api.example.com");
 
-        await sender.SendVerificationEmailAsync(Guid.NewGuid(), "user@example.com", VerifyUrl);
+        await sender.SendVerificationEmailAsync(
+            Guid.NewGuid(),
+            "user@example.com",
+            VerifyUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
 
         var body = await handler.Requests.Single().Content!.ReadAsStringAsync();
         using var document = JsonDocument.Parse(body);
@@ -113,6 +131,38 @@ public sealed class ResendVerificationEmailSenderTests
             html,
             StringComparison.Ordinal);
         Assert.Contains(MovieCaveVerificationEmailContent.HeaderLogoMarkerClass, html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendVerificationEmailAsyncUsesTurkishSubjectAndCopyForTrLocale()
+    {
+        var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var sender = CreateSender(handler);
+
+        await sender.SendVerificationEmailAsync(
+            Guid.NewGuid(),
+            "user@example.com",
+            VerifyUrl,
+            ContentLocaleResolver.TurkishTurkey);
+
+        var body = await handler.Requests.Single().Content!.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+
+        Assert.Equal(
+            "Movie Cave e-posta adresini doğrula",
+            root.GetProperty("subject").GetString());
+
+        var text = root.GetProperty("text").GetString();
+        Assert.NotNull(text);
+        Assert.Contains("Güzel şeylere sadece bir adım kaldı.", text, StringComparison.Ordinal);
+        Assert.Contains("E-posta Adresimi Doğrula:", text, StringComparison.Ordinal);
+
+        var html = root.GetProperty("html").GetString();
+        Assert.NotNull(html);
+        Assert.Contains("lang=\"tr\"", html, StringComparison.Ordinal);
+        Assert.Contains("E-posta Adresimi Doğrula &rarr;", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Verify Email Address &rarr;", html, StringComparison.Ordinal);
     }
 
     [Fact]

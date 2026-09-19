@@ -9,7 +9,7 @@ public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmail
 {
     private readonly object _sync = new();
     private readonly List<(string Email, string ResetUrl)> _sentPasswordResetEmails = [];
-    private readonly List<(Guid TokenId, string Email, string VerifyUrl)> _sentVerificationEmails = [];
+    private readonly List<(Guid TokenId, string Email, string VerifyUrl, string ContentLocale)> _sentVerificationEmails = [];
 
     public IReadOnlyList<(string Email, string ResetUrl)> SentEmails
     {
@@ -22,7 +22,7 @@ public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmail
         }
     }
 
-    public IReadOnlyList<(Guid TokenId, string Email, string VerifyUrl)> SentVerificationEmails
+    public IReadOnlyList<(Guid TokenId, string Email, string VerifyUrl, string ContentLocale)> SentVerificationEmails
     {
         get
         {
@@ -50,11 +50,12 @@ public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmail
         Guid tokenId,
         string toEmail,
         string verifyUrl,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         lock (_sync)
         {
-            _sentVerificationEmails.Add((tokenId, toEmail, verifyUrl));
+            _sentVerificationEmails.Add((tokenId, toEmail, verifyUrl, contentLocale));
         }
 
         return Task.CompletedTask;

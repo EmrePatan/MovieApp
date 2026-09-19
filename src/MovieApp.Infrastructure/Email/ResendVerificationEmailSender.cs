@@ -20,6 +20,7 @@ public sealed class ResendVerificationEmailSender(
         Guid tokenId,
         string toEmail,
         string verifyUrl,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var options = resendOptions.Value;
@@ -42,9 +43,9 @@ public sealed class ResendVerificationEmailSender(
         request.Content = JsonContent.Create(new ResendEmailRequest(
             $"{options.FromName} <{options.FromAddress}>",
             [toEmail],
-            MovieCaveVerificationEmailContent.Subject,
-            MovieCaveVerificationEmailContent.BuildPlainText(verifyUrl),
-            MovieCaveVerificationEmailContent.BuildHtml(verifyUrl, heroImageUrl, logoImageUrl)));
+            MovieCaveVerificationEmailContent.GetSubject(contentLocale),
+            MovieCaveVerificationEmailContent.BuildPlainText(verifyUrl, contentLocale),
+            MovieCaveVerificationEmailContent.BuildHtml(verifyUrl, heroImageUrl, logoImageUrl, contentLocale)));
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(

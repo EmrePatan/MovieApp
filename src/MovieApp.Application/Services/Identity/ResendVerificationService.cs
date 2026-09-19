@@ -6,6 +6,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Users;
@@ -38,14 +39,18 @@ public sealed class ResendVerificationService(
 
         if (user is not null && user.IsActive && user.HasPassword && !user.IsEmailVerified)
         {
-            await SendVerificationEmailAsync(user, cancellationToken);
+            await SendVerificationEmailAsync(user, request.ContentLocale, cancellationToken);
         }
 
         return new MessageResult(SuccessMessage);
     }
 
-    public async Task SendVerificationEmailAsync(User user, CancellationToken cancellationToken = default)
+    public async Task SendVerificationEmailAsync(
+        User user,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
     {
+        var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale);
         var utcNow = DateTime.UtcNow;
         await emailVerificationTokenRepository.InvalidateActiveTokensForUserAsync(
             user.Id,
@@ -63,7 +68,8 @@ public sealed class ResendVerificationService(
             TokenHash = tokenHash,
             CreatedAtUtc = utcNow,
             ExpiresAtUtc = utcNow.Add(lifetime),
-            ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken)
+            ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken),
+            ContentLocale = normalizedContentLocale
         };
 
         await emailVerificationTokenRepository.CreateAsync(verificationToken, cancellationToken);

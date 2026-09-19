@@ -76,7 +76,8 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
                 token.DeliveryCompletedAtUtc == null &&
                 token.UsedAtUtc == null &&
                 token.ExpiresAtUtc > utcNow &&
-                token.ProtectedDeliverySecret != null))
+                token.ProtectedDeliverySecret != null,
+                token.ContentLocale))
             .FirstOrDefaultAsync(cancellationToken);
     }
 

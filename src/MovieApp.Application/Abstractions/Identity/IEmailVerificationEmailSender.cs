@@ -6,5 +6,6 @@ public interface IEmailVerificationEmailSender
         Guid tokenId,
         string toEmail,
         string verifyUrl,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

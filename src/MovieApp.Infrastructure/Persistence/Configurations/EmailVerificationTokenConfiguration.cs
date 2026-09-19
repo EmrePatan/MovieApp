@@ -31,6 +31,11 @@ internal sealed class EmailVerificationTokenConfiguration : IEntityTypeConfigura
         builder.Property(token => token.ProtectedDeliverySecret)
             .HasMaxLength(512);
 
+        builder.Property(token => token.ContentLocale)
+            .IsRequired()
+            .HasMaxLength(10)
+            .HasDefaultValue("en-US");
+
         builder.Property(token => token.DeliveryCompletedAtUtc);
 
         builder.HasOne(token => token.User)

@@ -5,6 +5,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Domain.Entities;
 
@@ -19,7 +20,9 @@ public sealed class EmailVerificationDeliveryTests
         var enqueuer = new RecordingEnqueuer();
         var service = CreateResendService(emailSender, enqueuer);
 
-        await service.SendVerificationEmailAsync(CreateUnverifiedUser());
+        await service.SendVerificationEmailAsync(
+            CreateUnverifiedUser(),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(enqueuer.EnqueuedTokenIds);
         Assert.Empty(emailSender.SentVerificationEmails);
@@ -34,7 +37,9 @@ public sealed class EmailVerificationDeliveryTests
             new RecordingEnqueuer(),
             tokenRepository);
 
-        await service.SendVerificationEmailAsync(CreateUnverifiedUser());
+        await service.SendVerificationEmailAsync(
+            CreateUnverifiedUser(),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(tokenRepository.CreatedTokens);
         Assert.NotNull(tokenRepository.CreatedTokens[0].ProtectedDeliverySecret);
@@ -117,6 +122,84 @@ public sealed class EmailVerificationDeliveryTests
     }
 
     [Fact]
+    public async Task SendVerificationEmailAsyncPersistsContentLocaleOnToken()
+    {
+        var tokenRepository = new TrackingEmailVerificationTokenRepository();
+        var service = CreateResendService(
+            new RecordingVerificationEmailSender(),
+            new RecordingEnqueuer(),
+            tokenRepository);
+
+        await service.SendVerificationEmailAsync(
+            CreateUnverifiedUser(),
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(ContentLocaleResolver.TurkishTurkey, tokenRepository.CreatedTokens[0].ContentLocale);
+    }
+
+    [Fact]
+    public async Task DeliverAsyncUsesPersistedContentLocaleFromToken()
+    {
+        var tokenRepository = new TrackingEmailVerificationTokenRepository();
+        var emailSender = new RecordingVerificationEmailSender();
+        var service = CreateDeliveryService(tokenRepository, emailSender);
+        var rawToken = PasswordResetTokenGenerator.GenerateToken();
+        var token = new EmailVerificationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TokenHash = PasswordResetTokenHasher.HashToken(rawToken),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
+            ProtectedDeliverySecret = rawToken,
+            ContentLocale = ContentLocaleResolver.TurkishTurkey
+        };
+
+        await tokenRepository.CreateAsync(token);
+
+        await service.DeliverAsync(token.Id);
+
+        Assert.Equal(
+            ContentLocaleResolver.TurkishTurkey,
+            emailSender.SentVerificationEmails.Single().ContentLocale);
+    }
+
+    [Theory]
+    [InlineData("tr")]
+    [InlineData("tr-TR")]
+    [InlineData("tr;q=0.9,en-US;q=0.8")]
+    public async Task SendVerificationEmailAsyncNormalizesTurkishContentLocale(string contentLocale)
+    {
+        var tokenRepository = new TrackingEmailVerificationTokenRepository();
+        var service = CreateResendService(
+            new RecordingVerificationEmailSender(),
+            new RecordingEnqueuer(),
+            tokenRepository);
+
+        await service.SendVerificationEmailAsync(CreateUnverifiedUser(), contentLocale);
+
+        Assert.Equal(ContentLocaleResolver.TurkishTurkey, tokenRepository.CreatedTokens[0].ContentLocale);
+    }
+
+    [Fact]
+    public async Task ResendVerificationAsyncUsesRequestContentLocale()
+    {
+        var user = CreateUnverifiedUser();
+        var tokenRepository = new TrackingEmailVerificationTokenRepository();
+        var service = CreateResendService(
+            new RecordingVerificationEmailSender(),
+            new RecordingEnqueuer(),
+            tokenRepository,
+            user);
+
+        await service.ResendVerificationAsync(new ResendVerificationRequest(
+            "user@example.com",
+            ContentLocaleResolver.TurkishTurkey));
+
+        Assert.Equal(ContentLocaleResolver.TurkishTurkey, tokenRepository.CreatedTokens[0].ContentLocale);
+    }
+
+    [Fact]
     public async Task VerificationSucceedsAfterDelayedDelivery()
     {
         var tokenRepository = new TrackingEmailVerificationTokenRepository();
@@ -125,7 +208,7 @@ public sealed class EmailVerificationDeliveryTests
         var resendService = CreateResendService(emailSender, enqueuer, tokenRepository);
         var user = CreateUnverifiedUser();
 
-        await resendService.SendVerificationEmailAsync(user);
+        await resendService.SendVerificationEmailAsync(user, ContentLocaleResolver.EnglishUnitedStates);
 
         var tokenId = enqueuer.EnqueuedTokenIds.Single();
         var deliveryService = CreateDeliveryService(tokenRepository, emailSender);
@@ -147,9 +230,10 @@ public sealed class EmailVerificationDeliveryTests
     private static ResendVerificationService CreateResendService(
         RecordingVerificationEmailSender emailSender,
         IEmailVerificationDeliveryEnqueuer enqueuer,
-        TrackingEmailVerificationTokenRepository? tokenRepository = null) =>
+        TrackingEmailVerificationTokenRepository? tokenRepository = null,
+        User? user = null) =>
         new(
-            new FakeUserRepository(CreateUnverifiedUser()),
+            new FakeUserRepository(user ?? CreateUnverifiedUser()),
             tokenRepository ?? new TrackingEmailVerificationTokenRepository(),
             new PassthroughProtector(),
             enqueuer,
@@ -194,7 +278,8 @@ public sealed class EmailVerificationDeliveryTests
             token.UserId,
             "user@example.com",
             rawToken,
-            true));
+            true,
+            ContentLocaleResolver.EnglishUnitedStates));
 
         return token.Id;
     }
@@ -235,7 +320,7 @@ public sealed class EmailVerificationDeliveryTests
     {
         public int FailCount { get; init; }
 
-        public List<(Guid TokenId, string Email, string VerifyUrl)> SentVerificationEmails { get; } = [];
+        public List<(Guid TokenId, string Email, string VerifyUrl, string ContentLocale)> SentVerificationEmails { get; } = [];
 
         public string? LastRawToken { get; private set; }
 
@@ -245,6 +330,7 @@ public sealed class EmailVerificationDeliveryTests
             Guid tokenId,
             string toEmail,
             string verifyUrl,
+            string contentLocale,
             CancellationToken cancellationToken = default)
         {
             _attempts++;
@@ -253,7 +339,7 @@ public sealed class EmailVerificationDeliveryTests
                 throw new InvalidOperationException("delivery failed");
             }
 
-            SentVerificationEmails.Add((tokenId, toEmail, verifyUrl));
+            SentVerificationEmails.Add((tokenId, toEmail, verifyUrl, contentLocale));
             LastRawToken = ExtractToken(verifyUrl);
             return Task.CompletedTask;
         }
@@ -321,7 +407,8 @@ public sealed class EmailVerificationDeliveryTests
                 token.UserId,
                 "user@example.com",
                 token.ProtectedDeliverySecret ?? string.Empty,
-                true);
+                true,
+                token.ContentLocale);
             return Task.CompletedTask;
         }
 

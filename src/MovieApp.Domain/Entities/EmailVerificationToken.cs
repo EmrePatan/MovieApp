@@ -16,6 +16,8 @@ public sealed class EmailVerificationToken
 
     public string? ProtectedDeliverySecret { get; set; }
 
+    public string ContentLocale { get; set; } = "en-US";
+
     public DateTime? DeliveryCompletedAtUtc { get; set; }
 
     public User User { get; set; } = null!;

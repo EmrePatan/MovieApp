@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Contracts.Auth;
 using MovieApp.Infrastructure.Email;
 using MovieApp.Infrastructure.Persistence;
@@ -150,6 +151,53 @@ public sealed class EmailVerificationApiTests(AuthApiFixture fixture)
         Assert.NotNull(existingPayload);
         Assert.NotNull(missingPayload);
         Assert.Equal(existingPayload.Message, missingPayload.Message);
+    }
+
+    [Fact]
+    public async Task RegisterPersistsContentLocaleFromAcceptLanguageOnToken()
+    {
+        await fixture.ResetAsync();
+
+        var email = $"locale-{Guid.NewGuid():N}@example.com";
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/register")
+        {
+            Content = JsonContent.Create(new RegisterRequest(
+                email,
+                "StrongPassword123",
+                "Integration User"))
+        };
+        request.Headers.AcceptLanguage.ParseAdd("tr-TR");
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        await using var context = CreateContext();
+        var storedToken = await context.EmailVerificationTokens.SingleAsync();
+        Assert.Equal(ContentLocaleResolver.TurkishTurkey, storedToken.ContentLocale);
+    }
+
+    [Fact]
+    public async Task ResendVerificationUsesCurrentRequestAcceptLanguage()
+    {
+        await fixture.ResetAsync();
+
+        var email = $"resend-locale-{Guid.NewGuid():N}@example.com";
+        await RegisterUserAsync(email);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/resend-verification")
+        {
+            Content = JsonContent.Create(new ResendVerificationRequest(email))
+        };
+        request.Headers.AcceptLanguage.ParseAdd("tr-TR");
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var context = CreateContext();
+        var latestToken = await context.EmailVerificationTokens
+            .OrderByDescending(token => token.CreatedAtUtc)
+            .FirstAsync();
+        Assert.Equal(ContentLocaleResolver.TurkishTurkey, latestToken.ContentLocale);
     }
 
     [Fact]

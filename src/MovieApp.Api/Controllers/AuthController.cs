@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Application.Exceptions;
@@ -34,7 +35,7 @@ public sealed class AuthController(
         try
         {
             var result = await registerUserService.RegisterAsync(
-                AuthContractMapper.ToRegisterUserRequest(request),
+                AuthContractMapper.ToRegisterUserRequest(request, Request.ResolveContentLocale()),
                 cancellationToken);
 
             return Created(string.Empty, AuthContractMapper.ToRegisterResponse(result));
@@ -177,7 +178,7 @@ public sealed class AuthController(
         try
         {
             var result = await resendVerificationService.ResendVerificationAsync(
-                AuthContractMapper.ToResendVerificationRequest(request),
+                AuthContractMapper.ToResendVerificationRequest(request, Request.ResolveContentLocale()),
                 cancellationToken);
 
             return Ok(AuthContractMapper.ToMessageResponse(result));

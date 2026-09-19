@@ -99,7 +99,10 @@ public sealed class RegisterUserServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new MessageResult(ResendVerificationService.SuccessMessage));
 
-        public Task SendVerificationEmailAsync(User user, CancellationToken cancellationToken = default)
+        public Task SendVerificationEmailAsync(
+            User user,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
         {
             SendCount++;
             return Task.CompletedTask;

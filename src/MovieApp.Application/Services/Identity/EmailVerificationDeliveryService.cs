@@ -47,6 +47,7 @@ public sealed class EmailVerificationDeliveryService(
                 tokenId,
                 target.Email,
                 verifyUrl,
+                target.ContentLocale,
                 cancellationToken);
 
             await emailVerificationTokenRepository.CompleteDeliveryAsync(tokenId, utcNow, cancellationToken);

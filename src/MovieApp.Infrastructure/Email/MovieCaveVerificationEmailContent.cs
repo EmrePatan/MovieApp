@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using MovieApp.Application.Services.Localization;
 
 namespace MovieApp.Infrastructure.Email;
 
@@ -20,41 +21,56 @@ public static class MovieCaveVerificationEmailContent
     internal const string FeatureRowMarkerClass = "movie-cave-feature-row";
     internal const int HeaderLogoDisplayWidthPx = 175;
 
-    private const string HeroHeadlineText = "One more step to the good stuff.";
+    public static string GetSubject(string contentLocale) =>
+        GetCopy(contentLocale).Subject;
 
-    public static string BuildPlainText(string verifyUrl) =>
-        """
-        MOVIE CAVE
-
-        One more step to the good stuff.
-
-        Verify your email address
-
-        Welcome to Movie Cave. Confirm your email to unlock your watchlist, discover movies and TV shows, and start finding your next favorite.
-
-        Verify your email address:
-        """ + verifyUrl + """
-
-        If you didn't create a Movie Cave account, you can safely ignore this email.
-
-        Discover — Movies & TV Shows
-        Save — Your Watchlist
-        Enjoy — Your Next Favorite
-
-        Movie Cave
-        """;
-
-    public static string BuildHtml(string verifyUrl, string? heroImageUrl, string? logoImageUrl = null)
+    public static string BuildPlainText(
+        string verifyUrl,
+        string contentLocale = ContentLocaleResolver.EnglishUnitedStates)
     {
+        var copy = GetCopy(contentLocale);
+        return $"""
+            MOVIE CAVE
+
+            {copy.HeroHeadline}
+
+            {copy.Title}
+
+            {copy.BodyPlain}
+
+            {copy.PlainTextCtaLabel}
+            {verifyUrl}
+
+            {copy.Safety}
+
+            {copy.Feature1Label} — {copy.Feature1PlainText}
+            {copy.Feature2Label} — {copy.Feature2PlainText}
+            {copy.Feature3Label} — {copy.Feature3PlainText}
+
+            Movie Cave
+            """;
+    }
+
+    public static string BuildHtml(
+        string verifyUrl,
+        string? heroImageUrl,
+        string? logoImageUrl = null,
+        string contentLocale = ContentLocaleResolver.EnglishUnitedStates)
+    {
+        var copy = GetCopy(contentLocale);
         var encodedVerifyUrl = WebUtility.HtmlEncode(verifyUrl);
-        var encodedSubject = WebUtility.HtmlEncode(Subject);
-        var heroSectionHtml = BuildHeroSectionHtml(heroImageUrl);
+        var encodedSubject = WebUtility.HtmlEncode(copy.Subject);
+        var heroSectionHtml = BuildHeroSectionHtml(heroImageUrl, copy);
         var headerLogoHtml = BuildHeaderLogoHtml(logoImageUrl);
 
         var builder = new StringBuilder(12_288);
         builder.Append("""
             <!DOCTYPE html>
-            <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" style="color-scheme:light only;supported-color-schemes:light only;">
+            <html lang="
+            """);
+        builder.Append(copy.HtmlLang);
+        builder.Append("""
+            " xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" style="color-scheme:light only;supported-color-schemes:light only;">
             <head>
               <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -106,7 +122,9 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(SurfaceAttributes(
             CanvasColor,
             "margin:0;padding:0;width:100%;color:" + PrimaryTextColor + ";font-family:" + SansFontStack + ";"));
-        builder.Append("><div style=\"display:none;max-height:0;overflow:hidden;mso-hide:all;\">One more step to the good stuff. Verify your Movie Cave email address.</div>");
+        builder.Append("><div style=\"display:none;max-height:0;overflow:hidden;mso-hide:all;\">");
+        builder.Append(copy.Preheader);
+        builder.Append("</div>");
         builder.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" ");
         builder.Append(SurfaceAttributes(CanvasColor, "width:100%;"));
         builder.Append("><tr><td align=\"center\" ");
@@ -127,18 +145,24 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(SansFontStack);
         builder.Append(";font-size:24px;line-height:32px;font-weight:700;color:");
         builder.Append(PrimaryTextColor);
-        builder.Append(";text-align:center;\">Verify your email address</h1><p style=\"margin:0;font-family:");
+        builder.Append(";text-align:center;\">");
+        builder.Append(copy.Title);
+        builder.Append("</h1><p style=\"margin:0;font-family:");
         builder.Append(SansFontStack);
         builder.Append(";font-size:15px;line-height:24px;color:");
         builder.Append(SecondaryTextColor);
-        builder.Append(";text-align:center;\">Welcome to Movie Cave. Confirm your email to unlock your watchlist, discover movies and TV shows, and start finding your next favorite.</p></td></tr>");
-        builder.Append(BuildBulletproofCtaRowHtml(encodedVerifyUrl));
+        builder.Append(";text-align:center;\">");
+        builder.Append(copy.BodyHtml);
+        builder.Append("</p></td></tr>");
+        builder.Append(BuildBulletproofCtaRowHtml(encodedVerifyUrl, copy));
         builder.Append("<tr><td class=\"section-padding\" ");
         builder.Append(SurfaceAttributes(CardColor, "padding:12px 32px 28px 32px;"));
         builder.Append("><p style=\"margin:0;font-family:");
         builder.Append(SansFontStack);
-        builder.Append(";font-size:13px;line-height:22px;color:#AFA79B;text-align:center;\">If you didn&apos;t create a Movie Cave account, you can safely ignore this email.</p></td></tr>");
-        builder.Append(BuildFeatureRowHtml());
+        builder.Append(";font-size:13px;line-height:22px;color:#AFA79B;text-align:center;\">");
+        builder.Append(copy.SafetyHtml);
+        builder.Append("</p></td></tr>");
+        builder.Append(BuildFeatureRowHtml(copy));
         builder.Append("<tr><td align=\"center\" class=\"section-padding\" ");
         builder.Append(SurfaceAttributes("#0D0D10", "padding:18px 32px 24px 32px;border-top:1px solid #3A3228;"));
         builder.Append("><p style=\"margin:0 0 4px 0;font-family:");
@@ -147,10 +171,23 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(GoldAccentColor);
         builder.Append(";font-weight:700;\">Movie Cave</p><p style=\"margin:0;font-family:");
         builder.Append(SansFontStack);
-        builder.Append(";font-size:12px;line-height:20px;color:#AFA79B;\">Your cinematic home for movies and TV.</p></td></tr>");
+        builder.Append(";font-size:12px;line-height:20px;color:#AFA79B;\">");
+        builder.Append(copy.FooterTagline);
+        builder.Append("</p></td></tr>");
         builder.Append("</table></td></tr></table></body></html>");
 
         return builder.ToString();
+    }
+
+    private static VerificationEmailCopy GetCopy(string contentLocale)
+    {
+        if (ContentLocaleResolver.RequiresLocalization(
+                ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale)))
+        {
+            return TurkishCopy;
+        }
+
+        return EnglishCopy;
     }
 
     private static string BuildHeaderLogoHtml(string? logoImageUrl)
@@ -184,7 +221,7 @@ public static class MovieCaveVerificationEmailContent
         return fallback.ToString();
     }
 
-    private static string BuildHeroSectionHtml(string? heroImageUrl)
+    private static string BuildHeroSectionHtml(string? heroImageUrl, VerificationEmailCopy copy)
     {
         if (!string.IsNullOrWhiteSpace(heroImageUrl) &&
             Uri.TryCreate(heroImageUrl.Trim(), UriKind.Absolute, out var heroUri) &&
@@ -201,7 +238,7 @@ public static class MovieCaveVerificationEmailContent
             builder.Append(";\" /></td></tr><tr><td class=\"section-padding\" ");
             builder.Append(SurfaceAttributes(CardColor, "padding:20px 32px 4px 32px;"));
             builder.Append('>');
-            builder.Append(BuildHeroHeadlineHtml());
+            builder.Append(BuildHeroHeadlineHtml(copy));
             builder.Append("</td></tr>");
             return builder.ToString();
         }
@@ -214,12 +251,12 @@ public static class MovieCaveVerificationEmailContent
         fallbackHero.Append("><tr><td align=\"center\" ");
         fallbackHero.Append(SurfaceAttributes(CardColor, "padding:18px 24px 16px 24px;"));
         fallbackHero.Append('>');
-        fallbackHero.Append(BuildHeroHeadlineHtml());
+        fallbackHero.Append(BuildHeroHeadlineHtml(copy));
         fallbackHero.Append("</td></tr></table></td></tr>");
         return fallbackHero.ToString();
     }
 
-    private static string BuildHeroHeadlineHtml()
+    private static string BuildHeroHeadlineHtml(VerificationEmailCopy copy)
     {
         var builder = new StringBuilder();
         builder.Append("<p class=\"hero-headline\" style=\"margin:0;font-family:");
@@ -227,7 +264,7 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(";font-size:20px;line-height:28px;font-weight:700;color:");
         builder.Append(PrimaryTextColor);
         builder.Append(";text-align:center;\">");
-        builder.Append(HeroHeadlineText);
+        builder.Append(copy.HeroHeadline);
         builder.Append("</p>");
         return builder.ToString();
     }
@@ -247,7 +284,7 @@ public static class MovieCaveVerificationEmailContent
         return builder.ToString();
     }
 
-    private static string BuildBulletproofCtaRowHtml(string encodedVerifyUrl)
+    private static string BuildBulletproofCtaRowHtml(string encodedVerifyUrl, VerificationEmailCopy copy)
     {
         var builder = new StringBuilder();
         builder.Append("<tr><td align=\"center\" class=\"section-padding\" ");
@@ -264,11 +301,13 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(SansFontStack);
         builder.Append(";font-size:16px;line-height:20px;font-weight:700;color:");
         builder.Append(CtaTextColor);
-        builder.Append(" !important;text-decoration:none !important;\">Verify Email Address &rarr;</a></td></tr></table></td></tr>");
+        builder.Append(" !important;text-decoration:none !important;\">");
+        builder.Append(copy.CtaHtml);
+        builder.Append("</a></td></tr></table></td></tr>");
         return builder.ToString();
     }
 
-    private static string BuildFeatureRowHtml()
+    private static string BuildFeatureRowHtml(VerificationEmailCopy copy)
     {
         var builder = new StringBuilder();
         builder.Append("<tr><td class=\"section-padding\" ");
@@ -276,9 +315,9 @@ public static class MovieCaveVerificationEmailContent
         builder.Append("><table role=\"presentation\" class=\"");
         builder.Append(FeatureRowMarkerClass);
         builder.Append("\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:100%;\"><tr>");
-        builder.Append(FeatureColumn("Discover", "Movies &amp; TV Shows"));
-        builder.Append(FeatureColumn("Save", "Your Watchlist"));
-        builder.Append(FeatureColumn("Enjoy", "Your Next Favorite"));
+        builder.Append(FeatureColumn(copy.Feature1Label, copy.Feature1TextHtml));
+        builder.Append(FeatureColumn(copy.Feature2Label, copy.Feature2TextHtml));
+        builder.Append(FeatureColumn(copy.Feature3Label, copy.Feature3TextHtml));
         builder.Append("</tr></table></td></tr>");
         return builder.ToString();
     }
@@ -305,4 +344,73 @@ public static class MovieCaveVerificationEmailContent
 
     private static string SurfaceAttributes(string color, string cssDeclarations) =>
         "bgcolor=\"" + color + "\" style=\"background-color:" + color + ";background-image:linear-gradient(" + color + "," + color + ");" + cssDeclarations + "\"";
+
+    private sealed record VerificationEmailCopy(
+        string HtmlLang,
+        string Subject,
+        string Preheader,
+        string HeroHeadline,
+        string Title,
+        string BodyPlain,
+        string BodyHtml,
+        string PlainTextCtaLabel,
+        string CtaHtml,
+        string SafetyHtml,
+        string Feature1Label,
+        string Feature1PlainText,
+        string Feature1TextHtml,
+        string Feature2Label,
+        string Feature2PlainText,
+        string Feature2TextHtml,
+        string Feature3Label,
+        string Feature3PlainText,
+        string Feature3TextHtml,
+        string FooterTagline,
+        string Safety);
+
+    private static readonly VerificationEmailCopy EnglishCopy = new(
+        HtmlLang: "en",
+        Subject: Subject,
+        Preheader: "One more step to the good stuff. Verify your Movie Cave email address.",
+        HeroHeadline: "One more step to the good stuff.",
+        Title: "Verify your email address",
+        BodyPlain: "Welcome to Movie Cave. Confirm your email to unlock your watchlist, discover movies and TV shows, and start finding your next favorite.",
+        BodyHtml: "Welcome to Movie Cave. Confirm your email to unlock your watchlist, discover movies and TV shows, and start finding your next favorite.",
+        PlainTextCtaLabel: "Verify your email address:",
+        CtaHtml: "Verify Email Address &rarr;",
+        SafetyHtml: "If you didn&apos;t create a Movie Cave account, you can safely ignore this email.",
+        Feature1Label: "Discover",
+        Feature1PlainText: "Movies & TV Shows",
+        Feature1TextHtml: "Movies &amp; TV Shows",
+        Feature2Label: "Save",
+        Feature2PlainText: "Your Watchlist",
+        Feature2TextHtml: "Your Watchlist",
+        Feature3Label: "Enjoy",
+        Feature3PlainText: "Your Next Favorite",
+        Feature3TextHtml: "Your Next Favorite",
+        FooterTagline: "Your cinematic home for movies and TV.",
+        Safety: "If you didn't create a Movie Cave account, you can safely ignore this email.");
+
+    private static readonly VerificationEmailCopy TurkishCopy = new(
+        HtmlLang: "tr",
+        Subject: "Movie Cave e-posta adresini doğrula",
+        Preheader: "Güzel şeylere sadece bir adım kaldı. Movie Cave e-posta adresini doğrula.",
+        HeroHeadline: "Güzel şeylere sadece bir adım kaldı.",
+        Title: "E-posta adresini doğrula",
+        BodyPlain: "Movie Cave'e hoş geldin. İzleme listeni kullanmak, film ve dizileri keşfetmek ve sıradaki favorini bulmak için e-posta adresini doğrula.",
+        BodyHtml: "Movie Cave&apos;e hoş geldin. İzleme listeni kullanmak, film ve dizileri keşfetmek ve sıradaki favorini bulmak için e-posta adresini doğrula.",
+        PlainTextCtaLabel: "E-posta Adresimi Doğrula:",
+        CtaHtml: "E-posta Adresimi Doğrula &rarr;",
+        SafetyHtml: "Bu Movie Cave hesabını sen oluşturmadıysan bu e-postayı güvenle yok sayabilirsin.",
+        Feature1Label: "KEŞFET",
+        Feature1PlainText: "Film & Diziler",
+        Feature1TextHtml: "Film &amp; Diziler",
+        Feature2Label: "KAYDET",
+        Feature2PlainText: "İzleme Listen",
+        Feature2TextHtml: "İzleme Listen",
+        Feature3Label: "KEYFİNİ ÇIKAR",
+        Feature3PlainText: "Sıradaki Favorin",
+        Feature3TextHtml: "Sıradaki Favorin",
+        FooterTagline: "Film ve dizi için sinematik evin.",
+        Safety: "Bu Movie Cave hesabını sen oluşturmadıysan bu e-postayı güvenle yok sayabilirsin.");
 }

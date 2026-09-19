@@ -9,5 +9,8 @@ public interface IResendVerificationService
         ResendVerificationRequest request,
         CancellationToken cancellationToken = default);
 
-    Task SendVerificationEmailAsync(User user, CancellationToken cancellationToken = default);
+    Task SendVerificationEmailAsync(
+        User user,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
 }

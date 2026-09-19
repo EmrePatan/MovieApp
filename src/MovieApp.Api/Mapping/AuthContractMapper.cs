@@ -5,8 +5,8 @@ namespace MovieApp.Api.Mapping;
 
 public static class AuthContractMapper
 {
-    public static RegisterUserRequest ToRegisterUserRequest(RegisterRequest request) =>
-        new(request.Email, request.Password, request.DisplayName);
+    public static RegisterUserRequest ToRegisterUserRequest(RegisterRequest request, string contentLocale) =>
+        new(request.Email, request.Password, request.DisplayName, contentLocale);
 
     public static LoginUserRequest ToLoginUserRequest(LoginRequest request) =>
         new(request.Email, request.Password);
@@ -32,8 +32,9 @@ public static class AuthContractMapper
         new(request.Token);
 
     public static Application.Models.Identity.ResendVerificationRequest ToResendVerificationRequest(
-        Contracts.Auth.ResendVerificationRequest request) =>
-        new(request.Email);
+        Contracts.Auth.ResendVerificationRequest request,
+        string contentLocale) =>
+        new(request.Email, contentLocale);
 
     public static CurrentUserResponse ToCurrentUserResponse(CurrentUserResult result) =>
         new(

@@ -5,4 +5,5 @@ public sealed record EmailVerificationDeliveryTarget(
     Guid UserId,
     string Email,
     string ProtectedDeliverySecret,
-    bool IsDeliverable);
+    bool IsDeliverable,
+    string ContentLocale);
