@@ -15,7 +15,7 @@ public sealed class EmailVerificationDeliveryTests
     [Fact]
     public async Task SendVerificationEmailAsyncEnqueuesDeliveryWithoutSendingEmailInline()
     {
-        var emailSender = new RecordingEmailSender();
+        var emailSender = new RecordingVerificationEmailSender();
         var enqueuer = new RecordingEnqueuer();
         var service = CreateResendService(emailSender, enqueuer);
 
@@ -30,7 +30,7 @@ public sealed class EmailVerificationDeliveryTests
     {
         var tokenRepository = new TrackingEmailVerificationTokenRepository();
         var service = CreateResendService(
-            new RecordingEmailSender(),
+            new RecordingVerificationEmailSender(),
             new RecordingEnqueuer(),
             tokenRepository);
 
@@ -44,7 +44,7 @@ public sealed class EmailVerificationDeliveryTests
     public async Task DeliverAsyncRetryDoesNotCreateOrInvalidateTokens()
     {
         var tokenRepository = new TrackingEmailVerificationTokenRepository();
-        var emailSender = new RecordingEmailSender { FailCount = 1 };
+        var emailSender = new RecordingVerificationEmailSender { FailCount = 1 };
         var service = CreateDeliveryService(tokenRepository, emailSender);
         var tokenId = await SeedDeliverableTokenAsync(tokenRepository);
 
@@ -58,11 +58,41 @@ public sealed class EmailVerificationDeliveryTests
     }
 
     [Fact]
+    public async Task DeliverAsyncKeepsProtectedSecretWhenProviderFails()
+    {
+        var tokenRepository = new TrackingEmailVerificationTokenRepository();
+        var emailSender = new RecordingVerificationEmailSender { FailCount = 2 };
+        var service = CreateDeliveryService(tokenRepository, emailSender);
+        var tokenId = await SeedDeliverableTokenAsync(tokenRepository);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeliverAsync(tokenId));
+
+        var token = tokenRepository.CreatedTokens.Single(item => item.Id == tokenId);
+        Assert.NotNull(token.ProtectedDeliverySecret);
+        Assert.DoesNotContain(tokenId, tokenRepository.CompletedTokenIds);
+    }
+
+    [Fact]
+    public async Task DeliverAsyncClearsProtectedSecretAfterSuccessfulDelivery()
+    {
+        var tokenRepository = new TrackingEmailVerificationTokenRepository();
+        var emailSender = new RecordingVerificationEmailSender();
+        var service = CreateDeliveryService(tokenRepository, emailSender);
+        var tokenId = await SeedDeliverableTokenAsync(tokenRepository);
+
+        await service.DeliverAsync(tokenId);
+
+        var token = tokenRepository.CreatedTokens.Single(item => item.Id == tokenId);
+        Assert.Null(token.ProtectedDeliverySecret);
+        Assert.Contains(tokenId, tokenRepository.CompletedTokenIds);
+    }
+
+    [Fact]
     public async Task ResendInvalidatesPreviousTokenBeforeCreatingNewOne()
     {
         var tokenRepository = new TrackingEmailVerificationTokenRepository();
         var service = CreateResendService(
-            new RecordingEmailSender(),
+            new RecordingVerificationEmailSender(),
             new RecordingEnqueuer(),
             tokenRepository);
         var user = CreateUnverifiedUser();
@@ -78,7 +108,7 @@ public sealed class EmailVerificationDeliveryTests
     public async Task SendVerificationEmailAsyncSurvivesEnqueueFailure()
     {
         var service = CreateResendService(
-            new RecordingEmailSender(),
+            new RecordingVerificationEmailSender(),
             new FailingEnqueuer());
 
         var result = await service.ResendVerificationAsync(new ResendVerificationRequest("user@example.com"));
@@ -90,7 +120,7 @@ public sealed class EmailVerificationDeliveryTests
     public async Task VerificationSucceedsAfterDelayedDelivery()
     {
         var tokenRepository = new TrackingEmailVerificationTokenRepository();
-        var emailSender = new RecordingEmailSender();
+        var emailSender = new RecordingVerificationEmailSender();
         var enqueuer = new RecordingEnqueuer();
         var resendService = CreateResendService(emailSender, enqueuer, tokenRepository);
         var user = CreateUnverifiedUser();
@@ -115,7 +145,7 @@ public sealed class EmailVerificationDeliveryTests
     }
 
     private static ResendVerificationService CreateResendService(
-        RecordingEmailSender emailSender,
+        RecordingVerificationEmailSender emailSender,
         IEmailVerificationDeliveryEnqueuer enqueuer,
         TrackingEmailVerificationTokenRepository? tokenRepository = null) =>
         new(
@@ -132,7 +162,7 @@ public sealed class EmailVerificationDeliveryTests
 
     private static EmailVerificationDeliveryService CreateDeliveryService(
         TrackingEmailVerificationTokenRepository tokenRepository,
-        RecordingEmailSender emailSender) =>
+        RecordingVerificationEmailSender emailSender) =>
         new(
             tokenRepository,
             new PassthroughProtector(),
@@ -201,23 +231,18 @@ public sealed class EmailVerificationDeliveryTests
             throw new InvalidOperationException("enqueue failed");
     }
 
-    private sealed class RecordingEmailSender : IEmailSender
+    private sealed class RecordingVerificationEmailSender : IEmailVerificationEmailSender
     {
         public int FailCount { get; init; }
 
-        public List<(string Email, string VerifyUrl)> SentVerificationEmails { get; } = [];
+        public List<(Guid TokenId, string Email, string VerifyUrl)> SentVerificationEmails { get; } = [];
 
         public string? LastRawToken { get; private set; }
 
         private int _attempts;
 
-        public Task SendPasswordResetEmailAsync(
-            string toEmail,
-            string resetUrl,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task SendEmailVerificationEmailAsync(
+        public Task SendVerificationEmailAsync(
+            Guid tokenId,
             string toEmail,
             string verifyUrl,
             CancellationToken cancellationToken = default)
@@ -225,10 +250,10 @@ public sealed class EmailVerificationDeliveryTests
             _attempts++;
             if (_attempts <= FailCount)
             {
-                throw new InvalidOperationException("smtp failed");
+                throw new InvalidOperationException("delivery failed");
             }
 
-            SentVerificationEmails.Add((toEmail, verifyUrl));
+            SentVerificationEmails.Add((tokenId, toEmail, verifyUrl));
             LastRawToken = ExtractToken(verifyUrl);
             return Task.CompletedTask;
         }

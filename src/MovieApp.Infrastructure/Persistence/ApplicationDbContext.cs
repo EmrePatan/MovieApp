@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Domain.Entities;
@@ -5,8 +6,10 @@ using MovieApp.Domain.Entities;
 namespace MovieApp.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-    : DbContext(options), IApplicationDbContext
+    : DbContext(options), IApplicationDbContext, IDataProtectionKeyContext
 {
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
     public DbSet<Movie> Movies => Set<Movie>();
 
     public DbSet<MovieRegionalRelease> MovieRegionalReleases => Set<MovieRegionalRelease>();

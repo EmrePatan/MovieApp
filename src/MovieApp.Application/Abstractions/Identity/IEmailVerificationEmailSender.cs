@@ -1,9 +1,10 @@
 namespace MovieApp.Application.Abstractions.Identity;
 
-public interface IEmailSender
+public interface IEmailVerificationEmailSender
 {
-    Task SendPasswordResetEmailAsync(
+    Task SendVerificationEmailAsync(
+        Guid tokenId,
         string toEmail,
-        string resetUrl,
+        string verifyUrl,
         CancellationToken cancellationToken = default);
 }

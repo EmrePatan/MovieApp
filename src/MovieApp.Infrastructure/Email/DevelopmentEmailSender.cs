@@ -22,19 +22,4 @@ public sealed class DevelopmentEmailSender(
 
         return Task.CompletedTask;
     }
-
-    public Task SendEmailVerificationEmailAsync(
-        string toEmail,
-        string verifyUrl,
-        CancellationToken cancellationToken = default)
-    {
-        if (hostEnvironment.IsProduction())
-        {
-            return Task.CompletedTask;
-        }
-
-        EmailLogMessages.EmailVerificationQueued(logger, toEmail);
-
-        return Task.CompletedTask;
-    }
 }

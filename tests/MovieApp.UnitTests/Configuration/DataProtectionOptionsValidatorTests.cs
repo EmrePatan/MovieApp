@@ -8,11 +8,11 @@ namespace MovieApp.UnitTests.Configuration;
 public sealed class MovieAppDataProtectionOptionsValidatorTests
 {
     [Fact]
-    public void ValidateAllowsDevelopmentWithoutRedisOrCertificate()
+    public void ValidateAllowsDevelopmentWithoutPostgreSqlOrEncryptionKey()
     {
         var validator = CreateValidator(
             new FakeHostEnvironment("Development"),
-            new RedisOptions());
+            new PostgreSqlOptions());
 
         var result = validator.Validate(
             MovieAppDataProtectionOptions.SectionName,
@@ -22,53 +22,59 @@ public sealed class MovieAppDataProtectionOptionsValidatorTests
     }
 
     [Fact]
-    public void ValidateFailsProductionWithoutRedis()
+    public void ValidateFailsProductionWithoutPostgreSql()
     {
         var validator = CreateValidator(
             new FakeHostEnvironment("Production"),
-            new RedisOptions());
+            new PostgreSqlOptions());
 
         var result = validator.Validate(
             MovieAppDataProtectionOptions.SectionName,
-            new MovieAppDataProtectionOptions { CertificatePath = "certs/dp.pfx" });
+            new MovieAppDataProtectionOptions
+            {
+                KeyEncryptionKeyBase64 = Convert.ToBase64String(new byte[32])
+            });
 
         Assert.False(result.Succeeded);
-        Assert.Contains("Redis", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("PostgreSql", result.FailureMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ValidateFailsProductionWithoutCertificate()
+    public void ValidateFailsProductionWithoutKeyEncryptionKey()
     {
         var validator = CreateValidator(
             new FakeHostEnvironment("Production"),
-            new RedisOptions { ConnectionString = "localhost:6379" });
+            new PostgreSqlOptions { ConnectionString = "Host=db.example.com;Database=movieapp" });
 
         var result = validator.Validate(
             MovieAppDataProtectionOptions.SectionName,
             new MovieAppDataProtectionOptions());
 
         Assert.False(result.Succeeded);
-        Assert.Contains("CertificatePath", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("KeyEncryptionKeyBase64", result.FailureMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ValidateSucceedsProductionWithRedisAndCertificate()
+    public void ValidateSucceedsProductionWithPostgreSqlAndEncryptionKey()
     {
         var validator = CreateValidator(
             new FakeHostEnvironment("Production"),
-            new RedisOptions { ConnectionString = "redis.example.com:6379" });
+            new PostgreSqlOptions { ConnectionString = "Host=db.example.com;Database=movieapp" });
 
         var result = validator.Validate(
             MovieAppDataProtectionOptions.SectionName,
-            new MovieAppDataProtectionOptions { CertificatePath = "certs/dp.pfx" });
+            new MovieAppDataProtectionOptions
+            {
+                KeyEncryptionKeyBase64 = Convert.ToBase64String(new byte[32])
+            });
 
         Assert.True(result.Succeeded);
     }
 
     private static MovieAppDataProtectionOptionsValidator CreateValidator(
         IHostEnvironment hostEnvironment,
-        RedisOptions redisOptions) =>
-        new(hostEnvironment, Options.Create(redisOptions));
+        PostgreSqlOptions postgreSqlOptions) =>
+        new(hostEnvironment, Options.Create(postgreSqlOptions));
 
     private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
     {

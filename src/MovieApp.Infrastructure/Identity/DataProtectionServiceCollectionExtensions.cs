@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
+using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Infrastructure.Configuration;
-using StackExchange.Redis;
+using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.Infrastructure.Identity;
 
@@ -29,9 +29,9 @@ public static class DataProtectionServiceCollectionExtensions
             .GetSection(MovieAppDataProtectionOptions.SectionName)
             .Get<MovieAppDataProtectionOptions>() ?? new MovieAppDataProtectionOptions();
 
-        var redisOptions = configuration
-            .GetSection(RedisOptions.SectionName)
-            .Get<RedisOptions>() ?? new RedisOptions();
+        var postgreSqlOptions = configuration
+            .GetSection(PostgreSqlOptions.SectionName)
+            .Get<PostgreSqlOptions>() ?? new PostgreSqlOptions();
 
         var builder = services
             .AddDataProtection()
@@ -42,16 +42,9 @@ public static class DataProtectionServiceCollectionExtensions
             return services;
         }
 
-        if (redisOptions.IsConfigured())
+        if (postgreSqlOptions.IsConfigured())
         {
-            var redisKey = new RedisKey(dataProtectionOptions.ResolveRedisKey(redisOptions.InstanceName));
-            builder.Services.AddSingleton<IConfigureOptions<KeyManagementOptions>>(sp =>
-                new ConfigureOptions<KeyManagementOptions>(options =>
-                {
-                    options.XmlRepository = new RedisXmlRepository(
-                        () => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase(),
-                        redisKey);
-                }));
+            builder.PersistKeysToDbContext<ApplicationDbContext>();
         }
         else if (hostEnvironment.IsDevelopment())
         {
@@ -60,9 +53,16 @@ public static class DataProtectionServiceCollectionExtensions
             builder.PersistKeysToFileSystem(keyRingDirectory);
         }
 
-        if (!string.IsNullOrWhiteSpace(dataProtectionOptions.CertificatePath))
+        var encryptionKey = dataProtectionOptions.TryGetKeyEncryptionKey();
+        if (encryptionKey is not null)
         {
-            builder.ProtectKeysWithCertificate(DataProtectionCertificateLoader.Load(dataProtectionOptions));
+            builder.Services.AddSingleton(new MovieAppDataProtectionKeyMaterial(encryptionKey));
+            builder.Services.AddSingleton<IXmlEncryptor>(new DataProtectionAesGcmXmlEncryptor(encryptionKey));
+            builder.Services.AddSingleton<IConfigureOptions<KeyManagementOptions>>(sp =>
+                new ConfigureOptions<KeyManagementOptions>(options =>
+                {
+                    options.XmlEncryptor = sp.GetRequiredService<IXmlEncryptor>();
+                }));
         }
 
         return services;

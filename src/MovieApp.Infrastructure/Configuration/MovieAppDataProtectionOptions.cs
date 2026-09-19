@@ -8,22 +8,9 @@ public sealed class MovieAppDataProtectionOptions
 
     public string ApplicationName { get; set; } = "MovieApp";
 
-    public string KeyRingRedisKey { get; set; } = "DataProtection-Keys";
-
-    public string CertificatePath { get; set; } = string.Empty;
-
-    public string CertificatePassword { get; set; } = string.Empty;
+    public string KeyEncryptionKeyBase64 { get; set; } = string.Empty;
 
     public string? DevelopmentKeyRingPath { get; set; }
-
-    public string ResolveRedisKey(string redisInstanceName)
-    {
-        var instancePrefix = string.IsNullOrWhiteSpace(redisInstanceName)
-            ? "MovieApp:"
-            : redisInstanceName;
-
-        return $"{instancePrefix}{KeyRingRedisKey}";
-    }
 
     public string ResolveDevelopmentKeyRingPath(IHostEnvironment hostEnvironment)
     {
@@ -33,5 +20,22 @@ public sealed class MovieAppDataProtectionOptions
         }
 
         return Path.Combine(hostEnvironment.ContentRootPath, "data-protection-keys");
+    }
+
+    public byte[]? TryGetKeyEncryptionKey()
+    {
+        if (string.IsNullOrWhiteSpace(KeyEncryptionKeyBase64))
+        {
+            return null;
+        }
+
+        var key = Convert.FromBase64String(KeyEncryptionKeyBase64);
+        if (key.Length != 32)
+        {
+            throw new InvalidOperationException(
+                "DataProtection:KeyEncryptionKeyBase64 must decode to exactly 32 bytes.");
+        }
+
+        return key;
     }
 }

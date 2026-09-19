@@ -5,7 +5,7 @@ namespace MovieApp.Infrastructure.Configuration;
 
 public sealed class MovieAppDataProtectionOptionsValidator(
     IHostEnvironment hostEnvironment,
-    IOptions<RedisOptions> redisOptions) : IValidateOptions<MovieAppDataProtectionOptions>
+    IOptions<PostgreSqlOptions> postgreSqlOptions) : IValidateOptions<MovieAppDataProtectionOptions>
 {
     public ValidateOptionsResult Validate(string? name, MovieAppDataProtectionOptions options)
     {
@@ -14,16 +14,25 @@ public sealed class MovieAppDataProtectionOptionsValidator(
             return ValidateOptionsResult.Success;
         }
 
-        if (!redisOptions.Value.IsConfigured())
+        if (!postgreSqlOptions.Value.IsConfigured())
         {
             return ValidateOptionsResult.Fail(
-                "Production requires Redis:ConnectionString so Data Protection keys can be shared across instances.");
+                "Production requires PostgreSql configuration so Data Protection keys can be shared across instances.");
         }
 
-        if (string.IsNullOrWhiteSpace(options.CertificatePath))
+        if (string.IsNullOrWhiteSpace(options.KeyEncryptionKeyBase64))
         {
             return ValidateOptionsResult.Fail(
-                "Production requires DataProtection:CertificatePath so key-ring material stored in Redis remains encrypted at rest.");
+                "Production requires DataProtection:KeyEncryptionKeyBase64 so key-ring material stored in PostgreSQL remains encrypted at rest.");
+        }
+
+        try
+        {
+            _ = options.TryGetKeyEncryptionKey();
+        }
+        catch (InvalidOperationException exception)
+        {
+            return ValidateOptionsResult.Fail(exception.Message);
         }
 
         return ValidateOptionsResult.Success;

@@ -114,6 +114,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<EmailVerificationOptions>, EmailVerificationOptionsValidator>();
 
+        services.AddOptions<ResendVerificationEmailOptions>()
+            .Bind(configuration.GetSection(ResendVerificationEmailOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<ResendVerificationEmailOptions>, ResendVerificationEmailOptionsValidator>();
+
         services.AddAiRecommendations(configuration);
 
         services.AddMovieDataProviders(configuration);

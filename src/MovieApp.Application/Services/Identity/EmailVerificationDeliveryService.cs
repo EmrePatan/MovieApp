@@ -9,7 +9,7 @@ namespace MovieApp.Application.Services.Identity;
 public sealed class EmailVerificationDeliveryService(
     IEmailVerificationTokenRepository emailVerificationTokenRepository,
     IEmailVerificationDeliverySecretProtector deliverySecretProtector,
-    IEmailSender emailSender,
+    IEmailVerificationEmailSender verificationEmailSender,
     IOptions<EmailVerificationOptions> emailVerificationOptions,
     ILogger<EmailVerificationDeliveryService> logger) : IEmailVerificationDeliveryService
 {
@@ -43,7 +43,8 @@ public sealed class EmailVerificationDeliveryService(
 
         try
         {
-            await emailSender.SendEmailVerificationEmailAsync(
+            await verificationEmailSender.SendVerificationEmailAsync(
+                tokenId,
                 target.Email,
                 verifyUrl,
                 cancellationToken);

@@ -3,13 +3,13 @@ using MovieApp.Application.Abstractions.Identity;
 namespace MovieApp.Infrastructure.Email;
 
 /// <summary>
-/// Captures password reset emails for integration tests. Registered only in the Testing environment.
+/// Captures password reset and verification emails for integration tests. Registered only in the Testing environment.
 /// </summary>
-public sealed class CapturingEmailSender : IEmailSender
+public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmailSender
 {
     private readonly object _sync = new();
     private readonly List<(string Email, string ResetUrl)> _sentPasswordResetEmails = [];
-    private readonly List<(string Email, string VerifyUrl)> _sentVerificationEmails = [];
+    private readonly List<(Guid TokenId, string Email, string VerifyUrl)> _sentVerificationEmails = [];
 
     public IReadOnlyList<(string Email, string ResetUrl)> SentEmails
     {
@@ -22,7 +22,7 @@ public sealed class CapturingEmailSender : IEmailSender
         }
     }
 
-    public IReadOnlyList<(string Email, string VerifyUrl)> SentVerificationEmails
+    public IReadOnlyList<(Guid TokenId, string Email, string VerifyUrl)> SentVerificationEmails
     {
         get
         {
@@ -46,14 +46,15 @@ public sealed class CapturingEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
-    public Task SendEmailVerificationEmailAsync(
+    public Task SendVerificationEmailAsync(
+        Guid tokenId,
         string toEmail,
         string verifyUrl,
         CancellationToken cancellationToken = default)
     {
         lock (_sync)
         {
-            _sentVerificationEmails.Add((toEmail, verifyUrl));
+            _sentVerificationEmails.Add((tokenId, toEmail, verifyUrl));
         }
 
         return Task.CompletedTask;
