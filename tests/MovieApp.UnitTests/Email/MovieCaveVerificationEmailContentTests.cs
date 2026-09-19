@@ -5,6 +5,10 @@ namespace MovieApp.UnitTests.Email;
 public sealed class MovieCaveVerificationEmailContentTests
 {
     private const string VerifyUrl = "movieapp://verify-email?token=raw-token-value";
+    private const string HeroImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/verification-hero-v2.jpg";
+
+    private static string CommittedSnapshotPath =>
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Email", "Snapshots", "movie-cave-verification-email.snapshot.html"));
 
     [Fact]
     public void BuildPlainTextIncludesVerifyUrlAndMovieCaveBranding()
@@ -46,37 +50,30 @@ public sealed class MovieCaveVerificationEmailContentTests
     }
 
     [Fact]
-    public void BuildHtmlUsesGmailSafeLayoutForBadgeCtaAndFeatureRow()
+    public void BuildHtmlStructureIsValidForGmailSafeBadgeCtaAndFeatureRow()
     {
-        const string heroImageUrl = "https://cdn.example.com/movie-cave/email-hero.jpg";
-        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, heroImageUrl);
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl);
 
-        Assert.Contains("width=\"48\"", html, StringComparison.Ordinal);
-        Assert.Contains("min-width:48px;max-width:48px;height:48px", html, StringComparison.Ordinal);
-        Assert.Contains("width=\"320\"", html, StringComparison.Ordinal);
-        Assert.Contains("max-width:320px", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"cta-button-link\"", html, StringComparison.Ordinal);
-        Assert.Contains("<font color=\"" + MovieCaveVerificationEmailContent.CtaTextColor + "\">", html, StringComparison.Ordinal);
-        Assert.Contains("a.cta-button-link", html, StringComparison.Ordinal);
-        Assert.Contains("text-decoration: none !important", html, StringComparison.Ordinal);
-        Assert.Contains("table-layout:fixed", html, StringComparison.Ordinal);
-        Assert.Equal(3, CountOccurrences(html, "width=\"33.33%\""));
+        MovieCaveVerificationEmailHtmlStructure.AssertStructurallyValid(html, VerifyUrl);
+        Assert.Contains(MovieCaveVerificationEmailContent.EnvelopeBadgeMarkerClass, html, StringComparison.Ordinal);
+        Assert.Contains(MovieCaveVerificationEmailContent.CtaButtonMarkerClass, html, StringComparison.Ordinal);
+        Assert.Contains(MovieCaveVerificationEmailContent.FeatureRowMarkerClass, html, StringComparison.Ordinal);
         Assert.DoesNotContain("Georgia", html, StringComparison.Ordinal);
-        Assert.Contains("hero-headline", html, StringComparison.Ordinal);
-        Assert.Contains("border-radius:24px", html, StringComparison.Ordinal);
     }
 
-    private static int CountOccurrences(string source, string value)
+    [Fact]
+    public void BuildHtmlMatchesCommittedSnapshotArtifact()
     {
-        var count = 0;
-        var index = 0;
-        while ((index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl);
+
+        if (Environment.GetEnvironmentVariable("WRITE_EMAIL_SNAPSHOT") == "1")
         {
-            count++;
-            index += value.Length;
+            Directory.CreateDirectory(Path.GetDirectoryName(CommittedSnapshotPath)!);
+            File.WriteAllText(CommittedSnapshotPath, html);
         }
 
-        return count;
+        Assert.True(File.Exists(CommittedSnapshotPath), $"Missing snapshot artifact: {CommittedSnapshotPath}");
+        Assert.Equal(File.ReadAllText(CommittedSnapshotPath), html);
     }
 
     [Fact]
@@ -96,10 +93,9 @@ public sealed class MovieCaveVerificationEmailContentTests
     [Fact]
     public void BuildHtmlUsesConfiguredHeroImageWhenProvided()
     {
-        const string heroImageUrl = "https://cdn.example.com/movie-cave/email-hero.jpg";
-        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, heroImageUrl);
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl);
 
-        Assert.Contains($"src=\"{heroImageUrl}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"src=\"{HeroImageUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("alt=\"Movie Cave cinematic hero\"", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"{VerifyUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("hero-headline", html, StringComparison.Ordinal);
