@@ -14,6 +14,12 @@ public interface ILocalizedDetailDataProvider
         string contentLocale,
         CancellationToken cancellationToken = default);
 
+    Task<TvSeasonDetailLocalizationData?> GetTvSeasonLocalizationAsync(
+        int tmdbTvId,
+        int seasonNumber,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
+
     Task<PersonDetailLocalizationData?> GetPersonLocalizationAsync(
         int tmdbPersonId,
         string contentLocale,

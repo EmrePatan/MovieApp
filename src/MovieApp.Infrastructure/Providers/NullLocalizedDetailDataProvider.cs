@@ -17,6 +17,13 @@ internal sealed class NullLocalizedDetailDataProvider : ILocalizedDetailDataProv
         CancellationToken cancellationToken = default) =>
         Task.FromResult<TvShowDetailLocalizationData?>(null);
 
+    public Task<TvSeasonDetailLocalizationData?> GetTvSeasonLocalizationAsync(
+        int tmdbTvId,
+        int seasonNumber,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<TvSeasonDetailLocalizationData?>(null);
+
     public Task<PersonDetailLocalizationData?> GetPersonLocalizationAsync(
         int tmdbPersonId,
         string contentLocale,

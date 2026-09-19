@@ -17,6 +17,18 @@ public interface IDetailLocalizationOverlayService
         string contentLocale,
         CancellationToken cancellationToken = default);
 
+    Task<SeasonResult> ApplySeasonOverlayAsync(
+        SeasonResult canonical,
+        int tvShowTmdbId,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
+
+    Task<EpisodeResult> ApplyEpisodeOverlayAsync(
+        EpisodeResult canonical,
+        int tvShowTmdbId,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
+
     Task<PersonDetailResult> ApplyPersonOverlayAsync(
         PersonDetailResult canonical,
         string contentLocale,

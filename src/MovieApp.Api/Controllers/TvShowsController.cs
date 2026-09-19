@@ -226,7 +226,17 @@ public sealed class TvShowsController(
     {
         try
         {
+            var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
             var season = await getSeasonService.GetSeasonAsync(id, seasonNumber, cancellationToken);
+            if (tvShow.TmdbId is > 0)
+            {
+                season = await detailLocalizationOverlayService.ApplySeasonOverlayAsync(
+                    season,
+                    tvShow.TmdbId.Value,
+                    Request.ResolveContentLocale(),
+                    cancellationToken);
+            }
+
             return Ok(TvShowContractMapper.ToSeasonResponse(season));
         }
         catch (ValidationException exception)
@@ -257,11 +267,21 @@ public sealed class TvShowsController(
     {
         try
         {
+            var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
             var episode = await getEpisodeService.GetEpisodeAsync(
                 id,
                 seasonNumber,
                 episodeNumber,
                 cancellationToken);
+
+            if (tvShow.TmdbId is > 0)
+            {
+                episode = await detailLocalizationOverlayService.ApplyEpisodeOverlayAsync(
+                    episode,
+                    tvShow.TmdbId.Value,
+                    Request.ResolveContentLocale(),
+                    cancellationToken);
+            }
 
             return Ok(TvShowContractMapper.ToEpisodeResponse(episode));
         }

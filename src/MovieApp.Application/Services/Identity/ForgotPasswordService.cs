@@ -21,8 +21,7 @@ public sealed class ForgotPasswordService(
     IOptions<PasswordResetOptions> passwordResetOptions,
     ILogger<ForgotPasswordService> logger) : IForgotPasswordService
 {
-    public const string SuccessMessage =
-        "If an account exists for this email, you will receive instructions to reset your password.";
+    public const string SuccessMessage = ForgotPasswordMessageLocalization.EnglishSuccessMessage;
 
     public async Task<MessageResult> ForgotPasswordAsync(
         ForgotPasswordRequest request,
@@ -35,11 +34,11 @@ public sealed class ForgotPasswordService(
         }
 
         var normalizedEmail = UserEmailNormalizer.Normalize(request.Email);
+        var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(request.ContentLocale);
         var user = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
 
         if (user is not null && user.IsActive)
         {
-            var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(request.ContentLocale);
             var utcNow = DateTime.UtcNow;
             await passwordResetTokenRepository.InvalidateActiveTokensForUserAsync(
                 user.Id,
@@ -81,7 +80,7 @@ public sealed class ForgotPasswordService(
             }
         }
 
-        return new MessageResult(SuccessMessage);
+        return new MessageResult(ForgotPasswordMessageLocalization.GetSuccessMessage(normalizedContentLocale));
     }
 
     public static string BuildResetUrl(string baseUrl, string rawToken)

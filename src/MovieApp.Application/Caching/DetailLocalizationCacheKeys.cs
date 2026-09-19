@@ -10,6 +10,9 @@ public static class DetailLocalizationCacheKeys
     public static string TvShow(int tmdbId, string contentLocale) =>
         $"tvshow-detail-loc:{tmdbId}:{NormalizeLocale(contentLocale)}:{Version}";
 
+    public static string TvSeason(int tmdbTvId, int seasonNumber, string contentLocale) =>
+        $"tvseason-detail-loc:{tmdbTvId}:{seasonNumber}:{NormalizeLocale(contentLocale)}:{Version}";
+
     public static string Person(int tmdbPersonId, string contentLocale) =>
         $"person-detail-loc:{tmdbPersonId}:{NormalizeLocale(contentLocale)}:{Version}";
 

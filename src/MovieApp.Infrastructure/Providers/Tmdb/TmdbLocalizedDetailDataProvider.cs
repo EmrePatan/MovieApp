@@ -71,6 +71,40 @@ public sealed class TmdbLocalizedDetailDataProvider(TmdbApiClient apiClient) : I
         }
     }
 
+    public async Task<TvSeasonDetailLocalizationData?> GetTvSeasonLocalizationAsync(
+        int tmdbTvId,
+        int seasonNumber,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await apiClient.GetLocalizedAsync<TmdbTvSeasonDetailsResponseJson>(
+                $"tv/{tmdbTvId}/season/{seasonNumber}",
+                contentLocale,
+                cancellationToken);
+
+            if (response is null)
+            {
+                return null;
+            }
+
+            var episodes = response.Episodes
+                .Where(episode => episode.EpisodeNumber > 0)
+                .Select(episode => new TvSeasonEpisodeLocalizationItem(
+                    episode.EpisodeNumber,
+                    episode.Name,
+                    episode.Overview))
+                .ToList();
+
+            return new TvSeasonDetailLocalizationData(response.Name, response.Overview, episodes);
+        }
+        catch (TmdbApiException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
     public async Task<PersonDetailLocalizationData?> GetPersonLocalizationAsync(
         int tmdbPersonId,
         string contentLocale,
@@ -98,9 +132,12 @@ public sealed class TmdbLocalizedDetailDataProvider(TmdbApiClient apiClient) : I
                 combinedCredits ?? new TmdbCombinedCreditsResponseJson());
 
             var filmography = providerDetails.FilmographyCredits
-                .ToDictionary(
-                    credit => new PersonFilmographyLocalizationKey(credit.MediaType, credit.TmdbId),
-                    credit => new PersonFilmographyLocalizationEntry(credit.Title, credit.Character));
+                .Select(credit => new PersonFilmographyLocalizationItem(
+                    credit.MediaType,
+                    credit.TmdbId,
+                    credit.Title,
+                    credit.Character))
+                .ToList();
 
             return new PersonDetailLocalizationData(person.Biography, filmography);
         }
