@@ -11,4 +11,8 @@ public static class AuthRateLimitPolicies
     public const string ForgotPassword = "auth-forgot-password";
 
     public const string ResetPassword = "auth-reset-password";
+
+    public const string VerifyEmail = "auth-verify-email";
+
+    public const string ResendVerification = "auth-resend-verification";
 }

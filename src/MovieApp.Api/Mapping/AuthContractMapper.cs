@@ -21,6 +21,20 @@ public static class AuthContractMapper
             result.ExpiresAt,
             ToCurrentUserResponse(result.User));
 
+    public static RegisterResponse ToRegisterResponse(RegistrationResult result) =>
+        new(
+            result.User.Email,
+            result.RequiresEmailVerification,
+            result.Message);
+
+    public static Application.Models.Identity.VerifyEmailRequest ToVerifyEmailRequest(
+        Contracts.Auth.VerifyEmailRequest request) =>
+        new(request.Token);
+
+    public static Application.Models.Identity.ResendVerificationRequest ToResendVerificationRequest(
+        Contracts.Auth.ResendVerificationRequest request) =>
+        new(request.Email);
+
     public static CurrentUserResponse ToCurrentUserResponse(CurrentUserResult result) =>
         new(
             result.Id,

@@ -11,22 +11,26 @@ namespace MovieApp.UnitTests.Identity;
 public sealed class RegisterUserServiceTests
 {
     [Fact]
-    public async Task RegisterAsyncCreatesUserAndReturnsToken()
+    public async Task RegisterAsyncCreatesUnverifiedUserAndSendsVerificationEmailWithoutJwt()
     {
         var repository = new FakeUserRepository(exists: false);
+        var resendService = new FakeResendVerificationService();
         var service = new RegisterUserService(
             repository,
             new FakePasswordHasher(),
-            new FakeTokenService());
+            resendService);
 
         var result = await service.RegisterAsync(new RegisterUserRequest(
             " USER@Example.com ",
             "StrongPassword123",
             "Display Name"));
 
-        Assert.Equal("token", result.AccessToken);
+        Assert.True(result.RequiresEmailVerification);
+        Assert.Equal(RegisterUserService.VerificationRequiredMessage, result.Message);
         Assert.Equal("USER@Example.com", result.User.Email);
         Assert.Equal(1, repository.CreateCount);
+        Assert.Equal(1, resendService.SendCount);
+        Assert.False(repository.LastCreatedUser?.IsEmailVerified);
     }
 
     [Fact]
@@ -35,7 +39,7 @@ public sealed class RegisterUserServiceTests
         var service = new RegisterUserService(
             new FakeUserRepository(exists: true),
             new FakePasswordHasher(),
-            new FakeTokenService());
+            new FakeResendVerificationService());
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             service.RegisterAsync(new RegisterUserRequest(
@@ -47,6 +51,8 @@ public sealed class RegisterUserServiceTests
     private sealed class FakeUserRepository(bool exists) : IUserRepository
     {
         public int CreateCount { get; private set; }
+
+        public User? LastCreatedUser { get; private set; }
 
         public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<User?>(null);
@@ -66,6 +72,7 @@ public sealed class RegisterUserServiceTests
         public Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
         {
             CreateCount++;
+            LastCreatedUser = user;
             return Task.FromResult(user);
         }
 
@@ -83,9 +90,19 @@ public sealed class RegisterUserServiceTests
         public bool VerifyPassword(string password, string passwordHash) => true;
     }
 
-    private sealed class FakeTokenService : ITokenService
+    private sealed class FakeResendVerificationService : IResendVerificationService
     {
-        public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
-            new("token", DateTime.UtcNow.AddHours(1));
+        public int SendCount { get; private set; }
+
+        public Task<MessageResult> ResendVerificationAsync(
+            ResendVerificationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MessageResult(ResendVerificationService.SuccessMessage));
+
+        public Task SendVerificationEmailAsync(User user, CancellationToken cancellationToken = default)
+        {
+            SendCount++;
+            return Task.CompletedTask;
+        }
     }
 }

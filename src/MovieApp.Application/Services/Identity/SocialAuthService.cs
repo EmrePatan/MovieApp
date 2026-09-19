@@ -216,6 +216,11 @@ public sealed class SocialAuthService(
             displayName,
             utcNow);
 
+        if (ShouldMarkEmailVerified(identity, email))
+        {
+            user.MarkEmailVerified(utcNow);
+        }
+
         var externalLogin = UserExternalLogin.Create(
             Guid.NewGuid(),
             user.Id,
@@ -301,6 +306,11 @@ public sealed class SocialAuthService(
             token.ExpiresAt,
             UserMapper.ToCurrentUserResult(user));
     }
+
+    private static bool ShouldMarkEmailVerified(VerifiedSocialIdentity identity, string email) =>
+        identity.IsEmailVerified &&
+        !string.IsNullOrWhiteSpace(identity.Email) &&
+        !email.EndsWith("@external.movieapp.local", StringComparison.OrdinalIgnoreCase);
 
     private static string ResolveAccountEmail(VerifiedSocialIdentity identity)
     {

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Contracts.Auth;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.PushDevices;
 
 namespace MovieApp.IntegrationTests.PushDevices;
@@ -149,20 +150,11 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
         Assert.Equal("Android", device.Platform.ToString());
     }
 
-    private async Task<string> RegisterAndGetTokenAsync(string username)
-    {
-        var response = await _client.PostAsJsonAsync(
-            "/api/auth/register",
-            new RegisterRequest(
-                $"{username}@example.com",
-                "Password123!",
-                username));
-
-        response.EnsureSuccessStatusCode();
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(auth);
-        return auth.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync(string username) =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"{username}@example.com");
 
     private async Task<HttpResponseMessage> SendAuthorizedPutAsync(
         string accessToken,

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using MovieApp.Contracts.Auth;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.Favorites;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.TvShows;
@@ -294,19 +295,11 @@ public sealed class FavoritesWatchlistsApiTests(FavoritesWatchlistsApiFixture fi
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    private async Task<string> RegisterAndGetTokenAsync(string prefix)
-    {
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            $"{prefix}-{Guid.NewGuid():N}@example.com",
-            "StrongPassword123",
-            "Integration User"));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(payload);
-        return payload.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync(string prefix) =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"{prefix}-{Guid.NewGuid():N}@example.com");
 
     private async Task<Guid> SeedMovieAsync()
     {

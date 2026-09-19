@@ -24,6 +24,8 @@ public sealed class User
 
     public DateTime? LastLoginAt { get; set; }
 
+    public DateTime? EmailVerifiedAtUtc { get; set; }
+
     public Guid SecurityStamp { get; set; }
 
     public ICollection<Favorite> Favorites { get; set; } = [];
@@ -42,6 +44,8 @@ public sealed class User
 
     public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = [];
 
+    public ICollection<EmailVerificationToken> EmailVerificationTokens { get; set; } = [];
+
     public ICollection<CatalogFollow> CatalogFollows { get; set; } = [];
 
     public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];
@@ -51,6 +55,8 @@ public sealed class User
     public ICollection<UserExternalLogin> ExternalLogins { get; set; } = [];
 
     public bool HasPassword => !string.IsNullOrEmpty(PasswordHash);
+
+    public bool IsEmailVerified => EmailVerifiedAtUtc.HasValue;
 
     public static User Create(
         Guid id,
@@ -178,6 +184,12 @@ public sealed class User
     public void RotateSecurityStamp(DateTime utcNow)
     {
         SecurityStamp = Guid.NewGuid();
+        UpdatedAt = utcNow;
+    }
+
+    public void MarkEmailVerified(DateTime utcNow)
+    {
+        EmailVerifiedAtUtc = utcNow;
         UpdatedAt = utcNow;
     }
 

@@ -5,6 +5,7 @@ using MovieApp.Contracts.Auth;
 using MovieApp.Contracts.Insights;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Ratings;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.IntegrationTests.UserProfile;
 
 namespace MovieApp.IntegrationTests.Insights;
@@ -59,17 +60,11 @@ public sealed class InsightsAnalyticsApiTests(UserProfileApiFixture fixture)
         Assert.True(analytics.GeneratedAtUtc <= DateTime.UtcNow);
     }
 
-    private async Task<string> RegisterAndGetTokenAsync()
-    {
-        var response = await _client.PostAsJsonAsync(
-            "/api/auth/register",
-            new RegisterRequest($"insights-analytics-{Guid.NewGuid():N}@example.com", "StrongPassword123", "Insights User"));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(auth);
-        return auth.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync() =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"insights-analytics-{Guid.NewGuid():N}@example.com");
 
     private async Task<Guid> SeedMovieAsync()
     {

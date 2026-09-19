@@ -148,18 +148,11 @@ public sealed class PasswordResetApiTests(AuthApiFixture fixture)
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    private async Task<string> RegisterAndGetAccessTokenAsync(string email)
-    {
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email,
-            "StrongPassword123",
-            "Integration User"));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(payload);
-        return payload.AccessToken;
-    }
+    private Task<string> RegisterAndGetAccessTokenAsync(string email) =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.EmailSender,
+            email);
 
     private Task<HttpResponseMessage> SendAuthorizedGetAsync(string url, string token)
     {

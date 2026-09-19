@@ -24,19 +24,15 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
         await fixture.ResetAsync();
 
         var email = $"user-{Guid.NewGuid():N}@example.com";
-        var registerResponse = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email,
-            "StrongPassword123",
-            "Integration User"));
+        var registerPayload = await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
+        Assert.True(registerPayload.RequiresEmailVerification);
+        Assert.Equal(email, registerPayload.Email);
 
-        Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
+        var accessToken = await AuthIntegrationHelpers.VerifyLatestEmailAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.EmailSender);
 
-        var registerPayload = await registerResponse.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(registerPayload);
-        Assert.False(string.IsNullOrWhiteSpace(registerPayload.AccessToken));
-        Assert.Equal(email, registerPayload.User.Email);
-
-        var meResponse = await SendAuthorizedGetAsync("/api/auth/me", registerPayload.AccessToken);
+        var meResponse = await SendAuthorizedGetAsync("/api/auth/me", accessToken);
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
 
         var mePayload = await meResponse.Content.ReadFromJsonAsync<CurrentUserResponse>();
@@ -51,7 +47,10 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
         await fixture.ResetAsync();
 
         var email = $"login-{Guid.NewGuid():N}@example.com";
-        await RegisterUserAsync(email);
+        await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
+        await AuthIntegrationHelpers.VerifyLatestEmailAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.EmailSender);
 
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             email,
@@ -70,7 +69,7 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
         await fixture.ResetAsync();
 
         var email = $"duplicate-{Guid.NewGuid():N}@example.com";
-        await RegisterUserAsync(email);
+        await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
 
         var duplicateResponse = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
             email,
@@ -86,7 +85,10 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
         await fixture.ResetAsync();
 
         var email = $"invalid-{Guid.NewGuid():N}@example.com";
-        await RegisterUserAsync(email);
+        await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
+        await AuthIntegrationHelpers.VerifyLatestEmailAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.EmailSender);
 
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             email,
@@ -138,16 +140,6 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
         var response = await _client.GetAsync("/api/tvshows/search?q=breaking");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    private async Task RegisterUserAsync(string email)
-    {
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email,
-            "StrongPassword123",
-            "Integration User"));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     private static Task<HttpResponseMessage> SendAuthorizedGetAsync(HttpClient client, string url, string token)

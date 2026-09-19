@@ -17,15 +17,17 @@ public sealed class AuthController(
     ISocialAuthService socialAuthService,
     IGetCurrentUserService getCurrentUserService,
     IForgotPasswordService forgotPasswordService,
-    IResetPasswordService resetPasswordService) : ControllerBase
+    IResetPasswordService resetPasswordService,
+    IVerifyEmailService verifyEmailService,
+    IResendVerificationService resendVerificationService) : ControllerBase
 {
     [HttpPost("register")]
     [EnableRateLimiting(AuthRateLimitPolicies.Register)]
-    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<AuthResponse>> Register(
+    public async Task<ActionResult<RegisterResponse>> Register(
         [FromBody] RegisterRequest request,
         CancellationToken cancellationToken)
     {
@@ -35,7 +37,7 @@ public sealed class AuthController(
                 AuthContractMapper.ToRegisterUserRequest(request),
                 cancellationToken);
 
-            return Created(string.Empty, AuthContractMapper.ToAuthResponse(result));
+            return Created(string.Empty, AuthContractMapper.ToRegisterResponse(result));
         }
         catch (ValidationException exception)
         {
@@ -120,11 +122,71 @@ public sealed class AuthController(
                 "Invalid login request.",
                 exception.Message));
         }
+        catch (EmailNotVerifiedException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication failed.",
+                exception.Message,
+                EmailNotVerifiedException.ErrorCode));
+        }
         catch (AuthenticationException exception)
         {
             return Unauthorized(CreateProblemDetails(
                 StatusCodes.Status401Unauthorized,
                 "Authentication failed.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("verify-email")]
+    [EnableRateLimiting(AuthRateLimitPolicies.VerifyEmail)]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<AuthResponse>> VerifyEmail(
+        [FromBody] VerifyEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await verifyEmailService.VerifyEmailAsync(
+                AuthContractMapper.ToVerifyEmailRequest(request),
+                cancellationToken);
+
+            return Ok(AuthContractMapper.ToAuthResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid verification request.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("resend-verification")]
+    [EnableRateLimiting(AuthRateLimitPolicies.ResendVerification)]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<MessageResponse>> ResendVerification(
+        [FromBody] ResendVerificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await resendVerificationService.ResendVerificationAsync(
+                AuthContractMapper.ToResendVerificationRequest(request),
+                cancellationToken);
+
+            return Ok(AuthContractMapper.ToMessageResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid resend verification request.",
                 exception.Message));
         }
     }
@@ -209,11 +271,24 @@ public sealed class AuthController(
         }
     }
 
-    private static ProblemDetails CreateProblemDetails(int statusCode, string title, string detail) =>
-        new()
+    private static ProblemDetails CreateProblemDetails(
+        int statusCode,
+        string title,
+        string detail,
+        string? code = null)
+    {
+        var problemDetails = new ProblemDetails
         {
             Status = statusCode,
             Title = title,
             Detail = detail
         };
+
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            problemDetails.Extensions["code"] = code;
+        }
+
+        return problemDetails;
+    }
 }

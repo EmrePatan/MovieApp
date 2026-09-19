@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Contracts.Auth;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.CatalogFollows;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
@@ -365,18 +366,9 @@ public sealed class CatalogUpcomingApiTests(TvShowFollowsApiFixture fixture)
         Assert.True(payload.Items[1].IsFollowed);
     }
 
-    private async Task<string> RegisterAndGetTokenAsync(string username)
-    {
-        var response = await _client.PostAsJsonAsync(
-            "/api/auth/register",
-            new RegisterRequest(
-                $"{username}@example.com",
-                "Password123!",
-                username));
-
-        response.EnsureSuccessStatusCode();
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(auth);
-        return auth.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync(string username) =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"{username}@example.com");
 }

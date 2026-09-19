@@ -23,4 +23,12 @@ public sealed class AuthRateLimitOptions
     public int ResetPasswordPermitLimit { get; set; } = 5;
 
     public int ResetPasswordWindowMinutes { get; set; } = 15;
+
+    public int ResendVerificationPermitLimit { get; set; } = 3;
+
+    public int ResendVerificationWindowMinutes { get; set; } = 15;
+
+    public int VerifyEmailPermitLimit { get; set; } = 5;
+
+    public int VerifyEmailWindowMinutes { get; set; } = 15;
 }

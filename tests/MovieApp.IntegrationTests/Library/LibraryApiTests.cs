@@ -8,6 +8,7 @@ using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.TvShows;
 using MovieApp.Contracts.Watchlists;
 using MovieApp.Infrastructure.Providers;
+using MovieApp.IntegrationTests.Auth;
 
 namespace MovieApp.IntegrationTests.Library;
 
@@ -229,19 +230,11 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         Assert.False(pageTwo.HasNextPage);
     }
 
-    private async Task<string> RegisterAndGetTokenAsync()
-    {
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            $"library-{Guid.NewGuid():N}@example.com",
-            "StrongPassword123",
-            "Library User"));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(payload);
-        return payload.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync() =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"library-{Guid.NewGuid():N}@example.com");
 
     private async Task<Guid> SeedMovieAsync()
     {

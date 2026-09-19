@@ -59,6 +59,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
+    public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
+
     public DbSet<CatalogFollow> CatalogFollows => Set<CatalogFollow>();
 
     public DbSet<CatalogReleaseEvent> CatalogReleaseEvents => Set<CatalogReleaseEvent>();

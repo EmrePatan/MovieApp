@@ -205,6 +205,12 @@ public sealed class ForgotPasswordServiceTests
             string resetUrl,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException($"SMTP failed: {failureDetail}");
+
+        public Task SendEmailVerificationEmailAsync(
+            string toEmail,
+            string verifyUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FailingEmailSenderWithResetUrl(string resetUrlTokenMarker) : IEmailSender
@@ -221,6 +227,12 @@ public sealed class ForgotPasswordServiceTests
 
             throw new InvalidOperationException("SMTP failed.");
         }
+
+        public Task SendEmailVerificationEmailAsync(
+            string toEmail,
+            string verifyUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class CollectingLogger<T> : ILogger<T>
@@ -267,6 +279,12 @@ public sealed class ForgotPasswordServiceTests
             LastRawToken = ExtractTokenFromResetUrl(resetUrl);
             return Task.CompletedTask;
         }
+
+        public Task SendEmailVerificationEmailAsync(
+            string toEmail,
+            string verifyUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         private static string? ExtractTokenFromResetUrl(string resetUrl)
         {

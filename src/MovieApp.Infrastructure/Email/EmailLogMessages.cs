@@ -15,4 +15,16 @@ internal static partial class EmailLogMessages
         Level = LogLevel.Error,
         Message = "Failed to send password reset email to {Email}.")]
     public static partial void PasswordResetSendFailed(ILogger logger, Exception exception, string email);
+
+    [LoggerMessage(
+        EventId = 1003,
+        Level = LogLevel.Information,
+        Message = "Email verification queued for {Email}. Verification link path configured.")]
+    public static partial void EmailVerificationQueued(ILogger logger, string email);
+
+    [LoggerMessage(
+        EventId = 1004,
+        Level = LogLevel.Error,
+        Message = "Failed to send email verification email to {Email}.")]
+    public static partial void EmailVerificationSendFailed(ILogger logger, Exception exception, string email);
 }

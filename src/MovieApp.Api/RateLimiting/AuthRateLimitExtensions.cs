@@ -65,6 +65,24 @@ internal static class AuthRateLimitExtensions
                     options.ResetPasswordWindowMinutes);
             });
 
+            rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.VerifyEmail, httpContext =>
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
+                    httpContext,
+                    options.VerifyEmailPermitLimit,
+                    options.VerifyEmailWindowMinutes);
+            });
+
+            rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.ResendVerification, httpContext =>
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateInMemoryFixedWindowPolicy(
+                    httpContext,
+                    options.ResendVerificationPermitLimit,
+                    options.ResendVerificationWindowMinutes);
+            });
+
             rateLimiterOptions.AddPolicy(
                 ProductMetricsRateLimitPolicies.Increment,
                 httpContext => CreateInMemoryFixedWindowPolicy(httpContext, 120, 1));

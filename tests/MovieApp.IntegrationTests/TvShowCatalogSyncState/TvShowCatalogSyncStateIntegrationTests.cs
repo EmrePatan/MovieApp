@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Contracts.Auth;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.TvShowFollows;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
@@ -348,20 +349,11 @@ public sealed class TvShowCatalogSyncStateIntegrationTests(TvShowCatalogSyncStat
         return tvShowId;
     }
 
-    private async Task<string> RegisterAndGetTokenAsync(string username)
-    {
-        var registerResponse = await _client.PostAsJsonAsync(
-            "/api/auth/register",
-            new RegisterRequest(
-                $"{username}@example.com",
-                "Password123!",
-                username));
-
-        registerResponse.EnsureSuccessStatusCode();
-        var auth = await registerResponse.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(auth);
-        return auth.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync(string username) =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"{username}@example.com");
 
     private Task<HttpResponseMessage> SendAuthorizedPutAsync(
         string url,

@@ -108,6 +108,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<PasswordResetOptions>, PasswordResetOptionsValidator>();
 
+        services.AddOptions<EmailVerificationOptions>()
+            .Bind(configuration.GetSection(EmailVerificationOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<EmailVerificationOptions>, EmailVerificationOptionsValidator>();
+
         services.AddAiRecommendations(configuration);
 
         services.AddMovieDataProviders(configuration);
@@ -251,6 +257,8 @@ public static class DependencyInjection
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+
+        services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
 
         services.AddSingleton<InMemoryRateLimitCounterStore>();
 

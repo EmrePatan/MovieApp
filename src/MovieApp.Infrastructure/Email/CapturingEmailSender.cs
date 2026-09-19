@@ -8,7 +8,8 @@ namespace MovieApp.Infrastructure.Email;
 public sealed class CapturingEmailSender : IEmailSender
 {
     private readonly object _sync = new();
-    private readonly List<(string Email, string ResetUrl)> _sentEmails = [];
+    private readonly List<(string Email, string ResetUrl)> _sentPasswordResetEmails = [];
+    private readonly List<(string Email, string VerifyUrl)> _sentVerificationEmails = [];
 
     public IReadOnlyList<(string Email, string ResetUrl)> SentEmails
     {
@@ -16,7 +17,18 @@ public sealed class CapturingEmailSender : IEmailSender
         {
             lock (_sync)
             {
-                return _sentEmails.ToList();
+                return _sentPasswordResetEmails.ToList();
+            }
+        }
+    }
+
+    public IReadOnlyList<(string Email, string VerifyUrl)> SentVerificationEmails
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _sentVerificationEmails.ToList();
             }
         }
     }
@@ -28,7 +40,20 @@ public sealed class CapturingEmailSender : IEmailSender
     {
         lock (_sync)
         {
-            _sentEmails.Add((toEmail, resetUrl));
+            _sentPasswordResetEmails.Add((toEmail, resetUrl));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task SendEmailVerificationEmailAsync(
+        string toEmail,
+        string verifyUrl,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            _sentVerificationEmails.Add((toEmail, verifyUrl));
         }
 
         return Task.CompletedTask;
@@ -38,7 +63,8 @@ public sealed class CapturingEmailSender : IEmailSender
     {
         lock (_sync)
         {
-            _sentEmails.Clear();
+            _sentPasswordResetEmails.Clear();
+            _sentVerificationEmails.Clear();
         }
     }
 
@@ -46,29 +72,48 @@ public sealed class CapturingEmailSender : IEmailSender
     {
         lock (_sync)
         {
-            if (_sentEmails.Count == 0)
+            if (_sentPasswordResetEmails.Count == 0)
             {
                 return null;
             }
 
-            return ExtractTokenFromResetUrl(_sentEmails[^1].ResetUrl);
+            return ExtractTokenFromUrl(_sentPasswordResetEmails[^1].ResetUrl);
         }
     }
 
-    public static string? ExtractTokenFromResetUrl(string resetUrl)
+    public string? ExtractTokenFromLastVerificationEmail()
     {
-        if (string.IsNullOrWhiteSpace(resetUrl))
+        lock (_sync)
+        {
+            if (_sentVerificationEmails.Count == 0)
+            {
+                return null;
+            }
+
+            return ExtractTokenFromUrl(_sentVerificationEmails[^1].VerifyUrl);
+        }
+    }
+
+    public static string? ExtractTokenFromResetUrl(string resetUrl) =>
+        ExtractTokenFromUrl(resetUrl);
+
+    public static string? ExtractTokenFromVerificationUrl(string verifyUrl) =>
+        ExtractTokenFromUrl(verifyUrl);
+
+    public static string? ExtractTokenFromUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
         {
             return null;
         }
 
-        var queryIndex = resetUrl.IndexOf('?', StringComparison.Ordinal);
+        var queryIndex = url.IndexOf('?', StringComparison.Ordinal);
         if (queryIndex < 0)
         {
             return null;
         }
 
-        var query = resetUrl[(queryIndex + 1)..];
+        var query = url[(queryIndex + 1)..];
         foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var pair = part.Split('=', 2);

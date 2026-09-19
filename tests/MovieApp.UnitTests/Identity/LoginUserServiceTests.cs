@@ -14,6 +14,7 @@ public sealed class LoginUserServiceTests
     public async Task LoginAsyncReturnsTokenAndUpdatesLastLoginAt()
     {
         var user = CreateUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
         var repository = new FakeUserRepository(user);
         var passwordHasher = new FakePasswordHasher(shouldVerify: true);
         var tokenService = new FakeTokenService();
@@ -52,6 +53,34 @@ public sealed class LoginUserServiceTests
 
         await Assert.ThrowsAsync<AuthenticationException>(() =>
             service.LoginAsync(new LoginUserRequest("social@example.com", "StrongPassword123")));
+    }
+
+    [Fact]
+    public async Task LoginAsyncThrowsEmailNotVerifiedExceptionForUnverifiedPasswordUser()
+    {
+        var user = CreateUser();
+        var service = new LoginUserService(
+            new FakeUserRepository(user),
+            new FakePasswordHasher(true),
+            new FakeTokenService());
+
+        await Assert.ThrowsAsync<EmailNotVerifiedException>(() =>
+            service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123")));
+    }
+
+    [Fact]
+    public async Task LoginAsyncReturnsTokenForVerifiedPasswordUser()
+    {
+        var user = CreateUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
+        var service = new LoginUserService(
+            new FakeUserRepository(user),
+            new FakePasswordHasher(true),
+            new FakeTokenService());
+
+        var result = await service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123"));
+
+        Assert.Equal("token", result.AccessToken);
     }
 
     [Fact]

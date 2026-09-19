@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Contracts.Auth;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.Favorites;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Ratings;
@@ -390,23 +391,14 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(email, payload.Email);
     }
 
-    private async Task<string> RegisterAndGetTokenAsync(
+    private Task<string> RegisterAndGetTokenAsync(
         string? email = null,
-        string displayName = "Integration User")
-    {
-        email ??= $"user-{Guid.NewGuid():N}@example.com";
-
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email,
-            "StrongPassword123",
-            displayName));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(payload);
-        return payload.AccessToken;
-    }
+        string displayName = "Integration User") =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            email ?? $"user-{Guid.NewGuid():N}@example.com",
+            displayName);
 
     private async Task<Guid> SeedMovieAsync()
     {

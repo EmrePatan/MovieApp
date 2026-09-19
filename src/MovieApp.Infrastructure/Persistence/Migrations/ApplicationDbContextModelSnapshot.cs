@@ -139,6 +139,38 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.EmailVerificationToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "ExpiresAtUtc");
+
+                    b.ToTable("email_verification_tokens", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.Episode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1145,6 +1177,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<DateTime?>("EmailVerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -1478,6 +1513,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Movie");
 
                     b.Navigation("TvShow");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.EmailVerificationToken", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", "User")
+                        .WithMany("EmailVerificationTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.Episode", b =>
@@ -1992,6 +2038,8 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MovieApp.Domain.Entities.User", b =>
                 {
                     b.Navigation("CatalogFollows");
+
+                    b.Navigation("EmailVerificationTokens");
 
                     b.Navigation("ExternalLogins");
 

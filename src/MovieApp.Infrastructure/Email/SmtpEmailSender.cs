@@ -55,4 +55,49 @@ public sealed class SmtpEmailSender(
             throw;
         }
     }
+
+    public async Task SendEmailVerificationEmailAsync(
+        string toEmail,
+        string verifyUrl,
+        CancellationToken cancellationToken = default)
+    {
+        var options = smtpOptions.Value;
+        if (!options.IsConfigured())
+        {
+            throw new InvalidOperationException(
+                "SMTP email sender is not configured. Set Authentication:Email:Smtp before sending verification emails.");
+        }
+
+        using var message = new MailMessage
+        {
+            From = new MailAddress(options.FromAddress, options.FromName),
+            Subject = "Verify your MovieApp email address",
+            Body = $"Use the link below to verify your email address. If you did not create an account, you can ignore this email.\n\n{verifyUrl}",
+            IsBodyHtml = false
+        };
+        message.To.Add(toEmail);
+
+        using var client = new SmtpClient(options.Host, options.Port)
+        {
+            EnableSsl = options.EnableSsl
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.Username))
+        {
+            client.Credentials = new NetworkCredential(options.Username, options.Password);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            await client.SendMailAsync(message, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            EmailLogMessages.EmailVerificationSendFailed(logger, exception, toEmail);
+
+            throw;
+        }
+    }
 }

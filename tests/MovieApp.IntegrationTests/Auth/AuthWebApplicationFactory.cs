@@ -31,10 +31,14 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             configuration["MovieProviders:Provider"] = "Fake";
             configuration["Authentication:PasswordReset:TokenLifetimeMinutes"] = "60";
             configuration["Authentication:PasswordReset:BaseUrl"] = "movieapp://reset-password";
+            configuration["Authentication:EmailVerification:TokenLifetimeMinutes"] = "1440";
+            configuration["Authentication:EmailVerification:BaseUrl"] = "movieapp://verify-email";
             configuration["Authentication:RateLimit:RegisterPermitLimit"] = "100";
             configuration["Authentication:RateLimit:LoginPermitLimit"] = "100";
             configuration["Authentication:RateLimit:ForgotPasswordPermitLimit"] = "100";
             configuration["Authentication:RateLimit:ResetPasswordPermitLimit"] = "100";
+            configuration["Authentication:RateLimit:ResendVerificationPermitLimit"] = "100";
+            configuration["Authentication:RateLimit:VerifyEmailPermitLimit"] = "100";
             configurationBuilder.AddInMemoryCollection(configuration);
         });
     }

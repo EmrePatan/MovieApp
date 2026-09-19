@@ -46,6 +46,8 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(user => user.SecurityStamp)
             .IsRequired();
 
+        builder.Property(user => user.EmailVerifiedAtUtc);
+
         builder.HasIndex(user => user.NormalizedEmail)
             .IsUnique();
     }

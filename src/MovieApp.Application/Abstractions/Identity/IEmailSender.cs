@@ -6,4 +6,9 @@ public interface IEmailSender
         string toEmail,
         string resetUrl,
         CancellationToken cancellationToken = default);
+
+    Task SendEmailVerificationEmailAsync(
+        string toEmail,
+        string verifyUrl,
+        CancellationToken cancellationToken = default);
 }

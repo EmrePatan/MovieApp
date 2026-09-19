@@ -12,9 +12,12 @@ namespace MovieApp.Application.Services.Identity;
 public sealed class RegisterUserService(
     IUserRepository userRepository,
     IPasswordHasher passwordHasher,
-    ITokenService tokenService) : IRegisterUserService
+    IResendVerificationService resendVerificationService) : IRegisterUserService
 {
-    public async Task<AuthenticationResult> RegisterAsync(
+    public const string VerificationRequiredMessage =
+        "Account created. Please check your email to verify your account before signing in.";
+
+    public async Task<RegistrationResult> RegisterAsync(
         RegisterUserRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -39,12 +42,11 @@ public sealed class RegisterUserService(
             DateTime.UtcNow);
 
         await userRepository.CreateAsync(user, cancellationToken);
+        await resendVerificationService.SendVerificationEmailAsync(user, cancellationToken);
 
-        var token = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
-
-        return new AuthenticationResult(
-            token.AccessToken,
-            token.ExpiresAt,
-            UserMapper.ToCurrentUserResult(user));
+        return new RegistrationResult(
+            UserMapper.ToCurrentUserResult(user),
+            RequiresEmailVerification: true,
+            VerificationRequiredMessage);
     }
 }

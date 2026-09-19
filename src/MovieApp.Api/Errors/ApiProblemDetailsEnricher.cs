@@ -10,7 +10,17 @@ internal static class ApiProblemDetailsEnricher
     internal static void Enrich(HttpContext httpContext, ProblemDetails problemDetails, string? code = null)
     {
         var statusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
-        var resolvedCode = code ?? InferCode(statusCode);
+        var resolvedCode = code;
+
+        if (string.IsNullOrWhiteSpace(resolvedCode) &&
+            problemDetails.Extensions.TryGetValue("code", out var existingCode) &&
+            existingCode is string existingCodeString &&
+            !string.IsNullOrWhiteSpace(existingCodeString))
+        {
+            resolvedCode = existingCodeString;
+        }
+
+        resolvedCode ??= InferCode(statusCode);
 
         problemDetails.Status ??= statusCode;
         problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;

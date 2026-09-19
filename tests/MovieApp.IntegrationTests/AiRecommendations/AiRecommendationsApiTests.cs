@@ -162,17 +162,11 @@ public sealed class AiRecommendationsApiTests(AiRecommendationsApiFixture fixtur
         Assert.Equal(2, payload.QuotaRemaining);
     }
 
-    private async Task<string> RegisterAndGetTokenAsync()
-    {
-        var email = $"ai-user-{Guid.NewGuid():N}@example.com";
-        var response = await _client.PostAsJsonAsync(
-            "/api/auth/register",
-            new RegisterRequest(email, "Password123!", "AI User"));
-
-        response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        return payload!.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync() =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"ai-user-{Guid.NewGuid():N}@example.com");
 
     private async Task<HttpResponseMessage> SendAuthorizedAsync(
         AiRecommendationRequest request,

@@ -78,6 +78,8 @@ public static class DependencyInjection
         services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
         services.AddScoped<IResetPasswordService, ResetPasswordService>();
+        services.AddScoped<IVerifyEmailService, VerifyEmailService>();
+        services.AddScoped<IResendVerificationService, ResendVerificationService>();
 
         services.AddScoped<IAddMovieFavoriteService, AddMovieFavoriteService>();
         services.AddScoped<IRemoveMovieFavoriteService, RemoveMovieFavoriteService>();

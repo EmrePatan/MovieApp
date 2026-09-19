@@ -34,6 +34,11 @@ public sealed class LoginUserService(
             throw new AuthenticationException(InvalidCredentialsMessage);
         }
 
+        if (!user.IsEmailVerified)
+        {
+            throw new EmailNotVerifiedException();
+        }
+
         user.RecordSuccessfulLogin(DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
 

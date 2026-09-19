@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using MovieApp.Contracts.Auth;
+using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Ratings;
 using MovieApp.Contracts.Recommendations;
@@ -245,19 +246,11 @@ public sealed class RecommendationsApiTests(RecommendationsApiFixture fixture)
         return payload.Items[0].Id;
     }
 
-    private async Task<string> RegisterAndGetTokenAsync()
-    {
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            $"recommendations-{Guid.NewGuid():N}@example.com",
-            "StrongPassword123",
-            "Integration User"));
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(payload);
-        return payload.AccessToken;
-    }
+    private Task<string> RegisterAndGetTokenAsync() =>
+        AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.Services,
+            $"recommendations-{Guid.NewGuid():N}@example.com");
 
     private Task<HttpResponseMessage> SendAuthorizedGetAsync(string url, string token)
     {

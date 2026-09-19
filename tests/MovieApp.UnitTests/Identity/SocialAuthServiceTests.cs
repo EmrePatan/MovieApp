@@ -37,6 +37,30 @@ public sealed class SocialAuthServiceTests
     }
 
     [Fact]
+    public async Task AuthenticateAsyncMarksProviderVerifiedEmailAsVerified()
+    {
+        var verifier = new FakeSocialIdentityTokenVerifier(
+            ExternalLoginProviders.Google,
+            new VerifiedSocialIdentity(
+                ExternalLoginProviders.Google,
+                "google-subject-verified",
+                "verified.user@example.com",
+                true,
+                "Verified User"));
+
+        var userRepository = new FakeUserRepository();
+        var externalLoginRepository = new FakeExternalLoginRepository();
+        var service = CreateService(userRepository, externalLoginRepository, verifier);
+
+        await service.AuthenticateAsync(
+            new SocialAuthRequest(ExternalLoginProviders.Google, "token"));
+
+        var createdUser = userRepository.GetLastCreatedUser();
+        Assert.NotNull(createdUser);
+        Assert.True(createdUser.IsEmailVerified);
+    }
+
+    [Fact]
     public async Task AuthenticateAsyncLogsInExistingGoogleExternalIdentity()
     {
         var existingUser = User.CreateFromExternalIdentity(
@@ -292,6 +316,10 @@ public sealed class SocialAuthServiceTests
 
         public int UpdateCount { get; private set; }
 
+        private User? _lastCreatedUser;
+
+        public User? GetLastCreatedUser() => _lastCreatedUser;
+
         public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_usersById.TryGetValue(id, out var user) ? user : null);
 
@@ -310,6 +338,7 @@ public sealed class SocialAuthServiceTests
         public Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
         {
             CreateCount++;
+            _lastCreatedUser = user;
             _usersByEmail[user.NormalizedEmail] = user;
             _usersById[user.Id] = user;
             return Task.FromResult(user);
