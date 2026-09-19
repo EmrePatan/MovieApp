@@ -212,6 +212,7 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
         [
             new AiValidatedRecommendation(
                 new ResolvedMovieIdentity(
+                    "movie",
                     Guid.NewGuid(),
                     329996,
                     "Arrival",

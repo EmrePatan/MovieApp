@@ -22,5 +22,9 @@ public sealed class AiRecommendationSessionState
 
     public HashSet<int> RecommendedTmdbIds { get; set; } = [];
 
+    public HashSet<Guid> RecommendedTvShowIds { get; set; } = [];
+
+    public HashSet<int> RecommendedTvTmdbIds { get; set; } = [];
+
     public string? LastUserMessage { get; set; }
 }

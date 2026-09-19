@@ -108,9 +108,9 @@ internal sealed class GeminiAiMovieRecommendationProvider(
                     new
                     {
                         text = """
-                               You are a movie recommendation assistant for MovieApp.
+                               You are a movie and TV recommendation assistant for MovieApp.
                                Return only JSON matching the provided schema.
-                               Suggest movies only (mediaType must be "movie").
+                               Follow the user's request and set mediaType to "movie" or "tv" for each suggestion.
                                Reasons must be short, user-facing, and based only on supplied taste and request information.
                                Do not invent claims about the user.
                                tmdbId is optional and may be omitted when uncertain.
@@ -295,7 +295,7 @@ internal static class GeminiPromptBuilder
         builder.AppendLine("Session constraints:");
         AppendSessionConstraints(builder, request.Session);
         builder.AppendLine();
-        builder.AppendLine(CultureInfo.InvariantCulture, $"Return exactly up to {request.SuggestionCount} movie suggestions.");
+        builder.AppendLine(CultureInfo.InvariantCulture, $"Return exactly up to {request.SuggestionCount} recommendations (movies and/or TV series).");
         return builder.ToString();
     }
 

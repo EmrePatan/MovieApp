@@ -84,12 +84,14 @@ public sealed class GeminiAiMovieRecommendationProviderTests
             "Something mysterious with a twist",
             new AiTasteProfile([], [], [], [], [], [], [], [], true),
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
-            8);
+            10);
 
         var body = GeminiAiMovieRecommendationProvider.BuildRequestBody(request);
 
         Assert.Contains("Something mysterious with a twist", body, StringComparison.Ordinal);
         Assert.Contains("responseMimeType", body, StringComparison.Ordinal);
         Assert.Contains("suggestions", body, StringComparison.Ordinal);
+        Assert.Contains("movies and/or TV series", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggest movies only", body, StringComparison.Ordinal);
     }
 }

@@ -16,7 +16,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var resolver = new FakeIdentityResolver(suggestion => CreateMovie(_movie1, "Arrival", 2016, 116, ["Science Fiction"]));
         var validator = new AiMovieRecommendationValidator(
             resolver,
-            new FakeTasteDataSource(new HashSet<Guid> { _movie2 }),
+            new FakeTasteDataSource(new HashSet<Guid> { _movie2 }, new HashSet<Guid>()),
             NullAiRecommendationPerfContext.Instance);
 
         var session = new AiRecommendationSessionState
@@ -67,7 +67,7 @@ public sealed class AiMovieRecommendationValidatorTests
 
         var validator = new AiMovieRecommendationValidator(
             resolver,
-            new FakeTasteDataSource(new HashSet<Guid>()),
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
             NullAiRecommendationPerfContext.Instance);
         var suggestions = new[]
         {
@@ -94,7 +94,7 @@ public sealed class AiMovieRecommendationValidatorTests
     {
         var validator = new AiMovieRecommendationValidator(
             new FakeIdentityResolver(),
-            new FakeTasteDataSource(new HashSet<Guid>()),
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
             NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
@@ -108,13 +108,72 @@ public sealed class AiMovieRecommendationValidatorTests
         Assert.False(result.PartialResults);
     }
 
+    [Fact]
+    public async Task ValidateAsyncAcceptsResolvedTvSuggestion()
+    {
+        var tvShowId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var resolver = new FakeIdentityResolver();
+        resolver.SetResolver(
+            "Mindhunter",
+            CreateContent("tv", tvShowId, "Mindhunter", 2017, null, ["Crime", "Drama"]));
+
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullAiRecommendationPerfContext.Instance);
+
+        var result = await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [new AiProviderSuggestion("Mindhunter", 2017, "tv", null, "Psychological crime series")],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            CancellationToken.None);
+
+        Assert.Single(result.Recommendations);
+        Assert.Equal("tv", result.Recommendations[0].Movie.MediaType);
+    }
+
+    [Fact]
+    public async Task ValidateAsyncRejectsWatchedTvShow()
+    {
+        var tvShowId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var resolver = new FakeIdentityResolver();
+        resolver.SetResolver(
+            "Mindhunter",
+            CreateContent("tv", tvShowId, "Mindhunter", 2017, null, ["Crime"]));
+
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid> { tvShowId }),
+            NullAiRecommendationPerfContext.Instance);
+
+        var result = await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [new AiProviderSuggestion("Mindhunter", 2017, "tv", null, "Psychological crime series")],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            CancellationToken.None);
+
+        Assert.Empty(result.Recommendations);
+    }
+
     private static ResolvedMovieIdentity CreateMovie(
         Guid id,
         string title,
         int year,
         int runtime,
         IReadOnlyList<string> genres) =>
+        CreateContent("movie", id, title, year, runtime, genres);
+
+    private static ResolvedMovieIdentity CreateContent(
+        string mediaType,
+        Guid id,
+        string title,
+        int year,
+        int? runtime,
+        IReadOnlyList<string> genres) =>
         new(
+            mediaType,
             id,
             100,
             title,
@@ -158,7 +217,9 @@ public sealed class AiMovieRecommendationValidatorTests
         }
     }
 
-    private sealed class FakeTasteDataSource(IReadOnlySet<Guid> watchedMovieIds) : IAiTasteProfileDataSource
+    private sealed class FakeTasteDataSource(
+        IReadOnlySet<Guid> watchedMovieIds,
+        IReadOnlySet<Guid>? watchedTvShowIds = null) : IAiTasteProfileDataSource
     {
         public Task<AiTasteProfileRawData> LoadAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new AiTasteProfileRawData([], [], [], [], []));
@@ -167,5 +228,10 @@ public sealed class AiMovieRecommendationValidatorTests
             Guid userId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(watchedMovieIds);
+
+        public Task<IReadOnlySet<Guid>> GetWatchedTvShowIdsAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(watchedTvShowIds ?? new HashSet<Guid>());
     }
 }

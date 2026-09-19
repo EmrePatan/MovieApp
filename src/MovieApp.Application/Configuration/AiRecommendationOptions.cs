@@ -10,7 +10,7 @@ public sealed class AiRecommendationOptions
 
     public int RpmLimit { get; set; } = 12;
 
-    public int SuggestionCount { get; set; } = 8;
+    public int SuggestionCount { get; set; } = 10;
 
     public int MaxReturnedCount { get; set; } = 5;
 

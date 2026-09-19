@@ -22,7 +22,7 @@ public static class AiRecommendationContractMapper
     private static AiRecommendationMovieItemResponse ToMovieItem(AiValidatedRecommendation recommendation) =>
         new(
             recommendation.Movie.MovieId,
-            "movie",
+            recommendation.Movie.MediaType,
             recommendation.Movie.Title,
             recommendation.Movie.OriginalTitle,
             recommendation.Movie.Overview,

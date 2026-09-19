@@ -98,4 +98,18 @@ internal sealed class AiTasteProfileDataSource(
 
         return ids.ToHashSet();
     }
+
+    public async Task<IReadOnlySet<Guid>> GetWatchedTvShowIdsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = await dbContext.WatchedEpisodes
+            .AsNoTracking()
+            .Where(item => item.UserId == userId)
+            .Select(item => item.Episode.Season.TvShowId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return ids.ToHashSet();
+    }
 }

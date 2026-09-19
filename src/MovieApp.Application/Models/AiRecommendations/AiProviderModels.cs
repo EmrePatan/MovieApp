@@ -26,6 +26,7 @@ public sealed record AiProviderRequest(
     int SuggestionCount);
 
 public sealed record ResolvedMovieIdentity(
+    string MediaType,
     Guid MovieId,
     int? TmdbId,
     string Title,

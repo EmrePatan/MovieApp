@@ -19,16 +19,20 @@ public sealed class AiMovieRecommendationValidator(
         var totalStopwatch = Stopwatch.StartNew();
 
         var watchedIdsStopwatch = Stopwatch.StartNew();
-        var watchedMovieIds = await tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
+        var watchedMovieIdsTask = tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
+        var watchedTvShowIdsTask = tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
+        await Task.WhenAll(watchedMovieIdsTask, watchedTvShowIdsTask);
+        var watchedMovieIds = await watchedMovieIdsTask;
+        var watchedTvShowIds = await watchedTvShowIdsTask;
         watchedIdsStopwatch.Stop();
 
         var accepted = new List<AiValidatedRecommendation>();
-        var seenMovieIds = new HashSet<Guid>();
+        var seenContentIds = new HashSet<Guid>();
         var rejectedCount = 0;
 
         foreach (var suggestion in suggestions)
         {
-            if (!string.Equals(suggestion.MediaType, "movie", StringComparison.OrdinalIgnoreCase))
+            if (!IsSupportedMediaType(suggestion.MediaType))
             {
                 rejectedCount++;
                 continue;
@@ -41,20 +45,13 @@ public sealed class AiMovieRecommendationValidator(
                 continue;
             }
 
-            if (!seenMovieIds.Add(resolved.MovieId))
+            if (!seenContentIds.Add(resolved.MovieId))
             {
                 rejectedCount++;
                 continue;
             }
 
-            if (session.RecommendedMovieIds.Contains(resolved.MovieId) ||
-                (resolved.TmdbId.HasValue && session.RecommendedTmdbIds.Contains(resolved.TmdbId.Value)))
-            {
-                rejectedCount++;
-                continue;
-            }
-
-            if (watchedMovieIds.Contains(resolved.MovieId))
+            if (IsPreviouslyRecommended(resolved, session) || IsWatched(resolved, watchedMovieIds, watchedTvShowIds))
             {
                 rejectedCount++;
                 continue;
@@ -100,6 +97,35 @@ public sealed class AiMovieRecommendationValidator(
             partialResults);
     }
 
+    private static bool IsSupportedMediaType(string mediaType) =>
+        string.Equals(mediaType, "movie", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(mediaType, "tv", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPreviouslyRecommended(ResolvedMovieIdentity resolved, AiRecommendationSessionState session)
+    {
+        if (string.Equals(resolved.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return session.RecommendedTvShowIds.Contains(resolved.MovieId) ||
+                   (resolved.TmdbId.HasValue && session.RecommendedTvTmdbIds.Contains(resolved.TmdbId.Value));
+        }
+
+        return session.RecommendedMovieIds.Contains(resolved.MovieId) ||
+               (resolved.TmdbId.HasValue && session.RecommendedTmdbIds.Contains(resolved.TmdbId.Value));
+    }
+
+    private static bool IsWatched(
+        ResolvedMovieIdentity resolved,
+        IReadOnlySet<Guid> watchedMovieIds,
+        IReadOnlySet<Guid> watchedTvShowIds)
+    {
+        if (string.Equals(resolved.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return watchedTvShowIds.Contains(resolved.MovieId);
+        }
+
+        return watchedMovieIds.Contains(resolved.MovieId);
+    }
+
     private static bool ViolatesGenreExclusion(ResolvedMovieIdentity movie, List<string> excludedGenres)
     {
         if (excludedGenres.Count == 0)
@@ -113,6 +139,11 @@ public sealed class AiMovieRecommendationValidator(
 
     private static bool ViolatesRuntimeConstraint(ResolvedMovieIdentity movie, int? maxRuntimeMinutes)
     {
+        if (!string.Equals(movie.MediaType, "movie", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         if (!maxRuntimeMinutes.HasValue || !movie.RuntimeMinutes.HasValue)
         {
             return false;

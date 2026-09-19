@@ -9,6 +9,10 @@ public interface IAiTasteProfileDataSource
     Task<IReadOnlySet<Guid>> GetWatchedMovieIdsAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlySet<Guid>> GetWatchedTvShowIdsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record AiTasteProfileRawData(

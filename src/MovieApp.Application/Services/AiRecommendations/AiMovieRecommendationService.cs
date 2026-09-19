@@ -188,6 +188,17 @@ public sealed class AiMovieRecommendationService(
 
         foreach (var recommendation in recommendations)
         {
+            if (string.Equals(recommendation.Movie.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+            {
+                session.RecommendedTvShowIds.Add(recommendation.Movie.MovieId);
+                if (recommendation.Movie.TmdbId.HasValue)
+                {
+                    session.RecommendedTvTmdbIds.Add(recommendation.Movie.TmdbId.Value);
+                }
+
+                continue;
+            }
+
             session.RecommendedMovieIds.Add(recommendation.Movie.MovieId);
             if (recommendation.Movie.TmdbId.HasValue)
             {

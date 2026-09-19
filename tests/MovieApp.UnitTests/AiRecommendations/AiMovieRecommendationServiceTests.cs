@@ -24,6 +24,7 @@ public sealed class AiMovieRecommendationServiceTests
                     [
                         new AiValidatedRecommendation(
                             new ResolvedMovieIdentity(
+                                "movie",
                                 Guid.NewGuid(),
                                 1,
                                 "Arrival",
@@ -88,6 +89,7 @@ public sealed class AiMovieRecommendationServiceTests
                     [
                         new AiValidatedRecommendation(
                             new ResolvedMovieIdentity(
+                                "movie",
                                 movieId,
                                 1,
                                 "Arrival",
@@ -147,7 +149,7 @@ public sealed class AiMovieRecommendationServiceTests
             validator,
             Options.Create(new AiRecommendationOptions
             {
-                SuggestionCount = 8,
+                SuggestionCount = 10,
                 MaxReturnedCount = 5,
                 UserDailyMessageLimit = 3
             }),
