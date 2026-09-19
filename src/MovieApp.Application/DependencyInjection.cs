@@ -35,6 +35,7 @@ using MovieApp.Application.Services.RegionalRelease;
 using MovieApp.Application.Services.TvUpcomingEpisodes;
 using MovieApp.Application.Services.ProductMetrics;
 using MovieApp.Application.Services.Insights;
+using MovieApp.Application.Services.Localization;
 
 namespace MovieApp.Application;
 
@@ -52,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<IGetPersonByTmdbIdService, GetPersonByTmdbIdService>();
         services.AddScoped<IGetPersonImagesService, GetPersonImagesService>();
         services.AddScoped<IGetCollectionService, GetCollectionService>();
+        services.AddScoped<IDetailLocalizationOverlayService, DetailLocalizationOverlayService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();

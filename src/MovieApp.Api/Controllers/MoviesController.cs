@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Images;
 using MovieApp.Application.Services.Movies;
@@ -23,7 +25,8 @@ public sealed class MoviesController(
     IGetMovieCreditsService getMovieCreditsService,
     IGetMovieWatchProvidersService getMovieWatchProvidersService,
     IGetMovieVideosService getMovieVideosService,
-    IGetMovieImagesService getMovieImagesService) : ControllerBase
+    IGetMovieImagesService getMovieImagesService,
+    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.MovieSearch)]
@@ -65,6 +68,10 @@ public sealed class MoviesController(
         try
         {
             var movie = await getMovieByTmdbIdService.GetAsync(tmdbId, cancellationToken);
+            movie = await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
+                movie,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(MovieContractMapper.ToDetailsResponse(movie));
         }
         catch (NotFoundException exception)
@@ -93,6 +100,10 @@ public sealed class MoviesController(
         try
         {
             var movie = await getMovieByIdService.GetByIdAsync(id, cancellationToken);
+            movie = await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
+                movie,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(MovieContractMapper.ToDetailsResponse(movie));
         }
         catch (NotFoundException exception)

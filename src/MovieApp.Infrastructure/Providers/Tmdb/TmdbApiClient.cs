@@ -48,6 +48,16 @@ public sealed class TmdbApiClient
         return await GetAsync<TResponse>(canonicalPath, cancellationToken);
     }
 
+    public async Task<TResponse?> GetLocalizedAsync<TResponse>(
+        string relativePath,
+        string language,
+        CancellationToken cancellationToken = default)
+        where TResponse : class
+    {
+        var localizedPath = TmdbRequestPath.WithLanguage(relativePath, language);
+        return await GetAsync<TResponse>(localizedPath, cancellationToken);
+    }
+
     public async Task<TResponse?> GetAsync<TResponse>(
         string relativePath,
         CancellationToken cancellationToken = default)

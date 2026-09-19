@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Services.Images;
@@ -26,7 +28,8 @@ public sealed class TvShowsController(
     IGetTvShowCreditsService getTvShowCreditsService,
     IGetTvShowWatchProvidersService getTvShowWatchProvidersService,
     IGetTvShowVideosService getTvShowVideosService,
-    IGetTvShowImagesService getTvShowImagesService) : ControllerBase
+    IGetTvShowImagesService getTvShowImagesService,
+    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.TvSearch)]
@@ -68,6 +71,10 @@ public sealed class TvShowsController(
         try
         {
             var tvShow = await getTvShowByTmdbIdService.GetAsync(tmdbId, cancellationToken);
+            tvShow = await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
+                tvShow,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(TvShowContractMapper.ToDetailsResponse(tvShow));
         }
         catch (NotFoundException exception)
@@ -96,6 +103,10 @@ public sealed class TvShowsController(
         try
         {
             var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
+            tvShow = await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
+                tvShow,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(TvShowContractMapper.ToDetailsResponse(tvShow));
         }
         catch (NotFoundException exception)

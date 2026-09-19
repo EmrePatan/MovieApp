@@ -1,14 +1,18 @@
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Collections;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Contracts.Collections;
 
 namespace MovieApp.Api.Controllers;
 
 [ApiController]
 [Route("api/collections")]
-public sealed class CollectionsController(IGetCollectionService getCollectionService) : ControllerBase
+public sealed class CollectionsController(
+    IGetCollectionService getCollectionService,
+    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
 {
     [HttpGet("{tmdbCollectionId:int}")]
     [ProducesResponseType(typeof(CollectionResponse), StatusCodes.Status200OK)]
@@ -22,6 +26,10 @@ public sealed class CollectionsController(IGetCollectionService getCollectionSer
         try
         {
             var result = await getCollectionService.GetAsync(tmdbCollectionId, cancellationToken);
+            result = await detailLocalizationOverlayService.ApplyCollectionOverlayAsync(
+                result,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(CollectionContractMapper.ToResponse(result));
         }
         catch (ValidationException exception)

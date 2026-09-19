@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.People;
 using MovieApp.Contracts.Images;
 using MovieApp.Contracts.People;
@@ -11,7 +13,8 @@ namespace MovieApp.Api.Controllers;
 [Route("api/people")]
 public sealed class PeopleController(
     IGetPersonByTmdbIdService getPersonByTmdbIdService,
-    IGetPersonImagesService getPersonImagesService) : ControllerBase
+    IGetPersonImagesService getPersonImagesService,
+    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
 {
     [HttpGet("tmdb/{tmdbPersonId:int}")]
     [ProducesResponseType(typeof(PersonDetailResponse), StatusCodes.Status200OK)]
@@ -23,6 +26,10 @@ public sealed class PeopleController(
         try
         {
             var result = await getPersonByTmdbIdService.GetAsync(tmdbPersonId, cancellationToken);
+            result = await detailLocalizationOverlayService.ApplyPersonOverlayAsync(
+                result,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(PersonContractMapper.ToResponse(result));
         }
         catch (NotFoundException exception)
