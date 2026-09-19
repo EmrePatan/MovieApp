@@ -13,6 +13,7 @@ public sealed class ResendVerificationEmailSender(
     HttpClient httpClient,
     IOptions<ResendVerificationEmailOptions> resendOptions,
     IOptions<EmailVerificationOptions> emailVerificationOptions,
+    IOptions<AppOptions> appOptions,
     ILogger<ResendVerificationEmailSender> logger) : IEmailVerificationEmailSender
 {
     public async Task SendVerificationEmailAsync(
@@ -28,9 +29,9 @@ public sealed class ResendVerificationEmailSender(
                 "Resend verification email sender is not configured. Set Authentication:EmailVerification:Resend.");
         }
 
-        var heroImageUrl = string.IsNullOrWhiteSpace(options.HeroImageUrl)
-            ? null
-            : options.HeroImageUrl.Trim();
+        var heroImageUrl = VerificationEmailHeroUrlResolver.Resolve(
+            options.HeroImageUrl,
+            appOptions.Value.PublicBaseUrl);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);

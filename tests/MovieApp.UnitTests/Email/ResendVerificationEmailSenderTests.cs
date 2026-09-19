@@ -89,6 +89,28 @@ public sealed class ResendVerificationEmailSenderTests
     }
 
     [Fact]
+    public async Task SendVerificationEmailAsyncResolvesRelativeHeroImageUrlFromPublicBaseUrl()
+    {
+        var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var sender = CreateSender(
+            handler,
+            heroImageUrl: VerificationEmailHeroUrlResolver.DefaultHeroImagePath,
+            publicBaseUrl: "https://api.example.com");
+
+        await sender.SendVerificationEmailAsync(Guid.NewGuid(), "user@example.com", VerifyUrl);
+
+        var body = await handler.Requests.Single().Content!.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var html = document.RootElement.GetProperty("html").GetString();
+
+        Assert.NotNull(html);
+        Assert.Contains(
+            "src=\"https://api.example.com/email-assets/verification-hero.jpg\"",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SmtpEmailSenderDoesNotExposeVerificationDeliveryMethod()
     {
         var verificationMethod = typeof(SmtpEmailSender).GetMethod(
@@ -102,7 +124,8 @@ public sealed class ResendVerificationEmailSenderTests
     private static ResendVerificationEmailSender CreateSender(
         HttpMessageHandler handler,
         string apiKey = "re_test_api_key_value",
-        string? heroImageUrl = null) =>
+        string? heroImageUrl = null,
+        string publicBaseUrl = "") =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.resend.com/") },
             Options.Create(new ResendVerificationEmailOptions
@@ -116,6 +139,10 @@ public sealed class ResendVerificationEmailSenderTests
             {
                 DeliveryTimeoutSeconds = 30,
                 BaseUrl = "movieapp://verify-email"
+            }),
+            Options.Create(new AppOptions
+            {
+                PublicBaseUrl = publicBaseUrl
             }),
             NullLogger<ResendVerificationEmailSender>.Instance);
 

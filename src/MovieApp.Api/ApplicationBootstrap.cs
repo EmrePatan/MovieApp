@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MovieApp.Api.BackgroundJobs;
+using MovieApp.Api.EmailAssets;
 using MovieApp.Api.Cors;
 using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
@@ -88,6 +89,7 @@ public static class ApplicationBootstrap
         });
         app.UseProductionTransportSecurity();
         app.UseConfiguredCors();
+        app.UseEmailAssetStaticFiles(app.Environment);
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();

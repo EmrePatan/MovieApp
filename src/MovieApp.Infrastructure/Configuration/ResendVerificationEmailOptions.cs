@@ -11,8 +11,8 @@ public sealed class ResendVerificationEmailOptions
     public string FromName { get; set; } = "Movie Cave";
 
     /// <summary>
-    /// Optional absolute HTTPS URL for the cinematic hero image in verification emails.
-    /// When empty, a gradient hero renders so delivery is not blocked.
+    /// Optional absolute or app-root-relative HTTPS URL for the cinematic hero image in verification emails.
+    /// Relative paths are resolved against App:PublicBaseUrl. When empty or invalid, a compact fallback hero renders.
     /// </summary>
     public string HeroImageUrl { get; set; } = string.Empty;
 
