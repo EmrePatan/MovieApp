@@ -33,6 +33,7 @@ public sealed class AiMovieRecommendationValidator(
             if (!IsSupportedMediaType(suggestion.MediaType))
             {
                 rejectedCount++;
+                perfContext.RecordValidationUnsupportedMediaTypeRejection();
                 continue;
             }
 
@@ -40,36 +41,49 @@ public sealed class AiMovieRecommendationValidator(
             if (resolved is null)
             {
                 rejectedCount++;
+                perfContext.RecordValidationResolutionFailureRejection();
                 continue;
             }
 
             if (!seenContentIds.Add(resolved.MovieId))
             {
                 rejectedCount++;
+                perfContext.RecordValidationResponseDuplicateRejection();
                 continue;
             }
 
-            if (IsPreviouslyRecommended(resolved, session) || IsWatched(resolved, watchedMovieIds, watchedTvShowIds))
+            if (IsPreviouslyRecommended(resolved, session))
             {
                 rejectedCount++;
+                perfContext.RecordValidationSessionDuplicateRejection();
+                continue;
+            }
+
+            if (IsWatched(resolved, watchedMovieIds, watchedTvShowIds))
+            {
+                rejectedCount++;
+                perfContext.RecordValidationWatchedRejection();
                 continue;
             }
 
             if (ViolatesGenreExclusion(resolved, session.ExcludedGenres))
             {
                 rejectedCount++;
+                perfContext.RecordValidationExcludedGenreRejection();
                 continue;
             }
 
             if (ViolatesRuntimeConstraint(resolved, session.MaxRuntimeMinutes))
             {
                 rejectedCount++;
+                perfContext.RecordValidationRuntimeRejection();
                 continue;
             }
 
             if (ViolatesYearConstraint(resolved, session.MinYear, session.MaxYear))
             {
                 rejectedCount++;
+                perfContext.RecordValidationYearRejection();
                 continue;
             }
 

@@ -57,6 +57,38 @@ public sealed class NullAiRecommendationPerfContext : IAiRecommendationPerfConte
     {
     }
 
+    public void RecordValidationUnsupportedMediaTypeRejection()
+    {
+    }
+
+    public void RecordValidationResolutionFailureRejection()
+    {
+    }
+
+    public void RecordValidationResponseDuplicateRejection()
+    {
+    }
+
+    public void RecordValidationSessionDuplicateRejection()
+    {
+    }
+
+    public void RecordValidationWatchedRejection()
+    {
+    }
+
+    public void RecordValidationExcludedGenreRejection()
+    {
+    }
+
+    public void RecordValidationRuntimeRejection()
+    {
+    }
+
+    public void RecordValidationYearRejection()
+    {
+    }
+
     public void RecordTmdbResolutionCall()
     {
     }

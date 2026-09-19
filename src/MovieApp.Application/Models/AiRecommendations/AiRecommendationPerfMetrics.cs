@@ -52,6 +52,22 @@ public sealed class AiRecommendationPerfMetrics
 
     public int ValidationDedupHits { get; set; }
 
+    public int ValidationRejectedUnsupportedMediaType { get; set; }
+
+    public int ValidationRejectedResolutionFailure { get; set; }
+
+    public int ValidationRejectedResponseDuplicate { get; set; }
+
+    public int ValidationRejectedSessionDuplicate { get; set; }
+
+    public int ValidationRejectedWatched { get; set; }
+
+    public int ValidationRejectedExcludedGenre { get; set; }
+
+    public int ValidationRejectedRuntime { get; set; }
+
+    public int ValidationRejectedYear { get; set; }
+
     public int TmdbResolutionCalls { get; set; }
 
     public long SessionSaveMs { get; set; }

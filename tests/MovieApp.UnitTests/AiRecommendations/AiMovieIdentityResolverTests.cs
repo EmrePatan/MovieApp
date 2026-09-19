@@ -135,6 +135,86 @@ public sealed class AiMovieIdentityResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncFallsBackToSearchWhenHintedProviderLookupReturnsNull()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Arrival", 2016);
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            GetMovieFactory = _ => null,
+            SearchResults =
+            [
+                new MovieProviderSummary("42", 42, null, null, "Arrival", null, new DateOnly(2016, 1, 1), null, 7m, 100)
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Arrival", 2016, "movie", 9866, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal("Arrival", result!.Title);
+        Assert.Equal(1, movieProvider.GetMovieCallCount);
+        Assert.Equal(1, movieProvider.SearchCallCount);
+        Assert.Equal(2, movieRepository.GetByTmdbIdCallCount);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationProviderFallbacks);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationCatalogHits);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncFallsBackToSearchWhenHintedProviderTitleYearMismatch()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Arrival", 2016);
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            MovieDetails = CreateMovieProviderDetails(545, "Different Title", 2000),
+            SearchResults =
+            [
+                new MovieProviderSummary("42", 42, null, null, "Arrival", null, new DateOnly(2016, 1, 1), null, 7m, 100)
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Arrival", 2016, "movie", 545, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal("Arrival", result!.Title);
+        Assert.Equal(1, movieProvider.GetMovieCallCount);
+        Assert.Equal(1, movieProvider.SearchCallCount);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationProviderFallbacks);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncReturnsNullWhenHintedProviderAndSearchBothFail()
+    {
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            GetMovieFactory = _ => null,
+            SearchResults =
+            [
+                new MovieProviderSummary("1", 1, null, null, "Arrival", null, new DateOnly(2016, 1, 1), null, 7m, 1),
+                new MovieProviderSummary("2", 2, null, null, "Arrival", null, new DateOnly(2016, 6, 1), null, 6m, 1)
+            ]
+        };
+
+        var resolver = CreateResolver(new TrackingMovieRepository(), movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Arrival", 2016, "movie", 9866, "Reason"));
+
+        Assert.Null(result);
+        Assert.Equal(1, movieProvider.GetMovieCallCount);
+        Assert.Equal(1, movieProvider.SearchCallCount);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationProviderFallbacks);
+        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
+    }
+
+    [Fact]
     public async Task ResolveAsyncReturnsNullForAmbiguousSearch()
     {
         var movieProvider = new TrackingMovieDataProvider
@@ -310,6 +390,8 @@ public sealed class AiMovieIdentityResolverTests
     {
         public MovieProviderDetails? MovieDetails { get; set; }
 
+        public Func<string, MovieProviderDetails?>? GetMovieFactory { get; set; }
+
         public IReadOnlyList<MovieProviderSummary> SearchResults { get; set; } = [];
 
         public int GetMovieCallCount { get; private set; }
@@ -338,6 +420,11 @@ public sealed class AiMovieIdentityResolverTests
             CancellationToken cancellationToken = default)
         {
             GetMovieCallCount++;
+            if (GetMovieFactory is not null)
+            {
+                return Task.FromResult(GetMovieFactory(externalId));
+            }
+
             return Task.FromResult(MovieDetails);
         }
     }

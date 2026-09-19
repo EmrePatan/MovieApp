@@ -8,7 +8,7 @@ internal static partial class AiRecommendationPerfLogMessages
     [LoggerMessage(
         EventId = 7201,
         Level = LogLevel.Information,
-        Message = "AiRecommendationPerf Outcome={Outcome} TotalMs={TotalMs} QuotaReserveMs={QuotaReserveMs} TasteProfileCache={TasteProfileCache} TasteProfileTotalMs={TasteProfileTotalMs} TasteProfileCacheLookupMs={TasteProfileCacheLookupMs} TasteProfileBuildCpuMs={TasteProfileBuildCpuMs} TasteProfileCacheWriteMs={TasteProfileCacheWriteMs} TasteProfileRatingsMs={TasteProfileRatingsMs} TasteProfileFavoritesMs={TasteProfileFavoritesMs} TasteProfileWatchlistMs={TasteProfileWatchlistMs} TasteProfileWatchedMoviesMs={TasteProfileWatchedMoviesMs} TasteProfileWatchedTvGenresMs={TasteProfileWatchedTvGenresMs} TasteProfileDbRoundTrips={TasteProfileDbRoundTrips} SessionLoadMs={SessionLoadMs} GeminiTotalMs={GeminiTotalMs} GeminiHttpMs={GeminiHttpMs} GeminiParseMs={GeminiParseMs} ValidationMs={ValidationMs} ValidationWatchedIdsMs={ValidationWatchedIdsMs} ValidationResolutionMs={ValidationResolutionMs} ValidationCatalogHits={ValidationCatalogHits} ValidationProviderFallbacks={ValidationProviderFallbacks} ValidationSearchFallbacks={ValidationSearchFallbacks} ValidationDedupHits={ValidationDedupHits} TmdbResolutionCalls={TmdbResolutionCalls} SessionSaveMs={SessionSaveMs} QuotaCommitMs={QuotaCommitMs} DbRoundTrips={DbRoundTrips} SuggestionCount={SuggestionCount} GeminiSuggestionCount={GeminiSuggestionCount} ReturnedCount={ReturnedCount}")]
+        Message = "AiRecommendationPerf Outcome={Outcome} TotalMs={TotalMs} QuotaReserveMs={QuotaReserveMs} TasteProfileCache={TasteProfileCache} TasteProfileTotalMs={TasteProfileTotalMs} TasteProfileCacheLookupMs={TasteProfileCacheLookupMs} TasteProfileBuildCpuMs={TasteProfileBuildCpuMs} TasteProfileCacheWriteMs={TasteProfileCacheWriteMs} TasteProfileRatingsMs={TasteProfileRatingsMs} TasteProfileFavoritesMs={TasteProfileFavoritesMs} TasteProfileWatchlistMs={TasteProfileWatchlistMs} TasteProfileWatchedMoviesMs={TasteProfileWatchedMoviesMs} TasteProfileWatchedTvGenresMs={TasteProfileWatchedTvGenresMs} TasteProfileDbRoundTrips={TasteProfileDbRoundTrips} SessionLoadMs={SessionLoadMs} GeminiTotalMs={GeminiTotalMs} GeminiHttpMs={GeminiHttpMs} GeminiParseMs={GeminiParseMs} ValidationMs={ValidationMs} ValidationWatchedIdsMs={ValidationWatchedIdsMs} ValidationResolutionMs={ValidationResolutionMs} ValidationCatalogHits={ValidationCatalogHits} ValidationProviderFallbacks={ValidationProviderFallbacks} ValidationSearchFallbacks={ValidationSearchFallbacks} ValidationDedupHits={ValidationDedupHits} ValidationRejectedUnsupportedMediaType={ValidationRejectedUnsupportedMediaType} ValidationRejectedResolutionFailure={ValidationRejectedResolutionFailure} ValidationRejectedResponseDuplicate={ValidationRejectedResponseDuplicate} ValidationRejectedSessionDuplicate={ValidationRejectedSessionDuplicate} ValidationRejectedWatched={ValidationRejectedWatched} ValidationRejectedExcludedGenre={ValidationRejectedExcludedGenre} ValidationRejectedRuntime={ValidationRejectedRuntime} ValidationRejectedYear={ValidationRejectedYear} TmdbResolutionCalls={TmdbResolutionCalls} SessionSaveMs={SessionSaveMs} QuotaCommitMs={QuotaCommitMs} DbRoundTrips={DbRoundTrips} SuggestionCount={SuggestionCount} GeminiSuggestionCount={GeminiSuggestionCount} ReturnedCount={ReturnedCount}")]
     public static partial void LogRequest(
         ILogger logger,
         string outcome,
@@ -36,6 +36,14 @@ internal static partial class AiRecommendationPerfLogMessages
         int validationProviderFallbacks,
         int validationSearchFallbacks,
         int validationDedupHits,
+        int validationRejectedUnsupportedMediaType,
+        int validationRejectedResolutionFailure,
+        int validationRejectedResponseDuplicate,
+        int validationRejectedSessionDuplicate,
+        int validationRejectedWatched,
+        int validationRejectedExcludedGenre,
+        int validationRejectedRuntime,
+        int validationRejectedYear,
         int tmdbResolutionCalls,
         long sessionSaveMs,
         long quotaCommitMs,
@@ -72,6 +80,14 @@ internal static partial class AiRecommendationPerfLogMessages
             metrics.ValidationProviderFallbacks,
             metrics.ValidationSearchFallbacks,
             metrics.ValidationDedupHits,
+            metrics.ValidationRejectedUnsupportedMediaType,
+            metrics.ValidationRejectedResolutionFailure,
+            metrics.ValidationRejectedResponseDuplicate,
+            metrics.ValidationRejectedSessionDuplicate,
+            metrics.ValidationRejectedWatched,
+            metrics.ValidationRejectedExcludedGenre,
+            metrics.ValidationRejectedRuntime,
+            metrics.ValidationRejectedYear,
             metrics.TmdbResolutionCalls,
             metrics.SessionSaveMs,
             metrics.QuotaCommitMs,

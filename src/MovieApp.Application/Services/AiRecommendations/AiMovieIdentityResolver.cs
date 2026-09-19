@@ -104,19 +104,15 @@ public sealed class AiMovieIdentityResolver(
         var providerDetails = await movieDataProvider.GetMovieAsync(
             tmdbId.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
-        if (providerDetails is null)
-        {
-            return null;
-        }
-
-        if (!TitleYearMatcher.Matches(
+        if (providerDetails is null ||
+            !TitleYearMatcher.Matches(
                 providerDetails.Title,
                 providerDetails.OriginalTitle,
                 suggestion.Title,
                 suggestion.Year,
                 providerDetails.ReleaseDate))
         {
-            return null;
+            return await ResolveMovieBySearchAsync(suggestion, cancellationToken);
         }
 
         var movie = await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
@@ -138,19 +134,15 @@ public sealed class AiMovieIdentityResolver(
         var providerDetails = await tvShowDataProvider.GetTvShowAsync(
             tmdbId.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
-        if (providerDetails is null)
-        {
-            return null;
-        }
-
-        if (!TitleYearMatcher.Matches(
+        if (providerDetails is null ||
+            !TitleYearMatcher.Matches(
                 providerDetails.Title,
                 providerDetails.OriginalTitle,
                 suggestion.Title,
                 suggestion.Year,
                 providerDetails.FirstAirDate))
         {
-            return null;
+            return await ResolveTvShowBySearchAsync(suggestion, cancellationToken);
         }
 
         var tvShow = await catalogProviderUpsertService.UpsertTvShowFromProviderAsync(

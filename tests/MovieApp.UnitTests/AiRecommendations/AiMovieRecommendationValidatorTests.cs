@@ -109,6 +109,60 @@ public sealed class AiMovieRecommendationValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsyncRecordsRejectionCounters()
+    {
+        var perfContext = new AiRecommendationPerfContext();
+        var resolver = new FakeIdentityResolver();
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid> { _movie2 }, new HashSet<Guid>()),
+            perfContext);
+
+        var session = new AiRecommendationSessionState
+        {
+            SessionId = Guid.NewGuid(),
+            ExcludedGenres = ["Horror"],
+            MaxRuntimeMinutes = 120,
+            MinYear = 2010,
+            MaxYear = 2020,
+            RecommendedMovieIds = { _movie3 }
+        };
+
+        var suggestions = new List<AiProviderSuggestion>
+        {
+            new("Arrival", 2016, "movie", null, "good"),
+            new("Watched", 2015, "movie", null, "watched"),
+            new("Duplicate", 2016, "movie", null, "dup"),
+            new("Duplicate", 2016, "movie", null, "dup2"),
+            new("Session", 2018, "movie", null, "session"),
+            new("Horror Film", 2016, "movie", null, "horror"),
+            new("Long Film", 2016, "movie", null, "long"),
+            new("Old Film", 2000, "movie", null, "old"),
+            new("Missing", 2020, "movie", null, "missing"),
+            new("Podcast", 2020, "podcast", null, "bad-type")
+        };
+
+        resolver.SetResolver("Arrival", CreateMovie(_movie1, "Arrival", 2016, 116, ["Science Fiction"]));
+        resolver.SetResolver("Watched", CreateMovie(_movie2, "Watched", 2015, 100, ["Drama"]));
+        resolver.SetResolver("Duplicate", CreateMovie(_movie1, "Duplicate", 2016, 100, ["Drama"]));
+        resolver.SetResolver("Session", CreateMovie(_movie3, "Session", 2018, 100, ["Drama"]));
+        resolver.SetResolver("Horror Film", CreateMovie(Guid.NewGuid(), "Horror Film", 2016, 100, ["Horror"]));
+        resolver.SetResolver("Long Film", CreateMovie(Guid.NewGuid(), "Long Film", 2016, 180, ["Drama"]));
+        resolver.SetResolver("Old Film", CreateMovie(Guid.NewGuid(), "Old Film", 2000, 100, ["Drama"]));
+
+        await validator.ValidateAsync(Guid.NewGuid(), suggestions, session, 5, CancellationToken.None);
+
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedWatched);
+        Assert.Equal(2, perfContext.Metrics.ValidationRejectedResponseDuplicate);
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedSessionDuplicate);
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedExcludedGenre);
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedRuntime);
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedYear);
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedResolutionFailure);
+        Assert.Equal(1, perfContext.Metrics.ValidationRejectedUnsupportedMediaType);
+    }
+
+    [Fact]
     public async Task ValidateAsyncAcceptsResolvedTvSuggestion()
     {
         var tvShowId = Guid.Parse("44444444-4444-4444-4444-444444444444");

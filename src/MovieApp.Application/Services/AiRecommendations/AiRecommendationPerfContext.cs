@@ -86,6 +86,30 @@ public sealed class AiRecommendationPerfContext : IAiRecommendationPerfContext
     public void RecordValidationDedupHit() =>
         Metrics.ValidationDedupHits++;
 
+    public void RecordValidationUnsupportedMediaTypeRejection() =>
+        Metrics.ValidationRejectedUnsupportedMediaType++;
+
+    public void RecordValidationResolutionFailureRejection() =>
+        Metrics.ValidationRejectedResolutionFailure++;
+
+    public void RecordValidationResponseDuplicateRejection() =>
+        Metrics.ValidationRejectedResponseDuplicate++;
+
+    public void RecordValidationSessionDuplicateRejection() =>
+        Metrics.ValidationRejectedSessionDuplicate++;
+
+    public void RecordValidationWatchedRejection() =>
+        Metrics.ValidationRejectedWatched++;
+
+    public void RecordValidationExcludedGenreRejection() =>
+        Metrics.ValidationRejectedExcludedGenre++;
+
+    public void RecordValidationRuntimeRejection() =>
+        Metrics.ValidationRejectedRuntime++;
+
+    public void RecordValidationYearRejection() =>
+        Metrics.ValidationRejectedYear++;
+
     public void RecordTmdbResolutionCall() =>
         Metrics.TmdbResolutionCalls++;
 

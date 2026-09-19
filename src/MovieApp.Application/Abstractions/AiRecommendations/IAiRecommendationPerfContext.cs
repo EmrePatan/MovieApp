@@ -32,6 +32,22 @@ public interface IAiRecommendationPerfContext
 
     void RecordValidationDedupHit();
 
+    void RecordValidationUnsupportedMediaTypeRejection();
+
+    void RecordValidationResolutionFailureRejection();
+
+    void RecordValidationResponseDuplicateRejection();
+
+    void RecordValidationSessionDuplicateRejection();
+
+    void RecordValidationWatchedRejection();
+
+    void RecordValidationExcludedGenreRejection();
+
+    void RecordValidationRuntimeRejection();
+
+    void RecordValidationYearRejection();
+
     void RecordTmdbResolutionCall();
 
     void RecordSessionSaveMs(long milliseconds);
