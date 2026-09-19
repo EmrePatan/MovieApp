@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Insights;
@@ -48,7 +49,9 @@ public sealed class InsightsController(
         try
         {
             var insights = await insightsV3Service.GetInsightsV3Async(timeZone, year, cancellationToken);
-            return Ok(InsightsContractMapper.ToInsightsV3Response(insights));
+            return Ok(InsightsContractMapper.ToInsightsV3Response(
+                insights,
+                Request.ResolveContentLocale()));
         }
         catch (AuthenticationException exception)
         {
@@ -77,7 +80,9 @@ public sealed class InsightsController(
         try
         {
             var analytics = await insightsAnalyticsService.GetAnalyticsAsync(timeZone, cancellationToken);
-            return Ok(InsightsContractMapper.ToInsightsAnalyticsResponse(analytics));
+            return Ok(InsightsContractMapper.ToInsightsAnalyticsResponse(
+                analytics,
+                Request.ResolveContentLocale()));
         }
         catch (AuthenticationException exception)
         {

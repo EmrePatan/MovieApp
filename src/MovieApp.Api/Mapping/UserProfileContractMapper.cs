@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Contracts.Users;
 
 namespace MovieApp.Api.Mapping;
@@ -27,7 +28,9 @@ public static class UserProfileContractMapper
             result.ExpiresAt,
             ToUserProfileResponse(result.User));
 
-    public static UserStatisticsResponse ToUserStatisticsResponse(UserStatisticsResult result) =>
+    public static UserStatisticsResponse ToUserStatisticsResponse(
+        UserStatisticsResult result,
+        string contentLocale) =>
         new(
             new UserStatisticsSummaryResponse(
                 result.Summary.MoviesWatched,
@@ -74,8 +77,14 @@ public static class UserProfileContractMapper
             result.Milestones
                 .Select(milestone => new ProfileMilestoneResponse(
                     milestone.Id,
-                    milestone.Title,
-                    milestone.Description,
+                    AchievementMilestoneLocalization.GetTitle(
+                        milestone.Id,
+                        contentLocale,
+                        milestone.Title),
+                    AchievementMilestoneLocalization.GetDescription(
+                        milestone.Id,
+                        contentLocale,
+                        milestone.Description),
                     milestone.AchievedAt))
                 .ToList(),
             result.Insights.ToList());

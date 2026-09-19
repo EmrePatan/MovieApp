@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
@@ -179,7 +180,9 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
         try
         {
             var statistics = await userProfileService.GetStatisticsAsync(timeZone, cancellationToken);
-            return Ok(UserProfileContractMapper.ToUserStatisticsResponse(statistics));
+            return Ok(UserProfileContractMapper.ToUserStatisticsResponse(
+                statistics,
+                Request.ResolveContentLocale()));
         }
         catch (AuthenticationException exception)
         {

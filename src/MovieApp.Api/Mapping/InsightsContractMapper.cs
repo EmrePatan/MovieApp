@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Insights;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Contracts.Insights;
 
 namespace MovieApp.Api.Mapping;
@@ -24,7 +25,9 @@ public static class InsightsContractMapper
         InsightsMovieDnaLabelResult result) =>
         new(result.Code, result.Category, result.Label);
 
-    public static InsightsAnalyticsResponse ToInsightsAnalyticsResponse(InsightsAnalyticsResult result) =>
+    public static InsightsAnalyticsResponse ToInsightsAnalyticsResponse(
+        InsightsAnalyticsResult result,
+        string contentLocale) =>
         new(
             new InsightsActivityResponse(
                 result.Activity.Days.Select(ToInsightsActivityDayResponse).ToList(),
@@ -58,14 +61,7 @@ public static class InsightsContractMapper
                     .ToList(),
                 result.Ratings.MostUsedStars),
             result.Milestones
-                .Select(milestone => new InsightsMilestoneResponse(
-                    milestone.Id,
-                    milestone.Category,
-                    milestone.Title,
-                    milestone.CurrentValue,
-                    milestone.TargetValue,
-                    milestone.Achieved,
-                    milestone.AchievedAt))
+                .Select(milestone => ToInsightsMilestoneResponse(milestone, contentLocale))
                 .ToList(),
             result.GeneratedAtUtc);
 
@@ -87,7 +83,9 @@ public static class InsightsContractMapper
     private static InsightsTasteGenreResponse ToInsightsTasteGenreResponse(InsightsTasteGenreResult genre) =>
         new(genre.GenreId, genre.Name, genre.Weight, genre.SharePercent);
 
-    public static InsightsV3Response ToInsightsV3Response(InsightsV3Result result) =>
+    public static InsightsV3Response ToInsightsV3Response(
+        InsightsV3Result result,
+        string contentLocale) =>
         new(
             new InsightsV3MetaResponse(
                 result.Meta.MemberSinceUtc,
@@ -165,15 +163,20 @@ public static class InsightsContractMapper
                 ToInsightsV3WeeklyPeakResponse(result.YourRecords.BestEpisodeWeek),
                 result.YourRecords.HighestRatingStars),
             result.Achievements
-                .Select(milestone => new InsightsMilestoneResponse(
-                    milestone.Id,
-                    milestone.Category,
-                    milestone.Title,
-                    milestone.CurrentValue,
-                    milestone.TargetValue,
-                    milestone.Achieved,
-                    milestone.AchievedAt))
+                .Select(milestone => ToInsightsMilestoneResponse(milestone, contentLocale))
                 .ToList());
+
+    private static InsightsMilestoneResponse ToInsightsMilestoneResponse(
+        InsightsMilestoneResult milestone,
+        string contentLocale) =>
+        new(
+            milestone.Id,
+            milestone.Category,
+            AchievementMilestoneLocalization.GetTitle(milestone.Id, contentLocale, milestone.Title),
+            milestone.CurrentValue,
+            milestone.TargetValue,
+            milestone.Achieved,
+            milestone.AchievedAt);
 
     private static InsightsV3GenreRatingResponse? ToInsightsV3GenreRatingResponse(
         InsightsV3GenreRatingResult? genre) =>
