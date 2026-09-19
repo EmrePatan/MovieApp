@@ -245,6 +245,153 @@ public sealed class AiMovieIdentityResolverTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task ResolveAsyncSearchFallbackMatchesMovieOriginalTitle()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[1] = CreateMovie(Guid.NewGuid(), 1, "Different Title", 2000);
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "The Spanish Apartment", 2002);
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary(
+                    "42",
+                    42,
+                    null,
+                    null,
+                    "The Spanish Apartment",
+                    null,
+                    new DateOnly(2002, 5, 17),
+                    null,
+                    7m,
+                    100,
+                    "L'Auberge Espagnole")
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("L'Auberge Espagnole", 2002, "movie", 1, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal(movieId, result!.MovieId);
+        Assert.Equal("The Spanish Apartment", result.Title);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncSearchFallbackMatchesPunctuationVariantTitle()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Spider-Man", 2002);
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary(
+                    "42",
+                    42,
+                    null,
+                    null,
+                    "Spider-Man",
+                    null,
+                    new DateOnly(2002, 5, 3),
+                    null,
+                    7m,
+                    100)
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Spider Man", 2002, "movie", 999, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal("Spider-Man", result!.Title);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncSearchFallbackAllowsYearWithinOne()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Blade Runner 2049", 2017);
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary(
+                    "42",
+                    42,
+                    null,
+                    null,
+                    "Blade Runner 2049",
+                    null,
+                    new DateOnly(2017, 10, 6),
+                    null,
+                    8m,
+                    1000)
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Blade Runner 2049", 2018, "movie", 999, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal(2017, result!.Year);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncSearchFallbackRejectsYearOutsideOne()
+    {
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary(
+                    "42",
+                    42,
+                    null,
+                    null,
+                    "Arrival",
+                    null,
+                    new DateOnly(2016, 11, 11),
+                    null,
+                    7m,
+                    100)
+            ]
+        };
+
+        var resolver = CreateResolver(new TrackingMovieRepository(), movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Arrival", 2020, "movie", null, "Reason"));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncSearchFallbackRejectsAmbiguousMatches()
+    {
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary("1", 1, null, null, "Arrival", null, new DateOnly(2016, 1, 1), null, 7m, 1),
+                new MovieProviderSummary("2", 2, null, null, "Arrival", null, new DateOnly(2016, 6, 1), null, 6m, 1)
+            ]
+        };
+
+        var resolver = CreateResolver(new TrackingMovieRepository(), movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Arrival", 2016, "movie", null, "Reason"));
+
+        Assert.Null(result);
+        Assert.Equal(1, movieProvider.SearchCallCount);
+    }
+
     private static AiMovieIdentityResolver CreateResolver(
         TrackingMovieRepository? movieRepository = null,
         TrackingMovieDataProvider? movieProvider = null,

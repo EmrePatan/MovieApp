@@ -18,7 +18,8 @@ internal static class TmdbMovieMapper
             ReleaseDate: ParseReleaseDate(result.ReleaseDate),
             PosterPath: NormalizeImagePath(result.PosterPath),
             VoteAverage: result.VoteAverage,
-            VoteCount: result.VoteCount);
+            VoteCount: result.VoteCount,
+            OriginalTitle: result.OriginalTitle);
     }
 
     internal static MovieProviderDetails ToDetails(TmdbMovieDetailsResponseJson details)

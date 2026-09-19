@@ -175,9 +175,9 @@ public sealed class AiMovieIdentityResolver(
         var query = BuildSearchQuery(suggestion);
         var searchResult = await movieDataProvider.SearchMoviesAsync(query, 1, SearchPageSize, cancellationToken);
         var candidates = searchResult.Results
-            .Where(item => TitleYearMatcher.Matches(
+            .Where(item => TitleYearMatcher.MatchesSearchFallback(
                 item.Title,
-                null,
+                item.OriginalTitle,
                 suggestion.Title,
                 suggestion.Year,
                 item.ReleaseDate))
@@ -192,7 +192,12 @@ public sealed class AiMovieIdentityResolver(
         if (match.TmdbId is int tmdbId && tmdbId > 0)
         {
             return await ResolveFromTmdbHintAsync(
-                suggestion with { TmdbId = tmdbId },
+                suggestion with
+                {
+                    TmdbId = tmdbId,
+                    Title = match.Title,
+                    Year = match.ReleaseDate?.Year ?? suggestion.Year
+                },
                 tmdbId,
                 cancellationToken);
         }
@@ -210,7 +215,7 @@ public sealed class AiMovieIdentityResolver(
         var query = BuildSearchQuery(suggestion);
         var searchResult = await tvShowDataProvider.SearchTvShowsAsync(query, 1, SearchPageSize, cancellationToken);
         var candidates = searchResult.Results
-            .Where(item => TitleYearMatcher.Matches(
+            .Where(item => TitleYearMatcher.MatchesSearchFallback(
                 item.Title,
                 item.OriginalTitle,
                 suggestion.Title,
@@ -227,7 +232,12 @@ public sealed class AiMovieIdentityResolver(
         if (match.TmdbId is int tmdbId && tmdbId > 0)
         {
             return await ResolveFromTmdbHintAsync(
-                suggestion with { TmdbId = tmdbId },
+                suggestion with
+                {
+                    TmdbId = tmdbId,
+                    Title = match.Title,
+                    Year = match.FirstAirDate?.Year ?? suggestion.Year
+                },
                 tmdbId,
                 cancellationToken);
         }
