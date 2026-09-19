@@ -14,7 +14,7 @@ public sealed class EmailAssetEndpointTests : IClassFixture<MovieAppWebApplicati
     [Fact]
     public async Task VerificationHeroAssetIsPublicAndCacheable()
     {
-        using var response = await _client.GetAsync("/email-assets/verification-hero.jpg");
+        using var response = await _client.GetAsync("/email-assets/verification-hero-v2.jpg");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);

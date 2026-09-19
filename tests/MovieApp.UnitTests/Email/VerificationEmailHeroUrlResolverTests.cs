@@ -23,7 +23,7 @@ public sealed class VerificationEmailHeroUrlResolverTests
     public void ResolveCombinesRelativePathWithPublicBaseUrl()
     {
         Assert.Equal(
-            "https://movieapp-fpkg.onrender.com/email-assets/verification-hero.jpg",
+            "https://movieapp-fpkg.onrender.com/email-assets/verification-hero-v2.jpg",
             VerificationEmailHeroUrlResolver.Resolve(
                 VerificationEmailHeroUrlResolver.DefaultHeroImagePath,
                 "https://movieapp-fpkg.onrender.com"));

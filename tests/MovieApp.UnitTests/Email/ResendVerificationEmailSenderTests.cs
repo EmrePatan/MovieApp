@@ -105,7 +105,7 @@ public sealed class ResendVerificationEmailSenderTests
 
         Assert.NotNull(html);
         Assert.Contains(
-            "src=\"https://api.example.com/email-assets/verification-hero.jpg\"",
+            "src=\"https://api.example.com/email-assets/verification-hero-v2.jpg\"",
             html,
             StringComparison.Ordinal);
     }

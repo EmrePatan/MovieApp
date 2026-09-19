@@ -2,7 +2,7 @@ namespace MovieApp.Infrastructure.Email;
 
 public static class VerificationEmailHeroUrlResolver
 {
-    public const string DefaultHeroImagePath = "/email-assets/verification-hero.jpg";
+    public const string DefaultHeroImagePath = "/email-assets/verification-hero-v2.jpg";
 
     public static string? Resolve(string? heroImageUrl, string? publicBaseUrl)
     {
