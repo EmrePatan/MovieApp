@@ -13,7 +13,7 @@ public sealed class TmdbCollectionDataProvider(TmdbApiClient apiClient) : IColle
     {
         try
         {
-            var response = await apiClient.GetAsync<TmdbCollectionResponseJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbCollectionResponseJson>(
                 $"collection/{tmdbCollectionId}",
                 cancellationToken);
 

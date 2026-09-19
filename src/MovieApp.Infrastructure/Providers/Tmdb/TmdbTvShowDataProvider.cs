@@ -15,7 +15,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
         CancellationToken cancellationToken = default)
     {
         var encodedQuery = Uri.EscapeDataString(query.Trim());
-        var response = await apiClient.GetAsync<TmdbTvSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbTvSearchResponseJson>(
             $"search/tv?query={encodedQuery}&include_adult=false&page={page}",
             cancellationToken);
 
@@ -46,7 +46,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
         CancellationToken cancellationToken = default)
     {
         var query = TmdbDiscoverQueryBuilder.BuildTvQuery(criteria);
-        var response = await apiClient.GetAsync<TmdbTvSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbTvSearchResponseJson>(
             $"discover/tv?{query}",
             cancellationToken);
 
@@ -77,7 +77,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
         CancellationToken cancellationToken = default)
     {
         var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(criteria);
-        var response = await apiClient.GetAsync<TmdbTvSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbTvSearchResponseJson>(
             $"discover/tv?{query}",
             cancellationToken);
 
@@ -114,7 +114,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
 
         try
         {
-            var response = await apiClient.GetAsync<TmdbTvDetailsResponseJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbTvDetailsResponseJson>(
                 $"tv/{tmdbId}?append_to_response=external_ids",
                 cancellationToken);
 
@@ -138,7 +138,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
 
         try
         {
-            var response = await apiClient.GetAsync<TmdbTvSeasonDetailsResponseJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbTvSeasonDetailsResponseJson>(
                 $"tv/{tmdbId}/season/{seasonNumber}",
                 cancellationToken);
 
@@ -165,7 +165,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
 
         try
         {
-            var response = await apiClient.GetAsync<TmdbTvEpisodeJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbTvEpisodeJson>(
                 $"tv/{tmdbId}/season/{seasonNumber}/episode/{episodeNumber}?append_to_response=external_ids",
                 cancellationToken);
 

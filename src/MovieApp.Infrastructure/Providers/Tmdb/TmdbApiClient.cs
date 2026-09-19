@@ -36,6 +36,18 @@ public sealed class TmdbApiClient
         _logger = logger;
     }
 
+    public async Task<TResponse?> GetCanonicalAsync<TResponse>(
+        string relativePath,
+        CancellationToken cancellationToken = default)
+        where TResponse : class
+    {
+        var canonicalPath = TmdbCanonicalRequestPath.WithCanonicalLanguage(
+            relativePath,
+            _options.CanonicalLanguage);
+
+        return await GetAsync<TResponse>(canonicalPath, cancellationToken);
+    }
+
     public async Task<TResponse?> GetAsync<TResponse>(
         string relativePath,
         CancellationToken cancellationToken = default)

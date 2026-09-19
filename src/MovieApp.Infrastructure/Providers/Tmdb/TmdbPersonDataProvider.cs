@@ -14,7 +14,7 @@ public sealed class TmdbPersonDataProvider(TmdbApiClient apiClient) : IPersonDat
         CancellationToken cancellationToken = default)
     {
         var encodedQuery = Uri.EscapeDataString(query.Trim());
-        var response = await apiClient.GetAsync<TmdbPersonSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbPersonSearchResponseJson>(
             $"search/person?query={encodedQuery}&include_adult=false&page={page}",
             cancellationToken);
 
@@ -47,7 +47,7 @@ public sealed class TmdbPersonDataProvider(TmdbApiClient apiClient) : IPersonDat
     {
         try
         {
-            var person = await apiClient.GetAsync<TmdbPersonJson>(
+            var person = await apiClient.GetCanonicalAsync<TmdbPersonJson>(
                 $"person/{tmdbPersonId}",
                 cancellationToken);
 
@@ -56,7 +56,7 @@ public sealed class TmdbPersonDataProvider(TmdbApiClient apiClient) : IPersonDat
                 return null;
             }
 
-            var combinedCredits = await apiClient.GetAsync<TmdbCombinedCreditsResponseJson>(
+            var combinedCredits = await apiClient.GetCanonicalAsync<TmdbCombinedCreditsResponseJson>(
                 $"person/{tmdbPersonId}/combined_credits",
                 cancellationToken);
 

@@ -13,7 +13,7 @@ public sealed class TmdbNowInTheatersMovieCatalog(TmdbApiClient apiClient) : INo
         CancellationToken cancellationToken = default)
     {
         var query = TmdbNowPlayingQueryBuilder.BuildQuery(releaseRegion, page);
-        var response = await apiClient.GetAsync<TmdbMovieSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbMovieSearchResponseJson>(
             $"movie/now_playing?{query}",
             cancellationToken);
 

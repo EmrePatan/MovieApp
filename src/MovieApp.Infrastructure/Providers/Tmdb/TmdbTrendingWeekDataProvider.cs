@@ -10,7 +10,7 @@ public sealed class TmdbTrendingWeekDataProvider(TmdbApiClient apiClient) : ITre
     public async Task<IReadOnlyList<TrendingWeekProviderItem>> GetTrendingWeekAsync(
         CancellationToken cancellationToken = default)
     {
-        var response = await apiClient.GetAsync<TmdbTrendingResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbTrendingResponseJson>(
             "trending/all/week?page=1",
             cancellationToken);
 

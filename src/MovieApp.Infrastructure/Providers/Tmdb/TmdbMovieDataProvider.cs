@@ -14,7 +14,7 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
         CancellationToken cancellationToken = default)
     {
         var encodedQuery = Uri.EscapeDataString(query.Trim());
-        var response = await apiClient.GetAsync<TmdbMovieSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbMovieSearchResponseJson>(
             $"search/movie?query={encodedQuery}&include_adult=false&page={page}",
             cancellationToken);
 
@@ -45,7 +45,7 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
         CancellationToken cancellationToken = default)
     {
         var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(criteria);
-        var response = await apiClient.GetAsync<TmdbMovieSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbMovieSearchResponseJson>(
             $"discover/movie?{query}",
             cancellationToken);
 
@@ -76,7 +76,7 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
         CancellationToken cancellationToken = default)
     {
         var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(criteria);
-        var response = await apiClient.GetAsync<TmdbMovieSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbMovieSearchResponseJson>(
             $"discover/movie?{query}",
             cancellationToken);
 
@@ -113,7 +113,7 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
 
         try
         {
-            var response = await apiClient.GetAsync<TmdbMovieDetailsResponseJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbMovieDetailsResponseJson>(
                 $"movie/{tmdbId}?append_to_response=external_ids",
                 cancellationToken);
 

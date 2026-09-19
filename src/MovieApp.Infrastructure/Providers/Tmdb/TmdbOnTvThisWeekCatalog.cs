@@ -12,7 +12,7 @@ public sealed class TmdbOnTvThisWeekCatalog(TmdbApiClient apiClient) : IOnTvThis
         CancellationToken cancellationToken = default)
     {
         var query = TmdbOnTheAirQueryBuilder.BuildQuery(page);
-        var response = await apiClient.GetAsync<TmdbTvSearchResponseJson>(
+        var response = await apiClient.GetCanonicalAsync<TmdbTvSearchResponseJson>(
             $"tv/on_the_air?{query}",
             cancellationToken);
 

@@ -15,7 +15,7 @@ public sealed class TmdbKeywordsProvider(TmdbApiClient apiClient) : IKeywordsPro
     {
         try
         {
-            var response = await apiClient.GetAsync<TmdbMovieKeywordsResponseJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbMovieKeywordsResponseJson>(
                 $"movie/{tmdbId}/keywords",
                 cancellationToken);
 
@@ -35,7 +35,7 @@ public sealed class TmdbKeywordsProvider(TmdbApiClient apiClient) : IKeywordsPro
     {
         try
         {
-            var response = await apiClient.GetAsync<TmdbTvKeywordsResponseJson>(
+            var response = await apiClient.GetCanonicalAsync<TmdbTvKeywordsResponseJson>(
                 $"tv/{tmdbId}/keywords",
                 cancellationToken);
 

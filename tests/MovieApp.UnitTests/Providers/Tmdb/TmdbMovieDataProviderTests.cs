@@ -1,6 +1,8 @@
 using System.Net;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.Search;
 using MovieApp.Infrastructure.Providers.Tmdb;
 
 namespace MovieApp.UnitTests.Providers.Tmdb;
@@ -84,6 +86,37 @@ public sealed class TmdbMovieDataProviderTests
     }
 
     [Fact]
+    public async Task DiscoverMoviesAsyncRequestsCanonicalLanguage()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "page": 1,
+                  "total_pages": 1,
+                  "total_results": 0,
+                  "results": []
+                }
+                """)
+        });
+
+        var provider = CreateProvider(handler);
+        await provider.DiscoverMoviesAsync(
+            new DiscoverProviderCriteria(
+                DiscoverBrowseMode.Trending,
+                1,
+                [],
+                null,
+                null,
+                null,
+                null));
+
+        Assert.Contains("language=en-US", handler.Requests.Single().RequestUri?.Query, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetMovieAsyncReturnsNullWhenTmdbRespondsWithNotFound()
     {
         var handler = new MockHttpMessageHandler();
@@ -104,7 +137,11 @@ public sealed class TmdbMovieDataProviderTests
 
         var apiClient = new TmdbApiClient(
             httpClient,
-            Options.Create(new TmdbOptions { ApiKey = "test-api-key" }),
+            Options.Create(new TmdbOptions
+            {
+                ApiKey = "test-api-key",
+                CanonicalLanguage = "en-US"
+            }),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TmdbApiClient>.Instance);
 
         return new TmdbMovieDataProvider(apiClient);
