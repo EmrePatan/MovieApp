@@ -46,6 +46,25 @@ public sealed class MovieCaveVerificationEmailContentTests
     }
 
     [Fact]
+    public void BuildHtmlUsesGmailSafeBulletproofCtaAndSansSerifHeroHeadline()
+    {
+        const string heroImageUrl = "https://cdn.example.com/movie-cave/email-hero.jpg";
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, heroImageUrl);
+
+        Assert.Contains("class=\"cta-button-link\"", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"cta-button-cell\"", html, StringComparison.Ordinal);
+        Assert.Contains("v:roundrect", html, StringComparison.Ordinal);
+        Assert.Contains("<font color=\"" + MovieCaveVerificationEmailContent.CtaTextColor + "\">", html, StringComparison.Ordinal);
+        Assert.Contains("a.cta-button-link", html, StringComparison.Ordinal);
+        Assert.Contains("text-decoration: none !important", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Georgia", html, StringComparison.Ordinal);
+        Assert.Contains("hero-headline", html, StringComparison.Ordinal);
+        Assert.Contains("font-weight:700", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"outer-padding\" style=\"padding:0", html, StringComparison.Ordinal);
+        Assert.Contains("border-radius:24px", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildHtmlUsesGmailDarkModeHardeningAndCompactFallbackHero()
     {
         var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, heroImageUrl: null);
