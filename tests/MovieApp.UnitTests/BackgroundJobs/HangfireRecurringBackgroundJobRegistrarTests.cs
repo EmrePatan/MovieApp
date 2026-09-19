@@ -46,6 +46,9 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         Assert.Contains(
             manager.AddedOrUpdated,
             entry => entry.JobId == RecurringJobIds.NotificationInboxCleanup && entry.Cron == Cron.Daily());
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.HotThisWeekTrendingRefresh && entry.Cron == Cron.HourInterval(6));
     }
 
     [Fact]
@@ -83,7 +86,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         registrar.RegisterRecurringJobs();
         registrar.RegisterRecurringJobs();
 
-        Assert.Equal(9, manager.AddedOrUpdated.Count);
+        Assert.Equal(10, manager.AddedOrUpdated.Count);
     }
 
     [Fact]
