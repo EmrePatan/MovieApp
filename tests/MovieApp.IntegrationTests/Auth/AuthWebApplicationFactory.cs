@@ -37,8 +37,6 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             configuration["Authentication:RateLimit:LoginPermitLimit"] = "100";
             configuration["Authentication:RateLimit:ForgotPasswordPermitLimit"] = "100";
             configuration["Authentication:RateLimit:ResetPasswordPermitLimit"] = "100";
-            configuration["Authentication:RateLimit:ResendVerificationPermitLimit"] = "100";
-            configuration["Authentication:RateLimit:VerifyEmailPermitLimit"] = "100";
             configurationBuilder.AddInMemoryCollection(configuration);
         });
     }

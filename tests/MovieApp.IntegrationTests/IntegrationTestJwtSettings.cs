@@ -18,6 +18,10 @@ internal static class IntegrationTestJwtSettings
             ["Authentication:RateLimit:ForgotPasswordPermitLimit"] = "1000",
             ["Authentication:RateLimit:ForgotPasswordWindowMinutes"] = "15",
             ["Authentication:RateLimit:ResetPasswordPermitLimit"] = "1000",
-            ["Authentication:RateLimit:ResetPasswordWindowMinutes"] = "15"
+            ["Authentication:RateLimit:ResetPasswordWindowMinutes"] = "15",
+            ["Authentication:RateLimit:VerifyEmailPermitLimit"] = "1000",
+            ["Authentication:RateLimit:VerifyEmailWindowMinutes"] = "15",
+            ["Authentication:RateLimit:ResendVerificationPermitLimit"] = "1000",
+            ["Authentication:RateLimit:ResendVerificationWindowMinutes"] = "15"
         };
 }
