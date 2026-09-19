@@ -29,7 +29,8 @@ public static class ApplicationBootstrap
             .AddApplication()
             .AddInfrastructure(builder.Configuration)
             .AddApi(builder.Configuration)
-            .AddBackgroundJobs(builder.Configuration);
+            .AddBackgroundJobs(builder.Configuration)
+            .AddEmailVerificationDelivery(builder.Configuration, builder.Environment);
     }
 
     public static void ConfigurePipeline(WebApplication app)

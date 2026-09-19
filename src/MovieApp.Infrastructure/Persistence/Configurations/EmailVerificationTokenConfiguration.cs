@@ -28,6 +28,11 @@ internal sealed class EmailVerificationTokenConfiguration : IEntityTypeConfigura
         builder.Property(token => token.ExpiresAtUtc)
             .IsRequired();
 
+        builder.Property(token => token.ProtectedDeliverySecret)
+            .HasMaxLength(512);
+
+        builder.Property(token => token.DeliveryCompletedAtUtc);
+
         builder.HasOne(token => token.User)
             .WithMany(user => user.EmailVerificationTokens)
             .HasForeignKey(token => token.UserId)

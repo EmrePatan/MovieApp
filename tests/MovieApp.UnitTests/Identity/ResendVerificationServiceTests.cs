@@ -16,8 +16,8 @@ public sealed class ResendVerificationServiceTests
     public async Task ResendVerificationAsyncReturnsSameMessageForExistingAndMissingEmail()
     {
         var existingUser = CreateUnverifiedUser();
-        var existingService = CreateService(new FakeUserRepository(existingUser), new CapturingEmailSender());
-        var missingService = CreateService(new FakeUserRepository(null), new CapturingEmailSender());
+        var existingService = CreateService(new FakeUserRepository(existingUser), new RecordingEnqueuer());
+        var missingService = CreateService(new FakeUserRepository(null), new RecordingEnqueuer());
 
         var existingResult = await existingService.ResendVerificationAsync(
             new ResendVerificationRequest("user@example.com"));
@@ -29,20 +29,19 @@ public sealed class ResendVerificationServiceTests
     }
 
     [Fact]
-    public async Task ResendVerificationAsyncCreatesHashedTokenAndSendsEmailForUnverifiedPasswordUser()
+    public async Task ResendVerificationAsyncCreatesHashedTokenAndEnqueuesDeliveryForUnverifiedPasswordUser()
     {
         var user = CreateUnverifiedUser();
         var tokenRepository = new FakeEmailVerificationTokenRepository();
-        var emailSender = new CapturingEmailSender();
-        var service = CreateService(new FakeUserRepository(user), emailSender, tokenRepository);
+        var enqueuer = new RecordingEnqueuer();
+        var service = CreateService(new FakeUserRepository(user), enqueuer, tokenRepository);
 
         await service.ResendVerificationAsync(new ResendVerificationRequest("user@example.com"));
 
         Assert.Single(tokenRepository.CreatedTokens);
-        Assert.Single(emailSender.SentVerificationEmails);
-        Assert.Equal(
-            PasswordResetTokenHasher.HashToken(emailSender.LastRawToken!),
-            tokenRepository.CreatedTokens[0].TokenHash);
+        Assert.Single(enqueuer.EnqueuedTokenIds);
+        Assert.Equal(tokenRepository.CreatedTokens[0].Id, enqueuer.EnqueuedTokenIds[0]);
+        Assert.NotNull(tokenRepository.CreatedTokens[0].ProtectedDeliverySecret);
     }
 
     [Fact]
@@ -50,7 +49,7 @@ public sealed class ResendVerificationServiceTests
     {
         var user = CreateUnverifiedUser();
         var tokenRepository = new FakeEmailVerificationTokenRepository();
-        var service = CreateService(new FakeUserRepository(user), new CapturingEmailSender(), tokenRepository);
+        var service = CreateService(new FakeUserRepository(user), new RecordingEnqueuer(), tokenRepository);
 
         await service.ResendVerificationAsync(new ResendVerificationRequest("user@example.com"));
         await service.ResendVerificationAsync(new ResendVerificationRequest("user@example.com"));
@@ -64,22 +63,23 @@ public sealed class ResendVerificationServiceTests
     {
         var user = CreateUnverifiedUser();
         user.MarkEmailVerified(DateTime.UtcNow);
-        var emailSender = new CapturingEmailSender();
-        var service = CreateService(new FakeUserRepository(user), emailSender);
+        var enqueuer = new RecordingEnqueuer();
+        var service = CreateService(new FakeUserRepository(user), enqueuer);
 
         await service.ResendVerificationAsync(new ResendVerificationRequest("user@example.com"));
 
-        Assert.Empty(emailSender.SentVerificationEmails);
+        Assert.Empty(enqueuer.EnqueuedTokenIds);
     }
 
     private static ResendVerificationService CreateService(
         FakeUserRepository userRepository,
-        CapturingEmailSender emailSender,
+        RecordingEnqueuer enqueuer,
         FakeEmailVerificationTokenRepository? tokenRepository = null) =>
         new(
             userRepository,
             tokenRepository ?? new FakeEmailVerificationTokenRepository(),
-            emailSender,
+            new PassthroughProtector(),
+            enqueuer,
             Options.Create(new EmailVerificationOptions
             {
                 TokenLifetimeMinutes = 1440,
@@ -94,6 +94,24 @@ public sealed class ResendVerificationServiceTests
             "hashed-password",
             "Display Name",
             DateTime.UtcNow);
+
+    private sealed class PassthroughProtector : IEmailVerificationDeliverySecretProtector
+    {
+        public string Protect(string rawToken) => rawToken;
+
+        public string Unprotect(string protectedPayload) => protectedPayload;
+    }
+
+    private sealed class RecordingEnqueuer : IEmailVerificationDeliveryEnqueuer
+    {
+        public List<Guid> EnqueuedTokenIds { get; } = [];
+
+        public Task EnqueueAsync(Guid tokenId, CancellationToken cancellationToken = default)
+        {
+            EnqueuedTokenIds.Add(tokenId);
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class FakeUserRepository(User? user) : IUserRepository
     {
@@ -148,50 +166,17 @@ public sealed class ResendVerificationServiceTests
             InvalidationCount++;
             return Task.CompletedTask;
         }
-    }
 
-    private sealed class CapturingEmailSender : IEmailSender
-    {
-        public List<(string Email, string VerifyUrl)> SentVerificationEmails { get; } = [];
+        public Task<EmailVerificationDeliveryTarget?> GetDeliveryTargetAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationDeliveryTarget?>(null);
 
-        public string? LastRawToken { get; private set; }
-
-        public Task SendPasswordResetEmailAsync(
-            string toEmail,
-            string resetUrl,
+        public Task CompleteDeliveryAsync(
+            Guid tokenId,
+            DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
-
-        public Task SendEmailVerificationEmailAsync(
-            string toEmail,
-            string verifyUrl,
-            CancellationToken cancellationToken = default)
-        {
-            SentVerificationEmails.Add((toEmail, verifyUrl));
-            LastRawToken = ExtractToken(verifyUrl);
-            return Task.CompletedTask;
-        }
-
-        private static string? ExtractToken(string verifyUrl)
-        {
-            var queryIndex = verifyUrl.IndexOf('?', StringComparison.Ordinal);
-            if (queryIndex < 0)
-            {
-                return null;
-            }
-
-            var query = verifyUrl[(queryIndex + 1)..];
-            foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var pair = part.Split('=', 2);
-                if (pair.Length == 2 &&
-                    string.Equals(pair[0], "token", StringComparison.OrdinalIgnoreCase))
-                {
-                    return Uri.UnescapeDataString(pair[1]);
-                }
-            }
-
-            return null;
-        }
     }
 }

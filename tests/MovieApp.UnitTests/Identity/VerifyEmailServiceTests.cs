@@ -122,6 +122,18 @@ public sealed class VerifyEmailServiceTests
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<EmailVerificationDeliveryTarget?> GetDeliveryTargetAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationDeliveryTarget?>(null);
+
+        public Task CompleteDeliveryAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeTokenService : ITokenService

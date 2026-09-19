@@ -15,7 +15,8 @@ namespace MovieApp.Application.Services.Identity;
 public sealed class ResendVerificationService(
     IUserRepository userRepository,
     IEmailVerificationTokenRepository emailVerificationTokenRepository,
-    IEmailSender emailSender,
+    IEmailVerificationDeliverySecretProtector deliverySecretProtector,
+    IEmailVerificationDeliveryEnqueuer deliveryEnqueuer,
     IOptions<EmailVerificationOptions> emailVerificationOptions,
     ILogger<ResendVerificationService> logger) : IResendVerificationService
 {
@@ -61,18 +62,15 @@ public sealed class ResendVerificationService(
             UserId = user.Id,
             TokenHash = tokenHash,
             CreatedAtUtc = utcNow,
-            ExpiresAtUtc = utcNow.Add(lifetime)
+            ExpiresAtUtc = utcNow.Add(lifetime),
+            ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken)
         };
 
         await emailVerificationTokenRepository.CreateAsync(verificationToken, cancellationToken);
 
-        var verifyUrl = EmailVerificationUrlBuilder.BuildVerificationUrl(
-            emailVerificationOptions.Value.BaseUrl,
-            rawToken);
-
         try
         {
-            await emailSender.SendEmailVerificationEmailAsync(user.Email, verifyUrl, cancellationToken);
+            await deliveryEnqueuer.EnqueueAsync(verificationToken.Id, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -80,8 +78,9 @@ public sealed class ResendVerificationService(
         }
         catch (Exception exception)
         {
-            EmailVerificationLogMessages.LogEmailVerificationDeliveryFailed(
+            EmailVerificationLogMessages.LogDeliveryEnqueueFailed(
                 logger,
+                verificationToken.Id,
                 user.Id,
                 exception.GetType().Name);
         }

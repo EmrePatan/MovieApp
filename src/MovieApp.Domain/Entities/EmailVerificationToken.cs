@@ -14,6 +14,10 @@ public sealed class EmailVerificationToken
 
     public DateTime? UsedAtUtc { get; set; }
 
+    public string? ProtectedDeliverySecret { get; set; }
+
+    public DateTime? DeliveryCompletedAtUtc { get; set; }
+
     public User User { get; set; } = null!;
 
     public bool IsActive(DateTime utcNow) =>

@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Identity;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Abstractions.Persistence;
@@ -13,6 +14,16 @@ public interface IEmailVerificationTokenRepository
 
     Task InvalidateActiveTokensForUserAsync(
         Guid userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
+    Task<EmailVerificationDeliveryTarget?> GetDeliveryTargetAsync(
+        Guid tokenId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteDeliveryAsync(
+        Guid tokenId,
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 }

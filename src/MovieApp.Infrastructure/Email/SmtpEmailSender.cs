@@ -3,12 +3,14 @@ using System.Net.Mail;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Configuration;
 using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.Infrastructure.Email;
 
 public sealed class SmtpEmailSender(
     IOptions<SmtpEmailOptions> smtpOptions,
+    IOptions<EmailVerificationOptions> emailVerificationOptions,
     ILogger<SmtpEmailSender> logger) : IEmailSender
 {
     public async Task SendPasswordResetEmailAsync(
@@ -32,10 +34,7 @@ public sealed class SmtpEmailSender(
         };
         message.To.Add(toEmail);
 
-        using var client = new SmtpClient(options.Host, options.Port)
-        {
-            EnableSsl = options.EnableSsl
-        };
+        using var client = CreateSmtpClient(options);
 
         if (!string.IsNullOrWhiteSpace(options.Username))
         {
@@ -77,10 +76,10 @@ public sealed class SmtpEmailSender(
         };
         message.To.Add(toEmail);
 
-        using var client = new SmtpClient(options.Host, options.Port)
-        {
-            EnableSsl = options.EnableSsl
-        };
+        using var client = CreateSmtpClient(options);
+        client.Timeout = Math.Max(
+            5,
+            emailVerificationOptions.Value.SmtpDeliveryTimeoutSeconds) * 1000;
 
         if (!string.IsNullOrWhiteSpace(options.Username))
         {
@@ -100,4 +99,10 @@ public sealed class SmtpEmailSender(
             throw;
         }
     }
+
+    private static SmtpClient CreateSmtpClient(SmtpEmailOptions options) =>
+        new(options.Host, options.Port)
+        {
+            EnableSsl = options.EnableSsl
+        };
 }
