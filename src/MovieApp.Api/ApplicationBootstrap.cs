@@ -10,6 +10,7 @@ using MovieApp.Api.Observability;
 using MovieApp.Api.Security;
 using MovieApp.Application;
 using MovieApp.Infrastructure;
+using MovieApp.Infrastructure.Identity;
 using Serilog;
 using Serilog.Events;
 
@@ -28,6 +29,7 @@ public static class ApplicationBootstrap
         builder.Services
             .AddApplication()
             .AddInfrastructure(builder.Configuration)
+            .AddMovieAppDataProtection(builder.Configuration, builder.Environment)
             .AddApi(builder.Configuration)
             .AddBackgroundJobs(builder.Configuration)
             .AddEmailVerificationDelivery(builder.Configuration, builder.Environment);

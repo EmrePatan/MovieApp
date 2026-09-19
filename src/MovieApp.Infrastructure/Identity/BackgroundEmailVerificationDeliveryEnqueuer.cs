@@ -5,6 +5,9 @@ using MovieApp.Application.Services.Identity;
 
 namespace MovieApp.Infrastructure.Identity;
 
+/// <summary>
+/// Development-only convenience fallback when Hangfire is disabled locally.
+/// </summary>
 public sealed class BackgroundEmailVerificationDeliveryEnqueuer(
     IServiceScopeFactory serviceScopeFactory,
     ILogger<BackgroundEmailVerificationDeliveryEnqueuer> logger) : IEmailVerificationDeliveryEnqueuer

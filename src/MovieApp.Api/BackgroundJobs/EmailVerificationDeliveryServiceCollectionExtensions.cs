@@ -13,13 +13,15 @@ public static class EmailVerificationDeliveryServiceCollectionExtensions
         IConfiguration configuration,
         IHostEnvironment hostEnvironment)
     {
-        services.AddDataProtection();
-        services.AddSingleton<IEmailVerificationDeliverySecretProtector, DataProtectionEmailVerificationDeliverySecretProtector>();
         services.AddScoped<IEmailVerificationDeliveryService, EmailVerificationDeliveryService>();
 
         var backgroundJobsEnabled = configuration
             .GetSection(BackgroundJobsOptions.SectionName)
             .GetValue<bool>(nameof(BackgroundJobsOptions.Enabled));
+
+        EmailVerificationDeliveryConfiguration.EnsureSupportedDeliveryBackend(
+            hostEnvironment,
+            backgroundJobsEnabled);
 
         if (hostEnvironment.IsEnvironment("Testing"))
         {
