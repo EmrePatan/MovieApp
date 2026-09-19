@@ -9,7 +9,8 @@ namespace MovieApp.Application.Services.AiRecommendations;
 
 public sealed class MovieIdentityResolver(
     IGetMovieByTmdbIdService getMovieByTmdbIdService,
-    ISearchMoviesService searchMoviesService) : IMovieIdentityResolver
+    ISearchMoviesService searchMoviesService,
+    IAiRecommendationPerfContext perfContext) : IMovieIdentityResolver
 {
     public async Task<ResolvedMovieIdentity?> ResolveAsync(
         AiProviderSuggestion suggestion,
@@ -39,6 +40,7 @@ public sealed class MovieIdentityResolver(
     {
         try
         {
+            perfContext.RecordTmdbResolutionCall();
             var details = await getMovieByTmdbIdService.GetAsync(tmdbId, cancellationToken);
             if (!TitleYearMatcher.Matches(details.Title, details.OriginalTitle, suggestion.Title, suggestion.Year, details.ReleaseDate))
             {
@@ -65,6 +67,7 @@ public sealed class MovieIdentityResolver(
             ? $"{suggestion.Title} {suggestion.Year}"
             : suggestion.Title;
 
+        perfContext.RecordTmdbResolutionCall();
         var searchResult = await searchMoviesService.SearchAsync(
             new MovieSearchRequest(query, 1, 10),
             cancellationToken);
@@ -83,7 +86,8 @@ public sealed class MovieIdentityResolver(
         {
             try
             {
-                var details = await getMovieByTmdbIdService.GetAsync(tmdbId, cancellationToken);
+                perfContext.RecordTmdbResolutionCall();
+            var details = await getMovieByTmdbIdService.GetAsync(tmdbId, cancellationToken);
                 return ToResolvedIdentity(details);
             }
             catch (NotFoundException)

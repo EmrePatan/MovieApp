@@ -15,6 +15,7 @@ public static class AiRecommendationsServiceCollectionExtensions
         services.AddOptions<AiRecommendationOptions>()
             .Bind(configuration.GetSection(AiRecommendationOptions.SectionName));
 
+        services.AddScoped<IAiRecommendationPerfContext, AiRecommendationPerfContext>();
         services.AddScoped<IAiTasteProfileDataSource, AiTasteProfileDataSource>();
         services.AddScoped<IAiTasteProfileBuilder, AiTasteProfileBuilder>();
         services.AddScoped<IMovieIdentityResolver, MovieIdentityResolver>();

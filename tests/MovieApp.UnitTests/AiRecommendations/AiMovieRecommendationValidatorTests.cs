@@ -14,7 +14,10 @@ public sealed class AiMovieRecommendationValidatorTests
     public async Task ValidateAsyncRemovesWatchedDuplicateSessionAndConstraintViolations()
     {
         var resolver = new FakeIdentityResolver(suggestion => CreateMovie(_movie1, "Arrival", 2016, 116, ["Science Fiction"]));
-        var validator = new AiMovieRecommendationValidator(resolver, new FakeTasteDataSource(new HashSet<Guid> { _movie2 }));
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid> { _movie2 }),
+            NullAiRecommendationPerfContext.Instance);
 
         var session = new AiRecommendationSessionState
         {
@@ -62,7 +65,10 @@ public sealed class AiMovieRecommendationValidatorTests
         resolver.SetResolver("Two", CreateMovie(_movie2, "Two", 2017, 100, ["Drama"]));
         resolver.SetResolver("Three", CreateMovie(_movie3, "Three", 2018, 100, ["Drama"]));
 
-        var validator = new AiMovieRecommendationValidator(resolver, new FakeTasteDataSource(new HashSet<Guid>()));
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid>()),
+            NullAiRecommendationPerfContext.Instance);
         var suggestions = new[]
         {
             new AiProviderSuggestion("One", 2016, "movie", null, "r1"),
@@ -88,7 +94,8 @@ public sealed class AiMovieRecommendationValidatorTests
     {
         var validator = new AiMovieRecommendationValidator(
             new FakeIdentityResolver(),
-            new FakeTasteDataSource(new HashSet<Guid>()));
+            new FakeTasteDataSource(new HashSet<Guid>()),
+            NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
             Guid.NewGuid(),

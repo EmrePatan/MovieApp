@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Text;
@@ -15,6 +16,7 @@ namespace MovieApp.Infrastructure.AiRecommendations;
 internal sealed class GeminiAiMovieRecommendationProvider(
     HttpClient httpClient,
     IOptions<AiRecommendationOptions> options,
+    IAiRecommendationPerfContext perfContext,
     ILogger<GeminiAiMovieRecommendationProvider> logger) : IAiMovieRecommendationProvider
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -40,6 +42,8 @@ internal sealed class GeminiAiMovieRecommendationProvider(
         var endpoint =
             $"https://generativelanguage.googleapis.com/v1beta/models/{modelId}:generateContent?key={Uri.EscapeDataString(gemini.ApiKey)}";
 
+        var totalStopwatch = Stopwatch.StartNew();
+
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
             Content = new StringContent(
@@ -48,11 +52,18 @@ internal sealed class GeminiAiMovieRecommendationProvider(
                 "application/json")
         };
 
+        var httpStopwatch = Stopwatch.StartNew();
         using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        httpStopwatch.Stop();
 
         if (!response.IsSuccessStatusCode)
         {
+            totalStopwatch.Stop();
+            perfContext.RecordGeminiTimings(
+                totalStopwatch.ElapsedMilliseconds,
+                httpStopwatch.ElapsedMilliseconds,
+                0);
             GeminiAiMovieRecommendationProviderLogMessages.LogProviderFailure(
                 logger,
                 response.StatusCode,
@@ -60,7 +71,29 @@ internal sealed class GeminiAiMovieRecommendationProvider(
             throw new AiRecommendationProviderException("Gemini provider request failed.");
         }
 
-        return ParseResponse(responseBody);
+        var parseStopwatch = Stopwatch.StartNew();
+        try
+        {
+            var result = ParseResponse(responseBody);
+            parseStopwatch.Stop();
+            totalStopwatch.Stop();
+            perfContext.RecordGeminiTimings(
+                totalStopwatch.ElapsedMilliseconds,
+                httpStopwatch.ElapsedMilliseconds,
+                parseStopwatch.ElapsedMilliseconds);
+
+            return result;
+        }
+        catch
+        {
+            parseStopwatch.Stop();
+            totalStopwatch.Stop();
+            perfContext.RecordGeminiTimings(
+                totalStopwatch.ElapsedMilliseconds,
+                httpStopwatch.ElapsedMilliseconds,
+                parseStopwatch.ElapsedMilliseconds);
+            throw;
+        }
     }
 
     internal static string BuildRequestBody(AiProviderRequest request)

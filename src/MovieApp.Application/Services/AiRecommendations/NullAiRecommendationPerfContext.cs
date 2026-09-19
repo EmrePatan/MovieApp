@@ -1,0 +1,63 @@
+using MovieApp.Application.Abstractions.AiRecommendations;
+using MovieApp.Application.Models.AiRecommendations;
+
+namespace MovieApp.Application.Services.AiRecommendations;
+
+public sealed class NullAiRecommendationPerfContext : IAiRecommendationPerfContext
+{
+    public static readonly NullAiRecommendationPerfContext Instance = new();
+
+    public AiRecommendationPerfMetrics Metrics { get; } = new();
+
+    public void RecordQuotaReserveMs(long milliseconds)
+    {
+    }
+
+    public void RecordTasteProfileCacheHit(long totalMs, long cacheLookupMs)
+    {
+    }
+
+    public void RecordTasteProfileCacheMiss(
+        long totalMs,
+        long cacheLookupMs,
+        long buildCpuMs,
+        long cacheWriteMs)
+    {
+    }
+
+    public void RecordTasteProfileQuery(string queryName, long milliseconds)
+    {
+    }
+
+    public void RecordSessionLoadMs(long milliseconds)
+    {
+    }
+
+    public void RecordGeminiTimings(long totalMs, long httpMs, long parseMs)
+    {
+    }
+
+    public void RecordValidationTimings(long totalMs, long watchedIdsMs)
+    {
+    }
+
+    public void RecordTmdbResolutionCall()
+    {
+    }
+
+    public void RecordSessionSaveMs(long milliseconds)
+    {
+    }
+
+    public void RecordQuotaCommitMs(long milliseconds)
+    {
+    }
+
+    public void SetOutcome(string outcome)
+    {
+    }
+
+    public void SetResultCounts(int suggestionCount, int returnedCount)
+    {
+    }
+}

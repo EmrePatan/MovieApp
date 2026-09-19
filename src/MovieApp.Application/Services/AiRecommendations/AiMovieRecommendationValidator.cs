@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Models.AiRecommendations;
 
@@ -5,7 +6,8 @@ namespace MovieApp.Application.Services.AiRecommendations;
 
 public sealed class AiMovieRecommendationValidator(
     IMovieIdentityResolver identityResolver,
-    IAiTasteProfileDataSource tasteProfileDataSource) : IAiMovieRecommendationValidator
+    IAiTasteProfileDataSource tasteProfileDataSource,
+    IAiRecommendationPerfContext perfContext) : IAiMovieRecommendationValidator
 {
     public async Task<AiValidationResult> ValidateAsync(
         Guid userId,
@@ -14,7 +16,12 @@ public sealed class AiMovieRecommendationValidator(
         int maxReturnedCount,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
+
+        var watchedIdsStopwatch = Stopwatch.StartNew();
         var watchedMovieIds = await tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
+        watchedIdsStopwatch.Stop();
+
         var accepted = new List<AiValidatedRecommendation>();
         var seenMovieIds = new HashSet<Guid>();
         var rejectedCount = 0;
@@ -78,6 +85,11 @@ public sealed class AiMovieRecommendationValidator(
                 break;
             }
         }
+
+        totalStopwatch.Stop();
+        perfContext.RecordValidationTimings(
+            totalStopwatch.ElapsedMilliseconds,
+            watchedIdsStopwatch.ElapsedMilliseconds);
 
         var partialResults = accepted.Count > 0 && accepted.Count < maxReturnedCount;
         return new AiValidationResult(

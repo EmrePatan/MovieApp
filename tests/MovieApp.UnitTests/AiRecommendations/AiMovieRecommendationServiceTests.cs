@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Configuration;
@@ -149,7 +150,9 @@ public sealed class AiMovieRecommendationServiceTests
                 SuggestionCount = 8,
                 MaxReturnedCount = 5,
                 UserDailyMessageLimit = 3
-            }));
+            }),
+            NullAiRecommendationPerfContext.Instance,
+            NullLogger<AiMovieRecommendationService>.Instance);
 
     private sealed class FakeEntitlementService(bool shouldAllow = true) : IAiRecommendationEntitlementService
     {

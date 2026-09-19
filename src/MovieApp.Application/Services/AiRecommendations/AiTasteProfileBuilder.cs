@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
@@ -10,7 +11,8 @@ namespace MovieApp.Application.Services.AiRecommendations;
 public sealed class AiTasteProfileBuilder(
     IAiTasteProfileDataSource dataSource,
     ICacheService cacheService,
-    IOptions<AiRecommendationOptions> options) : IAiTasteProfileBuilder
+    IOptions<AiRecommendationOptions> options,
+    IAiRecommendationPerfContext perfContext) : IAiTasteProfileBuilder
 {
     private const int MaxTopGenres = 8;
     private const int MaxAvoidedGenres = 8;
@@ -22,18 +24,40 @@ public sealed class AiTasteProfileBuilder(
 
     public async Task<AiTasteProfile> BuildAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var cacheKey = AiRecommendationCacheKeys.TasteProfile(userId);
+
+        var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<AiTasteProfile>(cacheKey, cancellationToken);
+        cacheLookupStopwatch.Stop();
+
         if (cached is not null)
         {
+            totalStopwatch.Stop();
+            perfContext.RecordTasteProfileCacheHit(
+                totalStopwatch.ElapsedMilliseconds,
+                cacheLookupStopwatch.ElapsedMilliseconds);
             return cached;
         }
 
         var raw = await dataSource.LoadAsync(userId, cancellationToken);
+
+        var buildStopwatch = Stopwatch.StartNew();
         var profile = BuildFromRaw(raw);
+        buildStopwatch.Stop();
 
         var ttl = TimeSpan.FromMinutes(Math.Max(1, options.Value.TasteProfileCacheMinutes));
+
+        var cacheWriteStopwatch = Stopwatch.StartNew();
         await cacheService.SetAsync(cacheKey, profile, ttl, cancellationToken);
+        cacheWriteStopwatch.Stop();
+
+        totalStopwatch.Stop();
+        perfContext.RecordTasteProfileCacheMiss(
+            totalStopwatch.ElapsedMilliseconds,
+            cacheLookupStopwatch.ElapsedMilliseconds,
+            buildStopwatch.ElapsedMilliseconds,
+            cacheWriteStopwatch.ElapsedMilliseconds);
 
         return profile;
     }

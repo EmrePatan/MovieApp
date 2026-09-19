@@ -32,7 +32,8 @@ public sealed class MovieIdentityResolverTests
                 true,
                 false,
                 false)),
-            new FakeSearchMoviesService());
+            new FakeSearchMoviesService(),
+            NullAiRecommendationPerfContext.Instance);
 
         var result = await resolver.ResolveAsync(
             new AiProviderSuggestion("Arrival", 2016, "movie", 329996, "Reason"));
@@ -104,7 +105,8 @@ public sealed class MovieIdentityResolverTests
                 1,
                 10,
                 1,
-                1)));
+                1)),
+            NullAiRecommendationPerfContext.Instance);
 
         var result = await resolver.ResolveAsync(
             new AiProviderSuggestion("Arrival", 2016, "movie", 1, "Reason"));
@@ -126,7 +128,8 @@ public sealed class MovieIdentityResolverTests
                 1,
                 10,
                 2,
-                1)));
+                1)),
+            NullAiRecommendationPerfContext.Instance);
 
         var result = await resolver.ResolveAsync(
             new AiProviderSuggestion("Arrival", 2016, "movie", null, "Reason"));
@@ -139,7 +142,8 @@ public sealed class MovieIdentityResolverTests
     {
         var resolver = new MovieIdentityResolver(
             new FakeGetMovieByTmdbIdService(_ => throw new InvalidOperationException()),
-            new FakeSearchMoviesService());
+            new FakeSearchMoviesService(),
+            NullAiRecommendationPerfContext.Instance);
 
         var result = await resolver.ResolveAsync(
             new AiProviderSuggestion("Show", 2020, "tv", null, "Reason"));
