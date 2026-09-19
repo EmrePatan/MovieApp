@@ -12,6 +12,8 @@ namespace MovieApp.UnitTests.Email;
 
 public sealed class ResendVerificationEmailSenderTests
 {
+    private const string VerifyUrl = "movieapp://verify-email?token=raw-token-value";
+
     [Fact]
     public async Task SendVerificationEmailAsyncUsesStableIdempotencyKeyAcrossRetries()
     {
@@ -19,15 +21,8 @@ public sealed class ResendVerificationEmailSenderTests
         var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var sender = CreateSender(handler);
 
-        await sender.SendVerificationEmailAsync(
-            tokenId,
-            "user@example.com",
-            "movieapp://verify-email?token=raw-token-value");
-
-        await sender.SendVerificationEmailAsync(
-            tokenId,
-            "user@example.com",
-            "movieapp://verify-email?token=raw-token-value");
+        await sender.SendVerificationEmailAsync(tokenId, "user@example.com", VerifyUrl);
+        await sender.SendVerificationEmailAsync(tokenId, "user@example.com", VerifyUrl);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.All(
@@ -38,7 +33,7 @@ public sealed class ResendVerificationEmailSenderTests
     }
 
     [Fact]
-    public async Task SendVerificationEmailAsyncRequestContainsOnlyRequiredEmailPayload()
+    public async Task SendVerificationEmailAsyncRequestContainsHtmlTextPayloadAndCtaUrl()
     {
         const string apiKey = "re_test_api_key_value";
         var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -47,7 +42,7 @@ public sealed class ResendVerificationEmailSenderTests
         await sender.SendVerificationEmailAsync(
             Guid.NewGuid(),
             "user@example.com",
-            "movieapp://verify-email?token=raw-token-value");
+            VerifyUrl);
 
         var request = handler.Requests.Single();
         var body = await request.Content!.ReadAsStringAsync();
@@ -59,10 +54,38 @@ public sealed class ResendVerificationEmailSenderTests
 
         using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
-        Assert.Equal("MovieApp <noreply@movieapp.test>", root.GetProperty("from").GetString());
+        Assert.Equal("Movie Cave <noreply@movieapp.test>", root.GetProperty("from").GetString());
         Assert.Equal("user@example.com", root.GetProperty("to")[0].GetString());
-        Assert.Equal("Verify your MovieApp email address", root.GetProperty("subject").GetString());
-        Assert.Contains("movieapp://verify-email?token=raw-token-value", root.GetProperty("text").GetString());
+        Assert.Equal(MovieCaveVerificationEmailContent.Subject, root.GetProperty("subject").GetString());
+
+        var text = root.GetProperty("text").GetString();
+        Assert.NotNull(text);
+        Assert.Contains(VerifyUrl, text, StringComparison.Ordinal);
+        Assert.Contains("Movie Cave", text, StringComparison.Ordinal);
+
+        var html = root.GetProperty("html").GetString();
+        Assert.NotNull(html);
+        Assert.Contains($"href=\"{VerifyUrl}\"", html, StringComparison.Ordinal);
+        Assert.Contains("Verify Email Address &rarr;", html, StringComparison.Ordinal);
+        Assert.Contains("One more step to the good stuff.", html, StringComparison.Ordinal);
+        Assert.Contains("Movie Cave", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendVerificationEmailAsyncIncludesConfiguredHeroImageInHtml()
+    {
+        const string heroImageUrl = "https://cdn.example.com/movie-cave/email-hero.jpg";
+        var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var sender = CreateSender(handler, heroImageUrl: heroImageUrl);
+
+        await sender.SendVerificationEmailAsync(Guid.NewGuid(), "user@example.com", VerifyUrl);
+
+        var body = await handler.Requests.Single().Content!.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var html = document.RootElement.GetProperty("html").GetString();
+
+        Assert.NotNull(html);
+        Assert.Contains($"src=\"{heroImageUrl}\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -78,14 +101,16 @@ public sealed class ResendVerificationEmailSenderTests
 
     private static ResendVerificationEmailSender CreateSender(
         HttpMessageHandler handler,
-        string apiKey = "re_test_api_key_value") =>
+        string apiKey = "re_test_api_key_value",
+        string? heroImageUrl = null) =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.resend.com/") },
             Options.Create(new ResendVerificationEmailOptions
             {
                 ApiKey = apiKey,
                 FromAddress = "noreply@movieapp.test",
-                FromName = "MovieApp"
+                FromName = "Movie Cave",
+                HeroImageUrl = heroImageUrl ?? string.Empty
             }),
             Options.Create(new EmailVerificationOptions
             {

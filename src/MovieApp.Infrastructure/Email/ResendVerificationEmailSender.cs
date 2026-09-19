@@ -28,6 +28,10 @@ public sealed class ResendVerificationEmailSender(
                 "Resend verification email sender is not configured. Set Authentication:EmailVerification:Resend.");
         }
 
+        var heroImageUrl = string.IsNullOrWhiteSpace(options.HeroImageUrl)
+            ? null
+            : options.HeroImageUrl.Trim();
+
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
         request.Headers.TryAddWithoutValidation(
@@ -36,8 +40,9 @@ public sealed class ResendVerificationEmailSender(
         request.Content = JsonContent.Create(new ResendEmailRequest(
             $"{options.FromName} <{options.FromAddress}>",
             [toEmail],
-            "Verify your MovieApp email address",
-            $"Use the link below to verify your email address. If you did not create an account, you can ignore this email.\n\n{verifyUrl}"));
+            MovieCaveVerificationEmailContent.Subject,
+            MovieCaveVerificationEmailContent.BuildPlainText(verifyUrl),
+            MovieCaveVerificationEmailContent.BuildHtml(verifyUrl, heroImageUrl)));
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(
@@ -86,7 +91,8 @@ public sealed class ResendVerificationEmailSender(
         string From,
         IReadOnlyList<string> To,
         string Subject,
-        string Text);
+        string Text,
+        string Html);
 
     private sealed class ResendEmailResponse
     {
