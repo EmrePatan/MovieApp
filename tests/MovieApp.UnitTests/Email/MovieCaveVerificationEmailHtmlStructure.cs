@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using MovieApp.Infrastructure.Email;
@@ -14,7 +15,7 @@ internal static class MovieCaveVerificationEmailHtmlStructure
         @"\sbgcolor\s*=\s*""[^""]*""[^>]*\sbgcolor\s*=\s*""",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    public static void AssertStructurallyValid(string html, string verifyUrl)
+    public static void AssertStructurallyValid(string html, string verifyUrl, string? logoImageUrl = null)
     {
         Assert.False(DuplicateStyleAttributePattern.IsMatch(html), "Generated HTML contains duplicate style attributes on the same tag.");
         Assert.False(DuplicateBgColorAttributePattern.IsMatch(html), "Generated HTML contains duplicate bgcolor attributes on the same tag.");
@@ -27,6 +28,24 @@ internal static class MovieCaveVerificationEmailHtmlStructure
 
         document.LoadHtml(html);
         Assert.NotNull(document.DocumentNode);
+
+        if (!string.IsNullOrWhiteSpace(logoImageUrl))
+        {
+            var headerLogo = document.DocumentNode.SelectSingleNode(
+                $"//img[contains(concat(' ', normalize-space(@class), ' '), ' {MovieCaveVerificationEmailContent.HeaderLogoMarkerClass} ')]");
+            Assert.NotNull(headerLogo);
+            Assert.Equal(logoImageUrl, headerLogo.GetAttributeValue("src", string.Empty));
+            Assert.Equal("Movie Cave", headerLogo.GetAttributeValue("alt", string.Empty));
+            Assert.Equal(
+                MovieCaveVerificationEmailContent.HeaderLogoDisplayWidthPx.ToString(CultureInfo.InvariantCulture),
+                headerLogo.GetAttributeValue("width", string.Empty));
+
+            var logoStyle = headerLogo.GetAttributeValue("style", string.Empty);
+            Assert.Contains(
+                $"width:{MovieCaveVerificationEmailContent.HeaderLogoDisplayWidthPx}px",
+                logoStyle,
+                StringComparison.Ordinal);
+        }
 
         var badgeTable = document.DocumentNode.SelectSingleNode(
             $"//table[contains(concat(' ', normalize-space(@class), ' '), ' {MovieCaveVerificationEmailContent.EnvelopeBadgeMarkerClass} ')]");

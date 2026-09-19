@@ -14,9 +14,11 @@ public static class MovieCaveVerificationEmailContent
     internal const string PrimaryTextColor = "#FFFFFF";
     internal const string SecondaryTextColor = "#D8D2C8";
     internal const string SansFontStack = "Arial,Helvetica,sans-serif";
+    internal const string HeaderLogoMarkerClass = "movie-cave-header-logo";
     internal const string EnvelopeBadgeMarkerClass = "movie-cave-envelope-badge";
     internal const string CtaButtonMarkerClass = "movie-cave-cta-button";
     internal const string FeatureRowMarkerClass = "movie-cave-feature-row";
+    internal const int HeaderLogoDisplayWidthPx = 175;
 
     private const string HeroHeadlineText = "One more step to the good stuff.";
 
@@ -42,11 +44,12 @@ public static class MovieCaveVerificationEmailContent
         Movie Cave
         """;
 
-    public static string BuildHtml(string verifyUrl, string? heroImageUrl)
+    public static string BuildHtml(string verifyUrl, string? heroImageUrl, string? logoImageUrl = null)
     {
         var encodedVerifyUrl = WebUtility.HtmlEncode(verifyUrl);
         var encodedSubject = WebUtility.HtmlEncode(Subject);
         var heroSectionHtml = BuildHeroSectionHtml(heroImageUrl);
+        var headerLogoHtml = BuildHeaderLogoHtml(logoImageUrl);
 
         var builder = new StringBuilder(12_288);
         builder.Append("""
@@ -112,11 +115,9 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(SurfaceAttributes(CardColor, "width:600px;max-width:600px;border:1px solid #3A3228;"));
         builder.Append("><tr><td align=\"center\" class=\"section-padding\" ");
         builder.Append(SurfaceAttributes(CardColor, "padding:24px 32px 8px 32px;"));
-        builder.Append("><p style=\"margin:0;font-family:");
-        builder.Append(SansFontStack);
-        builder.Append(";font-size:12px;letter-spacing:0.32em;text-transform:uppercase;color:");
-        builder.Append(GoldAccentColor);
-        builder.Append(";font-weight:700;\">Movie Cave</p></td></tr>");
+        builder.Append('>');
+        builder.Append(headerLogoHtml);
+        builder.Append("</td></tr>");
         builder.Append(heroSectionHtml);
         builder.Append("<tr><td align=\"center\" class=\"section-padding\" ");
         builder.Append(SurfaceAttributes(CardColor, "padding:24px 32px 8px 32px;"));
@@ -150,6 +151,37 @@ public static class MovieCaveVerificationEmailContent
         builder.Append("</table></td></tr></table></body></html>");
 
         return builder.ToString();
+    }
+
+    private static string BuildHeaderLogoHtml(string? logoImageUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(logoImageUrl) &&
+            Uri.TryCreate(logoImageUrl.Trim(), UriKind.Absolute, out var logoUri) &&
+            (logoUri.Scheme == Uri.UriSchemeHttps || logoUri.Scheme == Uri.UriSchemeHttp))
+        {
+            var encodedLogoUrl = WebUtility.HtmlEncode(logoUri.ToString());
+            var builder = new StringBuilder();
+            builder.Append("<img class=\"");
+            builder.Append(HeaderLogoMarkerClass);
+            builder.Append("\" src=\"");
+            builder.Append(encodedLogoUrl);
+            builder.Append("\" width=\"");
+            builder.Append(HeaderLogoDisplayWidthPx);
+            builder.Append("\" alt=\"Movie Cave\" style=\"display:block;width:");
+            builder.Append(HeaderLogoDisplayWidthPx);
+            builder.Append("px;max-width:");
+            builder.Append(HeaderLogoDisplayWidthPx);
+            builder.Append("px;height:auto;border:0;\" />");
+            return builder.ToString();
+        }
+
+        var fallback = new StringBuilder();
+        fallback.Append("<p style=\"margin:0;font-family:");
+        fallback.Append(SansFontStack);
+        fallback.Append(";font-size:12px;letter-spacing:0.32em;text-transform:uppercase;color:");
+        fallback.Append(GoldAccentColor);
+        fallback.Append(";font-weight:700;\">Movie Cave</p>");
+        return fallback.ToString();
     }
 
     private static string BuildHeroSectionHtml(string? heroImageUrl)

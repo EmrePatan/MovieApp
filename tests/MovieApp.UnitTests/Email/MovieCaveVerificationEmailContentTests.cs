@@ -6,6 +6,7 @@ public sealed class MovieCaveVerificationEmailContentTests
 {
     private const string VerifyUrl = "movieapp://verify-email?token=raw-token-value";
     private const string HeroImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/verification-hero-v2.jpg";
+    private const string LogoImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/movie-cave-horizontal-logo-v1.png";
 
     private static string CommittedSnapshotPath =>
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Email", "Snapshots", "movie-cave-verification-email.snapshot.html"));
@@ -32,6 +33,7 @@ public sealed class MovieCaveVerificationEmailContentTests
         var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, heroImageUrl: null);
 
         Assert.Contains("Movie Cave", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(MovieCaveVerificationEmailContent.HeaderLogoMarkerClass, html, StringComparison.Ordinal);
         Assert.Contains("One more step to the good stuff.", html, StringComparison.Ordinal);
         Assert.Contains("Verify your email address", html, StringComparison.Ordinal);
         Assert.Contains("Verify Email Address &rarr;", html, StringComparison.Ordinal);
@@ -52,9 +54,9 @@ public sealed class MovieCaveVerificationEmailContentTests
     [Fact]
     public void BuildHtmlStructureIsValidForGmailSafeBadgeCtaAndFeatureRow()
     {
-        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl);
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl, LogoImageUrl);
 
-        MovieCaveVerificationEmailHtmlStructure.AssertStructurallyValid(html, VerifyUrl);
+        MovieCaveVerificationEmailHtmlStructure.AssertStructurallyValid(html, VerifyUrl, LogoImageUrl);
         Assert.Contains(MovieCaveVerificationEmailContent.EnvelopeBadgeMarkerClass, html, StringComparison.Ordinal);
         Assert.Contains(MovieCaveVerificationEmailContent.CtaButtonMarkerClass, html, StringComparison.Ordinal);
         Assert.Contains(MovieCaveVerificationEmailContent.FeatureRowMarkerClass, html, StringComparison.Ordinal);
@@ -64,7 +66,7 @@ public sealed class MovieCaveVerificationEmailContentTests
     [Fact]
     public void BuildHtmlMatchesCommittedSnapshotArtifact()
     {
-        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl);
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl, LogoImageUrl);
 
         if (Environment.GetEnvironmentVariable("WRITE_EMAIL_SNAPSHOT") == "1")
         {
@@ -93,10 +95,14 @@ public sealed class MovieCaveVerificationEmailContentTests
     [Fact]
     public void BuildHtmlUsesConfiguredHeroImageWhenProvided()
     {
-        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl);
+        var html = MovieCaveVerificationEmailContent.BuildHtml(VerifyUrl, HeroImageUrl, LogoImageUrl);
 
         Assert.Contains($"src=\"{HeroImageUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("alt=\"Movie Cave cinematic hero\"", html, StringComparison.Ordinal);
+        Assert.Contains($"src=\"{LogoImageUrl}\"", html, StringComparison.Ordinal);
+        Assert.Contains("alt=\"Movie Cave\"", html, StringComparison.Ordinal);
+        Assert.Contains(MovieCaveVerificationEmailContent.HeaderLogoMarkerClass, html, StringComparison.Ordinal);
+        Assert.Contains($"width=\"{MovieCaveVerificationEmailContent.HeaderLogoDisplayWidthPx}\"", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"{VerifyUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("hero-headline", html, StringComparison.Ordinal);
     }

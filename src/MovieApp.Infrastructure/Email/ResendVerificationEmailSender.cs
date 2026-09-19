@@ -32,6 +32,7 @@ public sealed class ResendVerificationEmailSender(
         var heroImageUrl = VerificationEmailHeroUrlResolver.Resolve(
             options.HeroImageUrl,
             appOptions.Value.PublicBaseUrl);
+        var logoImageUrl = VerificationEmailLogoUrlResolver.Resolve(appOptions.Value.PublicBaseUrl);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
@@ -43,7 +44,7 @@ public sealed class ResendVerificationEmailSender(
             [toEmail],
             MovieCaveVerificationEmailContent.Subject,
             MovieCaveVerificationEmailContent.BuildPlainText(verifyUrl),
-            MovieCaveVerificationEmailContent.BuildHtml(verifyUrl, heroImageUrl)));
+            MovieCaveVerificationEmailContent.BuildHtml(verifyUrl, heroImageUrl, logoImageUrl)));
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(
