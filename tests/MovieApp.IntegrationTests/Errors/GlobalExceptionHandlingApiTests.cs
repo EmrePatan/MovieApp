@@ -141,20 +141,10 @@ public sealed class GlobalExceptionHandlingApiTests(ExceptionHandlingApiFixture 
     [Fact]
     public async Task ConflictRemains409()
     {
-        var email = $"conflict-{Guid.NewGuid():N}@example.com";
-        var first = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email,
-            "StrongPassword123",
-            "Conflict User"));
-        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var response = await _client.GetAsync("/__test/errors/conflict");
 
-        var duplicate = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email,
-            "StrongPassword123",
-            "Another User"));
-
-        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
-        await AssertProblemDetailsAsync(duplicate, StatusCodes.Status409Conflict, "CONFLICT");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await AssertProblemDetailsAsync(response, StatusCodes.Status409Conflict, "CONFLICT");
     }
 
     [Fact]

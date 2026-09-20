@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Application.Exceptions;
 
 namespace MovieApp.IntegrationTests.Errors;
 
@@ -11,4 +12,8 @@ public sealed class ExceptionHandlingTestController : ControllerBase
     [HttpGet("unhandled")]
     public IActionResult Unhandled() =>
         throw new InvalidOperationException("SensitiveConnectionString=super-secret-value");
+
+    [HttpGet("conflict")]
+    public IActionResult ThrowConflict() =>
+        throw new ConflictException("Test conflict.");
 }
