@@ -6,6 +6,8 @@ public sealed class ForwardedHeadersOptionsConfig
 
     public bool Enabled { get; set; }
 
+    public bool UseRenderProxyTrustDefaults { get; set; }
+
     public string[] KnownProxies { get; set; } = [];
 
     public string[] KnownNetworks { get; set; } = [];

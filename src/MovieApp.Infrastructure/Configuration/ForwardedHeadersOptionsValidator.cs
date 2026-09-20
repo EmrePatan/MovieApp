@@ -9,30 +9,30 @@ public sealed class ForwardedHeadersOptionsValidator(IHostEnvironment hostEnviro
 {
     public ValidateOptionsResult Validate(string? name, ForwardedHeadersOptionsConfig options)
     {
-        if (!hostEnvironment.IsProduction())
+        if (!hostEnvironment.IsProduction() || !options.Enabled)
         {
             return ValidateOptionsResult.Success;
         }
 
-        if (!options.Enabled)
+        if (options.UseRenderProxyTrustDefaults || HasExplicitTrustedProxies(options))
         {
             return ValidateOptionsResult.Success;
         }
 
+        return ValidateOptionsResult.Fail(
+            "ForwardedHeaders:Enabled is true in Production but neither UseRenderProxyTrustDefaults nor explicit KnownProxies/KnownNetworks are configured. " +
+            "Enable UseRenderProxyTrustDefaults for Render/Cloudflare proxy chains or configure explicit trusted proxy IPs/CIDR ranges.");
+    }
+
+    private static bool HasExplicitTrustedProxies(ForwardedHeadersOptionsConfig options)
+    {
         var hasKnownProxy = options.KnownProxies.Any(static proxy =>
             !string.IsNullOrWhiteSpace(proxy) && IPAddress.TryParse(proxy.Trim(), out _));
 
         var hasKnownNetwork = options.KnownNetworks.Any(static network =>
             !string.IsNullOrWhiteSpace(network) && TryParseCidr(network.Trim(), out _));
 
-        if (!hasKnownProxy && !hasKnownNetwork)
-        {
-            return ValidateOptionsResult.Fail(
-                "ForwardedHeaders:Enabled is true in Production but no trusted KnownProxies or KnownNetworks are configured. " +
-                "Configure explicit load-balancer proxy IPs or CIDR ranges to avoid trusting arbitrary X-Forwarded-* headers.");
-        }
-
-        return ValidateOptionsResult.Success;
+        return hasKnownProxy || hasKnownNetwork;
     }
 
     private static bool TryParseCidr(string value, out System.Net.IPNetwork network)

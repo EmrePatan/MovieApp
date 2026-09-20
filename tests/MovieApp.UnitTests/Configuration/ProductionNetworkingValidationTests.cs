@@ -134,7 +134,23 @@ public sealed class ProductionNetworkingValidationTests
             new ForwardedHeadersOptionsConfig { Enabled = true });
 
         Assert.False(result.Succeeded);
-        Assert.Contains("KnownProxies", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("UseRenderProxyTrustDefaults", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ForwardedHeadersValidatorSucceedsProductionWhenEnabledWithRenderDefaults()
+    {
+        var validator = new ForwardedHeadersOptionsValidator(new FakeHostEnvironment("Production"));
+
+        var result = validator.Validate(
+            ForwardedHeadersOptionsConfig.SectionName,
+            new ForwardedHeadersOptionsConfig
+            {
+                Enabled = true,
+                UseRenderProxyTrustDefaults = true
+            });
+
+        Assert.True(result.Succeeded);
     }
 
     [Fact]

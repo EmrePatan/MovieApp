@@ -4,7 +4,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MovieApp.Api.BackgroundJobs;
 using MovieApp.Api.EmailAssets;
 using MovieApp.Api.Cors;
-using MovieApp.Api.Diagnostics;
 using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Api.Health;
@@ -53,7 +52,6 @@ public static class ApplicationBootstrap
         }
 
         app.UseConfiguredForwardedHeaders();
-        app.UseTemporaryClientIpChainDiagnostic();
         app.UseSerilogRequestLogging(options =>
         {
             options.EnrichDiagnosticContext = static (diagnosticContext, httpContext) =>
