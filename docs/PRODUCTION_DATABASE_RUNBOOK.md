@@ -41,27 +41,24 @@ Registration: `DependencyInjection.AddInfrastructure()` → `UseNpgsql(connectio
 | `Redis:ConnectionString` | `Redis__ConnectionString` | StackExchange.Redis connection string |
 | `Redis:InstanceName` | `Redis__InstanceName` | Key prefix (default `MovieApp:`) |
 
-If `ConnectionString` is empty, the API falls back to `DistributedMemoryCache` (single-instance only).
+If `ConnectionString` is empty in **Development/Testing**, the API falls back to `DistributedMemoryCache` (single-instance only).
+
+**Production:** `RedisOptionsValidator` requires a managed `Redis__ConnectionString` at startup. An empty Redis configuration prevents the API from starting in Production.
 
 ---
 
 ## EF Core migrations
 
-### Current migration history (8)
-
-| Migration | Purpose |
-|-----------|---------|
-| `20260911114142_InitialMovieCatalog` | Movies, TV, genres, people |
-| `20260911123034_AddUsersAndAuthentication` | Users |
-| `20260911130446_AddFavoritesAndWatchlists` | Favorites, watchlists |
-| `20260911131920_AddRatingsAndReviews` | Ratings, reviews |
-| `20260911133042_AddWatchHistory` | Watch history |
-| `20260911134310_AddSearchHistory` | Search history |
-| `20260911135245_AddUserSecurityStamp` | JWT revocation stamp |
-| `20260912135301_AddPasswordResetTokens` | Password reset tokens |
-
 Project: `src/MovieApp.Infrastructure`  
 Startup project: `src/MovieApp.Api`
+
+List the current migration history for the checked-out release:
+
+```bash
+dotnet ef migrations list \
+  --project src/MovieApp.Infrastructure \
+  --startup-project src/MovieApp.Api
+```
 
 ### Automatic migration at startup
 
@@ -101,7 +98,7 @@ Append to the managed provider connection string (example — adjust for your ho
 SSL Mode=Require;Trust Server Certificate=false;Pooling=true;Maximum Pool Size=50;Command Timeout=30
 ```
 
-Npgsql retry (`EnableRetryOnFailure`) is **not** configured today — add in a future hardening step (29E-3+).
+EF Core is configured with Npgsql `EnableRetryOnFailure` (3 retries) for transient connection blips.
 
 ---
 
@@ -143,9 +140,10 @@ There is **no** startup guard that rejects `Fake` in Production today — this r
 |----------|--------|
 | Role | **Disposable cache** — search/home/recommendation/discovery TTL caches |
 | Business data | **No** — user data lives in PostgreSQL |
-| Required for startup | **No** — API starts without Redis (in-memory fallback) |
-| Required for readiness | **Only when** `Redis__ConnectionString` is configured — then `/health/ready` checks Redis |
+| Required for startup (Production) | **Yes** — empty `Redis__ConnectionString` fails startup validation |
+| Required for readiness | **Yes in Production** — `/health/ready` checks Redis when configured |
 | Required for multi-instance | **Yes** — without shared Redis, each instance has its own memory cache |
+| Runtime outage behavior | Cache misses only; **auth/search rate limits fail closed** in Production (no per-instance in-memory fallback) |
 | Backup | **Not required** for V1 — cache repopulates on demand |
 | AOF/RDB on local Compose | Enabled for dev durability of cache only — not a production backup strategy |
 
@@ -217,10 +215,49 @@ Expected tables include: `Movies`, `TvShows`, `Users`, `Favorites`, `Watchlists`
 
 ### Health endpoints
 
-| Endpoint | Behavior |
-|----------|----------|
-| `GET /health` | Always `200` — process liveness |
-| `GET /health/ready` | `200` when PostgreSQL (+ Redis if configured) are reachable |
+| Endpoint | Use on Render / load balancer | Behavior |
+|----------|-------------------------------|----------|
+| `GET /health/live` | **Liveness / platform health check** | Always `200` when Kestrel is running — no dependency probes |
+| `GET /health` | Legacy alias of liveness | Same as `/health/live` |
+| `GET /health/ready` | **Post-deploy smoke / readiness gate** | `200` only when PostgreSQL, pending-migration check, and Redis (when configured) pass |
+
+Readiness JSON includes `sourceVersion`, `environment`, `timestamp`, and per-check status without leaking connection secrets.
+
+**Render Free cold start:** point the web service health check at `/health/live`, not `/health/ready`. Use `/health/ready` manually after deploy or in a smoke-test step. The API does not auto-run migrations at startup; schema drift surfaces as `database-migrations` unhealthy on `/health/ready`.
+
+---
+
+## Production deployment order (API + database)
+
+The API **never** calls `Database.Migrate()` at startup. Migrations are forward-only and operator-controlled.
+
+1. **Backup** — confirm managed PostgreSQL backup/PITR is enabled and recent.
+2. **Migrate** — run the GitHub Actions workflow:
+   - Staging: `staging-database-migrate.yml` (confirm `staging`)
+   - Production: `production-database-migrate.yml` (confirm `production`)
+   - Requires secrets `MOVIEAPP_STAGING_POSTGRES_CONNECTION` / `MOVIEAPP_PRODUCTION_POSTGRES_CONNECTION`
+3. **Deploy API** — publish the Docker image built with `MOVIEAPP_SOURCE_VERSION=<git-sha>`.
+4. **Verify**
+   - `GET /health/live` → `200` (process up)
+   - `GET /health/ready` → `200` (dependencies + schema current)
+   - Authenticated smoke test (login, search)
+5. **Rollback**
+   - **API only:** redeploy the previous image — safe when schema unchanged.
+   - **Database:** EF does not auto-rollback. Prefer a forward-fix migration; otherwise restore PostgreSQL from backup/PITR to a new instance and repoint the API.
+
+**Failure behavior:** If the migration workflow fails, **do not** deploy the new API version. If `/health/ready` reports pending migrations, block traffic until the migration workflow succeeds.
+
+**Destructive operations:** Never run `dotnet ef database drop` against production. Integration tests use isolated databases with `EnsureDeletedAsync()` only in test fixtures.
+
+### External platform configuration (not in git)
+
+| Platform | Action |
+|----------|--------|
+| **Render web service** | Health check path = `/health/live`; set env vars from secret manager |
+| **Render PostgreSQL** | Enable automated backups (7–30 day retention) and PITR if available |
+| **Render Redis** | Provision managed Redis with AUTH/TLS; set `Redis__ConnectionString` |
+| **GitHub Actions** | Store production/staging Postgres connection strings as repository secrets |
+| **Docker build** | Pass `--build-arg MOVIEAPP_SOURCE_VERSION=$GIT_SHA` (CI does this automatically) |
 
 ---
 

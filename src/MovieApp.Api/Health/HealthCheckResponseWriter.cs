@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
+using MovieApp.Application;
 
 namespace MovieApp.Api.Health;
 
@@ -17,9 +19,14 @@ internal static class HealthCheckResponseWriter
             ? StatusCodes.Status200OK
             : StatusCodes.Status503ServiceUnavailable;
 
+        var environment = context.RequestServices.GetRequiredService<IHostEnvironment>();
+
         var payload = new
         {
             status = report.Status.ToString(),
+            timestamp = DateTimeOffset.UtcNow,
+            environment = environment.EnvironmentName,
+            sourceVersion = ApplicationSourceVersion.Resolve(),
             totalDuration = report.TotalDuration.TotalMilliseconds,
             checks = report.Entries.ToDictionary(
                 entry => entry.Key,

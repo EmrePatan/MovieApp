@@ -1,5 +1,4 @@
 using MovieApp.Api;
-using MovieApp.Api.Health;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -13,8 +12,6 @@ ApplicationBootstrap.ConfigureBuilder(builder);
 var app = builder.Build();
 
 ApplicationBootstrap.ConfigurePipeline(app);
-
-await DatabaseSchemaStartupValidator.EnsureCurrentAsync(app);
 
 try
 {

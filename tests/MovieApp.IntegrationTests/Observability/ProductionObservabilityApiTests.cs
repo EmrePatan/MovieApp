@@ -113,6 +113,8 @@ public sealed class ProductionObservabilityApiTests(ProductionObservabilityApiFi
 
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("postgresql", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sourceVersion", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("environment", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

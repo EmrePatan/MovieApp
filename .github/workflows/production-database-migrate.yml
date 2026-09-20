@@ -385,7 +385,7 @@ jobs:
       - name: Build startup project (Release)
         run: dotnet build src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-restore
 
-      - name: Apply EF Core migrations to staging database
+      - name: Apply EF Core migrations to production database
         run: |
           NPgsql_CONNECTION_FILE="$RUNNER_TEMP/npgsql-connection.txt"
           if [ ! -f "$NPgsql_CONNECTION_FILE" ]; then

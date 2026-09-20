@@ -15,4 +15,10 @@ internal static partial class RedisRateLimitCounterLogMessages
         Level = LogLevel.Warning,
         Message = "Falling back to in-memory rate limiting for partition {PartitionKey}.")]
     public static partial void LogFallbackToInMemory(ILogger logger, string partitionKey, Exception exception);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Warning,
+        Message = "Redis rate limiting unavailable in production for partition {PartitionKey}. Denying request.")]
+    public static partial void LogProductionUnavailable(ILogger logger, string partitionKey, Exception exception);
 }
