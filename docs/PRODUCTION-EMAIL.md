@@ -2,6 +2,12 @@
 
 Movie Cave transactional email (password reset + email verification) is delivered through [Resend](https://resend.com) HTTP API.
 
+## Status (#28)
+
+**Implemented in:** `b5f9630535160cacccb400819a557a1d7587d591` (shared Resend config, production sender validation, failure logging, SMTP removal).
+
+**Remaining operator work:** verify a custom sending domain in Resend, set Render env vars below, and smoke-test verification + password-reset email delivery.
+
 ---
 
 ## Application configuration
