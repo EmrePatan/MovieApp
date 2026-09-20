@@ -153,6 +153,9 @@ Any credential exposed during development or staging must **not** be reused in p
 | TMDB | `MovieProviders:Provider` = `Tmdb`; `MovieProviders:Tmdb:ApiKey` / `ReadAccessToken` / `BaseUrl` | [ ] | [ ] |
 | Release region | `ReleaseRegion:DefaultRegion` → `ReleaseRegion__DefaultRegion` (non-secret; default `TR`) | [ ] | [ ] |
 | Push notifications | `PushNotifications:Enabled` → `PushNotifications__Enabled`; `MaxAttempts`, `DispatchBatchSize` | [ ] | [ ] |
+| Resend email (shared) | `Authentication:Email:Resend` → `Authentication__Email__Resend__ApiKey`, `FromAddress`, `FromName` (verified custom domain; not `*@resend.dev`) | [ ] | [ ] |
+| Password reset email | `Authentication:PasswordReset:EmailProvider=Resend`; `BaseUrl` → `Authentication__PasswordReset__BaseUrl` | [ ] | [ ] |
+| Email verification | `Authentication:EmailVerification:BaseUrl` → `Authentication__EmailVerification__BaseUrl` | [ ] | [ ] |
 | Public URL | `App:PublicBaseUrl` → `App__PublicBaseUrl` | [ ] | [ ] |
 | Allowed hosts | `AllowedHosts` → hostname from `App__PublicBaseUrl` (e.g. `movieapp-fpkg.onrender.com`) | [ ] | [ ] |
 | CORS | `Cors:Enabled`, `Cors:AllowedOrigins` → `Cors__Enabled`, `Cors__AllowedOrigins` | [ ] | [ ] |

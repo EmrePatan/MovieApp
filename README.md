@@ -481,10 +481,10 @@ curl -X POST http://localhost:5000/api/auth/reset-password \
 - Password reset tokens are cryptographically random, short-lived (default 60 minutes), single-use, and stored only as SHA-256 digests
 - Forgot-password responses do not reveal whether an email is registered
 - Auth endpoints are rate limited (configurable via `Authentication:RateLimit`); exceeded limits return `429 Too Many Requests`
-- Email delivery uses `IEmailSender`:
+- Transactional email (password reset + verification) uses Resend HTTP delivery jobs in non-development environments
   - **Development:** `DevelopmentEmailSender` when `Authentication:PasswordReset:EmailProvider=Development`
   - **Testing:** `CapturingEmailSender` (integration tests only)
-  - **Production:** requires `EmailProvider=Smtp` with configured `Authentication:Email:Smtp` settings; startup fails if SMTP is not configured (no silent no-op sender)
+  - **Production:** requires `EmailProvider=Resend` and configured `Authentication:Email:Resend` (verified custom-domain sender); startup fails if Resend is not configured
 - Reset token consumption is atomic (`ExecuteUpdate` with `UsedAtUtc IS NULL`) inside a database transaction with password change
 - Auth rate limiting uses fixed-window limits per client IP + request path (V1 trade-off: shared NAT may group users; enable forwarded headers only for trusted proxies)
 
@@ -500,30 +500,29 @@ Generating a new reset token invalidates previous active tokens for the same use
 
 ### Production email configuration
 
-Production deployments must configure deliverable email before password reset can run:
+See `docs/PRODUCTION-EMAIL.md` for Resend custom-domain setup, Render env vars, and operator checklist.
 
 ```json
 "Authentication": {
   "PasswordReset": {
-    "EmailProvider": "Smtp",
+    "EmailProvider": "Resend",
     "TokenLifetimeMinutes": 60,
     "BaseUrl": "movieapp://reset-password"
   },
+  "EmailVerification": {
+    "BaseUrl": "movieapp://verify-email"
+  },
   "Email": {
-    "Smtp": {
-      "Host": "smtp.example.com",
-      "Port": 587,
-      "Username": "",
-      "Password": "",
-      "FromAddress": "noreply@example.com",
-      "FromName": "MovieApp",
-      "EnableSsl": true
+    "Resend": {
+      "ApiKey": "",
+      "FromAddress": "noreply@<your-verified-domain>",
+      "FromName": "Movie Cave"
     }
   }
 }
 ```
 
-Provide SMTP credentials via user secrets or environment variables. The API validates this configuration at startup in non-development environments and will fail fast rather than silently accepting forgot-password requests without delivery.
+Provide Resend credentials via environment variables. Production startup rejects onboarding senders (`*@resend.dev`) and unconfigured Resend settings.
 
 Forwarded client IP headers are trusted only when `ForwardedHeaders:Enabled` is true with explicitly configured known proxies/networks.
 

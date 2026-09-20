@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
@@ -12,6 +11,7 @@ namespace MovieApp.Infrastructure.Email;
 public sealed class ResendVerificationEmailSender(
     HttpClient httpClient,
     IOptions<ResendVerificationEmailOptions> resendOptions,
+    IOptions<SharedResendEmailOptions> sharedResendOptions,
     IOptions<EmailVerificationOptions> emailVerificationOptions,
     IOptions<AppOptions> appOptions,
     ILogger<ResendVerificationEmailSender> logger) : IEmailVerificationEmailSender
@@ -23,25 +23,29 @@ public sealed class ResendVerificationEmailSender(
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var options = resendOptions.Value;
-        if (!options.IsConfigured())
+        var effective = ResendEmailDeliverySettingsResolver.Resolve(
+            resendOptions.Value.ApiKey,
+            resendOptions.Value.FromAddress,
+            resendOptions.Value.FromName,
+            sharedResendOptions.Value);
+        if (!effective.IsConfigured())
         {
             throw new InvalidOperationException(
-                "Resend verification email sender is not configured. Set Authentication:EmailVerification:Resend.");
+                "Resend verification email sender is not configured. Set Authentication:Email:Resend or Authentication:EmailVerification:Resend.");
         }
 
         var heroImageUrl = VerificationEmailHeroUrlResolver.Resolve(
-            options.HeroImageUrl,
+            resendOptions.Value.HeroImageUrl,
             appOptions.Value.PublicBaseUrl);
         var logoImageUrl = VerificationEmailLogoUrlResolver.Resolve(appOptions.Value.PublicBaseUrl);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", effective.ApiKey);
         request.Headers.TryAddWithoutValidation(
             "Idempotency-Key",
             ResendVerificationEmailIdempotency.CreateKey(tokenId));
         request.Content = JsonContent.Create(new ResendEmailRequest(
-            $"{options.FromName} <{options.FromAddress}>",
+            $"{effective.FromName} <{effective.FromAddress}>",
             [toEmail],
             MovieCaveVerificationEmailContent.GetSubject(contentLocale),
             MovieCaveVerificationEmailContent.BuildPlainText(verifyUrl, contentLocale),
@@ -56,11 +60,13 @@ public sealed class ResendVerificationEmailSender(
             using var response = await httpClient.SendAsync(request, timeoutCts.Token);
             if (!response.IsSuccessStatusCode)
             {
+                var providerMessage = await ResendApiErrorReader.TryReadErrorMessageAsync(response, timeoutCts.Token);
                 ResendVerificationEmailLogMessages.LogDeliveryFailed(
                     logger,
                     tokenId,
                     (int)response.StatusCode,
-                    nameof(HttpRequestException));
+                    nameof(HttpRequestException),
+                    providerMessage);
 
                 throw new HttpRequestException(
                     $"Resend verification email delivery failed with status {(int)response.StatusCode}.");
@@ -74,7 +80,8 @@ public sealed class ResendVerificationEmailSender(
                 logger,
                 tokenId,
                 0,
-                nameof(TimeoutException));
+                nameof(TimeoutException),
+                null);
 
             throw new TimeoutException("Resend verification email delivery timed out.");
         }
@@ -84,7 +91,8 @@ public sealed class ResendVerificationEmailSender(
                 logger,
                 tokenId,
                 0,
-                exception.GetType().Name);
+                exception.GetType().Name,
+                null);
 
             throw;
         }
@@ -96,10 +104,4 @@ public sealed class ResendVerificationEmailSender(
         string Subject,
         string Text,
         string Html);
-
-    private sealed class ResendEmailResponse
-    {
-        [JsonPropertyName("id")]
-        public string? Id { get; init; }
-    }
 }

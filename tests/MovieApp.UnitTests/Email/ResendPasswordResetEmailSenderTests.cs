@@ -127,25 +127,57 @@ public sealed class ResendPasswordResetEmailSenderTests
     }
 
     [Fact]
+    public async Task SendPasswordResetEmailAsyncUsesSharedResendDefaultsWhenFlowSpecificValuesEmpty()
+    {
+        var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var sender = CreateSender(
+            handler,
+            resendOptions: new ResendPasswordResetEmailOptions(),
+            sharedResendOptions: new SharedResendEmailOptions
+            {
+                ApiKey = "re_shared_api_key_value",
+                FromAddress = "noreply@moviecave.example",
+                FromName = "Movie Cave"
+            });
+
+        await sender.SendPasswordResetEmailAsync(
+            Guid.NewGuid(),
+            "user@example.com",
+            ResetUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        var request = handler.Requests.Single();
+        Assert.Equal("re_shared_api_key_value", request.Headers.Authorization?.Parameter);
+
+        var body = await request.Content!.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        Assert.Equal(
+            "Movie Cave <noreply@moviecave.example>",
+            document.RootElement.GetProperty("from").GetString());
+    }
+
+    [Fact]
     public void VerificationEmailSenderRemainsSeparateFromPasswordResetDelivery()
     {
         Assert.False(typeof(IPasswordResetEmailSender).IsAssignableFrom(typeof(ResendVerificationEmailSender)));
         Assert.False(typeof(IEmailVerificationEmailSender).IsAssignableFrom(typeof(ResendPasswordResetEmailSender)));
-        Assert.False(typeof(IEmailVerificationEmailSender).IsAssignableFrom(typeof(SmtpEmailSender)));
     }
 
     private static ResendPasswordResetEmailSender CreateSender(
         HttpMessageHandler handler,
         string apiKey = "re_test_api_key_value",
-        string publicBaseUrl = "") =>
+        string publicBaseUrl = "",
+        ResendPasswordResetEmailOptions? resendOptions = null,
+        SharedResendEmailOptions? sharedResendOptions = null) =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.resend.com/") },
-            Options.Create(new ResendPasswordResetEmailOptions
+            Options.Create(resendOptions ?? new ResendPasswordResetEmailOptions
             {
                 ApiKey = apiKey,
                 FromAddress = "noreply@movieapp.test",
                 FromName = "Movie Cave"
             }),
+            Options.Create(sharedResendOptions ?? new SharedResendEmailOptions()),
             Options.Create(new PasswordResetOptions
             {
                 DeliveryTimeoutSeconds = 30,

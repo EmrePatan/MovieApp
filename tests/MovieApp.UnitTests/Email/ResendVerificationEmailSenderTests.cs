@@ -166,30 +166,52 @@ public sealed class ResendVerificationEmailSenderTests
     }
 
     [Fact]
-    public void SmtpEmailSenderDoesNotExposeVerificationDeliveryMethod()
+    public async Task SendVerificationEmailAsyncUsesSharedResendDefaultsWhenFlowSpecificValuesEmpty()
     {
-        var verificationMethod = typeof(SmtpEmailSender).GetMethod(
-            "SendEmailVerificationEmailAsync",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        var handler = new CapturingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var sender = CreateSender(
+            handler,
+            resendOptions: new ResendVerificationEmailOptions(),
+            sharedResendOptions: new SharedResendEmailOptions
+            {
+                ApiKey = "re_shared_api_key_value",
+                FromAddress = "noreply@moviecave.example",
+                FromName = "Movie Cave"
+            });
 
-        Assert.Null(verificationMethod);
-        Assert.False(typeof(IEmailVerificationEmailSender).IsAssignableFrom(typeof(SmtpEmailSender)));
+        await sender.SendVerificationEmailAsync(
+            Guid.NewGuid(),
+            "user@example.com",
+            VerifyUrl,
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        var request = handler.Requests.Single();
+        Assert.Equal("re_shared_api_key_value", request.Headers.Authorization?.Parameter);
+
+        var body = await request.Content!.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        Assert.Equal(
+            "Movie Cave <noreply@moviecave.example>",
+            document.RootElement.GetProperty("from").GetString());
     }
 
     private static ResendVerificationEmailSender CreateSender(
         HttpMessageHandler handler,
         string apiKey = "re_test_api_key_value",
         string? heroImageUrl = null,
-        string publicBaseUrl = "") =>
+        string publicBaseUrl = "",
+        ResendVerificationEmailOptions? resendOptions = null,
+        SharedResendEmailOptions? sharedResendOptions = null) =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.resend.com/") },
-            Options.Create(new ResendVerificationEmailOptions
+            Options.Create(resendOptions ?? new ResendVerificationEmailOptions
             {
                 ApiKey = apiKey,
                 FromAddress = "noreply@movieapp.test",
                 FromName = "Movie Cave",
                 HeroImageUrl = heroImageUrl ?? string.Empty
             }),
+            Options.Create(sharedResendOptions ?? new SharedResendEmailOptions()),
             Options.Create(new EmailVerificationOptions
             {
                 DeliveryTimeoutSeconds = 30,

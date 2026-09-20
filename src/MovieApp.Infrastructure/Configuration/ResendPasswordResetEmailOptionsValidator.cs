@@ -6,7 +6,8 @@ namespace MovieApp.Infrastructure.Configuration;
 
 public sealed class ResendPasswordResetEmailOptionsValidator(
     IHostEnvironment hostEnvironment,
-    IOptions<PasswordResetOptions> passwordResetOptions) : IValidateOptions<ResendPasswordResetEmailOptions>
+    IOptions<PasswordResetOptions> passwordResetOptions,
+    IOptions<SharedResendEmailOptions> sharedResendOptions) : IValidateOptions<ResendPasswordResetEmailOptions>
 {
     public ValidateOptionsResult Validate(string? name, ResendPasswordResetEmailOptions options)
     {
@@ -23,11 +24,24 @@ public sealed class ResendPasswordResetEmailOptionsValidator(
             return ValidateOptionsResult.Success;
         }
 
-        if (!options.IsConfigured())
+        var effective = ResendEmailDeliverySettingsResolver.Resolve(
+            options.ApiKey,
+            options.FromAddress,
+            options.FromName,
+            sharedResendOptions.Value);
+
+        if (!effective.IsConfigured())
         {
             return ValidateOptionsResult.Fail(
                 "Production password reset email via Resend is not configured. " +
-                "Set Authentication:PasswordReset:Resend:ApiKey and FromAddress.");
+                "Set Authentication:Email:Resend or Authentication:PasswordReset:Resend ApiKey and FromAddress.");
+        }
+
+        if (ResendProductionFromAddressRules.IsOnboardingSender(effective.FromAddress))
+        {
+            return ValidateOptionsResult.Fail(
+                "Production password reset email must use a verified custom-domain sender address. " +
+                "Resend onboarding addresses such as onboarding@resend.dev are not allowed.");
         }
 
         return ValidateOptionsResult.Success;

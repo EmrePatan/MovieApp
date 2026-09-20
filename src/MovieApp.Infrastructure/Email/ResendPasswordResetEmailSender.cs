@@ -11,6 +11,7 @@ namespace MovieApp.Infrastructure.Email;
 public sealed class ResendPasswordResetEmailSender(
     HttpClient httpClient,
     IOptions<ResendPasswordResetEmailOptions> resendOptions,
+    IOptions<SharedResendEmailOptions> sharedResendOptions,
     IOptions<PasswordResetOptions> passwordResetOptions,
     IOptions<AppOptions> appOptions,
     ILogger<ResendPasswordResetEmailSender> logger) : IPasswordResetEmailSender
@@ -22,27 +23,31 @@ public sealed class ResendPasswordResetEmailSender(
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var options = resendOptions.Value;
-        if (!options.IsConfigured())
+        var effective = ResendEmailDeliverySettingsResolver.Resolve(
+            resendOptions.Value.ApiKey,
+            resendOptions.Value.FromAddress,
+            resendOptions.Value.FromName,
+            sharedResendOptions.Value);
+        if (!effective.IsConfigured())
         {
             throw new InvalidOperationException(
-                "Resend password reset email sender is not configured. Set Authentication:PasswordReset:Resend.");
+                "Resend password reset email sender is not configured. Set Authentication:Email:Resend or Authentication:PasswordReset:Resend.");
         }
 
         var heroImageUrl = VerificationEmailHeroUrlResolver.Resolve(
-            string.IsNullOrWhiteSpace(options.HeroImageUrl)
+            string.IsNullOrWhiteSpace(resendOptions.Value.HeroImageUrl)
                 ? VerificationEmailHeroUrlResolver.DefaultHeroImagePath
-                : options.HeroImageUrl,
+                : resendOptions.Value.HeroImageUrl,
             appOptions.Value.PublicBaseUrl);
         var logoImageUrl = VerificationEmailLogoUrlResolver.Resolve(appOptions.Value.PublicBaseUrl);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", effective.ApiKey);
         request.Headers.TryAddWithoutValidation(
             "Idempotency-Key",
             ResendPasswordResetEmailIdempotency.CreateKey(tokenId));
         request.Content = JsonContent.Create(new ResendEmailRequest(
-            $"{options.FromName} <{options.FromAddress}>",
+            $"{effective.FromName} <{effective.FromAddress}>",
             [toEmail],
             MovieCavePasswordResetEmailContent.GetSubject(contentLocale),
             MovieCavePasswordResetEmailContent.BuildPlainText(resetUrl, contentLocale),
@@ -57,11 +62,13 @@ public sealed class ResendPasswordResetEmailSender(
             using var response = await httpClient.SendAsync(request, timeoutCts.Token);
             if (!response.IsSuccessStatusCode)
             {
+                var providerMessage = await ResendApiErrorReader.TryReadErrorMessageAsync(response, timeoutCts.Token);
                 ResendPasswordResetEmailLogMessages.LogDeliveryFailed(
                     logger,
                     tokenId,
                     (int)response.StatusCode,
-                    nameof(HttpRequestException));
+                    nameof(HttpRequestException),
+                    providerMessage);
 
                 throw new HttpRequestException(
                     $"Resend password reset email delivery failed with status {(int)response.StatusCode}.");
@@ -75,7 +82,8 @@ public sealed class ResendPasswordResetEmailSender(
                 logger,
                 tokenId,
                 0,
-                nameof(TimeoutException));
+                nameof(TimeoutException),
+                null);
 
             throw new TimeoutException("Resend password reset email delivery timed out.");
         }
@@ -85,7 +93,8 @@ public sealed class ResendPasswordResetEmailSender(
                 logger,
                 tokenId,
                 0,
-                exception.GetType().Name);
+                exception.GetType().Name,
+                null);
 
             throw;
         }

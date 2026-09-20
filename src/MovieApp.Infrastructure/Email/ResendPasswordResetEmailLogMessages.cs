@@ -13,10 +13,11 @@ internal static partial class ResendPasswordResetEmailLogMessages
     [LoggerMessage(
         EventId = 2212,
         Level = LogLevel.Warning,
-        Message = "Resend password reset email delivery failed for token {TokenId}. StatusCode={StatusCode} ExceptionType={ExceptionType}.")]
+        Message = "Resend password reset email delivery failed for token {TokenId}. StatusCode={StatusCode} ExceptionType={ExceptionType} ProviderMessage={ProviderMessage}.")]
     internal static partial void LogDeliveryFailed(
         ILogger logger,
         Guid tokenId,
         int statusCode,
-        string exceptionType);
+        string exceptionType,
+        string? providerMessage);
 }

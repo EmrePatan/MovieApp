@@ -13,10 +13,11 @@ internal static partial class ResendVerificationEmailLogMessages
     [LoggerMessage(
         EventId = 2202,
         Level = LogLevel.Warning,
-        Message = "Verification email delivery failed for token {TokenId}. Status code: {StatusCode}. Exception type: {ExceptionType}.")]
+        Message = "Verification email delivery failed for token {TokenId}. StatusCode={StatusCode} ExceptionType={ExceptionType} ProviderMessage={ProviderMessage}.")]
     internal static partial void LogDeliveryFailed(
         ILogger logger,
         Guid tokenId,
         int statusCode,
-        string exceptionType);
+        string exceptionType,
+        string? providerMessage);
 }

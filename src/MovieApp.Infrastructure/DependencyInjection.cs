@@ -100,7 +100,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<ReleaseRegionOptions>, ReleaseRegionOptionsValidator>();
 
-        services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SectionName));
+        services.Configure<SharedResendEmailOptions>(configuration.GetSection(SharedResendEmailOptions.SectionName));
 
         services.AddOptions<PasswordResetOptions>()
 
@@ -287,8 +287,6 @@ public static class DependencyInjection
         services.AddSingleton<CapturingEmailSender>();
 
         services.AddSingleton<DevelopmentEmailSender>();
-
-        services.AddSingleton<SmtpEmailSender>();
 
         services.AddSingleton<IEmailSender>(ResolveEmailSender);
 
