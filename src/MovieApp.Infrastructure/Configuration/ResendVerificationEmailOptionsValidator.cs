@@ -27,13 +27,6 @@ public sealed class ResendVerificationEmailOptionsValidator(
                 "Set Authentication:Email:Resend or Authentication:EmailVerification:Resend ApiKey and FromAddress.");
         }
 
-        if (ResendProductionFromAddressRules.IsOnboardingSender(effective.FromAddress))
-        {
-            return ValidateOptionsResult.Fail(
-                "Production verification email must use a verified custom-domain sender address. " +
-                "Resend onboarding addresses such as onboarding@resend.dev are not allowed.");
-        }
-
         return ValidateOptionsResult.Success;
     }
 }

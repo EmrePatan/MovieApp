@@ -6,7 +6,7 @@ Movie Cave transactional email (password reset + email verification) is delivere
 
 **Implemented in:** `b5f9630535160cacccb400819a557a1d7587d591` (shared Resend config, production sender validation, failure logging, SMTP removal).
 
-**Remaining operator work:** verify a custom sending domain in Resend, set Render env vars below, and smoke-test verification + password-reset email delivery.
+**Remaining operator work:** set Render Resend env vars and smoke-test verification + password-reset email delivery. A verified custom sending domain (SPF/DKIM/DMARC) is a pending production prerequisite — `onboarding@resend.dev` is allowed until then.
 
 ---
 
@@ -29,7 +29,9 @@ Flow-specific sections (`Authentication:PasswordReset:Resend`, `Authentication:E
 
 - Password reset requires `EmailProvider=Resend`.
 - Both flows require configured Resend `ApiKey` + `FromAddress` (shared or per-flow).
-- `onboarding@resend.dev` and other `*@resend.dev` senders are rejected in Production.
+- `onboarding@resend.dev` is temporarily allowed until a custom domain is verified in Resend.
+
+**Pending production prerequisite (custom domain):** add and verify your sending domain in Resend with SPF, DKIM, and recommended DMARC DNS records, then switch `FromAddress` to `noreply@<your-verified-domain>`.
 
 ---
 
@@ -54,7 +56,7 @@ Complete in Resend Dashboard + your DNS provider. Do not guess record values —
 2. **DNS records** — add the SPF, DKIM (and recommended DMARC) records Resend displays. Wait until Resend shows the domain as **Verified**.
 3. **Sender address** — set `Authentication__Email__Resend__FromAddress` to an address on that verified domain (for example `noreply@<your-verified-domain>`).
 4. **API key** — create a Production API key in Resend; set `Authentication__Email__Resend__ApiKey` on Render.
-5. **Deploy** — Production startup fails if the sender is still `*@resend.dev` or Resend is unconfigured.
+5. **Deploy** — Production startup fails only if Resend `ApiKey` or `FromAddress` is missing. Until step 3 is complete, `onboarding@resend.dev` may be used temporarily.
 6. **Smoke test**
    - Register a new account → verification email arrives from the custom domain.
    - Forgot password on a password-backed account → reset email arrives from the custom domain.

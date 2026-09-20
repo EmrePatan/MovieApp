@@ -484,7 +484,7 @@ curl -X POST http://localhost:5000/api/auth/reset-password \
 - Transactional email (password reset + verification) uses Resend HTTP delivery jobs in non-development environments
   - **Development:** `DevelopmentEmailSender` when `Authentication:PasswordReset:EmailProvider=Development`
   - **Testing:** `CapturingEmailSender` (integration tests only)
-  - **Production:** requires `EmailProvider=Resend` and configured `Authentication:Email:Resend` (verified custom-domain sender); startup fails if Resend is not configured
+  - **Production:** requires `EmailProvider=Resend` and configured `Authentication:Email:Resend`; startup fails if Resend is not configured (custom domain recommended; onboarding sender allowed temporarily)
 - Reset token consumption is atomic (`ExecuteUpdate` with `UsedAtUtc IS NULL`) inside a database transaction with password change
 - Auth rate limiting uses fixed-window limits per client IP + request path (V1 trade-off: shared NAT may group users; enable forwarded headers only for trusted proxies)
 
@@ -522,7 +522,7 @@ See `docs/PRODUCTION-EMAIL.md` for Resend custom-domain setup, Render env vars, 
 }
 ```
 
-Provide Resend credentials via environment variables. Production startup rejects onboarding senders (`*@resend.dev`) and unconfigured Resend settings.
+Provide Resend credentials via environment variables. Production startup requires configured Resend settings; verify a custom sending domain when available (see `docs/PRODUCTION-EMAIL.md`).
 
 Forwarded client IP headers are trusted only when `ForwardedHeaders:Enabled` is true with explicitly configured known proxies/networks.
 

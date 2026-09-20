@@ -28,7 +28,7 @@ public sealed class ResendEmailOptionsValidatorTests
     }
 
     [Fact]
-    public void PasswordResetValidatorFailsProductionForOnboardingSender()
+    public void PasswordResetValidatorAllowsProductionOnboardingSenderUntilCustomDomainExists()
     {
         var validator = new ResendPasswordResetEmailOptionsValidator(
             new FakeHostEnvironment("Production"),
@@ -43,8 +43,7 @@ public sealed class ResendEmailOptionsValidatorTests
             ResendPasswordResetEmailOptions.SectionName,
             new ResendPasswordResetEmailOptions());
 
-        Assert.False(result.Succeeded);
-        Assert.Contains("custom-domain", result.FailureMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Succeeded);
     }
 
     [Fact]
@@ -66,7 +65,7 @@ public sealed class ResendEmailOptionsValidatorTests
     }
 
     [Fact]
-    public void VerificationValidatorFailsProductionForOnboardingSender()
+    public void VerificationValidatorAllowsProductionOnboardingSenderUntilCustomDomainExists()
     {
         var validator = new ResendVerificationEmailOptionsValidator(
             new FakeHostEnvironment("Production"),
@@ -80,8 +79,7 @@ public sealed class ResendEmailOptionsValidatorTests
             ResendVerificationEmailOptions.SectionName,
             new ResendVerificationEmailOptions());
 
-        Assert.False(result.Succeeded);
-        Assert.Contains("custom-domain", result.FailureMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Succeeded);
     }
 
     private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
