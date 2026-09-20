@@ -34,6 +34,25 @@ public sealed class ResetPasswordServiceTests
     }
 
     [Fact]
+    public async Task ResetPasswordAsyncRejectsSocialOnlyUserWithoutConsumingToken()
+    {
+        var user = CreateSocialOnlyUser();
+        var resetToken = CreateActiveToken(user.Id, "social-reset-token");
+        var tokenRepository = new FakePasswordResetTokenRepository(resetToken);
+        var userRepository = new FakeUserRepository(user);
+        var service = CreateService(userRepository, tokenRepository, new FakePasswordHasher());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.ResetPasswordAsync(new ResetPasswordRequest("social-reset-token", "AnotherPassword123")));
+
+        Assert.Equal(ResetPasswordService.InvalidTokenMessage, exception.Message);
+        Assert.Null(resetToken.UsedAtUtc);
+        Assert.Equal(0, tokenRepository.InvalidationCount);
+        Assert.Equal(0, userRepository.UpdateCount);
+        Assert.False(user.HasPassword);
+    }
+
+    [Fact]
     public async Task ResetPasswordAsyncThrowsForInvalidToken()
     {
         var service = CreateService(
@@ -154,6 +173,13 @@ public sealed class ResetPasswordServiceTests
             "user@example.com",
             "hashed-password",
             "Display Name",
+            DateTime.UtcNow);
+
+    private static User CreateSocialOnlyUser() =>
+        User.CreateFromExternalIdentity(
+            Guid.NewGuid(),
+            "social@example.com",
+            "Social User",
             DateTime.UtcNow);
 
     private sealed class FakeApplicationDbContext(FakePasswordResetTokenRepository tokenRepository)

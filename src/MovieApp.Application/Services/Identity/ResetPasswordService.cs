@@ -51,12 +51,12 @@ public sealed class ResetPasswordService(
             }
 
             var user = await userRepository.GetByIdForUpdateAsync(consumedToken.UserId, ct);
-            if (user is null || !user.IsActive)
+            if (user is null || !user.IsActive || !user.HasPassword)
             {
                 throw new ValidationException(InvalidTokenMessage);
             }
 
-            if (user.HasPassword && passwordHasher.VerifyPassword(request.NewPassword, user.PasswordHash!))
+            if (passwordHasher.VerifyPassword(request.NewPassword, user.PasswordHash!))
             {
                 throw new ValidationException("New password must be different from the current password.");
             }

@@ -60,6 +60,39 @@ public sealed class ForgotPasswordServiceTests
     }
 
     [Fact]
+    public async Task ForgotPasswordAsyncDoesNotCreateTokenForSocialOnlyUser()
+    {
+        var user = CreateSocialOnlyUser();
+        var tokenRepository = new FakePasswordResetTokenRepository();
+        var enqueuer = new RecordingEnqueuer();
+        var service = CreateService(new FakeUserRepository(user), enqueuer, tokenRepository);
+
+        var result = await service.ForgotPasswordAsync(new ForgotPasswordRequest("social@example.com"));
+
+        Assert.Equal(ForgotPasswordService.SuccessMessage, result.Message);
+        Assert.Empty(tokenRepository.CreatedTokens);
+        Assert.Empty(enqueuer.EnqueuedTokenIds);
+        Assert.Equal(0, tokenRepository.InvalidationCount);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsyncReturnsSameMessageForSocialOnlyAndMissingEmail()
+    {
+        var socialOnlyService = CreateService(
+            new FakeUserRepository(CreateSocialOnlyUser()),
+            new RecordingEnqueuer());
+        var missingService = CreateService(new FakeUserRepository(null), new RecordingEnqueuer());
+
+        var socialOnlyResult = await socialOnlyService.ForgotPasswordAsync(
+            new ForgotPasswordRequest("social@example.com"));
+        var missingResult = await missingService.ForgotPasswordAsync(
+            new ForgotPasswordRequest("missing@example.com"));
+
+        Assert.Equal(ForgotPasswordService.SuccessMessage, socialOnlyResult.Message);
+        Assert.Equal(socialOnlyResult.Message, missingResult.Message);
+    }
+
+    [Fact]
     public async Task ForgotPasswordAsyncDoesNotEnqueueForInactiveUser()
     {
         var user = CreateUser();
@@ -186,6 +219,13 @@ public sealed class ForgotPasswordServiceTests
             "user@example.com",
             "hashed-password",
             "Display Name",
+            DateTime.UtcNow);
+
+    private static User CreateSocialOnlyUser() =>
+        User.CreateFromExternalIdentity(
+            Guid.NewGuid(),
+            "social@example.com",
+            "Social User",
             DateTime.UtcNow);
 
     private sealed class PassthroughProtector : IPasswordResetDeliverySecretProtector

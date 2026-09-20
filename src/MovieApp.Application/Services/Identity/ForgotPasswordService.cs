@@ -37,7 +37,7 @@ public sealed class ForgotPasswordService(
         var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(request.ContentLocale);
         var user = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
 
-        if (user is not null && user.IsActive)
+        if (user is not null && user.IsActive && user.HasPassword)
         {
             var utcNow = DateTime.UtcNow;
             await passwordResetTokenRepository.InvalidateActiveTokensForUserAsync(

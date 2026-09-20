@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Identity;
 using MovieApp.Contracts.Auth;
+using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.IntegrationTests.Auth;
@@ -115,6 +116,35 @@ public sealed class PasswordResetApiTests(AuthApiFixture fixture)
     }
 
     [Fact]
+    public async Task ForgotPasswordForSocialOnlyAccountReturnsGenericResponseWithoutEmailOrToken()
+    {
+        await fixture.ResetAsync();
+
+        var email = $"social-only-{Guid.NewGuid():N}@example.com";
+        await SeedSocialOnlyUserAsync(email);
+
+        var socialOnlyResponse = await _client.PostAsJsonAsync(
+            "/api/auth/forgot-password",
+            new ForgotPasswordRequest(email));
+        var missingResponse = await _client.PostAsJsonAsync(
+            "/api/auth/forgot-password",
+            new ForgotPasswordRequest($"missing-{Guid.NewGuid():N}@example.com"));
+
+        Assert.Equal(HttpStatusCode.OK, socialOnlyResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, missingResponse.StatusCode);
+
+        var socialOnlyPayload = await socialOnlyResponse.Content.ReadFromJsonAsync<MessageResponse>();
+        var missingPayload = await missingResponse.Content.ReadFromJsonAsync<MessageResponse>();
+        Assert.NotNull(socialOnlyPayload);
+        Assert.NotNull(missingPayload);
+        Assert.Equal(socialOnlyPayload.Message, missingPayload.Message);
+        Assert.Empty(fixture.Factory.EmailSender.SentEmails);
+
+        await using var context = CreateContext();
+        Assert.Equal(0, await context.PasswordResetTokens.CountAsync());
+    }
+
+    [Fact]
     public async Task ForgotPasswordInvalidatesPreviousActiveToken()
     {
         await fixture.ResetAsync();
@@ -136,6 +166,19 @@ public sealed class PasswordResetApiTests(AuthApiFixture fixture)
             new ResetPasswordRequest(firstToken!, "AnotherPassword123"));
 
         Assert.Equal(HttpStatusCode.BadRequest, firstResetResponse.StatusCode);
+    }
+
+    private static async Task SeedSocialOnlyUserAsync(string email)
+    {
+        await using var context = CreateContext();
+        var user = User.CreateFromExternalIdentity(
+            Guid.NewGuid(),
+            email,
+            "Social Only User",
+            DateTime.UtcNow);
+        user.EmailVerifiedAtUtc = DateTime.UtcNow;
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
     }
 
     private async Task RegisterUserAsync(string email)
