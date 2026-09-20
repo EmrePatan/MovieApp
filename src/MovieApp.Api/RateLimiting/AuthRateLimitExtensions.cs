@@ -10,6 +10,9 @@ namespace MovieApp.Api.RateLimiting;
 
 internal static class AuthRateLimitExtensions
 {
+    private static readonly Func<HttpContext, string> ClientIpEndpointPartitionKeyFactory =
+        DistributedRateLimitPolicyFactory.CreateClientIpEndpointPartitionKeyFactory();
+
     internal static IServiceCollection AddAuthRateLimiting(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -23,8 +26,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Login, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.Login,
                     options.LoginPermitLimit,
                     options.LoginWindowMinutes);
             });
@@ -32,8 +36,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Social, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.Social,
                     options.SocialPermitLimit,
                     options.SocialWindowMinutes);
             });
@@ -41,8 +46,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Register, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.Register,
                     options.RegisterPermitLimit,
                     options.RegisterWindowMinutes);
             });
@@ -50,8 +56,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.ForgotPassword, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.ForgotPassword,
                     options.ForgotPasswordPermitLimit,
                     options.ForgotPasswordWindowMinutes);
             });
@@ -59,8 +66,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.ResetPassword, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.ResetPassword,
                     options.ResetPasswordPermitLimit,
                     options.ResetPasswordWindowMinutes);
             });
@@ -68,8 +76,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.VerifyEmail, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.VerifyEmail,
                     options.VerifyEmailPermitLimit,
                     options.VerifyEmailWindowMinutes);
             });
@@ -77,8 +86,9 @@ internal static class AuthRateLimitExtensions
             rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.ResendVerification, httpContext =>
             {
                 var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
-                return CreateInMemoryFixedWindowPolicy(
+                return CreateAuthDistributedPolicy(
                     httpContext,
+                    AuthRateLimitPolicies.ResendVerification,
                     options.ResendVerificationPermitLimit,
                     options.ResendVerificationWindowMinutes);
             });
@@ -92,14 +102,25 @@ internal static class AuthRateLimitExtensions
 
         return services;
     }
+
+    private static RateLimitPartition<string> CreateAuthDistributedPolicy(
+        HttpContext httpContext,
+        string policyName,
+        int permitLimit,
+        int windowMinutes) =>
+        DistributedRateLimitPolicyFactory.CreatePolicy(
+            httpContext,
+            policyName,
+            permitLimit,
+            windowMinutes,
+            ClientIpEndpointPartitionKeyFactory);
+
     private static RateLimitPartition<string> CreateInMemoryFixedWindowPolicy(
         HttpContext httpContext,
         int permitLimit,
         int windowMinutes)
     {
-        var clientIp = ClientIpResolver.GetClientIpAddress(httpContext);
-        var endpoint = httpContext.Request.Path.Value ?? "unknown";
-        var partitionKey = $"{clientIp}:{endpoint}";
+        var partitionKey = ClientIpEndpointPartitionKeyFactory(httpContext);
 
         return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey,

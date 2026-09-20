@@ -1,6 +1,4 @@
-using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
-using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.Api.RateLimiting;
@@ -22,7 +20,7 @@ internal static class ProductionRateLimitPolicyRegistration
             .Get<TvShowFollowRateLimitOptions>() ?? new TvShowFollowRateLimitOptions();
 
         rateLimiterOptions.AddPolicy(SearchRateLimitPolicies.UnifiedSearch, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 SearchRateLimitPolicies.UnifiedSearch,
                 searchOptions.UnifiedSearchPermitLimit,
@@ -30,7 +28,7 @@ internal static class ProductionRateLimitPolicyRegistration
                 context => $"{ClientIpResolver.GetClientIpAddress(context)}:{SearchRateLimitPolicies.UnifiedSearch}"));
 
         rateLimiterOptions.AddPolicy(SearchRateLimitPolicies.MovieSearch, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 SearchRateLimitPolicies.MovieSearch,
                 searchOptions.MovieSearchPermitLimit,
@@ -38,7 +36,7 @@ internal static class ProductionRateLimitPolicyRegistration
                 context => $"{ClientIpResolver.GetClientIpAddress(context)}:{SearchRateLimitPolicies.MovieSearch}"));
 
         rateLimiterOptions.AddPolicy(SearchRateLimitPolicies.TvSearch, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 SearchRateLimitPolicies.TvSearch,
                 searchOptions.TvSearchPermitLimit,
@@ -46,7 +44,7 @@ internal static class ProductionRateLimitPolicyRegistration
                 context => $"{ClientIpResolver.GetClientIpAddress(context)}:{SearchRateLimitPolicies.TvSearch}"));
 
         rateLimiterOptions.AddPolicy(AccountRateLimitPolicies.ChangePassword, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 AccountRateLimitPolicies.ChangePassword,
                 accountOptions.PasswordChangePermitLimit,
@@ -54,7 +52,7 @@ internal static class ProductionRateLimitPolicyRegistration
                 AccountPartitionKeyFactory.Create));
 
         rateLimiterOptions.AddPolicy(AccountRateLimitPolicies.ChangeEmail, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 AccountRateLimitPolicies.ChangeEmail,
                 accountOptions.EmailChangePermitLimit,
@@ -62,7 +60,7 @@ internal static class ProductionRateLimitPolicyRegistration
                 AccountPartitionKeyFactory.Create));
 
         rateLimiterOptions.AddPolicy(AccountRateLimitPolicies.DeleteAccount, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 AccountRateLimitPolicies.DeleteAccount,
                 accountOptions.AccountDeletionPermitLimit,
@@ -70,30 +68,11 @@ internal static class ProductionRateLimitPolicyRegistration
                 AccountPartitionKeyFactory.Create));
 
         rateLimiterOptions.AddPolicy(TvShowFollowRateLimitPolicies.Mutation, httpContext =>
-            CreateDistributedPolicy(
+            DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
                 TvShowFollowRateLimitPolicies.Mutation,
                 tvShowFollowOptions.MutationPermitLimit,
                 tvShowFollowOptions.MutationWindowMinutes,
                 AccountPartitionKeyFactory.Create));
-    }
-
-    private static RateLimitPartition<string> CreateDistributedPolicy(
-        HttpContext httpContext,
-        string policyName,
-        int permitLimit,
-        int windowMinutes,
-        Func<HttpContext, string> partitionKeyFactory)
-    {
-        var store = httpContext.RequestServices.GetRequiredService<IRateLimitCounterStore>();
-        var partitionKey = partitionKeyFactory(httpContext);
-
-        return RateLimitPartition.Get(
-            partitionKey,
-            _ => new DistributedFixedWindowRateLimiter(
-                store,
-                $"{policyName}:{partitionKey}",
-                permitLimit,
-                TimeSpan.FromMinutes(Math.Max(1, windowMinutes))));
     }
 }
