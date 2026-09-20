@@ -1,5 +1,6 @@
 using MovieApp.Api.Authentication;
 using MovieApp.Api.Cors;
+using MovieApp.Api.Diagnostics;
 using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Api.Identity;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddSwaggerWithBearerAuth();
         services.AddJwtAuthentication(configuration);
         services.AddConfiguredForwardedHeaders(configuration);
+        services.AddTemporaryClientIpChainDiagnostic(configuration);
         services.AddConfiguredCors(configuration);
         services.Configure<SearchRateLimitOptions>(configuration.GetSection(SearchRateLimitOptions.SectionName));
         services.Configure<AccountRateLimitOptions>(configuration.GetSection(AccountRateLimitOptions.SectionName));
