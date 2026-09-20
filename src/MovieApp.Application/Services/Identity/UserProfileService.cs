@@ -13,18 +13,34 @@ namespace MovieApp.Application.Services.Identity;
 public sealed class UserProfileService(
     ICurrentUser currentUser,
     IUserRepository userRepository,
+    IUserExternalLoginRepository externalLoginRepository,
     IUserStatisticsRepository userStatisticsRepository,
     IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
     ITokenService tokenService,
-    IResendVerificationService resendVerificationService) : IUserProfileService
+    IResendVerificationService resendVerificationService,
+    IEnumerable<ISocialIdentityTokenVerifier> tokenVerifiers) : IUserProfileService
 {
     private const string InvalidCurrentPasswordMessage = "Current password is incorrect.";
+    private const string SocialReauthenticationRequiredMessage =
+        "Social re-authentication is required.";
+    private const string SocialReauthenticationFailedMessage = "Social re-authentication failed.";
+    private const string PasswordConfirmationRequiredMessage =
+        "Confirm deletion with your current password.";
+    private const string PasswordNotUsedMessage =
+        "This account does not use a password. Confirm deletion with a linked sign-in provider.";
+    private const string UnsupportedProviderMessage = "Unsupported social provider.";
+    private const string UnlinkedProviderMessage =
+        "The selected sign-in provider is not linked to this account.";
+
+    private readonly Dictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
+        tokenVerifiers.ToDictionary(verifier => verifier.Provider, StringComparer.Ordinal);
 
     public async Task<UserProfileResult> GetCurrentProfileAsync(CancellationToken cancellationToken = default)
     {
         var user = await GetCurrentUserForReadAsync(cancellationToken);
-        return UserMapper.ToUserProfileResult(user);
+        var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
+        return UserMapper.ToUserProfileResult(user, linkedProviders);
     }
 
     public async Task<UserProfileResult> UpdateDisplayNameAsync(
@@ -40,8 +56,9 @@ public sealed class UserProfileService(
         var user = await GetCurrentUserForUpdateAsync(cancellationToken);
         user.UpdateDisplayName(displayName, DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
+        var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
 
-        return UserMapper.ToUserProfileResult(user);
+        return UserMapper.ToUserProfileResult(user, linkedProviders);
     }
 
     public async Task<AuthenticationResult> ChangeEmailAsync(
@@ -114,21 +131,100 @@ public sealed class UserProfileService(
         return statistics;
     }
 
-    public async Task DeleteAccountAsync(string currentPassword, CancellationToken cancellationToken = default)
+    public async Task DeleteAccountAsync(DeleteAccountCommand request, CancellationToken cancellationToken = default)
     {
-        var passwordValidation = ProfileValidator.ValidateCurrentPassword(currentPassword);
-        if (!passwordValidation.IsValid)
-        {
-            throw new ValidationException(passwordValidation.ErrorMessage!);
-        }
-
         var user = await GetCurrentUserForUpdateAsync(cancellationToken);
-        EnsureCurrentPassword(user, currentPassword);
+        var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
+
+        if (user.HasPassword)
+        {
+            EnsurePasswordDeletionConfirmation(request);
+            EnsureCurrentPassword(user, request.CurrentPassword!);
+        }
+        else if (linkedProviders.Count > 0)
+        {
+            await EnsureSocialDeletionConfirmationAsync(user, request, linkedProviders, cancellationToken);
+        }
+        else
+        {
+            throw new ValidationException(SocialReauthenticationRequiredMessage);
+        }
 
         var deleted = await userRepository.DeleteAsync(user.Id, cancellationToken);
         if (!deleted)
         {
             throw new NotFoundException("The authenticated user was not found.");
+        }
+    }
+
+    private static void EnsurePasswordDeletionConfirmation(DeleteAccountCommand request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Provider) || !string.IsNullOrWhiteSpace(request.IdentityToken))
+        {
+            throw new ValidationException(PasswordConfirmationRequiredMessage);
+        }
+
+        var passwordValidation = ProfileValidator.ValidateCurrentPassword(request.CurrentPassword);
+        if (!passwordValidation.IsValid)
+        {
+            throw new ValidationException(passwordValidation.ErrorMessage!);
+        }
+    }
+
+    private async Task EnsureSocialDeletionConfirmationAsync(
+        Domain.Entities.User user,
+        DeleteAccountCommand request,
+        IReadOnlyList<string> linkedProviders,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.CurrentPassword))
+        {
+            throw new ValidationException(PasswordNotUsedMessage);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Provider) || string.IsNullOrWhiteSpace(request.IdentityToken))
+        {
+            throw new ValidationException(SocialReauthenticationRequiredMessage);
+        }
+
+        var provider = ExternalLoginProviders.Normalize(request.Provider);
+        if (!linkedProviders.Contains(provider, StringComparer.Ordinal))
+        {
+            throw new ValidationException(UnlinkedProviderMessage);
+        }
+
+        if (!_tokenVerifiers.TryGetValue(provider, out var verifier))
+        {
+            throw new ValidationException(UnsupportedProviderMessage);
+        }
+
+        VerifiedSocialIdentity identity;
+        try
+        {
+            identity = await verifier.VerifyIdentityTokenAsync(request.IdentityToken, cancellationToken);
+        }
+        catch (AuthenticationException)
+        {
+            throw new AuthenticationException(SocialReauthenticationFailedMessage);
+        }
+        catch (Exception)
+        {
+            throw new AuthenticationException(SocialReauthenticationFailedMessage);
+        }
+
+        if (!string.Equals(identity.Provider, provider, StringComparison.Ordinal))
+        {
+            throw new AuthenticationException(SocialReauthenticationFailedMessage);
+        }
+
+        var authenticatedUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
+            provider,
+            identity.Subject,
+            cancellationToken);
+
+        if (authenticatedUser is null || authenticatedUser.Id != user.Id)
+        {
+            throw new AuthenticationException(SocialReauthenticationFailedMessage);
         }
     }
 

@@ -34,4 +34,17 @@ public sealed class UserExternalLoginRepository(ApplicationDbContext dbContext) 
             throw new ConflictException("This social account is already linked to another MovieApp user.");
         }
     }
+
+    public async Task<IReadOnlyList<string>> GetProvidersForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.UserExternalLogins
+            .AsNoTracking()
+            .Where(login => login.UserId == userId)
+            .Select(login => login.Provider)
+            .Distinct()
+            .OrderBy(provider => provider)
+            .ToListAsync(cancellationToken);
+    }
 }

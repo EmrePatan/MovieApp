@@ -6,8 +6,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Exceptions;
 using MovieApp.Contracts.Auth;
+using MovieApp.Domain.Users;
 using MovieApp.Infrastructure.Email;
 using MovieApp.IntegrationTests.Auth;
+using MovieApp.IntegrationTests.Support;
 using MovieApp.Contracts.Favorites;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Ratings;
@@ -43,6 +45,8 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(email, profile.Email);
         Assert.Equal("Integration User", profile.DisplayName);
         Assert.False(string.IsNullOrWhiteSpace(profile.UserName));
+        Assert.True(profile.HasPassword);
+        Assert.Empty(profile.LinkedProviders);
     }
 
     [Fact]
@@ -105,7 +109,9 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
 
         var emailSender = fixture.Factory.Services.GetRequiredService<CapturingEmailSender>();
-        Assert.Single(emailSender.SentVerificationEmails);
+        Assert.Contains(
+            emailSender.SentVerificationEmails,
+            email => email.Email == newEmail);
 
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             newEmail,
@@ -314,7 +320,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var deleteResponse = await SendAuthorizedDeleteAsync(
             "/api/users/me",
             userAToken,
-            new DeleteAccountRequest("StrongPassword123"));
+            new DeleteAccountRequest(CurrentPassword: "StrongPassword123"));
 
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
 
@@ -353,9 +359,112 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var response = await SendAuthorizedDeleteAsync(
             "/api/users/me",
             token,
-            new DeleteAccountRequest("WrongPassword123"));
+            new DeleteAccountRequest(CurrentPassword: "WrongPassword123"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAllowsSocialOnlyUserWithFreshProviderReauthentication()
+    {
+        await fixture.ResetAsync();
+
+        var authResponse = await _client.PostAsJsonAsync(
+            "/api/auth/social",
+            new SocialAuthRequest(ExternalLoginProviders.Google, IntegrationTestGoogleIdentityTokenVerifier.ValidToken));
+        Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
+
+        var auth = await authResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(auth);
+
+        var profileResponse = await SendAuthorizedGetAsync("/api/users/me", auth.AccessToken);
+        var profile = await profileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profile);
+        Assert.False(profile.HasPassword);
+        Assert.Contains(ExternalLoginProviders.Google, profile.LinkedProviders);
+
+        var deleteResponse = await SendAuthorizedDeleteAsync(
+            "/api/users/me",
+            auth.AccessToken,
+            new DeleteAccountRequest(
+                Provider: ExternalLoginProviders.Google,
+                IdentityToken: IntegrationTestGoogleIdentityTokenVerifier.ValidToken));
+
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(0, await context.Users.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task DeleteAccountRejectsSocialOnlyUserWithoutProviderReauthentication()
+    {
+        await fixture.ResetAsync();
+
+        var authResponse = await _client.PostAsJsonAsync(
+            "/api/auth/social",
+            new SocialAuthRequest(ExternalLoginProviders.Google, IntegrationTestGoogleIdentityTokenVerifier.ValidToken));
+        var auth = await authResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(auth);
+
+        var deleteResponse = await SendAuthorizedDeleteAsync(
+            "/api/users/me",
+            auth.AccessToken,
+            new DeleteAccountRequest());
+
+        Assert.Equal(HttpStatusCode.BadRequest, deleteResponse.StatusCode);
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(1, await context.Users.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task DeleteAccountRejectsSocialOnlyUserWhenPasswordIsProvided()
+    {
+        await fixture.ResetAsync();
+
+        var authResponse = await _client.PostAsJsonAsync(
+            "/api/auth/social",
+            new SocialAuthRequest(ExternalLoginProviders.Apple, IntegrationTestAppleIdentityTokenVerifier.ValidToken));
+        var auth = await authResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(auth);
+
+        var deleteResponse = await SendAuthorizedDeleteAsync(
+            "/api/users/me",
+            auth.AccessToken,
+            new DeleteAccountRequest(CurrentPassword: "StrongPassword123"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, deleteResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccountRejectsSocialReauthenticationWithInvalidToken()
+    {
+        await fixture.ResetAsync();
+
+        var authResponse = await _client.PostAsJsonAsync(
+            "/api/auth/social",
+            new SocialAuthRequest(ExternalLoginProviders.Google, IntegrationTestGoogleIdentityTokenVerifier.ValidToken));
+        var auth = await authResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(auth);
+
+        var deleteResponse = await SendAuthorizedDeleteAsync(
+            "/api/users/me",
+            auth.AccessToken,
+            new DeleteAccountRequest(
+                Provider: ExternalLoginProviders.Google,
+                IdentityToken: "invalid-token"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, deleteResponse.StatusCode);
+
+        await using (var context = CreateContext())
+        {
+            Assert.Equal(1, await context.Users.CountAsync());
+        }
     }
 
     [Fact]

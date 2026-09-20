@@ -22,6 +22,8 @@ public sealed class UserProfileServiceTests
         Assert.Equal(user.Id, result.Id);
         Assert.Equal(user.Email, result.Email);
         Assert.Equal(user.DisplayName, result.DisplayName);
+        Assert.True(result.HasPassword);
+        Assert.Empty(result.LinkedProviders);
     }
 
     [Fact]
@@ -118,7 +120,7 @@ public sealed class UserProfileServiceTests
         var user = CreateUser();
         var repository = new FakeUserRepository(user);
         var passwordHasher = new FakePasswordHasher(shouldVerifyCurrentPassword: true, newHash: "new-hash");
-        var service = CreateService(user, repository, passwordHasher);
+        var service = CreateService(user, repository, passwordHasher: passwordHasher);
 
         var result = await service.ChangePasswordAsync("StrongPassword123", "AnotherPassword123");
 
@@ -165,7 +167,7 @@ public sealed class UserProfileServiceTests
         var repository = new FakeUserRepository(user);
         var service = CreateService(user, repository, passwordShouldVerify: true);
 
-        await service.DeleteAccountAsync("StrongPassword123");
+        await service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null));
 
         Assert.Equal(1, repository.DeleteCount);
     }
@@ -176,7 +178,130 @@ public sealed class UserProfileServiceTests
         var service = CreateService(CreateUser(), passwordShouldVerify: false);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.DeleteAccountAsync("WrongPassword123"));
+            service.DeleteAccountAsync(new DeleteAccountCommand("WrongPassword123", null, null)));
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncDeletesSocialOnlyUserWhenProviderReauthenticationSucceeds()
+    {
+        var user = CreateSocialUser();
+        var repository = new FakeUserRepository(user);
+        var externalLoginRepository = new FakeExternalLoginRepository(
+            user,
+            ExternalLoginProviders.Google,
+            "google-subject-delete");
+        var verifier = new FakeSocialIdentityTokenVerifier(
+            ExternalLoginProviders.Google,
+            new VerifiedSocialIdentity(
+                ExternalLoginProviders.Google,
+                "google-subject-delete",
+                user.Email,
+                true,
+                user.DisplayName));
+        var service = CreateService(
+            user,
+            repository,
+            externalLoginRepository: externalLoginRepository,
+            socialVerifiers: verifier);
+
+        await service.DeleteAccountAsync(
+            new DeleteAccountCommand(null, ExternalLoginProviders.Google, "valid-token"));
+
+        Assert.Equal(1, repository.DeleteCount);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncRejectsSocialOnlyUserWithoutProviderReauthentication()
+    {
+        var user = CreateSocialUser();
+        var externalLoginRepository = new FakeExternalLoginRepository(
+            user,
+            ExternalLoginProviders.Google,
+            "google-subject-delete");
+        var service = CreateService(
+            user,
+            externalLoginRepository: externalLoginRepository);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.DeleteAccountAsync(new DeleteAccountCommand(null, null, null)));
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncRejectsSocialOnlyUserWhenPasswordIsProvided()
+    {
+        var user = CreateSocialUser();
+        var externalLoginRepository = new FakeExternalLoginRepository(
+            user,
+            ExternalLoginProviders.Google,
+            "google-subject-delete");
+        var service = CreateService(
+            user,
+            externalLoginRepository: externalLoginRepository);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null)));
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncRejectsPasswordUserWhenSocialConfirmationIsProvided()
+    {
+        var service = CreateService(CreateUser(), passwordShouldVerify: true);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.DeleteAccountAsync(
+                new DeleteAccountCommand(null, ExternalLoginProviders.Google, "valid-token")));
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncRejectsSocialReauthenticationForUnlinkedProvider()
+    {
+        var user = CreateSocialUser();
+        var externalLoginRepository = new FakeExternalLoginRepository(
+            user,
+            ExternalLoginProviders.Google,
+            "google-subject-delete");
+        var verifier = new FakeSocialIdentityTokenVerifier(
+            ExternalLoginProviders.Apple,
+            new VerifiedSocialIdentity(
+                ExternalLoginProviders.Apple,
+                "apple-subject-delete",
+                user.Email,
+                true,
+                user.DisplayName));
+        var service = CreateService(
+            user,
+            externalLoginRepository: externalLoginRepository,
+            socialVerifiers: verifier);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.DeleteAccountAsync(
+                new DeleteAccountCommand(null, ExternalLoginProviders.Apple, "valid-token")));
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncRejectsSocialReauthenticationWhenTokenDoesNotMatchLinkedAccount()
+    {
+        var user = CreateSocialUser();
+        var externalLoginRepository = new FakeExternalLoginRepository(
+            user,
+            ExternalLoginProviders.Google,
+            "google-subject-delete");
+        var verifier = new FakeSocialIdentityTokenVerifier(
+            ExternalLoginProviders.Google,
+            new VerifiedSocialIdentity(
+                ExternalLoginProviders.Google,
+                "different-google-subject",
+                user.Email,
+                true,
+                user.DisplayName));
+        var service = CreateService(
+            user,
+            externalLoginRepository: externalLoginRepository,
+            socialVerifiers: verifier);
+
+        await Assert.ThrowsAsync<AuthenticationException>(() =>
+            service.DeleteAccountAsync(
+                new DeleteAccountCommand(null, ExternalLoginProviders.Google, "valid-token")));
     }
 
     [Fact]
@@ -192,13 +317,16 @@ public sealed class UserProfileServiceTests
     private static UserProfileService CreateService(
         User user,
         FakeUserRepository? repository = null,
+        FakeExternalLoginRepository? externalLoginRepository = null,
         IPasswordHasher? passwordHasher = null,
         UserStatisticsResult? statistics = null,
         bool passwordShouldVerify = true,
         bool newPasswordMatchesCurrent = false,
-        FakeResendVerificationService? resendVerificationService = null)
+        FakeResendVerificationService? resendVerificationService = null,
+        params FakeSocialIdentityTokenVerifier[] socialVerifiers)
     {
         repository ??= new FakeUserRepository(user);
+        externalLoginRepository ??= new FakeExternalLoginRepository();
         passwordHasher ??= new FakePasswordHasher(passwordShouldVerify, "new-hash", newPasswordMatchesCurrent);
         var statisticsRepository = new FakeUserStatisticsRepository(statistics ?? CreateEmptyStatistics());
         resendVerificationService ??= new FakeResendVerificationService();
@@ -206,11 +334,13 @@ public sealed class UserProfileServiceTests
         return new UserProfileService(
             new FakeCurrentUser(user.Id),
             repository,
+            externalLoginRepository,
             statisticsRepository,
             new FakeProfileStatisticsCache(),
             passwordHasher,
             new FakeTokenService(),
-            resendVerificationService);
+            resendVerificationService,
+            socialVerifiers);
     }
 
     private static User CreateUser() =>
@@ -219,6 +349,13 @@ public sealed class UserProfileServiceTests
             "user@example.com",
             "hashed-password",
             "Display Name",
+            DateTime.UtcNow);
+
+    private static User CreateSocialUser() =>
+        User.CreateFromExternalIdentity(
+            Guid.NewGuid(),
+            "social.user@example.com",
+            "Social User",
             DateTime.UtcNow);
 
     private static UserStatisticsResult CreateEmptyStatistics() =>
@@ -322,5 +459,64 @@ public sealed class UserProfileServiceTests
             SendCount++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeExternalLoginRepository : IUserExternalLoginRepository
+    {
+        private readonly Dictionary<(string Provider, string Subject), User> _links = new();
+
+        public FakeExternalLoginRepository(
+            User? linkedUser = null,
+            string? provider = null,
+            string? subject = null)
+        {
+            if (linkedUser is not null && provider is not null && subject is not null)
+            {
+                _links[(provider, subject)] = linkedUser;
+            }
+        }
+
+        public Task<User?> GetUserByProviderAndSubjectAsync(
+            string provider,
+            string providerSubject,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_links.TryGetValue((provider, providerSubject), out var user) ? user : null);
+
+        public Task<UserExternalLogin> CreateAsync(
+            UserExternalLogin externalLogin,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(externalLogin);
+
+        public Task<IReadOnlyList<string>> GetProvidersForUserAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var providers = _links
+                .Where(link => link.Value.Id == userId)
+                .Select(link => link.Key.Provider)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(provider => provider)
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<string>>(providers);
+        }
+    }
+
+    private sealed class FakeSocialIdentityTokenVerifier : ISocialIdentityTokenVerifier
+    {
+        private readonly VerifiedSocialIdentity _identity;
+
+        public FakeSocialIdentityTokenVerifier(string provider, VerifiedSocialIdentity identity)
+        {
+            Provider = provider;
+            _identity = identity;
+        }
+
+        public string Provider { get; }
+
+        public Task<VerifiedSocialIdentity> VerifyIdentityTokenAsync(
+            string identityToken,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_identity);
     }
 }

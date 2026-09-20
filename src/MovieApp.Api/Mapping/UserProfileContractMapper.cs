@@ -12,7 +12,9 @@ public static class UserProfileContractMapper
             result.Email,
             result.UserName,
             result.DisplayName,
-            result.CreatedAt);
+            result.CreatedAt,
+            result.HasPassword,
+            result.LinkedProviders);
 
     public static UserProfileResponse ToUserProfileResponse(CurrentUserResult result) =>
         new(
@@ -20,7 +22,9 @@ public static class UserProfileContractMapper
             result.Email,
             result.UserName,
             result.DisplayName,
-            result.CreatedAt);
+            result.CreatedAt,
+            false,
+            []);
 
     public static UserProfileAuthResponse ToUserProfileAuthResponse(AuthenticationResult result) =>
         new(

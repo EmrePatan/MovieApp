@@ -25,5 +25,5 @@ public interface IUserProfileService
         string? timeZoneId = null,
         CancellationToken cancellationToken = default);
 
-    Task DeleteAccountAsync(string currentPassword, CancellationToken cancellationToken = default);
+    Task DeleteAccountAsync(DeleteAccountCommand request, CancellationToken cancellationToken = default);
 }

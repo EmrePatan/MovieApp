@@ -13,13 +13,17 @@ public static class UserMapper
             user.DisplayName,
             user.CreatedAt);
 
-    public static UserProfileResult ToUserProfileResult(User user) =>
+    public static UserProfileResult ToUserProfileResult(
+        User user,
+        IReadOnlyList<string> linkedProviders) =>
         new(
             user.Id,
             user.Email,
             user.UserName,
             user.DisplayName,
-            user.CreatedAt);
+            user.CreatedAt,
+            user.HasPassword,
+            linkedProviders);
 
     public static TokenUserContext ToTokenUserContext(User user) =>
         new(user.Id, user.Email, user.SecurityStamp);

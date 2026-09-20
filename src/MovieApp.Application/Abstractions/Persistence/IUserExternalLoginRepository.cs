@@ -12,4 +12,8 @@ public interface IUserExternalLoginRepository
     Task<UserExternalLogin> CreateAsync(
         UserExternalLogin externalLogin,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> GetProvidersForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }

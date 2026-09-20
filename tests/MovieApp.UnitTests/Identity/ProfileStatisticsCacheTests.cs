@@ -132,11 +132,13 @@ public sealed class ProfileStatisticsCacheTests
         new(
             new FakeCurrentUser(user.Id),
             new FakeUserRepository(user),
+            new FakeExternalLoginRepository(),
             repository,
             profileStatisticsCache,
             new FakePasswordHasher(),
             new FakeTokenService(),
-            new FakeResendVerificationService());
+            new FakeResendVerificationService(),
+            []);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -325,5 +327,24 @@ public sealed class ProfileStatisticsCacheTests
             string contentLocale,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class FakeExternalLoginRepository : IUserExternalLoginRepository
+    {
+        public Task<User?> GetUserByProviderAndSubjectAsync(
+            string provider,
+            string providerSubject,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<User?>(null);
+
+        public Task<UserExternalLogin> CreateAsync(
+            UserExternalLogin externalLogin,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(externalLogin);
+
+        public Task<IReadOnlyList<string>> GetProvidersForUserAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
     }
 }

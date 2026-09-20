@@ -403,6 +403,20 @@ public sealed class SocialAuthServiceTests
             _links[(externalLogin.Provider, externalLogin.ProviderSubject)] = user;
             return Task.FromResult(externalLogin);
         }
+
+        public Task<IReadOnlyList<string>> GetProvidersForUserAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var providers = _links
+                .Where(link => link.Value.Id == userId)
+                .Select(link => link.Key.Provider)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(provider => provider)
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<string>>(providers);
+        }
     }
 
     private sealed class FakeTokenService : ITokenService

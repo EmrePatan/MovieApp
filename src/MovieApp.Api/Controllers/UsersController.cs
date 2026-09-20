@@ -5,6 +5,7 @@ using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Contracts.Users;
 
@@ -206,7 +207,12 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
     {
         try
         {
-            await userProfileService.DeleteAccountAsync(request.CurrentPassword, cancellationToken);
+            await userProfileService.DeleteAccountAsync(
+                new DeleteAccountCommand(
+                    request.CurrentPassword,
+                    request.Provider,
+                    request.IdentityToken),
+                cancellationToken);
             return NoContent();
         }
         catch (ValidationException exception)

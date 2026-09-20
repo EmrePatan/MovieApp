@@ -1,6 +1,11 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using MovieApp.Application.Abstractions.Identity;
+using MovieApp.IntegrationTests.Support;
 
 namespace MovieApp.IntegrationTests.UserProfile;
 
@@ -25,6 +30,13 @@ public sealed class UserProfileWebApplicationFactory : WebApplicationFactory<Pro
             configuration["Redis:InstanceName"] = "MovieApp:";
             configuration["MovieProviders:Provider"] = "Fake";
             configurationBuilder.AddInMemoryCollection(configuration);
+        });
+
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ISocialIdentityTokenVerifier>();
+            services.AddSingleton<ISocialIdentityTokenVerifier, IntegrationTestGoogleIdentityTokenVerifier>();
+            services.AddSingleton<ISocialIdentityTokenVerifier, IntegrationTestAppleIdentityTokenVerifier>();
         });
     }
 }

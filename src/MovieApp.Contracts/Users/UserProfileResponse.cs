@@ -5,4 +5,6 @@ public sealed record UserProfileResponse(
     string Email,
     string UserName,
     string DisplayName,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool HasPassword,
+    IReadOnlyList<string> LinkedProviders);
