@@ -1,8 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MovieApp.Application.Exceptions;
 using MovieApp.Contracts.Auth;
+using MovieApp.Infrastructure.Email;
 using MovieApp.IntegrationTests.Auth;
 using MovieApp.Contracts.Favorites;
 using MovieApp.Contracts.Movies;
@@ -100,11 +104,30 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var newTokenResponse = await SendAuthorizedGetAsync("/api/users/me", payload.AccessToken);
         Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
 
+        var emailSender = fixture.Factory.Services.GetRequiredService<CapturingEmailSender>();
+        Assert.Single(emailSender.SentVerificationEmails);
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             newEmail,
             "StrongPassword123"));
 
-        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, loginResponse.StatusCode);
+
+        var loginProblem = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(EmailNotVerifiedException.ErrorCode, loginProblem.GetProperty("code").GetString());
+
+        var rawToken = emailSender.ExtractTokenFromLastVerificationEmail();
+        Assert.False(string.IsNullOrWhiteSpace(rawToken));
+
+        var verifyResponse = await _client.PostAsJsonAsync(
+            "/api/auth/verify-email",
+            new VerifyEmailRequest(rawToken!));
+        Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
+
+        var verifiedLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
+            newEmail,
+            "StrongPassword123"));
+        Assert.Equal(HttpStatusCode.OK, verifiedLoginResponse.StatusCode);
 
         var oldLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             oldEmail,

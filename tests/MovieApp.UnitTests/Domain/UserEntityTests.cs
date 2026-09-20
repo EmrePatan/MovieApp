@@ -24,6 +24,8 @@ public sealed class UserEntityTests
 
         Assert.NotEqual(originalStamp, user.SecurityStamp);
         Assert.Equal("new@example.com", user.Email);
+        Assert.Null(user.EmailVerifiedAtUtc);
+        Assert.False(user.IsEmailVerified);
     }
 
     [Fact]

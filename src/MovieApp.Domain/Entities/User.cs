@@ -148,6 +148,7 @@ public sealed class User
 
         Email = email.Trim();
         NormalizedEmail = normalizedEmail;
+        EmailVerifiedAtUtc = null;
         RotateSecurityStamp(utcNow);
     }
 

@@ -16,7 +16,8 @@ public sealed class UserProfileService(
     IUserStatisticsRepository userStatisticsRepository,
     IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
-    ITokenService tokenService) : IUserProfileService
+    ITokenService tokenService,
+    IResendVerificationService resendVerificationService) : IUserProfileService
 {
     private const string InvalidCurrentPasswordMessage = "Current password is incorrect.";
 
@@ -46,6 +47,7 @@ public sealed class UserProfileService(
     public async Task<AuthenticationResult> ChangeEmailAsync(
         string email,
         string currentPassword,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         ValidateEmailChangeRequest(email, currentPassword);
@@ -66,6 +68,10 @@ public sealed class UserProfileService(
 
         user.ChangeEmail(email, normalizedEmail, DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
+        await resendVerificationService.SendVerificationEmailAsync(
+            user,
+            contentLocale,
+            cancellationToken);
 
         return CreateAuthenticationResult(user);
     }

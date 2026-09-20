@@ -60,14 +60,22 @@ public sealed class UserProfileServiceTests
     public async Task ChangeEmailAsyncUpdatesEmailAndReturnsNewToken()
     {
         var user = CreateUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
         var repository = new FakeUserRepository(user);
-        var service = CreateService(user, repository, passwordShouldVerify: true);
+        var resendVerificationService = new FakeResendVerificationService();
+        var service = CreateService(
+            user,
+            repository,
+            passwordShouldVerify: true,
+            resendVerificationService: resendVerificationService);
 
-        var result = await service.ChangeEmailAsync("new@example.com", "StrongPassword123");
+        var result = await service.ChangeEmailAsync("new@example.com", "StrongPassword123", "en");
 
         Assert.Equal("new@example.com", result.User.Email);
         Assert.Equal("token", result.AccessToken);
         Assert.Equal(1, repository.UpdateCount);
+        Assert.False(user.IsEmailVerified);
+        Assert.Equal(1, resendVerificationService.SendCount);
     }
 
     [Fact]
@@ -77,7 +85,7 @@ public sealed class UserProfileServiceTests
         var repository = new FakeUserRepository(user);
         var service = CreateService(user, repository, passwordShouldVerify: true);
 
-        await service.ChangeEmailAsync(" NEW@Example.com ", "StrongPassword123");
+        await service.ChangeEmailAsync(" NEW@Example.com ", "StrongPassword123", "en");
 
         Assert.Equal("new@example.com", user.NormalizedEmail);
     }
@@ -92,7 +100,7 @@ public sealed class UserProfileServiceTests
         var service = CreateService(user, repository, passwordShouldVerify: true);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
-            service.ChangeEmailAsync("other@example.com", "StrongPassword123"));
+            service.ChangeEmailAsync("other@example.com", "StrongPassword123", "en"));
     }
 
     [Fact]
@@ -101,7 +109,7 @@ public sealed class UserProfileServiceTests
         var service = CreateService(CreateUser(), passwordShouldVerify: false);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ChangeEmailAsync("new@example.com", "WrongPassword123"));
+            service.ChangeEmailAsync("new@example.com", "WrongPassword123", "en"));
     }
 
     [Fact]
@@ -187,11 +195,13 @@ public sealed class UserProfileServiceTests
         IPasswordHasher? passwordHasher = null,
         UserStatisticsResult? statistics = null,
         bool passwordShouldVerify = true,
-        bool newPasswordMatchesCurrent = false)
+        bool newPasswordMatchesCurrent = false,
+        FakeResendVerificationService? resendVerificationService = null)
     {
         repository ??= new FakeUserRepository(user);
         passwordHasher ??= new FakePasswordHasher(passwordShouldVerify, "new-hash", newPasswordMatchesCurrent);
         var statisticsRepository = new FakeUserStatisticsRepository(statistics ?? CreateEmptyStatistics());
+        resendVerificationService ??= new FakeResendVerificationService();
 
         return new UserProfileService(
             new FakeCurrentUser(user.Id),
@@ -199,7 +209,8 @@ public sealed class UserProfileServiceTests
             statisticsRepository,
             new FakeProfileStatisticsCache(),
             passwordHasher,
-            new FakeTokenService());
+            new FakeTokenService(),
+            resendVerificationService);
     }
 
     private static User CreateUser() =>
@@ -292,5 +303,24 @@ public sealed class UserProfileServiceTests
     {
         public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
             new("token", DateTime.UtcNow.AddHours(1));
+    }
+
+    private sealed class FakeResendVerificationService : IResendVerificationService
+    {
+        public int SendCount { get; private set; }
+
+        public Task<MessageResult> ResendVerificationAsync(
+            ResendVerificationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MessageResult(ResendVerificationService.SuccessMessage));
+
+        public Task SendVerificationEmailAsync(
+            User user,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            SendCount++;
+            return Task.CompletedTask;
+        }
     }
 }

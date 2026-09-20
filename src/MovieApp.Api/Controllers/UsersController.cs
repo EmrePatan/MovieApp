@@ -94,6 +94,7 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
             var result = await userProfileService.ChangeEmailAsync(
                 request.Email,
                 request.CurrentPassword,
+                Request.ResolveContentLocale(),
                 cancellationToken);
 
             return Ok(UserProfileContractMapper.ToUserProfileAuthResponse(result));

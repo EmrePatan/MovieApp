@@ -135,7 +135,8 @@ public sealed class ProfileStatisticsCacheTests
             repository,
             profileStatisticsCache,
             new FakePasswordHasher(),
-            new FakeTokenService());
+            new FakeTokenService(),
+            new FakeResendVerificationService());
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -310,5 +311,19 @@ public sealed class ProfileStatisticsCacheTests
             Application.Models.Providers.MovieProviderDetails details,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+    }
+
+    private sealed class FakeResendVerificationService : IResendVerificationService
+    {
+        public Task<MessageResult> ResendVerificationAsync(
+            ResendVerificationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MessageResult(ResendVerificationService.SuccessMessage));
+
+        public Task SendVerificationEmailAsync(
+            User user,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }
