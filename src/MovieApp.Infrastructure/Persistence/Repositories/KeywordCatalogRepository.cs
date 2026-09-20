@@ -164,10 +164,13 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
     {
         if (IsNpgsql())
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            var canonicalKeywordIds = await EnsureCanonicalKeywordIdsAsync(keywords, syncedAtUtc, cancellationToken);
-            await synchronizeRelationships(canonicalKeywordIds);
-            await transaction.CommitAsync(cancellationToken);
+            await dbContext.Database.ExecuteInRetriableTransactionAsync(
+                async ct =>
+                {
+                    var canonicalKeywordIds = await EnsureCanonicalKeywordIdsAsync(keywords, syncedAtUtc, ct);
+                    await synchronizeRelationships(canonicalKeywordIds);
+                },
+                cancellationToken);
             return;
         }
 

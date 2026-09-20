@@ -36,7 +36,9 @@ public sealed class PushNotificationDeliveryFixture : IAsyncLifetime
     internal static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(PushNotificationDeliveryIntegrationDatabase.GetConnectionString())
+            .UseNpgsql(
+                PushNotificationDeliveryIntegrationDatabase.GetConnectionString(),
+                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
             .Options;
 
         return new ApplicationDbContext(options);

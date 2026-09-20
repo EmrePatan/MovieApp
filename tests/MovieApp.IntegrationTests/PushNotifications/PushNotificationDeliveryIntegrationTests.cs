@@ -5,6 +5,7 @@ using MovieApp.Application.Services.PushNotifications;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Domain.Users;
+using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.PushNotifications;
 
@@ -16,6 +17,33 @@ public sealed class PushNotificationDeliveryIntegrationTests(PushNotificationDel
 {
     private const string TokenA = "ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]";
     private const string TokenB = "ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]";
+
+    [Fact]
+    public async Task ClaimDueDeliveriesCompletesUnderNpgsqlRetryExecutionStrategy()
+    {
+        await fixture.ResetAsync();
+        var seed = await SeedNotificationWithDevicesAsync(deviceCount: 1);
+        using var scope = fixture.Factory.Services.CreateScope();
+        await scope.ServiceProvider
+            .GetRequiredService<IPushNotificationDeliveryPreparationService>()
+            .PrepareAsync([seed.NotificationId]);
+
+        await using var context = PushNotificationDeliveryFixture.CreateContext();
+        var repository = new PushNotificationDeliveryRepository(context);
+        var utcNow = DateTime.UtcNow;
+        var claimToken = Guid.NewGuid();
+
+        var claimed = await repository.ClaimDueDeliveriesAsync(
+            batchSize: 10,
+            utcNow: utcNow,
+            claimUntilUtc: utcNow.AddMinutes(5),
+            claimToken: claimToken);
+
+        var delivery = Assert.Single(claimed);
+        Assert.Equal(claimToken, delivery.ClaimToken);
+        Assert.NotNull(delivery.ClaimedUntilUtc);
+        Assert.True(delivery.ClaimedUntilUtc > utcNow);
+    }
 
     [Fact]
     public async Task NotificationCreatesDeliveriesForActiveDevices()

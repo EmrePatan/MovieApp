@@ -98,57 +98,56 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
         return created;
     }
 
-    public async Task<IReadOnlyList<PushNotificationDelivery>> ClaimDueDeliveriesAsync(
+    public Task<IReadOnlyList<PushNotificationDelivery>> ClaimDueDeliveriesAsync(
         int batchSize,
         DateTime utcNow,
         DateTime claimUntilUtc,
         Guid claimToken,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        return dbContext.Database.ExecuteInRetriableTransactionAsync(
+            async ct =>
+            {
+                var pendingStatus = PushNotificationDeliveryStatus.Pending.ToString();
+                var retryableStatus = PushNotificationDeliveryStatus.RetryableFailure.ToString();
 
-        var pendingStatus = PushNotificationDeliveryStatus.Pending.ToString();
-        var retryableStatus = PushNotificationDeliveryStatus.RetryableFailure.ToString();
+                var deliveryIds = await dbContext.Database
+                    .SqlQuery<Guid>($"""
+                        SELECT d."Id" AS "Value"
+                        FROM push_notification_deliveries AS d
+                        WHERE (
+                            d."Status" = {pendingStatus}
+                            OR (d."Status" = {retryableStatus} AND d."NextAttemptAtUtc" <= {utcNow})
+                        )
+                        AND (d."ClaimedUntilUtc" IS NULL OR d."ClaimedUntilUtc" <= {utcNow})
+                        ORDER BY d."CreatedAtUtc"
+                        LIMIT {batchSize}
+                        FOR UPDATE SKIP LOCKED
+                        """)
+                    .ToListAsync(ct);
 
-        var deliveryIds = await dbContext.Database
-            .SqlQuery<Guid>($"""
-                SELECT d."Id" AS "Value"
-                FROM push_notification_deliveries AS d
-                WHERE (
-                    d."Status" = {pendingStatus}
-                    OR (d."Status" = {retryableStatus} AND d."NextAttemptAtUtc" <= {utcNow})
-                )
-                AND (d."ClaimedUntilUtc" IS NULL OR d."ClaimedUntilUtc" <= {utcNow})
-                ORDER BY d."CreatedAtUtc"
-                LIMIT {batchSize}
-                FOR UPDATE SKIP LOCKED
-                """)
-            .ToListAsync(cancellationToken);
+                if (deliveryIds.Count == 0)
+                {
+                    return Array.Empty<PushNotificationDelivery>();
+                }
 
-        if (deliveryIds.Count == 0)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return [];
-        }
+                await dbContext.PushNotificationDeliveries
+                    .Where(delivery => deliveryIds.Contains(delivery.Id))
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(delivery => delivery.ClaimedUntilUtc, claimUntilUtc)
+                            .SetProperty(delivery => delivery.ClaimToken, claimToken)
+                            .SetProperty(delivery => delivery.UpdatedAtUtc, utcNow),
+                        ct);
 
-        await dbContext.PushNotificationDeliveries
-            .Where(delivery => deliveryIds.Contains(delivery.Id))
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(delivery => delivery.ClaimedUntilUtc, claimUntilUtc)
-                    .SetProperty(delivery => delivery.ClaimToken, claimToken)
-                    .SetProperty(delivery => delivery.UpdatedAtUtc, utcNow),
-                cancellationToken);
-
-        var deliveries = await dbContext.PushNotificationDeliveries
-            .Where(delivery => deliveryIds.Contains(delivery.Id) && delivery.ClaimToken == claimToken)
-            .Include(delivery => delivery.PushDevice)
-            .Include(delivery => delivery.UserReleaseNotification)
-                .ThenInclude(notification => notification.NotificationEvents)
-            .ToListAsync(cancellationToken);
-
-        await transaction.CommitAsync(cancellationToken);
-        return deliveries;
+                return (IReadOnlyList<PushNotificationDelivery>)await dbContext.PushNotificationDeliveries
+                    .Where(delivery => deliveryIds.Contains(delivery.Id) && delivery.ClaimToken == claimToken)
+                    .Include(delivery => delivery.PushDevice)
+                    .Include(delivery => delivery.UserReleaseNotification)
+                        .ThenInclude(notification => notification.NotificationEvents)
+                    .ToListAsync(ct);
+            },
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<PushNotificationDelivery>> GetSentDeliveriesForReceiptAsync(

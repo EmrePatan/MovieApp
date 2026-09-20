@@ -92,18 +92,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         Func<CancellationToken, Task> action,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
-
-        try
-        {
-            await action(cancellationToken);
-            await SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        await Database.ExecuteInRetriableTransactionAsync(
+            async ct =>
+            {
+                await action(ct);
+                await SaveChangesAsync(ct);
+            },
+            cancellationToken);
     }
 }
