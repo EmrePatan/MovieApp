@@ -6,7 +6,7 @@ internal static partial class HomeServiceLogMessages
 {
     [LoggerMessage(
         EventId = 7001,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "HomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs}")]
     public static partial void LogCacheHit(
         ILogger logger,
@@ -16,7 +16,7 @@ internal static partial class HomeServiceLogMessages
 
     [LoggerMessage(
         EventId = 7002,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "HomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} CacheWriteMs={CacheWriteMs} HotThisWeekMs={HotThisWeekMs} RecommendedForYouMs={RecommendedForYouMs} ComingUpMs={ComingUpMs} TrendingMs={TrendingMs} TopRatedMs={TopRatedMs} NewReleasesMs={NewReleasesMs}")]
     public static partial void LogCacheMiss(
         ILogger logger,
@@ -33,7 +33,7 @@ internal static partial class HomeServiceLogMessages
 
     [LoggerMessage(
         EventId = 7003,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "HomePerf Browse TotalMs={TotalMs} HotThisWeekMs={HotThisWeekMs} TrendingMs={TrendingMs} TopRatedMs={TopRatedMs} NewReleasesMs={NewReleasesMs} SectionCount={SectionCount}")]
     public static partial void LogBrowse(
         ILogger logger,
@@ -46,7 +46,7 @@ internal static partial class HomeServiceLogMessages
 
     [LoggerMessage(
         EventId = 7004,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "HomePerf Personalized TotalMs={TotalMs} HotThisWeekDedupMs={HotThisWeekDedupMs} ComingUpMs={ComingUpMs} RecommendedForYouMs={RecommendedForYouMs} IsPersonalized={IsPersonalized} SectionCount={SectionCount}")]
     public static partial void LogPersonalized(
         ILogger logger,

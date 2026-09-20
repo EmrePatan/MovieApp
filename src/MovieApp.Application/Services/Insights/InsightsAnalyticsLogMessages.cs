@@ -6,7 +6,7 @@ internal static partial class InsightsAnalyticsLogMessages
 {
     [LoggerMessage(
         EventId = 7102,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "InsightsPerf Analytics Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} DbTotalMs={DbTotalMs} DbRoundTrips={DbRoundTrips} ActivityMs={ActivityMs} TasteErasMs={TasteErasMs} RuntimeMs={RuntimeMs} RatingsMs={RatingsMs} MilestonesMs={MilestonesMs} BuildCpuMs={BuildCpuMs} CacheWriteMs={CacheWriteMs} ActivityDays={ActivityDays} TasteGenreCount={TasteGenreCount} MilestoneCount={MilestoneCount}")]
     public static partial void LogAnalyticsRequest(
         ILogger logger,

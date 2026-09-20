@@ -18,7 +18,7 @@ internal static partial class AppleIdTokenVerifierLogMessages
 
     [LoggerMessage(
         EventId = 7104,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "SocialAuthPerf AppleTokenValidation JwksMs={JwksMs} ValidateMs={ValidateMs}")]
     public static partial void LogTokenValidation(ILogger logger, long jwksMs, long validateMs);
 }

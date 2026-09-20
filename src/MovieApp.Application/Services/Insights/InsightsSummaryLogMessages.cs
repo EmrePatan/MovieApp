@@ -6,7 +6,7 @@ internal static partial class InsightsSummaryLogMessages
 {
     [LoggerMessage(
         EventId = 7101,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "InsightsPerf Summary Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} DbTotalMs={DbTotalMs} DbRoundTrips={DbRoundTrips} BuildCpuMs={BuildCpuMs} CacheWriteMs={CacheWriteMs} MoviesWatched={MoviesWatched} EpisodesWatched={EpisodesWatched} ShowsStarted={ShowsStarted} RatingsCount={RatingsCount} DnaLabelCount={DnaLabelCount}")]
     public static partial void LogSummaryRequest(
         ILogger logger,

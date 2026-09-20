@@ -6,7 +6,7 @@ internal static partial class GoogleIdTokenVerifierLogMessages
 {
     [LoggerMessage(
         EventId = 7101,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "SocialAuthPerf GoogleTokenValidation TotalMs={TotalMs}")]
     public static partial void LogTokenValidation(ILogger logger, long totalMs);
 }

@@ -48,7 +48,7 @@ jobs:
         run: dotnet publish src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-build --no-restore -o "${{ runner.temp }}/movieapp-api-publish"
 
       - name: Build Docker image
-        run: docker build -f Dockerfile -t movieapp-api:ci .
+        run: docker build -f Dockerfile --build-arg MOVIEAPP_SOURCE_VERSION=${{ github.sha }} -t movieapp-api:ci .
 
   integration-tests:
     name: Integration tests (PostgreSQL)

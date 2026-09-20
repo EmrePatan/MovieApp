@@ -9,14 +9,31 @@ public static class ApplicationSourceVersion
     public static string Resolve()
     {
         var fromEnvironment = Environment.GetEnvironmentVariable(EnvironmentVariableName);
-        if (!string.IsNullOrWhiteSpace(fromEnvironment))
+        if (IsUsableVersion(fromEnvironment))
         {
-            return fromEnvironment;
+            return fromEnvironment!;
         }
 
-        return Assembly.GetExecutingAssembly()
+        var entryAssemblyVersion = Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+        if (IsUsableVersion(entryAssemblyVersion))
+        {
+            return entryAssemblyVersion!;
+        }
+
+        var executingAssemblyVersion = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion
-            ?? "unknown";
+            ?.InformationalVersion;
+        if (IsUsableVersion(executingAssemblyVersion))
+        {
+            return executingAssemblyVersion!;
+        }
+
+        return "unknown";
     }
+
+    private static bool IsUsableVersion(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        !string.Equals(value, "unknown", StringComparison.OrdinalIgnoreCase);
 }

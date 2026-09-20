@@ -19,6 +19,46 @@ public sealed class SecurityPipelineExtensionsTests
         Assert.Equal(expected, SecurityPipelineExtensions.ShouldApplyProductionTransportSecurity(environment));
     }
 
+    [Fact]
+    public void ShouldEnableInProcessHttpsRedirectionWhenHttpsPortsAreConfigured()
+    {
+        var originalHttpsPorts = Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS");
+        var originalUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", "443");
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", null);
+
+            Assert.True(SecurityPipelineExtensions.ShouldEnableInProcessHttpsRedirection());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", originalHttpsPorts);
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalUrls);
+        }
+    }
+
+    [Fact]
+    public void ShouldDisableInProcessHttpsRedirectionForHttpOnlyContainerBinding()
+    {
+        var originalHttpsPorts = Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS");
+        var originalUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://+:8080");
+
+            Assert.False(SecurityPipelineExtensions.ShouldEnableInProcessHttpsRedirection());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", originalHttpsPorts);
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalUrls);
+        }
+    }
+
     private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = environmentName;

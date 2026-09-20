@@ -6,7 +6,7 @@ internal static partial class RecommendationServiceLogMessages
 {
     [LoggerMessage(
         EventId = 7101,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "RecHomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs}")]
     public static partial void LogCacheHit(
         ILogger logger,
@@ -16,7 +16,7 @@ internal static partial class RecommendationServiceLogMessages
 
     [LoggerMessage(
         EventId = 7102,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "RecHomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} UserContextMs={UserContextMs} PersonalizedSectionMs={PersonalizedSectionMs} BecauseYouWatchedMs={BecauseYouWatchedMs} CacheWriteMs={CacheWriteMs} MeaningfulInteractionCount={MeaningfulInteractionCount} SectionCount={SectionCount}")]
     public static partial void LogCacheMiss(
         ILogger logger,
@@ -32,7 +32,7 @@ internal static partial class RecommendationServiceLogMessages
 
     [LoggerMessage(
         EventId = 7103,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "RecHomePerf Personalized PreferenceBuildCpuMs={PreferenceBuildCpuMs} CandidateFetchMs={CandidateFetchMs} ScoringCpuMs={ScoringCpuMs} DiversityCpuMs={DiversityCpuMs} PaginationCpuMs={PaginationCpuMs} CandidateCount={CandidateCount} ScoredCount={ScoredCount}")]
     public static partial void LogPersonalizedBuild(
         ILogger logger,
@@ -46,7 +46,7 @@ internal static partial class RecommendationServiceLogMessages
 
     [LoggerMessage(
         EventId = 7104,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "RecHomePerf BecauseYouWatched MovieAggregateMs={MovieAggregateMs} TvAggregateMs={TvAggregateMs} WatchedSourceCount={WatchedSourceCount} ResultCount={ResultCount}")]
     public static partial void LogBecauseYouWatched(
         ILogger logger,
@@ -57,7 +57,7 @@ internal static partial class RecommendationServiceLogMessages
 
     [LoggerMessage(
         EventId = 7105,
-        Level = LogLevel.Information,
+        Level = LogLevel.Debug,
         Message = "RecHomePerf SimilarityAggregate ContentType={ContentType} SourceProfilesMs={SourceProfilesMs} CandidateIdsMs={CandidateIdsMs} CandidateProfilesMs={CandidateProfilesMs} CpuRankMs={CpuRankMs} SourceCount={SourceCount} UniqueCandidateCount={UniqueCandidateCount}")]
     public static partial void LogSimilarityAggregate(
         ILogger logger,

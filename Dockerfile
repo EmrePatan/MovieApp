@@ -8,6 +8,7 @@ USER app
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
+ARG MOVIEAPP_SOURCE_VERSION=unknown
 WORKDIR /src
 
 COPY Directory.Build.props ./
@@ -27,7 +28,8 @@ RUN dotnet publish MovieApp.Api.csproj \
     -c ${BUILD_CONFIGURATION} \
     -o /app/publish \
     --no-restore \
-    /p:UseAppHost=false
+    /p:UseAppHost=false \
+    /p:InformationalVersion=${MOVIEAPP_SOURCE_VERSION}
 
 FROM base AS final
 ARG MOVIEAPP_SOURCE_VERSION=unknown
