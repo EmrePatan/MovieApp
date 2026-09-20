@@ -109,7 +109,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
 
         var emailSender = fixture.Factory.Services.GetRequiredService<CapturingEmailSender>();
-        Assert.Contains(
+        var changeVerificationEmail = Assert.Single(
             emailSender.SentVerificationEmails,
             email => email.Email == newEmail);
 
@@ -122,7 +122,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var loginProblem = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(EmailNotVerifiedException.ErrorCode, loginProblem.GetProperty("code").GetString());
 
-        var rawToken = emailSender.ExtractTokenFromLastVerificationEmail();
+        var rawToken = CapturingEmailSender.ExtractTokenFromVerificationUrl(changeVerificationEmail.VerifyUrl);
         Assert.False(string.IsNullOrWhiteSpace(rawToken));
 
         var verifyResponse = await _client.PostAsJsonAsync(

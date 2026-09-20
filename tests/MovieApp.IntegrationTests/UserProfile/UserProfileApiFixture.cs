@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Models.Common;
+using MovieApp.Infrastructure.Email;
 using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.IntegrationTests.UserProfile;
@@ -19,6 +20,8 @@ public sealed class UserProfileApiFixture : IAsyncLifetime
 
     public async Task ResetAsync()
     {
+        Factory.Services.GetRequiredService<CapturingEmailSender>().Clear();
+
         await using var scope = Factory.Services.CreateAsyncScope();
         var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
         await cacheService.RemoveAsync(MovieSearchCacheKeys.Create(
