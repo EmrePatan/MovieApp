@@ -91,8 +91,8 @@ public static class ApplicationBootstrap
         app.UseProductionTransportSecurity();
         app.UseConfiguredCors();
         app.UseEmailAssetStaticFiles(app.Environment);
-        app.UseRateLimiter();
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
         app.MapHealthChecks(
