@@ -9,6 +9,7 @@ public sealed class IntegrationTestGoogleIdentityTokenVerifier : ISocialIdentity
 {
     public const string ValidToken = "integration-test-google-token";
     public const string Subject = "integration-google-subject";
+    public const string Email = "social-google@example.com";
 
     public string Provider => ExternalLoginProviders.Google;
 
@@ -24,7 +25,7 @@ public sealed class IntegrationTestGoogleIdentityTokenVerifier : ISocialIdentity
         return Task.FromResult(new VerifiedSocialIdentity(
             ExternalLoginProviders.Google,
             Subject,
-            "social-google@example.com",
+            Email,
             true,
             "Social Google User"));
     }

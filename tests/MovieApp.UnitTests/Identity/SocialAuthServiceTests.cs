@@ -166,7 +166,7 @@ public sealed class SocialAuthServiceTests
     }
 
     [Fact]
-    public async Task AuthenticateAsyncRejectsVerifiedEmailPasswordAccountConflict()
+    public async Task AuthenticateAsyncRejectsVerifiedEmailPasswordAccountWithAuthenticationException()
     {
         var passwordUser = User.Create(
             Guid.NewGuid(),
@@ -188,8 +188,10 @@ public sealed class SocialAuthServiceTests
         var externalLoginRepository = new FakeExternalLoginRepository();
         var service = CreateService(userRepository, externalLoginRepository, verifier);
 
-        await Assert.ThrowsAsync<ConflictException>(() =>
+        var exception = await Assert.ThrowsAsync<AuthenticationException>(() =>
             service.AuthenticateAsync(new SocialAuthRequest(ExternalLoginProviders.Google, "token")));
+
+        Assert.Equal("Social authentication failed.", exception.Message);
     }
 
     [Fact]

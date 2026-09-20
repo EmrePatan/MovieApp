@@ -18,9 +18,6 @@ public sealed class SocialAuthService(
     ITokenService tokenService,
     ILogger<SocialAuthService> logger) : ISocialAuthService
 {
-    private const string ExistingPasswordAccountMessage =
-        "An account with this email already exists. Sign in with your password to continue.";
-
     private readonly Dictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
         tokenVerifiers.ToDictionary(verifier => verifier.Provider, StringComparer.Ordinal);
 
@@ -97,8 +94,8 @@ public sealed class SocialAuthService(
                 {
                     if (userByEmail.HasPassword)
                     {
-                        perf.Complete("password_account_conflict");
-                        throw new ConflictException(ExistingPasswordAccountMessage);
+                        perf.Complete("password_account_rejected");
+                        throw new AuthenticationException("Social authentication failed.");
                     }
 
                     var result = await LinkExternalLoginAndAuthenticateAsync(
@@ -264,7 +261,7 @@ public sealed class SocialAuthService(
 
                 if (userByEmail is not null && userByEmail.HasPassword)
                 {
-                    throw new ConflictException(ExistingPasswordAccountMessage);
+                    throw new AuthenticationException("Social authentication failed.");
                 }
             }
 

@@ -26,7 +26,6 @@ public sealed class AuthController(
     [EnableRateLimiting(AuthRateLimitPolicies.Register)]
     [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<RegisterResponse>> Register(
         [FromBody] RegisterRequest request,
@@ -45,13 +44,6 @@ public sealed class AuthController(
             return BadRequest(CreateProblemDetails(
                 StatusCodes.Status400BadRequest,
                 "Invalid registration request.",
-                exception.Message));
-        }
-        catch (ConflictException exception)
-        {
-            return Conflict(CreateProblemDetails(
-                StatusCodes.Status409Conflict,
-                "Registration conflict.",
                 exception.Message));
         }
     }

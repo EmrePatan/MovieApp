@@ -1,6 +1,5 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
-using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Domain.Entities;
@@ -13,7 +12,7 @@ public sealed class RegisterUserServiceTests
     [Fact]
     public async Task RegisterAsyncCreatesUnverifiedUserAndSendsVerificationEmailWithoutJwt()
     {
-        var repository = new FakeUserRepository(exists: false);
+        var repository = new FakeUserRepository();
         var resendService = new FakeResendVerificationService();
         var service = new RegisterUserService(
             repository,
@@ -34,21 +33,92 @@ public sealed class RegisterUserServiceTests
     }
 
     [Fact]
-    public async Task RegisterAsyncThrowsConflictExceptionForDuplicateEmail()
+    public async Task RegisterAsyncReturnsVerificationRequiredResultForDuplicateEmailWithoutCreatingUser()
     {
-        var service = new RegisterUserService(
-            new FakeUserRepository(exists: true),
-            new FakePasswordHasher(),
-            new FakeResendVerificationService());
+        var existingUser = User.Create(
+            Guid.NewGuid(),
+            "user@example.com",
+            "hashed-password",
+            "Existing User",
+            DateTime.UtcNow);
+        existingUser.MarkEmailVerified(DateTime.UtcNow);
 
-        await Assert.ThrowsAsync<ConflictException>(() =>
-            service.RegisterAsync(new RegisterUserRequest(
-                "user@example.com",
-                "StrongPassword123",
-                "Display Name")));
+        var repository = new FakeUserRepository(existingUser);
+        var resendService = new FakeResendVerificationService();
+        var service = new RegisterUserService(
+            repository,
+            new FakePasswordHasher(),
+            resendService);
+
+        var result = await service.RegisterAsync(new RegisterUserRequest(
+            "user@example.com",
+            "StrongPassword123",
+            "Another User"));
+
+        Assert.True(result.RequiresEmailVerification);
+        Assert.Equal(RegisterUserService.VerificationRequiredMessage, result.Message);
+        Assert.Equal("user@example.com", result.User.Email);
+        Assert.Equal(0, repository.CreateCount);
+        Assert.Equal(0, resendService.SendCount);
     }
 
-    private sealed class FakeUserRepository(bool exists) : IUserRepository
+    [Fact]
+    public async Task RegisterAsyncResendsVerificationForDuplicateUnverifiedPasswordUser()
+    {
+        var existingUser = User.Create(
+            Guid.NewGuid(),
+            "user@example.com",
+            "hashed-password",
+            "Existing User",
+            DateTime.UtcNow);
+
+        var repository = new FakeUserRepository(existingUser);
+        var resendService = new FakeResendVerificationService();
+        var service = new RegisterUserService(
+            repository,
+            new FakePasswordHasher(),
+            resendService);
+
+        var result = await service.RegisterAsync(new RegisterUserRequest(
+            "user@example.com",
+            "StrongPassword123",
+            "Another User"));
+
+        Assert.True(result.RequiresEmailVerification);
+        Assert.Equal(RegisterUserService.VerificationRequiredMessage, result.Message);
+        Assert.Equal(0, repository.CreateCount);
+        Assert.Equal(1, resendService.SendCount);
+        Assert.Equal(existingUser.Id, resendService.LastSentUserId);
+    }
+
+    [Fact]
+    public async Task RegisterAsyncDoesNotResendVerificationForDuplicateSocialOnlyUser()
+    {
+        var existingUser = User.CreateFromExternalIdentity(
+            Guid.NewGuid(),
+            "social@example.com",
+            "Social User",
+            DateTime.UtcNow);
+
+        var repository = new FakeUserRepository(existingUser);
+        var resendService = new FakeResendVerificationService();
+        var service = new RegisterUserService(
+            repository,
+            new FakePasswordHasher(),
+            resendService);
+
+        var result = await service.RegisterAsync(new RegisterUserRequest(
+            "social@example.com",
+            "StrongPassword123",
+            "Another User"));
+
+        Assert.True(result.RequiresEmailVerification);
+        Assert.Equal(RegisterUserService.VerificationRequiredMessage, result.Message);
+        Assert.Equal(0, repository.CreateCount);
+        Assert.Equal(0, resendService.SendCount);
+    }
+
+    private sealed class FakeUserRepository(User? existingUser = null) : IUserRepository
     {
         public int CreateCount { get; private set; }
 
@@ -64,10 +134,12 @@ public sealed class RegisterUserServiceTests
             Task.FromResult<Guid?>(null);
 
         public Task<User?> GetByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default) =>
-            Task.FromResult<User?>(null);
+            Task.FromResult(existingUser is not null && existingUser.NormalizedEmail == normalizedEmail
+                ? existingUser
+                : null);
 
         public Task<bool> ExistsByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default) =>
-            Task.FromResult(exists);
+            Task.FromResult(existingUser is not null && existingUser.NormalizedEmail == normalizedEmail);
 
         public Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
         {
@@ -94,6 +166,8 @@ public sealed class RegisterUserServiceTests
     {
         public int SendCount { get; private set; }
 
+        public Guid? LastSentUserId { get; private set; }
+
         public Task<MessageResult> ResendVerificationAsync(
             ResendVerificationRequest request,
             CancellationToken cancellationToken = default) =>
@@ -105,6 +179,7 @@ public sealed class RegisterUserServiceTests
             CancellationToken cancellationToken = default)
         {
             SendCount++;
+            LastSentUserId = user.Id;
             return Task.CompletedTask;
         }
     }

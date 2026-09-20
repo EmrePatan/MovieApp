@@ -64,19 +64,25 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
     }
 
     [Fact]
-    public async Task RegisterDuplicateEmailReturnsConflict()
+    public async Task RegisterDuplicateEmailReturnsSameSuccessResponseAsInitialRegistration()
     {
         await fixture.ResetAsync();
 
         var email = $"duplicate-{Guid.NewGuid():N}@example.com";
-        await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
+        var initialPayload = await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
 
         var duplicateResponse = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
             email,
             "StrongPassword123",
             "Another User"));
 
-        Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, duplicateResponse.StatusCode);
+
+        var duplicatePayload = await duplicateResponse.Content.ReadFromJsonAsync<RegisterResponse>();
+        Assert.NotNull(duplicatePayload);
+        Assert.Equal(initialPayload.Email, duplicatePayload.Email);
+        Assert.Equal(initialPayload.RequiresEmailVerification, duplicatePayload.RequiresEmailVerification);
+        Assert.Equal(initialPayload.Message, duplicatePayload.Message);
     }
 
     [Fact]

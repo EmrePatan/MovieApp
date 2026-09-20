@@ -28,9 +28,18 @@ public sealed class RegisterUserService(
         }
 
         var normalizedEmail = UserEmailNormalizer.Normalize(request.Email);
-        if (await userRepository.ExistsByNormalizedEmailAsync(normalizedEmail, cancellationToken))
+        var existingUser = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
+        if (existingUser is not null)
         {
-            throw new ConflictException("A user with this email address already exists.");
+            if (existingUser.IsActive && existingUser.HasPassword && !existingUser.IsEmailVerified)
+            {
+                await resendVerificationService.SendVerificationEmailAsync(
+                    existingUser,
+                    request.ContentLocale,
+                    cancellationToken);
+            }
+
+            return CreateVerificationRequiredResult(request);
         }
 
         var passwordHash = passwordHasher.HashPassword(request.Password);
@@ -52,4 +61,15 @@ public sealed class RegisterUserService(
             RequiresEmailVerification: true,
             VerificationRequiredMessage);
     }
+
+    private static RegistrationResult CreateVerificationRequiredResult(RegisterUserRequest request) =>
+        new(
+            new CurrentUserResult(
+                Guid.Empty,
+                request.Email.Trim(),
+                string.Empty,
+                request.DisplayName.Trim(),
+                DateTime.UtcNow),
+            RequiresEmailVerification: true,
+            VerificationRequiredMessage);
 }

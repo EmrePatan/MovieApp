@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Infrastructure.Email;
+using MovieApp.IntegrationTests.Support;
 
 namespace MovieApp.IntegrationTests.Auth;
 
@@ -38,6 +42,13 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             configuration["Authentication:RateLimit:ForgotPasswordPermitLimit"] = "100";
             configuration["Authentication:RateLimit:ResetPasswordPermitLimit"] = "100";
             configurationBuilder.AddInMemoryCollection(configuration);
+        });
+
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ISocialIdentityTokenVerifier>();
+            services.AddSingleton<ISocialIdentityTokenVerifier, IntegrationTestGoogleIdentityTokenVerifier>();
+            services.AddSingleton<ISocialIdentityTokenVerifier, IntegrationTestAppleIdentityTokenVerifier>();
         });
     }
 }
