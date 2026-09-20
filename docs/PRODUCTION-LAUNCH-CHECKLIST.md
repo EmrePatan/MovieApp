@@ -46,8 +46,10 @@ Record resource identifiers here (names/URLs only — **never secrets**):
 - [ ] Production API connected to **production** Redis (`Redis__ConnectionString`)
 - [ ] Production API does **not** reference staging PostgreSQL, Redis, or URLs
 - [ ] Production HTTPS URL confirmed
-- [ ] `GET /health` and `GET /health/live` return 200 (liveness)
-- [ ] `GET /health/ready` returns 200 (PostgreSQL + Redis readiness when configured)
+- [ ] Render health check path = `GET /health/live` (liveness only — see `docs/PRODUCTION-SECURITY.md`)
+- [ ] `GET /health` and `GET /health/live` return 200 (public liveness)
+- [ ] `GET /health/ready` returns 200 in post-deploy smoke only (ops — not Render's recurring probe)
+- [ ] `AllowedHosts` set to production API hostname (host from `App__PublicBaseUrl`, e.g. `movieapp-fpkg.onrender.com`)
 
 ---
 
@@ -144,14 +146,15 @@ Any credential exposed during development or staging must **not** be reused in p
 | PostgreSQL | `PostgreSql:ConnectionString` → `PostgreSql__ConnectionString` (preferred), or `PostgreSql__Host` / `Port` / `Database` / `Username` / `Password` | [ ] | [ ] |
 | Redis | `Redis:ConnectionString` → `Redis__ConnectionString`; `Redis:InstanceName` → `Redis__InstanceName` | [ ] | [ ] |
 | JWT | `Authentication:Jwt:SigningKey` → `Authentication__Jwt__SigningKey`; also `Issuer`, `Audience`, `AccessTokenMinutes` | [ ] | [ ] |
-| Google social auth | `Authentication:Social:Google:ClientIds` → `Authentication__Social__Google__ClientIds__*` (iOS + Android/web OAuth client IDs; no secrets in repo) | [ ] | [ ] |
-| Apple social auth | `Authentication:Social:Apple:ClientIds` → `Authentication__Social__Apple__ClientIds__*` (bundle / Services ID audience values) | [ ] | [ ] |
+| Google social auth | `Authentication:Social:Google:ClientIds` → `Authentication__Social__Google__ClientIds__*` (iOS + Android/web OAuth client IDs; no secrets in repo). **Production startup requires ≥1 Google or Apple client ID.** | [ ] | [ ] |
+| Apple social auth | `Authentication:Social:Apple:ClientIds` → `Authentication__Social__Apple__ClientIds__*` (bundle / Services ID audience values). **Production startup requires ≥1 Google or Apple client ID.** | [ ] | [ ] |
 | Mobile Google Sign-In | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` in EAS env for each build profile | [ ] | [ ] |
 | Apple Sign in with Apple | Xcode/EAS capability enabled for `com.movieapp.mobile`; Apple Developer Services ID + key configuration complete | [ ] | [ ] |
 | TMDB | `MovieProviders:Provider` = `Tmdb`; `MovieProviders:Tmdb:ApiKey` / `ReadAccessToken` / `BaseUrl` | [ ] | [ ] |
 | Release region | `ReleaseRegion:DefaultRegion` → `ReleaseRegion__DefaultRegion` (non-secret; default `TR`) | [ ] | [ ] |
 | Push notifications | `PushNotifications:Enabled` → `PushNotifications__Enabled`; `MaxAttempts`, `DispatchBatchSize` | [ ] | [ ] |
 | Public URL | `App:PublicBaseUrl` → `App__PublicBaseUrl` | [ ] | [ ] |
+| Allowed hosts | `AllowedHosts` → hostname from `App__PublicBaseUrl` (e.g. `movieapp-fpkg.onrender.com`) | [ ] | [ ] |
 | CORS | `Cors:Enabled`, `Cors:AllowedOrigins` → `Cors__Enabled`, `Cors__AllowedOrigins` | [ ] | [ ] |
 | Forwarded headers | `ForwardedHeaders:Enabled` (if behind reverse proxy) | [ ] | [ ] |
 | ASP.NET environment | `ASPNETCORE_ENVIRONMENT` (typically `Production`) | [ ] | [ ] |
@@ -408,8 +411,9 @@ Smoke on physical device:
 
 ### Currently available
 
-- `GET /health` and `GET /health/live` — process liveness (no dependency probe)
-- `GET /health/ready` — PostgreSQL + Redis readiness with safe JSON writer (no secret leakage)
+- `GET /health` and `GET /health/live` — public liveness for Render (no dependency probe)
+- `GET /health/ready` — ops/post-deploy smoke only; PostgreSQL + Redis readiness with safe JSON writer (no secret leakage)
+- Redis distributed rate limits fail closed (429) when Redis is unavailable — see `docs/PRODUCTION-SECURITY.md`
 - Correlation ID middleware (`X-Correlation-Id` / `X-Request-Id`) echoed on responses
 - ProblemDetails `correlationId` extension on API-owned error responses
 - Structured Serilog console logging with correlation enrichment

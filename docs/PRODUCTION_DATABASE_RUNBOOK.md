@@ -143,7 +143,7 @@ There is **no** startup guard that rejects `Fake` in Production today — this r
 | Required for startup (Production) | **Yes** — empty `Redis__ConnectionString` fails startup validation |
 | Required for readiness | **Yes in Production** — `/health/ready` checks Redis when configured |
 | Required for multi-instance | **Yes** — without shared Redis, each instance has its own memory cache |
-| Runtime outage behavior | Cache misses only; **auth/search rate limits fail closed** in Production (no per-instance in-memory fallback) |
+| Runtime outage behavior | Cache misses repopulate on demand; **distributed rate limits (auth, search, account) fail closed** in Production — requests return **429** when Redis is unavailable (no per-instance in-memory fallback). See `docs/PRODUCTION-SECURITY.md`. |
 | Backup | **Not required** for V1 — cache repopulates on demand |
 | AOF/RDB on local Compose | Enabled for dev durability of cache only — not a production backup strategy |
 
@@ -217,13 +217,13 @@ Expected tables include: `Movies`, `TvShows`, `Users`, `Favorites`, `Watchlists`
 
 | Endpoint | Use on Render / load balancer | Behavior |
 |----------|-------------------------------|----------|
-| `GET /health/live` | **Liveness / platform health check** | Always `200` when Kestrel is running — no dependency probes |
+| `GET /health/live` | **Public Render / platform liveness probe** | Always `200` when Kestrel is running — no dependency probes |
 | `GET /health` | Legacy alias of liveness | Same as `/health/live` |
-| `GET /health/ready` | **Post-deploy smoke / readiness gate** | `200` only when PostgreSQL, pending-migration check, and Redis (when configured) pass |
+| `GET /health/ready` | **Ops / post-deploy smoke only** (not Render's recurring health check) | `200` only when PostgreSQL, pending-migration check, and Redis (when configured) pass |
 
 Readiness JSON includes `sourceVersion`, `environment`, `timestamp`, and per-check status without leaking connection secrets.
 
-**Render Free cold start:** point the web service health check at `/health/live`, not `/health/ready`. Use `/health/ready` manually after deploy or in a smoke-test step. The API does not auto-run migrations at startup; schema drift surfaces as `database-migrations` unhealthy on `/health/ready`.
+**Render:** set the web service health check path to `/health/live`. Use `/health/ready` manually after deploy or in CI smoke tests — not as the platform liveness probe. The API does not auto-run migrations at startup; schema drift surfaces as `database-migrations` unhealthy on `/health/ready`.
 
 ---
 
@@ -253,7 +253,7 @@ The API **never** calls `Database.Migrate()` at startup. Migrations are forward-
 
 | Platform | Action |
 |----------|--------|
-| **Render web service** | Health check path = `/health/live`; set env vars from secret manager |
+| **Render web service** | Health check path = `/health/live`; `AllowedHosts` = API hostname (e.g. `movieapp-fpkg.onrender.com`); set env vars from secret manager |
 | **Render PostgreSQL** | Enable automated backups (7–30 day retention) and PITR if available |
 | **Render Redis** | Provision managed Redis with AUTH/TLS; set `Redis__ConnectionString` |
 | **GitHub Actions** | Store production/staging Postgres connection strings as repository secrets |

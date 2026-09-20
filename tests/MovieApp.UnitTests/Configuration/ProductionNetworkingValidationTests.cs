@@ -207,6 +207,86 @@ public sealed class ProductionNetworkingValidationTests
         Assert.True(result.Succeeded);
     }
 
+    [Fact]
+    public void SocialAuthValidatorFailsProductionWhenNoClientIdsConfigured()
+    {
+        var validator = new SocialAuthOptionsValidator(new FakeHostEnvironment("Production"));
+
+        var result = validator.Validate(
+            SocialAuthOptions.SectionName,
+            new SocialAuthOptions());
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("ClientIds", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SocialAuthValidatorSucceedsProductionWithGoogleClientId()
+    {
+        var validator = new SocialAuthOptionsValidator(new FakeHostEnvironment("Production"));
+
+        var result = validator.Validate(
+            SocialAuthOptions.SectionName,
+            new SocialAuthOptions
+            {
+                Google = new GoogleSocialAuthOptions
+                {
+                    ClientIds = ["123456789.apps.googleusercontent.com"]
+                }
+            });
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void SocialAuthValidatorSucceedsProductionWithAppleClientId()
+    {
+        var validator = new SocialAuthOptionsValidator(new FakeHostEnvironment("Production"));
+
+        var result = validator.Validate(
+            SocialAuthOptions.SectionName,
+            new SocialAuthOptions
+            {
+                Apple = new AppleSocialAuthOptions
+                {
+                    ClientIds = ["com.movieapp.mobile"]
+                }
+            });
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void SocialAuthValidatorAllowsDevelopmentWithoutClientIds()
+    {
+        var validator = new SocialAuthOptionsValidator(new FakeHostEnvironment("Development"));
+
+        var result = validator.Validate(
+            SocialAuthOptions.SectionName,
+            new SocialAuthOptions());
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void SocialAuthValidatorFailsWhenClientIdArrayContainsEmptyValue()
+    {
+        var validator = new SocialAuthOptionsValidator(new FakeHostEnvironment("Development"));
+
+        var result = validator.Validate(
+            SocialAuthOptions.SectionName,
+            new SocialAuthOptions
+            {
+                Google = new GoogleSocialAuthOptions
+                {
+                    ClientIds = ["valid-client-id", ""]
+                }
+            });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("Google", result.FailureMessage, StringComparison.Ordinal);
+    }
+
     private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = environmentName;
