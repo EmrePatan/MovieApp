@@ -29,6 +29,7 @@ public sealed class TvShowFollowBaselineService(
     public async Task EstablishAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
+        var setupStopwatch = Stopwatch.StartNew();
         var summaryHydrationMs = 0L;
         var providerSeasonFetchMs = 0L;
         var seasonPersistenceMs = 0L;
@@ -92,6 +93,9 @@ public sealed class TvShowFollowBaselineService(
             tvShowId,
             cancellationToken);
 
+        setupStopwatch.Stop();
+        var followSetupMs = setupStopwatch.ElapsedMilliseconds;
+
         var seasonsToHydrate = DetermineSeasonsToHydrate(seasons, boundaryDate);
         if (seasonsToHydrate.Count > 0)
         {
@@ -149,6 +153,7 @@ public sealed class TvShowFollowBaselineService(
             logger,
             tvShowId,
             totalStopwatch.ElapsedMilliseconds,
+            followSetupMs,
             summaryHydrationMs,
             providerSeasonFetchMs,
             seasonPersistenceMs,

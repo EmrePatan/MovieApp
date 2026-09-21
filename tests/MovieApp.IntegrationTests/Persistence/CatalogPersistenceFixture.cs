@@ -8,7 +8,9 @@ public sealed class CatalogPersistenceFixture : IAsyncLifetime
     public static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(GetConnectionString())
+            .UseNpgsql(
+                GetConnectionString(),
+                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
             .Options;
 
         return new ApplicationDbContext(options);

@@ -21,82 +21,73 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
                 cancellationToken);
     }
 
-    public async Task<Season> UpsertFromProviderAsync(
+    public Task<Season> UpsertFromProviderAsync(
         Guid tvShowId,
         SeasonProviderDetails details,
-        CancellationToken cancellationToken = default)
-    {
-        var transaction = await BeginCatalogHydrationTransactionAsync(tvShowId, cancellationToken);
+        CancellationToken cancellationToken = default) =>
+        ExecuteCatalogMutationAsync(
+            tvShowId,
+            async ct =>
+            {
+                var season = await LoadTrackedSeasonAsync(tvShowId, details.SeasonNumber, ct);
+                var utcNow = DateTime.UtcNow;
+                season = await ApplyProviderDetailsAsync(season, tvShowId, details, utcNow, ct);
+                await dbContext.SaveChangesAsync(ct);
+                return season;
+            },
+            cancellationToken);
 
-        try
-        {
-            var season = await LoadTrackedSeasonAsync(tvShowId, details.SeasonNumber, cancellationToken);
-            var utcNow = DateTime.UtcNow;
-            season = await ApplyProviderDetailsAsync(season, tvShowId, details, utcNow, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await CommitCatalogHydrationTransactionAsync(transaction, cancellationToken);
-            return season;
-        }
-        finally
-        {
-            await DisposeCatalogHydrationTransactionAsync(transaction);
-        }
-    }
-
-    public async Task UpsertSeasonsFromProviderAsync(
+    public Task UpsertSeasonsFromProviderAsync(
         Guid tvShowId,
         IReadOnlyList<SeasonProviderDetails> details,
         CancellationToken cancellationToken = default)
     {
         if (details.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         var dedupedDetails = DeduplicateSeasonDetails(details);
-        var transaction = await BeginCatalogHydrationTransactionAsync(tvShowId, cancellationToken);
 
-        try
-        {
-        var seasonNumbers = dedupedDetails
-            .Select(item => item.SeasonNumber)
-            .Distinct()
-            .ToList();
-
-        var existingSeasons = await dbContext.Seasons
-            .Include(season => season.Episodes)
-            .Where(season => season.TvShowId == tvShowId && seasonNumbers.Contains(season.SeasonNumber))
-            .ToListAsync(cancellationToken);
-
-        var seasonsByNumber = existingSeasons.ToDictionary(season => season.SeasonNumber);
-        var utcNow = DateTime.UtcNow;
-
-        foreach (var seasonDetails in dedupedDetails)
-        {
-            if (!seasonsByNumber.TryGetValue(seasonDetails.SeasonNumber, out var season))
+        return ExecuteCatalogMutationAsync(
+            tvShowId,
+            async ct =>
             {
-                season = new Season
+                var seasonNumbers = dedupedDetails
+                    .Select(item => item.SeasonNumber)
+                    .Distinct()
+                    .ToList();
+
+                var existingSeasons = await dbContext.Seasons
+                    .Include(season => season.Episodes)
+                    .Where(season => season.TvShowId == tvShowId && seasonNumbers.Contains(season.SeasonNumber))
+                    .ToListAsync(ct);
+
+                var seasonsByNumber = existingSeasons.ToDictionary(season => season.SeasonNumber);
+                var utcNow = DateTime.UtcNow;
+
+                foreach (var seasonDetails in dedupedDetails)
                 {
-                    Id = Guid.NewGuid(),
-                    TvShowId = tvShowId,
-                    CreatedAt = utcNow
-                };
+                    if (!seasonsByNumber.TryGetValue(seasonDetails.SeasonNumber, out var season))
+                    {
+                        season = new Season
+                        {
+                            Id = Guid.NewGuid(),
+                            TvShowId = tvShowId,
+                            CreatedAt = utcNow
+                        };
 
-                dbContext.Seasons.Add(season);
-                seasonsByNumber[seasonDetails.SeasonNumber] = season;
-            }
+                        dbContext.Seasons.Add(season);
+                        seasonsByNumber[seasonDetails.SeasonNumber] = season;
+                    }
 
-            seasonsByNumber[seasonDetails.SeasonNumber] =
-                await ApplyProviderDetailsAsync(season, tvShowId, seasonDetails, utcNow, cancellationToken);
-        }
+                    seasonsByNumber[seasonDetails.SeasonNumber] =
+                        await ApplyProviderDetailsAsync(season, tvShowId, seasonDetails, utcNow, ct);
+                }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await CommitCatalogHydrationTransactionAsync(transaction, cancellationToken);
-        }
-        finally
-        {
-            await DisposeCatalogHydrationTransactionAsync(transaction);
-        }
+                await dbContext.SaveChangesAsync(ct);
+            },
+            cancellationToken);
     }
 
     public async Task<Season> UpsertSummaryFromProviderAsync(
@@ -137,41 +128,52 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         return season;
     }
 
-    private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> BeginCatalogHydrationTransactionAsync(
+    private async Task<TResult> ExecuteCatalogMutationAsync<TResult>(
         Guid tvShowId,
+        Func<CancellationToken, Task<TResult>> action,
         CancellationToken cancellationToken)
     {
         if (!IsPostgreSql())
         {
-            return null;
+            return await action(cancellationToken);
         }
 
-        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        if (dbContext.Database.CurrentTransaction is not null)
+        {
+            await AcquireCatalogHydrationLockAsync(tvShowId, cancellationToken);
+            return await action(cancellationToken);
+        }
+
+        return await dbContext.Database.ExecuteInRetriableTransactionAsync(
+            async ct =>
+            {
+                await AcquireCatalogHydrationLockAsync(tvShowId, ct);
+                return await action(ct);
+            },
+            cancellationToken);
+    }
+
+    private async Task ExecuteCatalogMutationAsync(
+        Guid tvShowId,
+        Func<CancellationToken, Task> action,
+        CancellationToken cancellationToken) =>
+        await ExecuteCatalogMutationAsync(
+            tvShowId,
+            async ct =>
+            {
+                await action(ct);
+                return true;
+            },
+            cancellationToken);
+
+    private async Task AcquireCatalogHydrationLockAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken)
+    {
         var lockKey = TvShowCatalogLockKeys.ForCatalogHydration(tvShowId);
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({lockKey})",
             cancellationToken);
-
-        return transaction;
-    }
-
-    private static async Task CommitCatalogHydrationTransactionAsync(
-        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction,
-        CancellationToken cancellationToken)
-    {
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync(cancellationToken);
-        }
-    }
-
-    private static async Task DisposeCatalogHydrationTransactionAsync(
-        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction)
-    {
-        if (transaction is not null)
-        {
-            await transaction.DisposeAsync();
-        }
     }
 
     private bool IsPostgreSql() =>
