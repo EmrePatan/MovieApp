@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Services.Identity;
 
 namespace MovieApp.Infrastructure.Configuration;
 
@@ -25,6 +26,14 @@ public sealed class PasswordResetOptionsValidator(
         {
             return ValidateOptionsResult.Fail(
                 "Authentication:PasswordReset:BaseUrl is required in production.");
+        }
+
+        if (!EmailAuthActionUrlBuilder.IsProductionSafeAbsoluteUrl(options.BaseUrl))
+        {
+            return ValidateOptionsResult.Fail(
+                "Authentication:PasswordReset:BaseUrl must be an absolute HTTPS URL in production " +
+                "(for example https://moviecaveapp.com/auth/reset-password). " +
+                "Custom URL schemes such as movieapp:// are not reliably clickable in email clients.");
         }
 
         return ValidateOptionsResult.Success;

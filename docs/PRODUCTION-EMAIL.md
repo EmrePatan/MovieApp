@@ -21,8 +21,8 @@ Authentication__Email__Resend__ApiKey=re_...
 Authentication__Email__Resend__FromAddress=noreply@moviecaveapp.com
 Authentication__Email__Resend__FromName=Movie Cave
 Authentication__PasswordReset__EmailProvider=Resend
-Authentication__PasswordReset__BaseUrl=movieapp://reset-password
-Authentication__EmailVerification__BaseUrl=movieapp://verify-email
+Authentication__PasswordReset__BaseUrl=https://moviecaveapp.com/auth/reset-password
+Authentication__EmailVerification__BaseUrl=https://moviecaveapp.com/auth/verify-email
 ```
 
 Flow-specific sections (`Authentication:PasswordReset:Resend`, `Authentication:EmailVerification:Resend`) may override the shared values. Hero image paths remain flow-specific.
@@ -74,7 +74,9 @@ Complete in Resend Dashboard + your DNS provider. Do not guess record values —
 | `Authentication__Email__Resend__FromAddress` | Verified custom-domain sender |
 | `Authentication__Email__Resend__FromName` | Display name (`Movie Cave`) |
 | `Authentication__PasswordReset__EmailProvider` | Must be `Resend` in Production |
-| `Authentication__PasswordReset__BaseUrl` | Deep link base for reset |
-| `Authentication__EmailVerification__BaseUrl` | Deep link base for verify |
+| `Authentication__PasswordReset__BaseUrl` | HTTPS bridge URL for reset (`https://moviecaveapp.com/auth/reset-password`) |
+| `Authentication__EmailVerification__BaseUrl` | HTTPS bridge URL for verify (`https://moviecaveapp.com/auth/verify-email`) |
+
+Production email CTAs must use HTTPS bridge pages on `moviecaveapp.com`. Those pages open the mobile app via `movieapp://` deep links. Custom-scheme links inside email bodies are not reliably tappable in Gmail/iOS.
 
 See also `docs/PRODUCTION-LAUNCH-CHECKLIST.md`.

@@ -5,7 +5,8 @@ namespace MovieApp.UnitTests.Email;
 
 public sealed class MovieCaveVerificationEmailContentTests
 {
-    private const string VerifyUrl = "movieapp://verify-email?token=raw-token-value";
+    private const string VerifyUrl = "https://moviecaveapp.com/auth/verify-email?token=raw-token-value";
+    private const string DevVerifyUrl = "movieapp://verify-email?token=raw-token-value";
     private const string HeroImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/verification-hero-v2.jpg";
     private const string LogoImageUrl = "https://movieapp-fpkg.onrender.com/email-assets/movie-cave-horizontal-logo-v2.png";
 

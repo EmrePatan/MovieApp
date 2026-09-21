@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Verify email — Movie Cave</title>
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="/assets/css/site.css" />
+    <link rel="icon" href="/assets/images/movie-cave-logo.png" type="image/png" />
+  </head>
+  <body>
+    <main id="main" class="legal-page">
+      <h1>Verify your email</h1>
+      <div class="legal-meta">
+        <p id="status-message">Opening Movie Cave…</p>
+      </div>
+      <div class="callout" id="action-panel" hidden>
+        <p>Continue in the Movie Cave app to verify your email address.</p>
+        <p>
+          <a id="open-app-link" class="button button-primary" href="#">Open Movie Cave</a>
+        </p>
+      </div>
+      <p id="missing-token-message" hidden>
+        This verification link is missing a token. Request a new verification email from the Movie Cave app.
+      </p>
+      <p>
+        Need help? Email
+        <a href="mailto:support@moviecaveapp.com">support@moviecaveapp.com</a>.
+      </p>
+    </main>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var token = params.get("token");
+        if (!token) {
+          document.getElementById("status-message").textContent = "Verification link incomplete";
+          document.getElementById("missing-token-message").hidden = false;
+          return;
+        }
+
+        var deepLink = "movieapp://verify-email?token=" + encodeURIComponent(token);
+        var openAppLink = document.getElementById("open-app-link");
+        openAppLink.href = deepLink;
+        document.getElementById("action-panel").hidden = false;
+        window.setTimeout(function () {
+          window.location.href = deepLink;
+        }, 150);
+      })();
+    </script>
+  </body>
+</html>

@@ -35,7 +35,7 @@ public sealed class PasswordResetOptionsValidatorTests
     }
 
     [Fact]
-    public void ValidateSucceedsProductionWithResendProviderAndBaseUrl()
+    public void ValidateSucceedsProductionWithResendProviderAndHttpsBaseUrl()
     {
         var validator = CreateValidator(new FakeHostEnvironment("Production"));
 
@@ -44,7 +44,7 @@ public sealed class PasswordResetOptionsValidatorTests
             new PasswordResetOptions
             {
                 EmailProvider = "Resend",
-                BaseUrl = "movieapp://reset-password"
+                BaseUrl = "https://moviecaveapp.com/auth/reset-password"
             });
 
         Assert.True(result.Succeeded);

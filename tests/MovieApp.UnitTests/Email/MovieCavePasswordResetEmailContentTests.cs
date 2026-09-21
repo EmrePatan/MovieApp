@@ -5,7 +5,7 @@ namespace MovieApp.UnitTests.Email;
 
 public sealed class MovieCavePasswordResetEmailContentTests
 {
-    private const string ResetUrl = "movieapp://reset-password?token=raw-token-value";
+    private const string ResetUrl = "https://moviecaveapp.com/auth/reset-password?token=raw-token-value";
 
     [Fact]
     public void BuildPlainTextIncludesResetUrlAndPasswordResetCopy()

@@ -83,15 +83,6 @@ public sealed class ForgotPasswordService(
         return new MessageResult(ForgotPasswordMessageLocalization.GetSuccessMessage(normalizedContentLocale));
     }
 
-    public static string BuildResetUrl(string baseUrl, string rawToken)
-    {
-        var trimmedBase = baseUrl.Trim();
-        if (string.IsNullOrWhiteSpace(trimmedBase))
-        {
-            return $"?token={Uri.EscapeDataString(rawToken)}";
-        }
-
-        var separator = trimmedBase.Contains('?', StringComparison.Ordinal) ? '&' : '?';
-        return $"{trimmedBase}{separator}token={Uri.EscapeDataString(rawToken)}";
-    }
+    public static string BuildResetUrl(string baseUrl, string rawToken) =>
+        EmailAuthActionUrlBuilder.Build(baseUrl, rawToken);
 }
