@@ -484,16 +484,15 @@ public sealed class WatchHistoryService(
         }
 
         var seasonLookupStopwatch = Stopwatch.StartNew();
-        var regularSeasonNumbers = hydrationResult.TvShow.Seasons
-            .Where(season => season.SeasonNumber >= 1)
-            .Select(season => season.SeasonNumber)
-            .OrderBy(seasonNumber => seasonNumber)
-            .ToList();
         var seasonsWithEpisodes = await seasonRepository.GetRegularSeasonNumbersWithEpisodesAsync(
             tvShowId,
             cancellationToken);
-        var seasonsNeedingHydration = regularSeasonNumbers
-            .Where(seasonNumber => !seasonsWithEpisodes.Contains(seasonNumber))
+        var seasonsNeedingHydration = hydrationResult.TvShow.Seasons
+            .Where(season => season.SeasonNumber >= 1)
+            .Where(season => !seasonsWithEpisodes.Contains(season.SeasonNumber))
+            .Where(season => season.EpisodeCount != 0)
+            .Select(season => season.SeasonNumber)
+            .OrderBy(seasonNumber => seasonNumber)
             .ToList();
         seasonLookupStopwatch.Stop();
 

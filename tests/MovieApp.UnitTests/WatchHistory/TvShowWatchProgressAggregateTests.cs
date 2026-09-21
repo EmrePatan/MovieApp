@@ -63,8 +63,8 @@ public sealed class TvShowWatchProgressAggregateTests
         var tvShow = CreateTvShow();
         tvShow.Seasons =
         [
-            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
         ];
         var service = new WatchHistoryService(
             new FakeCurrentUser(UserId),
@@ -92,8 +92,8 @@ public sealed class TvShowWatchProgressAggregateTests
         var tvShow = CreateTvShow();
         tvShow.Seasons =
         [
-            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
         ];
         var service = new WatchHistoryService(
             new FakeCurrentUser(UserId),
@@ -112,6 +112,89 @@ public sealed class TvShowWatchProgressAggregateTests
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
 
         Assert.Empty(getSeasonService.IngestedSeasonNumbers);
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateSkipsZeroEpisodeCountSeasons()
+    {
+        var getSeasonService = new TrackingGetSeasonService();
+        var tvShow = CreateTvShowWithSeasons(
+        [
+            CreateSeason(1, episodeCount: 10),
+            CreateSeason(2, episodeCount: 10),
+            CreateSeason(3, episodeCount: 10),
+            CreateSeason(4, episodeCount: 0),
+            CreateSeason(5, episodeCount: 0),
+            CreateSeason(6, episodeCount: 0),
+        ]);
+        var service = CreateBulkWatchStateService(
+            tvShow,
+            new HydratedSeasonRepository([1, 2, 3]),
+            getSeasonService);
+
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+
+        Assert.Empty(getSeasonService.IngestedSeasonNumbers);
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateHydratesOnlyNonEmptyMissingSeasons()
+    {
+        var getSeasonService = new TrackingGetSeasonService();
+        var tvShow = CreateTvShowWithSeasons(
+        [
+            CreateSeason(1, episodeCount: 10),
+            CreateSeason(2, episodeCount: 0),
+            CreateSeason(3, episodeCount: 12),
+        ]);
+        var service = CreateBulkWatchStateService(
+            tvShow,
+            new HydratedSeasonRepository([1]),
+            getSeasonService);
+
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+
+        Assert.Equal([3], getSeasonService.IngestedSeasonNumbers);
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateDoesNotRetryZeroEpisodeSeasonsOnRepeat()
+    {
+        var getSeasonService = new TrackingGetSeasonService();
+        var tvShow = CreateTvShowWithSeasons(
+        [
+            CreateSeason(1, episodeCount: 10),
+            CreateSeason(2, episodeCount: 10),
+            CreateSeason(3, episodeCount: 10),
+            CreateSeason(4, episodeCount: 0),
+            CreateSeason(5, episodeCount: 0),
+            CreateSeason(6, episodeCount: 0),
+        ]);
+        var service = CreateBulkWatchStateService(
+            tvShow,
+            new HydratedSeasonRepository([1, 2, 3]),
+            getSeasonService);
+
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: false);
+
+        Assert.Empty(getSeasonService.IngestedSeasonNumbers);
+    }
+
+    [Fact]
+    public async Task BulkUpdateTvShowWatchStateDoesNotHydrateSpecialSeasonZero()
+    {
+        var getSeasonService = new TrackingGetSeasonService();
+        var tvShow = CreateTvShowWithSeasons(
+        [
+            CreateSeason(0, episodeCount: 5),
+            CreateSeason(1, episodeCount: 10),
+        ]);
+        var service = CreateBulkWatchStateService(tvShow, new FakeSeasonRepository(), getSeasonService);
+
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+
+        Assert.Equal([1], getSeasonService.IngestedSeasonNumbers);
     }
 
     [Fact]
@@ -201,6 +284,42 @@ public sealed class TvShowWatchProgressAggregateTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
+
+    private static TvShow CreateTvShowWithSeasons(IReadOnlyList<Season> seasons)
+    {
+        var tvShow = CreateTvShow();
+        tvShow.Seasons = seasons.ToList();
+        return tvShow;
+    }
+
+    private static Season CreateSeason(int seasonNumber, int? episodeCount) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = TvShowId,
+            SeasonNumber = seasonNumber,
+            EpisodeCount = episodeCount,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+    private static WatchHistoryService CreateBulkWatchStateService(
+        TvShow tvShow,
+        ISeasonRepository seasonRepository,
+        TrackingGetSeasonService getSeasonService) =>
+        new(
+            new FakeCurrentUser(UserId),
+            new FakeWatchedMovieRepository(),
+            new TrackingWatchedEpisodeRepository(),
+            new FakeMovieRepository(),
+            new TrackingEpisodeRepository(),
+            new FakeTvShowRepository(tvShow),
+            seasonRepository,
+            getSeasonService,
+            new FakeSeasonSummaryHydrator(tvShow),
+            new FakeCatalogSyncStateService(),
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
