@@ -1,72 +1,113 @@
-# Movie Cave public website — Cloudflare Pages deployment
+# Movie Cave public website — Cloudflare Workers (Git) deployment
 
 Official domain: **https://moviecaveapp.com**
 
-This folder is a static site with no backend dependency.
+This folder is a **static** site with no backend dependency. It is deployed with **Cloudflare Workers Static Assets** via the current **Workers Git** integration (not legacy Pages root/output-directory fields).
 
-## Build settings
+## Repository layout
 
-| Setting | Value |
-|--------|--------|
-| Framework preset | None |
-| Build command | `npm run build` |
-| Build output directory | `/` (repository root of this `website/` folder) |
-| Root directory | `website` (when connecting the MovieApp GitHub repo) |
+| Path | Purpose |
+|------|---------|
+| `index.html` | `/` |
+| `privacy/index.html` | `/privacy/` |
+| `terms/index.html` | `/terms/` |
+| `delete-account/index.html` | `/delete-account/` |
+| `wrangler.toml` | Workers static-assets config (`assets.directory = "./dist"`) |
+| `scripts/build.mjs` | Validates source files and stages public assets into `dist/` |
+| `package.json` | `npm run build` + Wrangler devDependency |
 
-`npm run build` only validates required files exist. There is no compile step.
+There is **no** Worker `main` script. Wrangler serves files from this directory only.
 
-## Deploy from GitHub (recommended)
+## Cloudflare dashboard — exact values
 
-1. In Cloudflare Dashboard → **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
-2. Select the `MovieApp` repository.
-3. Set **Production branch** to `master`.
-4. Configure:
-   - **Root directory:** `website`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `/`
-5. Deploy.
+Use these on the **Workers Git** connect screen (Project name / Build command / Deploy command / Advanced settings).
 
-## Custom domain
+| # | Field | Value |
+|---|--------|--------|
+| 1 | **Project name** | `moviecaveapp` |
+| 2 | **Build command** | `npm ci && npm run build` |
+| 3 | **Deploy command** | `npx wrangler deploy` |
+| 4 | **Builds for non-production branches** | **Enabled** (recommended). Non-`master` commits run `npx wrangler versions upload` by default and produce preview URLs without promoting production. |
+| 5 | **Cloudflare Access** | **Disabled** (public marketing + legal pages must be reachable without login). |
+| 6 | **Advanced settings** | See table below. |
+| 7 | **Root directory** (under Advanced) | `website` |
+| 8 | **workers.dev URL** | After first production deploy: `https://moviecaveapp.<your-account-subdomain>.workers.dev` (subdomain is account-specific; shown on the Worker overview page). |
+| 9 | **Custom domain** | See [Attach moviecaveapp.com](#attach-moviecaveappcom-after-first-deploy) below. |
 
-1. Pages project → **Custom domains** → add `moviecaveapp.com`.
-2. Add the DNS records Cloudflare shows (usually a CNAME to the Pages hostname, or use Cloudflare as DNS registrar/nameserver).
-3. Enable HTTPS (automatic on Cloudflare Pages once DNS is active).
+### Advanced settings (change only these)
+
+| Advanced field | Value | Notes |
+|----------------|--------|--------|
+| **Root directory** | `website` | Required. Build and deploy commands run from this folder. |
+| **Production branch** | `master` | Match the repo default branch. |
+| **Non-production branch deploy command** | *(leave default)* `npx wrangler versions upload` | Only used when non-production branch builds are enabled. |
+| **API token** | *(leave default)* Automatically generated | Do not commit tokens to git. |
+| **Build variables and secrets** | *(none)* | Not required for this static site. |
+
+All other advanced fields: **leave at defaults**.
+
+**Critical:** Dashboard **Project name** must match `name = "moviecaveapp"` in `website/wrangler.toml`. A mismatch fails the build.
+
+## Connect GitHub (first time)
+
+1. Cloudflare dashboard → **Workers & Pages** → **Create** → connect **Git** → select **EmrePatan/MovieApp**.
+2. Enter the values from the table above.
+3. Under **Advanced settings**, set **Root directory** to `website`.
+4. Save and deploy (or push a commit to `master`).
 
 ## Routing
 
-Routes are directory-based:
+Directory-based static routes (default `html_handling = "auto-trailing-slash"`):
 
 - `/` → `index.html`
 - `/privacy/` → `privacy/index.html`
 - `/terms/` → `terms/index.html`
 - `/delete-account/` → `delete-account/index.html`
 
-No SPA fallback is required.
+No SPA fallback is configured.
 
-## Redirects (optional)
+## Attach moviecaveapp.com after first deploy
 
-If you want to force HTTPS or add `www` → apex redirects, configure **Bulk Redirects** or **Redirect Rules** in Cloudflare after the domain is attached.
+1. Confirm production deploy succeeded on `master` and the `*.workers.dev` URL serves all four routes.
+2. Open the **moviecaveapp** Worker → **Settings** → **Domains & Routes** (or **Triggers** → **Custom Domains**).
+3. **Add custom domain** → `moviecaveapp.com` (and optionally `www.moviecaveapp.com`).
+4. If `moviecaveapp.com` is already on Cloudflare DNS, Cloudflare usually creates the required records automatically. Otherwise add the CNAME/AAAA records shown in the UI.
+5. Wait for certificate provisioning (typically minutes). Verify:
+   - https://moviecaveapp.com/
+   - https://moviecaveapp.com/privacy/
+   - https://moviecaveapp.com/terms/
+   - https://moviecaveapp.com/delete-account/
+6. Optional: add a **Redirect Rule** for `www` → apex if you attach both hostnames.
 
 ## Local validation
 
+From the repository root:
+
 ```bash
 cd website
-npm run validate
+npm ci
+npm run build
 ```
 
-Serve locally with any static file server, for example:
+Optional local preview (Wrangler static assets server):
 
 ```bash
-npx serve .
+npm run preview
 ```
 
 Then open:
 
-- http://localhost:3000/
-- http://localhost:3000/privacy/
-- http://localhost:3000/terms/
-- http://localhost:3000/delete-account/
+- http://localhost:8787/
+- http://localhost:8787/privacy/
+- http://localhost:8787/terms/
+- http://localhost:8787/delete-account/
+
+Deploy to Cloudflare (requires local `wrangler login`; not needed for CI):
+
+```bash
+npm run deploy
+```
 
 ## Credentials
 
-Do **not** store Cloudflare API tokens in this repository.
+Do **not** store Cloudflare API tokens, account IDs, or other secrets in this repository. Workers Builds uses a dashboard-managed API token.

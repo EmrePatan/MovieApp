@@ -4,6 +4,11 @@
   "description": "Static public website for moviecaveapp.com",
   "scripts": {
     "validate": "node scripts/validate.mjs",
-    "build": "node scripts/validate.mjs"
+    "build": "node scripts/build.mjs",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.38.0"
   }
 }

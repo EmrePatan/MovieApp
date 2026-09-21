@@ -1,0 +1,7 @@
+# Worker name must match the Cloudflare dashboard project name exactly.
+name = "moviecaveapp"
+compatibility_date = "2026-09-21"
+
+[assets]
+directory = "./dist"
+html_handling = "auto-trailing-slash"

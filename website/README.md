@@ -12,7 +12,9 @@ Static site for **https://moviecaveapp.com**.
 ## Commands
 
 ```bash
-npm run validate
+npm ci
+npm run build
+npm run preview   # optional local Wrangler preview
 ```
 
-See [CLOUDFLARE-DEPLOYMENT.md](./CLOUDFLARE-DEPLOYMENT.md) for hosting steps.
+See [CLOUDFLARE-DEPLOYMENT.md](./CLOUDFLARE-DEPLOYMENT.md) for Cloudflare Workers Git deployment settings.
