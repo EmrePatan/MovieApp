@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.ReleaseDetection;
@@ -166,6 +167,40 @@ public sealed class TvShowFollowBaselineServiceTests
     }
 
     [Fact]
+    public async Task EstablishAsync_MultipleHistoricalSeasons_HydratesInIndependentScopes()
+    {
+        ConcurrentFakeSeasonRepository.ResetTotals();
+        var follow = CreateFollow();
+        var seasons = new[]
+        {
+            CreateSeasonSummary(1, new DateOnly(2026, 8, 1), 10),
+            CreateSeasonSummary(2, new DateOnly(2026, 8, 8), 8),
+            CreateSeasonSummary(3, new DateOnly(2026, 8, 15), 6),
+            CreateSeasonSummary(4, new DateOnly(2026, 8, 22), 4),
+        };
+        var repository = new FakeTvShowFollowRepository(follow);
+        var tvShowRepository = new FakeTvShowRepository(CreateTvShow(seasons));
+        var seasonHydrator = new FakeSeasonSummaryHydrator();
+        var catalogRepository = new FakeReleaseDetectionCatalogRepository(seasons);
+        var provider = new FakeTvShowDataProvider();
+        var releaseDetector = new FakeReleaseDetector();
+
+        var service = CreateServiceWithScopedSeasonRepository<ConcurrentFakeSeasonRepository>(
+            repository,
+            tvShowRepository,
+            seasonHydrator,
+            catalogRepository,
+            provider,
+            releaseDetector);
+
+        await service.EstablishAsync(follow);
+
+        Assert.Equal(4, provider.GetSeasonCallCount);
+        Assert.Equal(4, ConcurrentFakeSeasonRepository.TotalUpsertCallCount);
+        Assert.True(follow.IsBaselineEstablished);
+    }
+
+    [Fact]
     public async Task EstablishAsync_NoRegularSeasons_EstablishesBaseline()
     {
         var follow = CreateFollow();
@@ -197,7 +232,7 @@ public sealed class TvShowFollowBaselineServiceTests
         FakeTvShowRepository tvShowRepository,
         FakeSeasonSummaryHydrator seasonHydrator,
         FakeReleaseDetectionCatalogRepository catalogRepository,
-        FakeSeasonRepository seasonRepository,
+        ISeasonRepository seasonRepository,
         FakeTvShowDataProvider provider,
         FakeReleaseDetector releaseDetector) =>
         new(
@@ -205,11 +240,43 @@ public sealed class TvShowFollowBaselineServiceTests
             tvShowRepository,
             seasonHydrator,
             catalogRepository,
-            seasonRepository,
+            CreateScopeFactory(seasonRepository),
             provider,
             new FakeExternalIdResolver(),
             new FakeCatalogSyncStateService(),
             releaseDetector);
+
+    private static IServiceScopeFactory CreateScopeFactory(ISeasonRepository seasonRepository)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ISeasonRepository>(_ => seasonRepository);
+        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    }
+
+    private static TvShowFollowBaselineService CreateServiceWithScopedSeasonRepository<TSeasonRepository>(
+        FakeTvShowFollowRepository followRepository,
+        FakeTvShowRepository tvShowRepository,
+        FakeSeasonSummaryHydrator seasonHydrator,
+        FakeReleaseDetectionCatalogRepository catalogRepository,
+        FakeTvShowDataProvider provider,
+        FakeReleaseDetector releaseDetector)
+        where TSeasonRepository : class, ISeasonRepository
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ISeasonRepository, TSeasonRepository>();
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        return new TvShowFollowBaselineService(
+            followRepository,
+            tvShowRepository,
+            seasonHydrator,
+            catalogRepository,
+            scopeFactory,
+            provider,
+            new FakeExternalIdResolver(),
+            new FakeCatalogSyncStateService(),
+            releaseDetector);
+    }
 
     private static CatalogFollow CreateFollow()
     {
@@ -419,7 +486,7 @@ public sealed class TvShowFollowBaselineServiceTests
             Task.FromResult(seasons);
     }
 
-    private sealed class FakeSeasonRepository : ISeasonRepository
+    private class FakeSeasonRepository : ISeasonRepository
     {
         public int UpsertCallCount { get; private set; }
 
@@ -429,7 +496,7 @@ public sealed class TvShowFollowBaselineServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Season?>(null);
 
-        public Task<Season> UpsertFromProviderAsync(
+        public virtual Task<Season> UpsertFromProviderAsync(
             Guid tvShowId,
             SeasonProviderDetails details,
             CancellationToken cancellationToken = default)
@@ -443,6 +510,39 @@ public sealed class TvShowFollowBaselineServiceTests
             SeasonProviderSummary summary,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new Season { SeasonNumber = summary.SeasonNumber });
+    }
+
+    private sealed class ConcurrentFakeSeasonRepository : FakeSeasonRepository
+    {
+        public static int TotalUpsertCallCount { get; private set; }
+
+        public static void ResetTotals() => TotalUpsertCallCount = 0;
+
+        private int _activeOperations;
+
+        public override async Task<Season> UpsertFromProviderAsync(
+            Guid tvShowId,
+            SeasonProviderDetails details,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _activeOperations) > 1)
+            {
+                Interlocked.Decrement(ref _activeOperations);
+                throw new InvalidOperationException(
+                    "A second operation was started on this context instance before a previous operation completed.");
+            }
+
+            try
+            {
+                await Task.Delay(25, cancellationToken);
+                TotalUpsertCallCount++;
+                return new Season { SeasonNumber = details.SeasonNumber };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeOperations);
+            }
+        }
     }
 
     private sealed class FakeTvShowDataProvider : ITvShowDataProvider

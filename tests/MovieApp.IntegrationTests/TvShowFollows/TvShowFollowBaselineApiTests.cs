@@ -82,6 +82,37 @@ public sealed class TvShowFollowBaselineApiTests(TvShowFollowsApiFixture fixture
     }
 
     [Fact]
+    public async Task MultipleHistoricalSeasonsCanEstablishBaselineWithoutConcurrencyFailure()
+    {
+        await fixture.ResetAsync();
+
+        var tvShowId = await SeedMultiSeasonPartialShowAsync(seasonCount: 3);
+        fixture.ResetProviderTracker();
+        var token = await RegisterAndGetTokenAsync("baseline-multi-season-user");
+
+        var response = await SendAuthorizedPutAsync(
+            $"/api/tvshows/{tvShowId}/follow",
+            token,
+            new UpsertTvShowFollowRequest(null, null));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var status = await response.Content.ReadFromJsonAsync<TvShowFollowStatusResponse>();
+        Assert.NotNull(status);
+        Assert.True(status.BaselineEstablished);
+
+        using var scope = fixture.Factory.Services.CreateScope();
+        var tracker = scope.ServiceProvider.GetRequiredService<TvShowDataProviderCallTracker>();
+        Assert.Equal(3, tracker.GetSeasonCallCount);
+
+        await using var context = TvShowFollowsApiFixture.CreateContext();
+        var hydratedEpisodeCount = await context.Episodes
+            .Where(episode => episode.Season!.TvShowId == tvShowId)
+            .CountAsync();
+        Assert.True(hydratedEpisodeCount > 0);
+    }
+
+    [Fact]
     public async Task PartialHistoricalSeasonIsHydratedBeforeBaseline()
     {
         await fixture.ResetAsync();
@@ -298,6 +329,32 @@ public sealed class TvShowFollowBaselineApiTests(TvShowFollowsApiFixture fixture
         if (includeFutureSeasonSummary)
         {
             context.Seasons.Add(CreateSeason(tvShowId, 3, new DateOnly(2030, 1, 1), 2));
+        }
+
+        await context.SaveChangesAsync();
+        return tvShowId;
+    }
+
+    private static async Task<Guid> SeedMultiSeasonPartialShowAsync(int seasonCount)
+    {
+        await using var context = TvShowFollowsApiFixture.CreateContext();
+        var tvShowId = Guid.NewGuid();
+        context.TvShows.Add(new TvShow
+        {
+            Id = tvShowId,
+            TmdbId = FakeTvShowDataProvider.BreakingBadTmdbId,
+            Title = "Multi Season Partial",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        for (var seasonNumber = 1; seasonNumber <= seasonCount; seasonNumber++)
+        {
+            context.Seasons.Add(CreateSeason(
+                tvShowId,
+                seasonNumber,
+                new DateOnly(2008, 1, 20).AddMonths(seasonNumber - 1),
+                3));
         }
 
         await context.SaveChangesAsync();

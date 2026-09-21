@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
@@ -131,7 +132,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             new FakeTvShowRepository(CreateFullyHydratedTvShow()),
             new FakeSeasonSummaryHydrator(providerCatalogRefreshed: false),
             new FakeReleaseDetectionCatalogRepository(CreateFullyHydratedTvShow().Seasons.ToList()),
-            new FakeSeasonRepository(null),
+            CreateScopeFactory(new FakeSeasonRepository(null)),
             new FakeTvShowDataProvider(),
             new FakeExternalIdResolver(),
             syncState,
@@ -155,7 +156,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             new FakeTvShowRepository(CreateTvShow([partialSeason])),
             new FakeSeasonSummaryHydrator(providerCatalogRefreshed: false),
             new FakeReleaseDetectionCatalogRepository([partialSeason]),
-            new FakeSeasonRepository(null),
+            CreateScopeFactory(new FakeSeasonRepository(null)),
             new FakeTvShowDataProvider(),
             new FakeExternalIdResolver(),
             syncState,
@@ -497,5 +498,12 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             _entries.Remove(key);
             return Task.CompletedTask;
         }
+    }
+
+    private static IServiceScopeFactory CreateScopeFactory(ISeasonRepository seasonRepository)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ISeasonRepository>(_ => seasonRepository);
+        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 }

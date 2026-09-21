@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.ReleaseDetection;
@@ -15,7 +16,7 @@ public sealed class TvShowFollowBaselineService(
     ITvShowRepository tvShowRepository,
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     IReleaseDetectionCatalogRepository releaseDetectionCatalogRepository,
-    ISeasonRepository seasonRepository,
+    IServiceScopeFactory scopeFactory,
     ITvShowDataProvider tvShowDataProvider,
     ITvShowExternalIdResolver externalIdResolver,
     ITvShowCatalogSyncStateService catalogSyncStateService,
@@ -176,6 +177,9 @@ public sealed class TvShowFollowBaselineService(
                 $"Unable to hydrate season {seasonNumber} required for follow baseline.");
         }
 
-        await seasonRepository.UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
+        using var scope = scopeFactory.CreateScope();
+        await scope.ServiceProvider
+            .GetRequiredService<ISeasonRepository>()
+            .UpsertFromProviderAsync(tvShowId, providerSeason, cancellationToken);
     }
 }
