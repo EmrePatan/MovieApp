@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.TvShowFollows;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.TvShowFollows;
 using MovieApp.Application.Services.TvShowFollows;
@@ -17,7 +18,8 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncCreatesFollowWithDefaults()
     {
         var repository = new FakeTvShowFollowRepository();
-        var service = CreateService(repository, tvShowExists: true);
+        var enqueuer = new FakeTvShowFollowBaselineJobEnqueuer(repository);
+        var service = CreateService(repository, tvShowExists: true, enqueuer);
 
         var (mutation, status) = await service.UpsertAsync(
             TvShowId,
@@ -28,6 +30,24 @@ public sealed class UpsertTvShowFollowServiceTests
         Assert.True(status.NotifyNewSeasons);
         Assert.True(status.NotifyNewEpisodes);
         Assert.True(status.BaselineEstablished);
+        Assert.Equal(1, enqueuer.EnqueueCallCount);
+    }
+
+    [Fact]
+    public async Task UpsertAsyncReturnsPendingBaselineWhenEnqueueIsDeferred()
+    {
+        var repository = new FakeTvShowFollowRepository();
+        var enqueuer = new FakeTvShowFollowBaselineJobEnqueuer(repository) { ExecuteSynchronously = false };
+        var service = CreateService(repository, tvShowExists: true, enqueuer);
+
+        var (_, status) = await service.UpsertAsync(
+            TvShowId,
+            new TvShowFollowPreferencesUpdate(null, null));
+
+        Assert.True(status.IsFollowing);
+        Assert.False(status.BaselineEstablished);
+        Assert.Equal(1, enqueuer.EnqueueCallCount);
+        Assert.Equal(0, enqueuer.BaselineService.EstablishCallCount);
     }
 
     [Fact]
@@ -90,7 +110,8 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncRetriesCreateWhenConcurrentInsertWins()
     {
         var repository = new ConcurrentWinTvShowFollowRepository();
-        var service = CreateService(repository, tvShowExists: true, new FakeTvShowFollowBaselineService());
+        var enqueuer = new FakeTvShowFollowBaselineJobEnqueuer(repository);
+        var service = CreateService(repository, tvShowExists: true, enqueuer);
 
         var (mutation, status) = await service.UpsertAsync(
             TvShowId,
@@ -111,12 +132,12 @@ public sealed class UpsertTvShowFollowServiceTests
         existing.EstablishBaseline(DateTime.UtcNow);
         repository.Seed(existing);
 
-        var baselineService = new FakeTvShowFollowBaselineService();
-        var service = CreateService(repository, tvShowExists: true, baselineService);
+        var enqueuer = new FakeTvShowFollowBaselineJobEnqueuer(repository);
+        var service = CreateService(repository, tvShowExists: true, enqueuer);
 
         await service.UpsertAsync(TvShowId, new TvShowFollowPreferencesUpdate(false, null));
 
-        Assert.Equal(0, baselineService.EstablishCallCount);
+        Assert.Equal(0, enqueuer.EnqueueCallCount);
     }
 
     [Fact]
@@ -127,12 +148,12 @@ public sealed class UpsertTvShowFollowServiceTests
         existing.SetNotifyFromUtc(new DateTime(2026, 9, 14, 21, 0, 0, DateTimeKind.Utc), DateTime.UtcNow);
         repository.Seed(existing);
 
-        var baselineService = new FakeTvShowFollowBaselineService();
-        var service = CreateService(repository, tvShowExists: true, baselineService);
+        var enqueuer = new FakeTvShowFollowBaselineJobEnqueuer(repository);
+        var service = CreateService(repository, tvShowExists: true, enqueuer);
 
         var (_, status) = await service.UpsertAsync(TvShowId, new TvShowFollowPreferencesUpdate(null, null));
 
-        Assert.Equal(1, baselineService.EstablishCallCount);
+        Assert.Equal(1, enqueuer.EnqueueCallCount);
         Assert.True(status.BaselineEstablished);
     }
 
@@ -140,8 +161,11 @@ public sealed class UpsertTvShowFollowServiceTests
     public async Task UpsertAsyncProviderBaselineFailurePreservesNotifyFromUtc()
     {
         var repository = new FakeTvShowFollowRepository();
-        var baselineService = new FakeTvShowFollowBaselineService { ShouldFail = true };
-        var service = CreateService(repository, tvShowExists: true, baselineService);
+        var enqueuer = new FakeTvShowFollowBaselineJobEnqueuer(repository)
+        {
+            BaselineService = { ShouldFail = true }
+        };
+        var service = CreateService(repository, tvShowExists: true, enqueuer);
 
         await Assert.ThrowsAsync<TvShowFollowBaselineException>(() =>
             service.UpsertAsync(TvShowId, new TvShowFollowPreferencesUpdate(null, null)));
@@ -152,12 +176,12 @@ public sealed class UpsertTvShowFollowServiceTests
     private static UpsertTvShowFollowService CreateService(
         ITvShowFollowRepository repository,
         bool tvShowExists,
-        FakeTvShowFollowBaselineService? baselineService = null) =>
+        FakeTvShowFollowBaselineJobEnqueuer? enqueuer = null) =>
         new(
             new FakeCurrentUser(UserId),
             repository,
             new FakeTvShowRepository(tvShowExists ? CreateTvShow() : null),
-            baselineService ?? new FakeTvShowFollowBaselineService());
+            enqueuer ?? new FakeTvShowFollowBaselineJobEnqueuer(repository));
 
     private static TvShow CreateTvShow() =>
         new()
@@ -187,6 +211,52 @@ public sealed class UpsertTvShowFollowServiceTests
             Application.Models.Providers.TvShowProviderDetails details,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FakeTvShowFollowBaselineJobEnqueuer(ITvShowFollowRepository repository)
+        : ITvShowFollowBaselineJobEnqueuer
+    {
+        public FakeTvShowFollowBaselineService BaselineService { get; set; } = new();
+
+        public bool ExecuteSynchronously { get; set; } = true;
+
+        public int EnqueueCallCount { get; private set; }
+
+        public async Task EnqueueAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default)
+        {
+            EnqueueCallCount++;
+
+            if (!ExecuteSynchronously)
+            {
+                return;
+            }
+
+            var follow = await repository.GetForUserAndTvShowForUpdateAsync(userId, tvShowId, cancellationToken);
+            if (follow is not null)
+            {
+                await BaselineService.EstablishAsync(follow, cancellationToken);
+            }
+        }
+    }
+
+    private sealed class FakeTvShowFollowBaselineService : ITvShowFollowBaselineService
+    {
+        public int EstablishCallCount { get; private set; }
+
+        public bool ShouldFail { get; set; }
+
+        public Task EstablishAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
+        {
+            EstablishCallCount++;
+
+            if (ShouldFail)
+            {
+                throw new TvShowFollowBaselineException("Baseline failed.");
+            }
+
+            follow.EstablishBaseline(DateTime.UtcNow);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ConcurrentWinTvShowFollowRepository : ITvShowFollowRepository
@@ -234,26 +304,6 @@ public sealed class UpsertTvShowFollowServiceTests
             int pageSize,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<CatalogFollow>, int)>(([], 0));
-    }
-
-    private sealed class FakeTvShowFollowBaselineService : ITvShowFollowBaselineService
-    {
-        public int EstablishCallCount { get; private set; }
-
-        public bool ShouldFail { get; init; }
-
-        public Task EstablishAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
-        {
-            EstablishCallCount++;
-
-            if (ShouldFail)
-            {
-                throw new TvShowFollowBaselineException("Baseline failed.");
-            }
-
-            follow.EstablishBaseline(DateTime.UtcNow);
-            return Task.CompletedTask;
-        }
     }
 
     private sealed class FakeTvShowFollowRepository : ITvShowFollowRepository

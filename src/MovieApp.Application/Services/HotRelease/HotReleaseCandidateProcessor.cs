@@ -70,7 +70,7 @@ public sealed class HotReleaseCandidateProcessor(
             candidate.TvShowId,
             ReleaseDetectionMode.BoundaryCheck,
             boundaryDate,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         var nextHotCheckAtUtc = HotReleaseNextCheckCalculator.ComputeNextHotCheckAtUtc(
             seasons,

@@ -72,6 +72,43 @@ public sealed class ReleaseDetectorTests
     }
 
     [Fact]
+    public async Task ScanTvShowAsync_WithPreloadedSeasons_SkipsCatalogRepository()
+    {
+        var catalogRepository = new FakeReleaseDetectionCatalogRepository
+        {
+            Seasons =
+            [
+                new Season
+                {
+                    Id = Guid.NewGuid(),
+                    TvShowId = TvShowId,
+                    SeasonNumber = 1,
+                    Episodes =
+                    [
+                        new Episode
+                        {
+                            Id = Guid.NewGuid(),
+                            EpisodeNumber = 1,
+                            AirDate = Boundary
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var eventRepository = new FakeCatalogReleaseEventRepository();
+        var detector = new ReleaseDetector(catalogRepository, eventRepository);
+
+        await detector.ScanTvShowAsync(
+            TvShowId,
+            ReleaseDetectionMode.BaselineAbsorb,
+            Boundary,
+            catalogRepository.Seasons);
+
+        Assert.Equal(0, catalogRepository.GetSeasonsCallCount);
+    }
+
+    [Fact]
     public async Task ScanTvShowAsync_HandlesConcurrentInsertAsAlreadyExisted()
     {
         var catalogRepository = new FakeReleaseDetectionCatalogRepository

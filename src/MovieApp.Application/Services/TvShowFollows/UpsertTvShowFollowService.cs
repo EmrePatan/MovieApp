@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.TvShowFollows;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.TvShowFollows;
@@ -12,7 +13,7 @@ public sealed class UpsertTvShowFollowService(
     ICurrentUser currentUser,
     ITvShowFollowRepository tvShowFollowRepository,
     ITvShowRepository tvShowRepository,
-    ITvShowFollowBaselineService tvShowFollowBaselineService) : IUpsertTvShowFollowService
+    ITvShowFollowBaselineJobEnqueuer tvShowFollowBaselineJobEnqueuer) : IUpsertTvShowFollowService
 {
     private const int MaxCreateAttempts = 3;
 
@@ -79,7 +80,7 @@ public sealed class UpsertTvShowFollowService(
         follow.SetNotifyFromUtc(utcNow, utcNow);
         await tvShowFollowRepository.SaveChangesAsync(cancellationToken);
 
-        await TryEstablishBaselineAsync(follow, cancellationToken);
+        await EnqueueBaselineEstablishmentAsync(follow, cancellationToken);
 
         var refreshedFollow = await GetRefreshedFollowAsync(follow.UserId, follow.TvShowId, cancellationToken);
         return (TvShowFollowMutationResult.Created, ToStatusResult(refreshedFollow));
@@ -110,7 +111,7 @@ public sealed class UpsertTvShowFollowService(
                 await tvShowFollowRepository.SaveChangesAsync(cancellationToken);
             }
 
-            await TryEstablishBaselineAsync(follow, cancellationToken);
+            await EnqueueBaselineEstablishmentAsync(follow, cancellationToken);
 
             var refreshedFollow = await GetRefreshedFollowAsync(follow.UserId, follow.TvShowId, cancellationToken);
             return (TvShowFollowMutationResult.Updated, ToStatusResult(refreshedFollow));
@@ -127,13 +128,16 @@ public sealed class UpsertTvShowFollowService(
         return (TvShowFollowMutationResult.Updated, ToStatusResult(follow));
     }
 
-    private async Task TryEstablishBaselineAsync(
+    private async Task EnqueueBaselineEstablishmentAsync(
         CatalogFollow follow,
         CancellationToken cancellationToken)
     {
         try
         {
-            await tvShowFollowBaselineService.EstablishAsync(follow, cancellationToken);
+            await tvShowFollowBaselineJobEnqueuer.EnqueueAsync(
+                follow.UserId,
+                follow.TvShowId,
+                cancellationToken);
         }
         catch (Exception exception) when (exception is not TvShowFollowBaselineException)
         {

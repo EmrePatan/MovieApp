@@ -240,6 +240,12 @@ public sealed class TvShowWatchProgressAggregateTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task UpsertSeasonsFromProviderAsync(
+            Guid tvShowId,
+            IReadOnlyList<SeasonProviderDetails> details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<Season> UpsertSummaryFromProviderAsync(
             Guid tvShowId,
             SeasonProviderSummary summary,

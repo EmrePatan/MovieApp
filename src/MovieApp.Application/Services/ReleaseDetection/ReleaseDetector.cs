@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.ReleaseDetection;
 using MovieApp.Application.Models.ReleaseDetection;
+using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.ReleaseDetection;
@@ -13,12 +14,13 @@ public sealed class ReleaseDetector(
         Guid tvShowId,
         ReleaseDetectionMode mode,
         DateOnly boundary,
+        IReadOnlyList<Season>? seasons = null,
         CancellationToken cancellationToken = default)
     {
         var source = MapModeToSource(mode);
         var detectedAtUtc = DateTime.UtcNow;
 
-        var seasons = await catalogRepository.GetSeasonsWithEpisodesAsync(tvShowId, cancellationToken);
+        seasons ??= await catalogRepository.GetSeasonsWithEpisodesAsync(tvShowId, cancellationToken);
         var existingDedupeKeys = await catalogReleaseEventRepository.GetDedupeKeysForTvShowAsync(
             tvShowId,
             cancellationToken);

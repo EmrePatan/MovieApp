@@ -34,7 +34,8 @@ public static class ApplicationBootstrap
             .AddApi(builder.Configuration)
             .AddBackgroundJobs(builder.Configuration)
             .AddEmailVerificationDelivery(builder.Configuration, builder.Environment)
-            .AddPasswordResetDelivery(builder.Configuration, builder.Environment);
+            .AddPasswordResetDelivery(builder.Configuration, builder.Environment)
+            .AddTvShowFollowBaselineProcessing(builder.Configuration, builder.Environment);
     }
 
     public static void ConfigurePipeline(WebApplication app)

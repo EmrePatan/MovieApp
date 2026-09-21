@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.ReleaseDetection;
@@ -50,6 +51,8 @@ public sealed class TvShowFollowBaselineServiceTests
         Assert.Equal(1, releaseDetector.ScanCallCount);
         Assert.Equal(ReleaseDetectionMode.BaselineAbsorb, releaseDetector.LastMode);
         Assert.Equal(BoundaryDate, releaseDetector.LastBoundary);
+        Assert.NotNull(releaseDetector.LastSeasons);
+        Assert.Equal(2, releaseDetector.LastSeasons!.Count);
     }
 
     [Fact]
@@ -106,6 +109,7 @@ public sealed class TvShowFollowBaselineServiceTests
         await service.EstablishAsync(follow);
 
         Assert.Equal(1, provider.GetSeasonCallCount);
+        Assert.Equal(1, seasonRepository.BatchUpsertCallCount);
         Assert.Equal(1, seasonRepository.UpsertCallCount);
         Assert.True(follow.IsBaselineEstablished);
     }
@@ -167,7 +171,7 @@ public sealed class TvShowFollowBaselineServiceTests
     }
 
     [Fact]
-    public async Task EstablishAsync_MultipleHistoricalSeasons_HydratesInIndependentScopes()
+    public async Task EstablishAsync_MultipleHistoricalSeasons_PersistsInSingleBatchWithoutDbConcurrency()
     {
         ConcurrentFakeSeasonRepository.ResetTotals();
         var follow = CreateFollow();
@@ -196,7 +200,8 @@ public sealed class TvShowFollowBaselineServiceTests
         await service.EstablishAsync(follow);
 
         Assert.Equal(4, provider.GetSeasonCallCount);
-        Assert.Equal(4, ConcurrentFakeSeasonRepository.TotalUpsertCallCount);
+        Assert.Equal(1, ConcurrentFakeSeasonRepository.TotalBatchUpsertCallCount);
+        Assert.Equal(4, ConcurrentFakeSeasonRepository.TotalSeasonsPersisted);
         Assert.True(follow.IsBaselineEstablished);
     }
 
@@ -244,7 +249,8 @@ public sealed class TvShowFollowBaselineServiceTests
             provider,
             new FakeExternalIdResolver(),
             new FakeCatalogSyncStateService(),
-            releaseDetector);
+            releaseDetector,
+            NullLogger<TvShowFollowBaselineService>.Instance);
 
     private static IServiceScopeFactory CreateScopeFactory(ISeasonRepository seasonRepository)
     {
@@ -275,7 +281,8 @@ public sealed class TvShowFollowBaselineServiceTests
             provider,
             new FakeExternalIdResolver(),
             new FakeCatalogSyncStateService(),
-            releaseDetector);
+            releaseDetector,
+            NullLogger<TvShowFollowBaselineService>.Instance);
     }
 
     private static CatalogFollow CreateFollow()
@@ -505,6 +512,18 @@ public sealed class TvShowFollowBaselineServiceTests
             return Task.FromResult(new Season { SeasonNumber = details.SeasonNumber });
         }
 
+        public int BatchUpsertCallCount { get; private set; }
+
+        public virtual Task UpsertSeasonsFromProviderAsync(
+            Guid tvShowId,
+            IReadOnlyList<SeasonProviderDetails> details,
+            CancellationToken cancellationToken = default)
+        {
+            BatchUpsertCallCount++;
+            UpsertCallCount += details.Count;
+            return Task.CompletedTask;
+        }
+
         public Task<Season> UpsertSummaryFromProviderAsync(
             Guid tvShowId,
             SeasonProviderSummary summary,
@@ -514,15 +533,21 @@ public sealed class TvShowFollowBaselineServiceTests
 
     private sealed class ConcurrentFakeSeasonRepository : FakeSeasonRepository
     {
-        public static int TotalUpsertCallCount { get; private set; }
+        public static int TotalBatchUpsertCallCount { get; private set; }
 
-        public static void ResetTotals() => TotalUpsertCallCount = 0;
+        public static int TotalSeasonsPersisted { get; private set; }
+
+        public static void ResetTotals()
+        {
+            TotalBatchUpsertCallCount = 0;
+            TotalSeasonsPersisted = 0;
+        }
 
         private int _activeOperations;
 
-        public override async Task<Season> UpsertFromProviderAsync(
+        public override Task UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
-            SeasonProviderDetails details,
+            IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
         {
             if (Interlocked.Increment(ref _activeOperations) > 1)
@@ -534,9 +559,9 @@ public sealed class TvShowFollowBaselineServiceTests
 
             try
             {
-                await Task.Delay(25, cancellationToken);
-                TotalUpsertCallCount++;
-                return new Season { SeasonNumber = details.SeasonNumber };
+                TotalBatchUpsertCallCount++;
+                TotalSeasonsPersisted += details.Count;
+                return Task.CompletedTask;
             }
             finally
             {
@@ -614,15 +639,19 @@ public sealed class TvShowFollowBaselineServiceTests
 
         public DateOnly? LastBoundary { get; private set; }
 
+        public IReadOnlyList<Season>? LastSeasons { get; private set; }
+
         public Task<ReleaseDetectionResult> ScanTvShowAsync(
             Guid tvShowId,
             ReleaseDetectionMode mode,
             DateOnly boundary,
+            IReadOnlyList<Season>? seasons = null,
             CancellationToken cancellationToken = default)
         {
             ScanCallCount++;
             LastMode = mode;
             LastBoundary = boundary;
+            LastSeasons = seasons;
             return Task.FromResult(ReleaseDetectionResult.Empty);
         }
     }

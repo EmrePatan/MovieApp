@@ -34,37 +34,54 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
                 cancellationToken);
 
         var utcNow = DateTime.UtcNow;
+        season = ApplyProviderDetails(season, tvShowId, details, utcNow);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return season;
+    }
 
-        if (season is null)
+    public async Task UpsertSeasonsFromProviderAsync(
+        Guid tvShowId,
+        IReadOnlyList<SeasonProviderDetails> details,
+        CancellationToken cancellationToken = default)
+    {
+        if (details.Count == 0)
         {
-            season = new Season
-            {
-                Id = Guid.NewGuid(),
-                TvShowId = tvShowId,
-                CreatedAt = utcNow
-            };
-
-            dbContext.Seasons.Add(season);
+            return;
         }
 
-        season.TmdbId = details.TmdbId;
-        season.TvdbId = details.TvdbId;
-        season.SeasonNumber = details.SeasonNumber;
-        season.Name = details.Name;
-        season.Overview = details.Overview;
-        season.AirDate = details.AirDate;
-        season.EpisodeCount = details.EpisodeCount;
-        season.PosterPath = details.PosterPath;
-        season.UpdatedAt = utcNow;
+        var seasonNumbers = details
+            .Select(item => item.SeasonNumber)
+            .Distinct()
+            .ToList();
 
-        foreach (var episodeDetails in details.Episodes)
+        var existingSeasons = await dbContext.Seasons
+            .Include(season => season.Episodes)
+            .Where(season => season.TvShowId == tvShowId && seasonNumbers.Contains(season.SeasonNumber))
+            .ToListAsync(cancellationToken);
+
+        var seasonsByNumber = existingSeasons.ToDictionary(season => season.SeasonNumber);
+        var utcNow = DateTime.UtcNow;
+
+        foreach (var seasonDetails in details)
         {
-            await UpsertEpisodeAsync(season, episodeDetails, utcNow, cancellationToken);
+            if (!seasonsByNumber.TryGetValue(seasonDetails.SeasonNumber, out var season))
+            {
+                season = new Season
+                {
+                    Id = Guid.NewGuid(),
+                    TvShowId = tvShowId,
+                    CreatedAt = utcNow
+                };
+
+                dbContext.Seasons.Add(season);
+                seasonsByNumber[seasonDetails.SeasonNumber] = season;
+            }
+
+            seasonsByNumber[seasonDetails.SeasonNumber] =
+                ApplyProviderDetails(season, tvShowId, seasonDetails, utcNow);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        return season;
     }
 
     public async Task<Season> UpsertSummaryFromProviderAsync(
@@ -105,11 +122,46 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         return season;
     }
 
-    private async Task UpsertEpisodeAsync(
+    private Season ApplyProviderDetails(
+        Season? season,
+        Guid tvShowId,
+        SeasonProviderDetails details,
+        DateTime utcNow)
+    {
+        if (season is null)
+        {
+            season = new Season
+            {
+                Id = Guid.NewGuid(),
+                TvShowId = tvShowId,
+                CreatedAt = utcNow
+            };
+
+            dbContext.Seasons.Add(season);
+        }
+
+        season.TmdbId = details.TmdbId;
+        season.TvdbId = details.TvdbId;
+        season.SeasonNumber = details.SeasonNumber;
+        season.Name = details.Name;
+        season.Overview = details.Overview;
+        season.AirDate = details.AirDate;
+        season.EpisodeCount = details.EpisodeCount;
+        season.PosterPath = details.PosterPath;
+        season.UpdatedAt = utcNow;
+
+        foreach (var episodeDetails in details.Episodes)
+        {
+            UpsertEpisode(season, episodeDetails, utcNow);
+        }
+
+        return season;
+    }
+
+    private void UpsertEpisode(
         Season season,
         EpisodeProviderDetails details,
-        DateTime utcNow,
-        CancellationToken cancellationToken)
+        DateTime utcNow)
     {
         var episode = season.Episodes.FirstOrDefault(item => item.EpisodeNumber == details.EpisodeNumber);
 
@@ -139,7 +191,5 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         episode.VoteAverage = details.VoteAverage;
         episode.VoteCount = details.VoteCount;
         episode.UpdatedAt = utcNow;
-
-        await Task.CompletedTask;
     }
 }

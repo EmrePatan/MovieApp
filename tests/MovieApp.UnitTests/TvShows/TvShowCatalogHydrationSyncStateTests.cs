@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
@@ -136,7 +137,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             new FakeTvShowDataProvider(),
             new FakeExternalIdResolver(),
             syncState,
-            new FakeReleaseDetector());
+            new FakeReleaseDetector(),
+            NullLogger<TvShowFollowBaselineService>.Instance);
 
         await service.EstablishAsync(follow);
 
@@ -160,7 +162,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             new FakeTvShowDataProvider(),
             new FakeExternalIdResolver(),
             syncState,
-            new FakeReleaseDetector());
+            new FakeReleaseDetector(),
+            NullLogger<TvShowFollowBaselineService>.Instance);
 
         await service.EstablishAsync(follow);
 
@@ -418,6 +421,17 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             return Task.FromResult(CreateSeasonWithEpisodes());
         }
 
+        public async Task UpsertSeasonsFromProviderAsync(
+            Guid tvShowId,
+            IReadOnlyList<SeasonProviderDetails> details,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var detail in details)
+            {
+                await UpsertFromProviderAsync(tvShowId, detail, cancellationToken);
+            }
+        }
+
         public Task<Season> UpsertSummaryFromProviderAsync(
             Guid tvShowId,
             SeasonProviderSummary summary,
@@ -470,6 +484,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             Guid tvShowId,
             ReleaseDetectionMode mode,
             DateOnly boundary,
+            IReadOnlyList<Season>? seasons = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(ReleaseDetectionResult.Empty);
     }

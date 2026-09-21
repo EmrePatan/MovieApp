@@ -252,6 +252,17 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
             });
         }
 
+        public async Task UpsertSeasonsFromProviderAsync(
+            Guid tvShowId,
+            IReadOnlyList<SeasonProviderDetails> details,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var detail in details)
+            {
+                await UpsertFromProviderAsync(tvShowId, detail, cancellationToken);
+            }
+        }
+
         public Task<Season> UpsertSummaryFromProviderAsync(
             Guid tvShowId,
             SeasonProviderSummary summary,

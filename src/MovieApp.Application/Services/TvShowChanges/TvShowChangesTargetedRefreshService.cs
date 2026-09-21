@@ -88,7 +88,7 @@ public sealed class TvShowChangesTargetedRefreshService(
             tvShowId,
             ReleaseDetectionMode.PostRefresh,
             boundaryDate,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         await catalogSyncStateService.MarkChangesSyncAsync(
             tvShowId,
