@@ -28,7 +28,7 @@ public sealed class TvShowSeasonSummaryHydrator(
             await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
                 tvShow.Id,
                 refreshKeywords: false,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             return new TvShowSeasonSummaryHydrationResult(tvShow, ProviderCatalogRefreshed: false);
         }
@@ -39,18 +39,21 @@ public sealed class TvShowSeasonSummaryHydrator(
             await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
                 tvShow.Id,
                 refreshKeywords: false,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             return new TvShowSeasonSummaryHydrationResult(tvShow, ProviderCatalogRefreshed: false);
         }
 
-        var details = await tvShowDataProvider.GetTvShowAsync(externalId, cancellationToken);
+        var details = await tvShowDataProvider.GetTvShowAsync(
+            externalId,
+            includeKeywords: true,
+            cancellationToken);
         if (details is null)
         {
             await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
                 tvShow.Id,
                 refreshKeywords: false,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             return new TvShowSeasonSummaryHydrationResult(tvShow, ProviderCatalogRefreshed: false);
         }

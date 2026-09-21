@@ -142,7 +142,7 @@ public sealed class MovieReleaseCheckService(
 
         var providerDetails = await movieDataProvider.GetMovieAsync(
             movie.TmdbId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         if (providerDetails is null)
         {

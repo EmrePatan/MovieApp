@@ -52,7 +52,10 @@ internal static class TmdbTvShowMapper
                 .Select(genre => genre.Name!)
                 .ToList(),
             Seasons: seasons,
-            NextEpisodeToAir: ToNextEpisodeToAir(details.NextEpisodeToAir));
+            NextEpisodeToAir: ToNextEpisodeToAir(details.NextEpisodeToAir),
+            Keywords: details.Keywords is null
+                ? null
+                : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Results));
     }
 
     private static NextEpisodeToAirProviderSummary? ToNextEpisodeToAir(TmdbNextEpisodeToAirJson? nextEpisode)

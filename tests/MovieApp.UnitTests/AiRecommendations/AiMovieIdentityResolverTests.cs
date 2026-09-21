@@ -564,6 +564,7 @@ public sealed class AiMovieIdentityResolverTests
 
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default)
         {
             GetMovieCallCount++;
@@ -594,6 +595,7 @@ public sealed class AiMovieIdentityResolverTests
 
         public Task<TvShowProviderDetails?> GetTvShowAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<TvShowProviderDetails?>(null);
 

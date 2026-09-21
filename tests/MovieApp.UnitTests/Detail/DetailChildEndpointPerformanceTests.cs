@@ -302,6 +302,7 @@ public sealed class DetailChildEndpointPerformanceTests
 
         public Task<TvShowProviderDetails?> GetTvShowAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

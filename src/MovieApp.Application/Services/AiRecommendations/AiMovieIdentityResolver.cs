@@ -103,7 +103,7 @@ public sealed class AiMovieIdentityResolver(
 
         var providerDetails = await movieDataProvider.GetMovieAsync(
             tmdbId.ToString(CultureInfo.InvariantCulture),
-            cancellationToken);
+            cancellationToken: cancellationToken);
         if (providerDetails is null ||
             !TitleYearMatcher.Matches(
                 providerDetails.Title,
@@ -133,7 +133,7 @@ public sealed class AiMovieIdentityResolver(
 
         var providerDetails = await tvShowDataProvider.GetTvShowAsync(
             tmdbId.ToString(CultureInfo.InvariantCulture),
-            cancellationToken);
+            cancellationToken: cancellationToken);
         if (providerDetails is null ||
             !TitleYearMatcher.Matches(
                 providerDetails.Title,

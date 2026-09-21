@@ -21,5 +21,6 @@ public interface IMovieDataProvider
 
     Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
+        bool includeKeywords = false,
         CancellationToken cancellationToken = default);
 }

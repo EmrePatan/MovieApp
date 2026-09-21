@@ -68,7 +68,9 @@ public sealed class SearchMoviesService(
             options.MaxConcurrentProviderHttpRequests,
             async (summary, index, ingestCancellationToken) =>
             {
-                detailSlots[index] = await movieDataProvider.GetMovieAsync(summary.ExternalId, ingestCancellationToken);
+                detailSlots[index] = await movieDataProvider.GetMovieAsync(
+                    summary.ExternalId,
+                    cancellationToken: ingestCancellationToken);
             },
             cancellationToken);
 

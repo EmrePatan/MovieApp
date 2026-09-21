@@ -166,7 +166,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<MovieProviderDetails?> GetMovieAsync(string externalId, CancellationToken cancellationToken = default) =>
+        public Task<MovieProviderDetails?> GetMovieAsync(string externalId, bool includeKeywords = false, CancellationToken cancellationToken = default) =>
             Task.FromResult<MovieProviderDetails?>(null);
     }
 
@@ -189,7 +189,7 @@ public sealed class UnifiedSearchProviderIngestionPersonTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<TvShowProviderDetails?> GetTvShowAsync(string externalId, CancellationToken cancellationToken = default) =>
+        public Task<TvShowProviderDetails?> GetTvShowAsync(string externalId, bool includeKeywords = false, CancellationToken cancellationToken = default) =>
             Task.FromResult<TvShowProviderDetails?>(null);
 
         public Task<SeasonProviderDetails?> GetSeasonAsync(

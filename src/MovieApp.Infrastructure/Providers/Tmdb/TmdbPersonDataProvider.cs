@@ -48,7 +48,7 @@ public sealed class TmdbPersonDataProvider(TmdbApiClient apiClient) : IPersonDat
         try
         {
             var person = await apiClient.GetCanonicalAsync<TmdbPersonJson>(
-                $"person/{tmdbPersonId}",
+                $"person/{tmdbPersonId}?append_to_response=combined_credits",
                 cancellationToken);
 
             if (person is null || person.Id <= 0 || string.IsNullOrWhiteSpace(person.Name))
@@ -56,13 +56,9 @@ public sealed class TmdbPersonDataProvider(TmdbApiClient apiClient) : IPersonDat
                 return null;
             }
 
-            var combinedCredits = await apiClient.GetCanonicalAsync<TmdbCombinedCreditsResponseJson>(
-                $"person/{tmdbPersonId}/combined_credits",
-                cancellationToken);
-
             return TmdbPersonMapper.ToPersonProviderDetails(
                 person,
-                combinedCredits ?? new TmdbCombinedCreditsResponseJson());
+                person.CombinedCredits ?? new TmdbCombinedCreditsResponseJson());
         }
         catch (TmdbApiException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {

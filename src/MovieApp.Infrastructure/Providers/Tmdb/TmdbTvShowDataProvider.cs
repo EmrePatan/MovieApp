@@ -105,6 +105,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
 
     public async Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
+        bool includeKeywords = false,
         CancellationToken cancellationToken = default)
     {
         if (!TmdbExternalIdFormatter.TryParseExternalId(externalId, out var tmdbId))
@@ -115,7 +116,7 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
         try
         {
             var response = await apiClient.GetCanonicalAsync<TmdbTvDetailsResponseJson>(
-                $"tv/{tmdbId}?append_to_response=external_ids",
+                BuildTvShowDetailsPath(tmdbId, includeKeywords),
                 cancellationToken);
 
             return response is null ? null : TmdbTvShowMapper.ToDetails(response);
@@ -124,6 +125,12 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
         {
             return null;
         }
+    }
+
+    private static string BuildTvShowDetailsPath(int tmdbId, bool includeKeywords)
+    {
+        var appendToResponse = includeKeywords ? "external_ids,keywords" : "external_ids";
+        return $"tv/{tmdbId}?append_to_response={appendToResponse}";
     }
 
     public async Task<SeasonProviderDetails?> GetSeasonAsync(

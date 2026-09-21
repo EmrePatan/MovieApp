@@ -21,6 +21,7 @@ public interface ITvShowDataProvider
 
     Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
+        bool includeKeywords = false,
         CancellationToken cancellationToken = default);
 
     Task<SeasonProviderDetails?> GetSeasonAsync(

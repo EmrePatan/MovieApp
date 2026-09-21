@@ -82,6 +82,7 @@ public sealed class SearchMoviesServiceProviderAmplificationTests
 
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default)
         {
             DetailCallCount++;

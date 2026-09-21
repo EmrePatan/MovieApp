@@ -64,7 +64,7 @@ public sealed class SummaryIngestionKeywordRegressionTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<MovieProviderDetails?> GetMovieAsync(string externalId, CancellationToken cancellationToken = default) =>
+        public Task<MovieProviderDetails?> GetMovieAsync(string externalId, bool includeKeywords = false, CancellationToken cancellationToken = default) =>
             Task.FromResult<MovieProviderDetails?>(new MovieProviderDetails(
                 externalId,
                 1,

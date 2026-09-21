@@ -24,6 +24,7 @@ public sealed class CatalogProviderUpsertService(
             await keywordIngestionService.TryEnrichMovieKeywordsAsync(
                 movie.Id,
                 refreshKeywords: true,
+                details.Keywords,
                 cancellationToken);
         }
 
@@ -53,7 +54,7 @@ public sealed class CatalogProviderUpsertService(
             await keywordIngestionService.TryEnrichMovieKeywordsAsync(
                 movie.Id,
                 refreshKeywords: true,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
 
         return movies;
@@ -71,6 +72,7 @@ public sealed class CatalogProviderUpsertService(
             await keywordIngestionService.TryEnrichTvShowKeywordsAsync(
                 tvShow.Id,
                 refreshKeywords: true,
+                details.Keywords,
                 cancellationToken);
         }
 
@@ -95,7 +97,7 @@ public sealed class CatalogProviderUpsertService(
             await keywordIngestionService.TryEnrichTvShowKeywordsAsync(
                 tvShow.Id,
                 refreshKeywords: true,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
 
         return tvShows;

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Keywords;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Keywords;
 
 namespace MovieApp.UnitTests.Keywords;
@@ -246,10 +247,7 @@ public sealed class CatalogKeywordBackfillServiceTests
 
         public int MovieCalls { get; private set; }
 
-        public Task TryEnrichMovieKeywordsAsync(
-            Guid movieId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default)
+        public Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default)
         {
             MovieCalls++;
             if (!FailMovieIds.Contains(movieId))
@@ -260,10 +258,7 @@ public sealed class CatalogKeywordBackfillServiceTests
             return Task.CompletedTask;
         }
 
-        public Task TryEnrichTvShowKeywordsAsync(
-            Guid tvShowId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default)
+        public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default)
         {
             if (!FailMovieIds.Contains(tvShowId))
             {
@@ -283,10 +278,7 @@ public sealed class CatalogKeywordBackfillServiceTests
 
         public int MovieCalls { get; private set; }
 
-        public async Task TryEnrichMovieKeywordsAsync(
-            Guid movieId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default)
+        public async Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default)
         {
             MovieCalls++;
             var active = Interlocked.Increment(ref _active);
@@ -300,10 +292,7 @@ public sealed class CatalogKeywordBackfillServiceTests
             Interlocked.Decrement(ref _active);
         }
 
-        public Task TryEnrichTvShowKeywordsAsync(
-            Guid tvShowId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default) =>
+        public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 
@@ -311,19 +300,13 @@ public sealed class CatalogKeywordBackfillServiceTests
         ConcurrentScopeTracker tracker,
         FakeBackfillRepository repository) : ICatalogKeywordIngestionService
     {
-        public async Task TryEnrichMovieKeywordsAsync(
-            Guid movieId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default)
+        public async Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default)
         {
             await tracker.TrackAsync(this, cancellationToken);
             repository.SyncedMovieIds.Add(movieId);
         }
 
-        public Task TryEnrichTvShowKeywordsAsync(
-            Guid tvShowId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default) =>
+        public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 

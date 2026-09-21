@@ -148,6 +148,7 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
 
     public Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
+        bool includeKeywords = false,
         CancellationToken cancellationToken = default)
     {
         if (string.Equals(externalId, InterstellarExternalId, StringComparison.OrdinalIgnoreCase))

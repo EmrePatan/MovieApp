@@ -467,7 +467,7 @@ public sealed class MovieReleaseCheckServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<MovieProviderDetails?> GetMovieAsync(string externalId, CancellationToken cancellationToken = default)
+        public Task<MovieProviderDetails?> GetMovieAsync(string externalId, bool includeKeywords = false, CancellationToken cancellationToken = default)
         {
             _getMovieCallCount++;
             return Task.FromResult(_details);

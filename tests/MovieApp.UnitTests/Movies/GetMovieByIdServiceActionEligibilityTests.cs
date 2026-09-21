@@ -150,16 +150,10 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
 
     private sealed class NoOpCatalogKeywordIngestionService : ICatalogKeywordIngestionService
     {
-        public Task TryEnrichMovieKeywordsAsync(
-            Guid movieId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default) =>
+        public Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task TryEnrichTvShowKeywordsAsync(
-            Guid tvShowId,
-            bool refreshKeywords,
-            CancellationToken cancellationToken = default) =>
+        public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 }

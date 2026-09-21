@@ -104,6 +104,7 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
 
     public async Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
+        bool includeKeywords = false,
         CancellationToken cancellationToken = default)
     {
         if (!TmdbExternalIdFormatter.TryParseExternalId(externalId, out var tmdbId))
@@ -114,7 +115,7 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
         try
         {
             var response = await apiClient.GetCanonicalAsync<TmdbMovieDetailsResponseJson>(
-                $"movie/{tmdbId}?append_to_response=external_ids",
+                BuildMovieDetailsPath(tmdbId, includeKeywords),
                 cancellationToken);
 
             return response is null ? null : TmdbMovieMapper.ToDetails(response);
@@ -123,5 +124,11 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
         {
             return null;
         }
+    }
+
+    private static string BuildMovieDetailsPath(int tmdbId, bool includeKeywords)
+    {
+        var appendToResponse = includeKeywords ? "external_ids,keywords" : "external_ids";
+        return $"movie/{tmdbId}?append_to_response={appendToResponse}";
     }
 }

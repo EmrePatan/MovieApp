@@ -105,13 +105,13 @@ public sealed class TmdbCanonicalCatalogLanguageTests
                   "id": 1892,
                   "name": "Matthew McConaughey",
                   "biography": "Actor biography",
-                  "profile_path": "/profile.jpg"
+                  "profile_path": "/profile.jpg",
+                  "combined_credits": {
+                    "cast": [],
+                    "crew": []
+                  }
                 }
                 """)
-        });
-        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent("""{"cast":[],"crew":[]}""")
         });
 
         var provider = CreatePersonProvider(handler);
@@ -119,6 +119,7 @@ public sealed class TmdbCanonicalCatalogLanguageTests
 
         Assert.NotNull(result);
         Assert.Equal("Matthew McConaughey", result.Name);
+        Assert.Single(handler.Requests);
         Assert.All(handler.Requests, request => AssertCanonicalLanguage(request.RequestUri?.Query));
     }
 

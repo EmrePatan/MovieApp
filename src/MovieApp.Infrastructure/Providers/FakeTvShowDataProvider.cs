@@ -95,6 +95,7 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
 
     public Task<TvShowProviderDetails?> GetTvShowAsync(
         string externalId,
+        bool includeKeywords = false,
         CancellationToken cancellationToken = default)
     {
         callTracker.RecordGetTvShow();

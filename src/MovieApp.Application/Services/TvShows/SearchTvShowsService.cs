@@ -69,7 +69,9 @@ public sealed class SearchTvShowsService(
             options.MaxConcurrentProviderHttpRequests,
             async (summary, index, ingestCancellationToken) =>
             {
-                detailSlots[index] = await tvShowDataProvider.GetTvShowAsync(summary.ExternalId, ingestCancellationToken);
+                detailSlots[index] = await tvShowDataProvider.GetTvShowAsync(
+                    summary.ExternalId,
+                    cancellationToken: ingestCancellationToken);
             },
             cancellationToken);
 

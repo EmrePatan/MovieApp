@@ -18,4 +18,5 @@ public sealed record TvShowProviderDetails(
     string Status,
     IReadOnlyList<string> Genres,
     IReadOnlyList<SeasonProviderSummary> Seasons,
-    NextEpisodeToAirProviderSummary? NextEpisodeToAir = null);
+    NextEpisodeToAirProviderSummary? NextEpisodeToAir = null,
+    IReadOnlyList<ProviderKeywordSummary>? Keywords = null);

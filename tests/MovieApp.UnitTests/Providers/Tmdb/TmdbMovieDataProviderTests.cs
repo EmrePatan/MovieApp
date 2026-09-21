@@ -117,6 +117,37 @@ public sealed class TmdbMovieDataProviderTests
     }
 
     [Fact]
+    public async Task GetMovieAsync_WithIncludeKeywords_UsesSingleAppendRequestAndMapsKeywords()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "id": 157336,
+                  "title": "Interstellar",
+                  "external_ids": { "imdb_id": "tt0816692" },
+                  "keywords": {
+                    "keywords": [
+                      { "id": 310, "name": "space travel" }
+                    ]
+                  }
+                }
+                """)
+        });
+
+        var provider = CreateProvider(handler);
+        var result = await provider.GetMovieAsync("tmdb-157336", includeKeywords: true);
+
+        Assert.NotNull(result);
+        Assert.Single(result!.Keywords!);
+        Assert.Equal("space travel", result.Keywords![0].Name);
+        Assert.Single(handler.Requests);
+        Assert.Contains("append_to_response=external_ids,keywords", handler.Requests[0].RequestUri?.Query);
+    }
+
+    [Fact]
     public async Task GetMovieAsyncReturnsNullWhenTmdbRespondsWithNotFound()
     {
         var handler = new MockHttpMessageHandler();

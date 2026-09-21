@@ -113,7 +113,7 @@ public sealed class TmdbLocalizedDetailDataProvider(TmdbApiClient apiClient) : I
         try
         {
             var person = await apiClient.GetLocalizedAsync<TmdbPersonJson>(
-                $"person/{tmdbPersonId}",
+                $"person/{tmdbPersonId}?append_to_response=combined_credits",
                 contentLocale,
                 cancellationToken);
 
@@ -122,14 +122,9 @@ public sealed class TmdbLocalizedDetailDataProvider(TmdbApiClient apiClient) : I
                 return null;
             }
 
-            var combinedCredits = await apiClient.GetLocalizedAsync<TmdbCombinedCreditsResponseJson>(
-                $"person/{tmdbPersonId}/combined_credits",
-                contentLocale,
-                cancellationToken);
-
             var providerDetails = TmdbPersonMapper.ToPersonProviderDetails(
                 person,
-                combinedCredits ?? new TmdbCombinedCreditsResponseJson());
+                person.CombinedCredits ?? new TmdbCombinedCreditsResponseJson());
 
             var filmography = providerDetails.FilmographyCredits
                 .Select(credit => new PersonFilmographyLocalizationItem(

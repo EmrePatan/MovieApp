@@ -74,6 +74,7 @@ public sealed class SearchMoviesServiceBatchPersistenceTests
 
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default)
         {
             var summary = summaries.Single(item => string.Equals(item.ExternalId, externalId, StringComparison.Ordinal));

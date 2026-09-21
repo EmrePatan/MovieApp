@@ -26,6 +26,7 @@ public sealed class GetTvShowByTmdbIdService(
         {
             var providerDetails = await tvShowDataProvider.GetTvShowAsync(
                 tmdbId.ToString(CultureInfo.InvariantCulture),
+                includeKeywords: true,
                 cancellationToken);
 
             if (providerDetails is null)
@@ -43,7 +44,7 @@ public sealed class GetTvShowByTmdbIdService(
             await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
                 tvShow.Id,
                 refreshKeywords: false,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
 
         return await getTvShowByIdService.GetByIdAsync(tvShow.Id, cancellationToken);

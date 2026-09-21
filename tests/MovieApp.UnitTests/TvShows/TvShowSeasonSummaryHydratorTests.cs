@@ -106,6 +106,7 @@ public sealed class TvShowSeasonSummaryHydratorTests
 
         public Task<TvShowProviderDetails?> GetTvShowAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default)
         {
             GetTvShowCalls++;

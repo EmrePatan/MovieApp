@@ -17,6 +17,8 @@ internal sealed class TmdbPersonJson
     public string? ProfilePath { get; init; }
 
     public string? KnownForDepartment { get; init; }
+
+    public TmdbCombinedCreditsResponseJson? CombinedCredits { get; init; }
 }
 
 internal sealed class TmdbCombinedCreditsResponseJson

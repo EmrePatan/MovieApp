@@ -100,6 +100,7 @@ public sealed class SearchMoviesServiceTests
 
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default)
         {
             var summary = summaries.SingleOrDefault(item =>

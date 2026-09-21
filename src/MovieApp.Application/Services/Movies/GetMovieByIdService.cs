@@ -63,7 +63,7 @@ public sealed class GetMovieByIdService(
         await catalogKeywordIngestionService.TryEnrichMovieKeywordsAsync(
             movie.Id,
             refreshKeywords: false,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         var details = MovieMapper.ToDetailsResult(movie);
         var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);

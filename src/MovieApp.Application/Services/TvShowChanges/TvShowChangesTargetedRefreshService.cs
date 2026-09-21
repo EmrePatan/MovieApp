@@ -38,7 +38,10 @@ public sealed class TvShowChangesTargetedRefreshService(
             return TmdbChangesTargetRefreshResult.SkippedUnavailable();
         }
 
-        var providerDetails = await tvShowDataProvider.GetTvShowAsync(externalId, cancellationToken);
+        var providerDetails = await tvShowDataProvider.GetTvShowAsync(
+            externalId,
+            includeKeywords: true,
+            cancellationToken);
         if (providerDetails is null)
         {
             return TmdbChangesTargetRefreshResult.SkippedUnavailable();

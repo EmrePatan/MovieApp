@@ -46,7 +46,10 @@ internal static class TmdbMovieMapper
             TmdbCollectionId: details.BelongsToCollection?.Id,
             CollectionName: details.BelongsToCollection?.Name,
             CollectionPosterPath: NormalizeImagePath(details.BelongsToCollection?.PosterPath),
-            CollectionBackdropPath: NormalizeImagePath(details.BelongsToCollection?.BackdropPath));
+            CollectionBackdropPath: NormalizeImagePath(details.BelongsToCollection?.BackdropPath),
+            Keywords: details.Keywords is null
+                ? null
+                : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Keywords));
     }
 
     internal static MovieProviderSearchResult ToSearchResult(

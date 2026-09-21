@@ -19,7 +19,7 @@ public sealed class CatalogKeywordIngestionServiceTests
         };
         var service = CreateService(provider, repository);
 
-        await service.TryEnrichMovieKeywordsAsync(Guid.NewGuid(), refreshKeywords: false, CancellationToken.None);
+        await service.TryEnrichMovieKeywordsAsync(Guid.NewGuid(), refreshKeywords: false, cancellationToken: CancellationToken.None);
 
         Assert.Equal(0, provider.MovieCalls);
         Assert.Equal(0, repository.MovieSyncCalls);
@@ -36,7 +36,7 @@ public sealed class CatalogKeywordIngestionServiceTests
         };
         var service = CreateService(provider, repository);
 
-        await service.TryEnrichMovieKeywordsAsync(movieId, refreshKeywords: false, CancellationToken.None);
+        await service.TryEnrichMovieKeywordsAsync(movieId, refreshKeywords: false, cancellationToken: CancellationToken.None);
 
         Assert.Equal(1, provider.MovieCalls);
         Assert.Equal(1, repository.MovieSyncCalls);
@@ -53,7 +53,7 @@ public sealed class CatalogKeywordIngestionServiceTests
         };
         var service = CreateService(provider, repository);
 
-        await service.TryEnrichMovieKeywordsAsync(movieId, refreshKeywords: false, CancellationToken.None);
+        await service.TryEnrichMovieKeywordsAsync(movieId, refreshKeywords: false, cancellationToken: CancellationToken.None);
 
         Assert.Equal(1, provider.MovieCalls);
         Assert.Equal(0, repository.MovieSyncCalls);
@@ -72,7 +72,7 @@ public sealed class CatalogKeywordIngestionServiceTests
         await cts.CancelAsync();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            service.TryEnrichMovieKeywordsAsync(Guid.NewGuid(), refreshKeywords: true, cts.Token));
+            service.TryEnrichMovieKeywordsAsync(Guid.NewGuid(), refreshKeywords: true, cancellationToken: cts.Token));
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class CatalogKeywordIngestionServiceTests
         };
         var service = CreateService(provider, repository);
 
-        await service.TryEnrichTvShowKeywordsAsync(tvShowId, refreshKeywords: true, CancellationToken.None);
+        await service.TryEnrichTvShowKeywordsAsync(tvShowId, refreshKeywords: true, cancellationToken: CancellationToken.None);
 
         Assert.Equal(1, provider.TvCalls);
         Assert.Equal(1, repository.TvSyncCalls);

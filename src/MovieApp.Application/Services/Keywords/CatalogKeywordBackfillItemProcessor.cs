@@ -26,7 +26,7 @@ public sealed class CatalogKeywordBackfillItemProcessor(
         await keywordIngestionService.TryEnrichMovieKeywordsAsync(
             movieId,
             refreshKeywords: false,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return await backfillRepository.IsMovieKeywordSyncedAsync(movieId, cancellationToken)
             ? CatalogKeywordBackfillItemOutcome.Succeeded
@@ -45,7 +45,7 @@ public sealed class CatalogKeywordBackfillItemProcessor(
         await keywordIngestionService.TryEnrichTvShowKeywordsAsync(
             tvShowId,
             refreshKeywords: false,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return await backfillRepository.IsTvShowKeywordSyncedAsync(tvShowId, cancellationToken)
             ? CatalogKeywordBackfillItemOutcome.Succeeded

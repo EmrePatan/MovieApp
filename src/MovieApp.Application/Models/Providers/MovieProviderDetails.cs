@@ -19,4 +19,5 @@ public sealed record MovieProviderDetails(
     int? TmdbCollectionId = null,
     string? CollectionName = null,
     string? CollectionPosterPath = null,
-    string? CollectionBackdropPath = null);
+    string? CollectionBackdropPath = null,
+    IReadOnlyList<ProviderKeywordSummary>? Keywords = null);

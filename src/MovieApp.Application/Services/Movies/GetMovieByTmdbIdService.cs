@@ -26,6 +26,7 @@ public sealed class GetMovieByTmdbIdService(
         {
             var providerDetails = await movieDataProvider.GetMovieAsync(
                 tmdbId.ToString(CultureInfo.InvariantCulture),
+                includeKeywords: true,
                 cancellationToken);
 
             if (providerDetails is null)
@@ -43,7 +44,7 @@ public sealed class GetMovieByTmdbIdService(
             await catalogKeywordIngestionService.TryEnrichMovieKeywordsAsync(
                 movie.Id,
                 refreshKeywords: false,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
 
         return await getMovieByIdService.GetByIdAsync(movie.Id, movie, cancellationToken);

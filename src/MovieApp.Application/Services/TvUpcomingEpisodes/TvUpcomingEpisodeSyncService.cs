@@ -54,7 +54,9 @@ public sealed class TvUpcomingEpisodeSyncService(
                     continue;
                 }
 
-                var providerDetails = await tvShowDataProvider.GetTvShowAsync(externalId, cancellationToken);
+                var providerDetails = await tvShowDataProvider.GetTvShowAsync(
+                    externalId,
+                    cancellationToken: cancellationToken);
                 if (providerDetails is null)
                 {
                     failed++;

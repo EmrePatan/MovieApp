@@ -27,6 +27,7 @@ public sealed class MovieChangesTargetedRefreshService(
 
         var providerDetails = await movieDataProvider.GetMovieAsync(
             movie.TmdbId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            includeKeywords: true,
             cancellationToken);
 
         if (providerDetails is null)

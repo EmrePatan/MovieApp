@@ -33,6 +33,8 @@ internal sealed class TmdbTvDetailsResponseJson
     public TmdbNextEpisodeToAirJson? NextEpisodeToAir { get; set; }
 
     public TmdbExternalIdsJson? ExternalIds { get; set; }
+
+    public TmdbTvKeywordsResponseJson? Keywords { get; set; }
 }
 
 internal sealed class TmdbTvSeasonSummaryJson

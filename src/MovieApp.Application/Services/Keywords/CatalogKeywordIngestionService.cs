@@ -13,6 +13,7 @@ public sealed class CatalogKeywordIngestionService(
     public Task TryEnrichMovieKeywordsAsync(
         Guid movieId,
         bool refreshKeywords,
+        IReadOnlyList<Models.Providers.ProviderKeywordSummary>? prefetchedKeywords = null,
         CancellationToken cancellationToken = default) =>
         TryEnrichAsync(
             () => keywordCatalogRepository.GetMovieKeywordTargetAsync(movieId, cancellationToken),
@@ -21,12 +22,14 @@ public sealed class CatalogKeywordIngestionService(
                 keywordCatalogRepository.SyncMovieKeywordsAsync(movieId, keywords, syncedAtUtc, cancellationToken),
             movieId,
             refreshKeywords,
+            prefetchedKeywords,
             "movie",
             cancellationToken);
 
     public Task TryEnrichTvShowKeywordsAsync(
         Guid tvShowId,
         bool refreshKeywords,
+        IReadOnlyList<Models.Providers.ProviderKeywordSummary>? prefetchedKeywords = null,
         CancellationToken cancellationToken = default) =>
         TryEnrichAsync(
             () => keywordCatalogRepository.GetTvShowKeywordTargetAsync(tvShowId, cancellationToken),
@@ -35,6 +38,7 @@ public sealed class CatalogKeywordIngestionService(
                 keywordCatalogRepository.SyncTvShowKeywordsAsync(tvShowId, keywords, syncedAtUtc, cancellationToken),
             tvShowId,
             refreshKeywords,
+            prefetchedKeywords,
             "tv",
             cancellationToken);
 
@@ -44,6 +48,7 @@ public sealed class CatalogKeywordIngestionService(
         Func<IReadOnlyList<Models.Providers.ProviderKeywordSummary>, DateTime, Task> syncKeywords,
         Guid catalogId,
         bool refreshKeywords,
+        IReadOnlyList<Models.Providers.ProviderKeywordSummary>? prefetchedKeywords,
         string contentType,
         CancellationToken cancellationToken)
     {
@@ -60,7 +65,9 @@ public sealed class CatalogKeywordIngestionService(
 
         try
         {
-            var providerKeywords = await fetchKeywords(target.TmdbId);
+            var providerKeywords = prefetchedKeywords is not null
+                ? prefetchedKeywords
+                : await fetchKeywords(target.TmdbId);
             var normalizedKeywords = KeywordNormalization.Normalize(providerKeywords);
             await syncKeywords(normalizedKeywords, DateTime.UtcNow);
         }

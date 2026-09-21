@@ -163,6 +163,7 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
 
         public Task<TvShowProviderDetails?> GetTvShowAsync(
             string externalId,
+            bool includeKeywords = false,
             CancellationToken cancellationToken = default)
         {
             GetTvShowCallCount++;

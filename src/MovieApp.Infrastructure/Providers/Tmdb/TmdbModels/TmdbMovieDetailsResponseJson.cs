@@ -31,4 +31,6 @@ internal sealed class TmdbMovieDetailsResponseJson
     public TmdbExternalIdsJson? ExternalIds { get; set; }
 
     public TmdbBelongsToCollectionJson? BelongsToCollection { get; set; }
+
+    public TmdbMovieKeywordsResponseJson? Keywords { get; set; }
 }
