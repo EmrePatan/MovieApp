@@ -4,6 +4,8 @@
 
 **Maintenance rule:** Update this checklist whenever a change introduces an EF migration, recurring/background job, production secret/config, external provider dependency, production datastore, notification delivery change, deployment workflow change, or store-release requirement. Do not let launch knowledge live only in chat history.
 
+**Day-to-day operations:** see `docs/PRODUCTION-RUNBOOK.md`.
+
 ---
 
 ## Environment separation (non-negotiable)
