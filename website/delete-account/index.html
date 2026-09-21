@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delete your Movie Cave account</title>
+    <meta
+      name="description"
+      content="How to delete your Movie Cave account and what data is removed."
+    />
+    <link rel="stylesheet" href="/assets/css/site.css" />
+    <link rel="icon" href="/assets/images/movie-cave-logo.png" type="image/png" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <img src="/assets/images/movie-cave-logo.png" alt="Movie Cave" width="148" height="40" />
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="/privacy/">Privacy</a>
+        <a href="/terms/">Terms</a>
+        <a href="/delete-account/" aria-current="page">Delete account</a>
+      </nav>
+    </header>
+
+    <main id="main" class="legal-page">
+      <h1>Delete your account</h1>
+      <div class="legal-meta">
+        <p><strong>Last updated:</strong> September 21, 2026</p>
+        <p>
+          You can permanently delete your Movie Cave account from inside the mobile app. This page describes the
+          current in-app process and what happens to your data.
+        </p>
+      </div>
+
+      <section>
+        <h2>Delete your account in the app</h2>
+        <ol>
+          <li>Open the <strong>Movie Cave</strong> app and sign in.</li>
+          <li>Go to <strong>Profile</strong>.</li>
+          <li>In the <strong>Account</strong> section, tap <strong>Delete account</strong>.</li>
+          <li>Read the warning, then tap <strong>Continue</strong>.</li>
+          <li>
+            Confirm deletion:
+            <ul>
+              <li>If your account uses a password, enter your current password and tap <strong>Delete my account</strong>.</li>
+              <li>If your account is social-only, tap <strong>Confirm with Google</strong> or <strong>Confirm with Apple</strong> and complete the provider sign-in prompt.</li>
+            </ul>
+          </li>
+        </ol>
+        <p>After successful deletion, you are signed out and your account data is removed from our primary application database.</p>
+      </section>
+
+      <section>
+        <h2>What we delete</h2>
+        <p>When you complete account deletion, we delete your user account and associated personal data, including:</p>
+        <ul>
+          <li>Account credentials and profile fields (email, username, display name, password hash, verification state)</li>
+          <li>Linked Google or Apple sign-in records</li>
+          <li>Ratings and reviews</li>
+          <li>Favorites and watchlists</li>
+          <li>Movie and TV episode watch history</li>
+          <li>Search history stored with your account</li>
+          <li>TV show and movie follow records and related notification preferences</li>
+          <li>In-app release notifications tied to your account</li>
+          <li>Registered push notification devices for your account</li>
+          <li>Password reset and email verification tokens associated with your account</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>What may remain</h2>
+        <ul>
+          <li>
+            <strong>Shared catalog content</strong> such as movies, TV shows, episodes, and genres is not deleted
+            because it is not personal data and is shared across users.
+          </li>
+          <li>
+            <strong>Aggregated product metrics</strong> (for example total screen-open counters) are not linked to
+            your account in our metrics store.
+          </li>
+          <li>
+            <strong>Server logs and infrastructure backups</strong> may retain limited technical records (such as
+            request timestamps, correlation identifiers, or authenticated user identifiers in logs) for security,
+            troubleshooting, and disaster recovery for some period determined by hosting and logging practices.
+          </li>
+          <li>
+            <strong>Temporary AI recommendation session cache</strong> in Redis expires automatically and is not
+            explicitly purged at deletion time in the current implementation.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Authentication and device data after deletion</h2>
+        <ul>
+          <li>Your access token becomes invalid after deletion when sessions are validated against the removed account.</li>
+          <li>The app removes locally stored push registration state during logout after deletion.</li>
+          <li>Push device registrations stored on our servers for your account are deleted with your account.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>If you already uninstalled the app</h2>
+        <div class="callout">
+          <p>
+            Account deletion currently requires the in-app flow above because there is no separate web-based
+            deletion request form or verified public support inbox configured yet.
+          </p>
+          <p>
+            Reinstall Movie Cave, sign in, and follow the steps in this page. If you cannot sign in, use password
+            reset (for password accounts) or the same sign-in provider you originally used.
+          </p>
+          <p>
+            <strong>Release blocker note:</strong> If a store requires a deletion method that works without
+            reinstalling the app, configure inbound email forwarding or add a minimal authenticated web deletion
+            request flow before publishing that claim.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Related policies</h2>
+        <p>
+          See our <a href="/privacy/">Privacy Policy</a> for broader information about how we handle personal data
+          and your choices.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-links">
+        <a href="/privacy/">Privacy Policy</a>
+        <a href="/terms/">Terms of Service</a>
+        <a href="/delete-account/">Delete account</a>
+      </div>
+      <p>&copy; <span id="year"></span> Movie Cave.</p>
+    </footer>
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>

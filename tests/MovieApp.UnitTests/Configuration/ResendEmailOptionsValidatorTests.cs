@@ -65,6 +65,26 @@ public sealed class ResendEmailOptionsValidatorTests
     }
 
     [Fact]
+    public void PasswordResetValidatorSucceedsProductionWithMovieCaveDomain()
+    {
+        var validator = new ResendPasswordResetEmailOptionsValidator(
+            new FakeHostEnvironment("Production"),
+            Options.Create(new PasswordResetOptions { EmailProvider = "Resend" }),
+            Options.Create(new SharedResendEmailOptions
+            {
+                ApiKey = "re_prod_key",
+                FromAddress = "noreply@moviecaveapp.com",
+                FromName = "Movie Cave"
+            }));
+
+        var result = validator.Validate(
+            ResendPasswordResetEmailOptions.SectionName,
+            new ResendPasswordResetEmailOptions());
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
     public void VerificationValidatorAllowsProductionOnboardingSenderUntilCustomDomainExists()
     {
         var validator = new ResendVerificationEmailOptionsValidator(

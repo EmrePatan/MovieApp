@@ -6,7 +6,9 @@ Movie Cave transactional email (password reset + email verification) is delivere
 
 **Implemented in:** `b5f9630535160cacccb400819a557a1d7587d591` (shared Resend config, production sender validation, failure logging, SMTP removal).
 
-**Remaining operator work:** set Render Resend env vars and smoke-test verification + password-reset email delivery. A verified custom sending domain (SPF/DKIM/DMARC) is a pending production prerequisite — `onboarding@resend.dev` is allowed until then.
+**Production sender target:** `Movie Cave <noreply@moviecaveapp.com>` on verified domain `moviecaveapp.com`.
+
+**Remaining operator work:** set Render Resend env vars to the production sender above and smoke-test verification + password-reset email delivery. `onboarding@resend.dev` remains allowed by validators only as a temporary fallback until production env is updated.
 
 ---
 
@@ -16,7 +18,7 @@ Set these once on Render (preferred shared section):
 
 ```bash
 Authentication__Email__Resend__ApiKey=re_...
-Authentication__Email__Resend__FromAddress=noreply@<your-verified-domain>
+Authentication__Email__Resend__FromAddress=noreply@moviecaveapp.com
 Authentication__Email__Resend__FromName=Movie Cave
 Authentication__PasswordReset__EmailProvider=Resend
 Authentication__PasswordReset__BaseUrl=movieapp://reset-password
@@ -29,7 +31,7 @@ Flow-specific sections (`Authentication:PasswordReset:Resend`, `Authentication:E
 
 - Password reset requires `EmailProvider=Resend`.
 - Both flows require configured Resend `ApiKey` + `FromAddress` (shared or per-flow).
-- `onboarding@resend.dev` is temporarily allowed until a custom domain is verified in Resend.
+- `onboarding@resend.dev` is temporarily allowed until production env is pointed at `noreply@moviecaveapp.com`.
 
 **Pending production prerequisite (custom domain):** add and verify your sending domain in Resend with SPF, DKIM, and recommended DMARC DNS records, then switch `FromAddress` to `noreply@<your-verified-domain>`.
 

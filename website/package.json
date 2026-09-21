@@ -1,0 +1,9 @@
+{
+  "name": "movie-cave-website",
+  "private": true,
+  "description": "Static public website for moviecaveapp.com",
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "build": "node scripts/validate.mjs"
+  }
+}

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Movie Cave — Discover, track, and enjoy movies &amp; TV</title>
+    <meta
+      name="description"
+      content="Movie Cave helps you discover movies and TV shows, build watchlists, track what you watch, rate and review titles, and get personalized recommendations."
+    />
+    <link rel="stylesheet" href="/assets/css/site.css" />
+    <link rel="icon" href="/assets/images/movie-cave-logo.png" type="image/png" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <img src="/assets/images/movie-cave-logo.png" alt="Movie Cave" width="148" height="40" />
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="/privacy/">Privacy</a>
+        <a href="/terms/">Terms</a>
+        <a href="/delete-account/">Delete account</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-shell hero">
+        <div class="hero-copy">
+          <h1>Your movies and TV, in one place.</h1>
+          <p class="lead">
+            Movie Cave is a mobile app for discovering titles, keeping watchlists, tracking what you have
+            watched, rating and reviewing, and following TV shows for release updates.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="/privacy/">Privacy Policy</a>
+            <a class="button button-secondary" href="/delete-account/">Delete your account</a>
+          </div>
+        </div>
+        <div>
+          <img
+            src="/assets/images/hero.jpg"
+            alt="Movie posters and TV imagery in a cinematic collage"
+            width="960"
+            height="540"
+            style="border-radius: 1rem; border: 1px solid var(--border)"
+          />
+        </div>
+      </section>
+
+      <section class="page-shell feature-grid" aria-label="App features">
+        <article class="panel">
+          <h2>Discover movies &amp; TV</h2>
+          <p>
+            Search and browse catalog content sourced through licensed movie and TV metadata providers,
+            including details, cast, credits, collections, and where-to-watch information.
+          </p>
+        </article>
+        <article class="panel">
+          <h2>Watchlists &amp; history</h2>
+          <p>
+            Save titles to watchlists, mark movies and TV episodes as watched, and review your progress over
+            time.
+          </p>
+        </article>
+        <article class="panel">
+          <h2>Ratings &amp; reviews</h2>
+          <p>
+            Rate titles and write reviews that are stored with your account so you can revisit your opinions
+            later.
+          </p>
+        </article>
+        <article class="panel">
+          <h2>Follow TV shows</h2>
+          <p>
+            Follow TV series to receive in-app notifications about relevant new seasons or episodes when you
+            enable notifications on your device.
+          </p>
+        </article>
+        <article class="panel">
+          <h2>Personalized recommendations</h2>
+          <p>
+            Optional AI-assisted movie recommendations use your in-app activity to suggest titles. See our
+            <a href="/privacy/">Privacy Policy</a> for details on what is sent to the AI provider.
+          </p>
+        </article>
+        <article class="panel">
+          <h2>Account &amp; control</h2>
+          <p>
+            Sign in with email or supported social providers. You can delete your account from inside the app.
+            See <a href="/delete-account/">Delete account</a> for the exact steps.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-links">
+        <a href="/privacy/">Privacy Policy</a>
+        <a href="/terms/">Terms of Service</a>
+        <a href="/delete-account/">Delete account</a>
+      </div>
+      <p>Movie Cave is published by an individual developer. Catalog imagery and metadata may be provided by third-party services such as TMDB.</p>
+      <p>&copy; <span id="year"></span> Movie Cave.</p>
+    </footer>
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>

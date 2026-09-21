@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — Movie Cave</title>
+    <meta name="description" content="Privacy Policy for the Movie Cave mobile application and related services." />
+    <link rel="stylesheet" href="/assets/css/site.css" />
+    <link rel="icon" href="/assets/images/movie-cave-logo.png" type="image/png" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <img src="/assets/images/movie-cave-logo.png" alt="Movie Cave" width="148" height="40" />
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="/privacy/" aria-current="page">Privacy</a>
+        <a href="/terms/">Terms</a>
+        <a href="/delete-account/">Delete account</a>
+      </nav>
+    </header>
+
+    <main id="main" class="legal-page">
+      <h1>Privacy Policy</h1>
+      <div class="legal-meta">
+        <p><strong>Effective date:</strong> September 21, 2026</p>
+        <p><strong>Last updated:</strong> September 21, 2026</p>
+        <p>
+          This Privacy Policy describes how Movie Cave (“we”, “us”, or “our”) handles information when you use
+          the Movie Cave mobile application and related online services (collectively, the “Service”). Movie
+          Cave is currently published by an individual developer.
+        </p>
+      </div>
+
+      <section>
+        <h2>1. Information we collect</h2>
+        <h3>Account and profile information</h3>
+        <ul>
+          <li>Email address, username, and optional display name</li>
+          <li>Password hash if you create a password-based account (we do not store your plain-text password)</li>
+          <li>Email verification status and account timestamps such as creation and last login</li>
+          <li>Linked sign-in providers (for example Google or Apple) and the provider subject identifier stored at link time</li>
+        </ul>
+        <h3>User activity and content you create</h3>
+        <ul>
+          <li>Ratings and written reviews for movies and TV shows</li>
+          <li>Favorites, watchlists, and watchlist items</li>
+          <li>Watch history for movies and individual TV episodes</li>
+          <li>Search history entries associated with your account</li>
+          <li>TV show and movie follow preferences, including notification settings for new seasons or episodes</li>
+          <li>In-app release notifications and related notification events</li>
+        </ul>
+        <h3>Device and push notification information</h3>
+        <ul>
+          <li>Expo push notification token and platform (iOS or Android) when you register a device for alerts</li>
+          <li>Optional device identifier fields associated with push registration records</li>
+          <li>Notification permission status is handled on your device by the operating system</li>
+        </ul>
+        <h3>Preferences handled mainly on your device</h3>
+        <ul>
+          <li>App language and regional browsing preferences (such as watch region) are primarily stored on your device</li>
+          <li>The app may send language preferences to our servers through request headers when communicating with the API</li>
+        </ul>
+        <h3>Technical and security information</h3>
+        <ul>
+          <li>Authentication tokens issued by our service when you sign in</li>
+          <li>Server logs that may include request metadata, correlation identifiers, authenticated user identifiers, and error information</li>
+          <li>IP addresses may be used for rate limiting and abuse prevention; we do not maintain a separate user profile database of IP addresses based on the current application design</li>
+        </ul>
+        <h3>AI recommendation feature</h3>
+        <p>
+          If you use AI-assisted movie recommendations, we build a taste profile from your in-app activity and
+          send relevant portions of that profile, along with your recommendation prompt, to Google Gemini to
+          generate suggestions. This currently includes information such as genre affinities and movie/TV title
+          metadata derived from your ratings, favorites, watchlist, and watch history. It does not include your
+          email address or account ID in the provider request based on the current implementation.
+        </p>
+      </section>
+
+      <section>
+        <h2>2. How we use information</h2>
+        <ul>
+          <li>Provide and operate the Service, including authentication, catalog features, and account management</li>
+          <li>Store and display your ratings, reviews, lists, watch history, and follow preferences</li>
+          <li>Deliver transactional emails such as email verification and password reset messages</li>
+          <li>Send push notifications you have opted into for followed TV content</li>
+          <li>Generate personalized recommendations and insights based on your activity</li>
+          <li>Maintain security, prevent abuse, enforce rate limits, and troubleshoot problems</li>
+          <li>Measure coarse product usage through aggregated counters that are not linked to individual users in our product metrics store</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>3. How we share information</h2>
+        <p>
+          We do not sell your personal information. We share information only with service providers that help us
+          operate the Service, when required by law, or to protect rights and safety.
+        </p>
+        <p>Current categories of service providers and integrations include:</p>
+        <ul>
+          <li><strong>Hosting and infrastructure:</strong> application hosting, PostgreSQL database, and Redis cache (for example Render-managed infrastructure)</li>
+          <li><strong>Email delivery:</strong> Resend for verification and password-reset email</li>
+          <li><strong>Push notifications:</strong> Expo push infrastructure to deliver notifications to your device</li>
+          <li><strong>Catalog metadata:</strong> TMDB and related metadata providers for movie and TV information; TVDB may also be used for certain catalog operations</li>
+          <li><strong>Authentication providers:</strong> Google and Apple when you choose social sign-in (they process identity tokens according to their own policies)</li>
+          <li><strong>AI recommendations:</strong> Google Gemini when you use the AI recommendation feature</li>
+        </ul>
+        <p>
+          Your device may also contact third-party image CDNs (such as TMDB image hosts) directly to load poster
+          and artwork URLs returned by the Service.
+        </p>
+      </section>
+
+      <section>
+        <h2>4. Data retention</h2>
+        <ul>
+          <li>Account and activity data are kept while your account remains active</li>
+          <li>Read in-app notifications may be deleted automatically after a configured retention period (currently seven days for read notifications)</li>
+          <li>AI recommendation session data in Redis expires automatically after a limited TTL</li>
+          <li>Server logs and infrastructure backups may retain limited technical data for operational, security, and disaster-recovery purposes even after account deletion</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>5. Account deletion</h2>
+        <p>
+          You can delete your account from inside the Movie Cave app. Deletion removes your user record and
+          associated personal activity data from our primary application database, including ratings, reviews,
+          favorites, watchlists, watch history, search history, follows, notifications, and push device
+          registrations.
+        </p>
+        <p>
+          See our <a href="/delete-account/">Delete account</a> page for step-by-step instructions and details
+          about data that may remain outside the primary user database.
+        </p>
+      </section>
+
+      <section>
+        <h2>6. Security</h2>
+        <p>
+          We use technical and organizational measures appropriate to the Service, including hashed passwords,
+          authenticated API access, transport encryption for production endpoints, and access controls on
+          infrastructure components. No method of transmission or storage is completely secure.
+        </p>
+      </section>
+
+      <section>
+        <h2>7. Children</h2>
+        <p>
+          The Service is not directed to children under 13, and we do not knowingly collect personal information
+          from children under 13. If you believe a child has provided personal information, contact us using the
+          method described below.
+        </p>
+      </section>
+
+      <section>
+        <h2>8. International processing</h2>
+        <p>
+          We and our service providers may process information in countries other than where you live, including
+          where our hosting and infrastructure providers operate data centers.
+        </p>
+      </section>
+
+      <section>
+        <h2>9. Your choices</h2>
+        <ul>
+          <li>Update your display name and account email from the app where supported</li>
+          <li>Control push notifications through app and device settings</li>
+          <li>Delete your account at any time using the in-app deletion flow</li>
+          <li>Choose whether to use optional features such as AI recommendations or TV follow notifications</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>10. Changes to this policy</h2>
+        <p>
+          We may update this Privacy Policy from time to time. We will revise the “Last updated” date above when
+          changes are posted. Continued use of the Service after an update means you accept the revised policy.
+        </p>
+      </section>
+
+      <section>
+        <h2>11. Contact</h2>
+        <div class="callout">
+          <p>
+            A dedicated incoming support mailbox at <strong>@moviecaveapp.com</strong> is not yet configured in
+            this project. Until inbound email forwarding is set up, use the in-app account deletion instructions
+            on the <a href="/delete-account/">Delete account</a> page for account removal.
+          </p>
+          <p>
+            When support email is enabled, this section will list the public contact address used for privacy and
+            account questions.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-links">
+        <a href="/privacy/">Privacy Policy</a>
+        <a href="/terms/">Terms of Service</a>
+        <a href="/delete-account/">Delete account</a>
+      </div>
+      <p>&copy; <span id="year"></span> Movie Cave.</p>
+    </footer>
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
