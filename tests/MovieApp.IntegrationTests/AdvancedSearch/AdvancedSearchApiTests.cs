@@ -105,6 +105,44 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
     }
 
     [Fact]
+    public async Task ExplorePreviewReturnsAllSectionsOnColdCache()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+
+        var response = await _client.GetAsync("/api/discovery/explore-preview?sectionSize=10");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<ExplorePreviewResponse>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload.Trending.Items);
+        Assert.NotEmpty(payload.TopRated.Items);
+        Assert.NotEmpty(payload.NewReleases.Items);
+    }
+
+    [Fact]
+    public async Task ExplorePreviewUsesCompositeCacheOnSecondRequest()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+
+        var firstResponse = await _client.GetAsync("/api/discovery/explore-preview?sectionSize=10");
+        var secondResponse = await _client.GetAsync("/api/discovery/explore-preview?sectionSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        var firstPayload = await firstResponse.Content.ReadFromJsonAsync<ExplorePreviewResponse>();
+        var secondPayload = await secondResponse.Content.ReadFromJsonAsync<ExplorePreviewResponse>();
+
+        Assert.NotNull(firstPayload);
+        Assert.NotNull(secondPayload);
+        Assert.Equal(firstPayload.Trending.TotalCount, secondPayload.Trending.TotalCount);
+        Assert.Equal(firstPayload.TopRated.TotalCount, secondPayload.TopRated.TotalCount);
+        Assert.Equal(firstPayload.NewReleases.TotalCount, secondPayload.NewReleases.TotalCount);
+    }
+
+    [Fact]
     public async Task SearchHistoryRecordsAndReturnsQueries()
     {
         await fixture.ResetAsync();

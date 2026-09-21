@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
@@ -8,7 +9,7 @@ using MovieApp.Application.Validation;
 namespace MovieApp.Application.Services.Search;
 
 public sealed class ExplorePreviewService(
-    IDiscoveryService discoveryService,
+    IServiceScopeFactory scopeFactory,
     ICacheService cacheService) : IExplorePreviewService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
@@ -28,17 +29,17 @@ public sealed class ExplorePreviewService(
 
         var discoveryCriteria = new DiscoveryCriteria(SearchContentType.All, 1, criteria.SectionSize);
 
-        var trendingTask = discoveryService.GetTrendingAsync(
-            discoveryCriteria,
-            ContentLocaleResolver.EnglishUnitedStates,
+        var trendingTask = RunScopedAsync(
+            (services, ct) => services.GetRequiredService<IDiscoveryService>()
+                .GetTrendingAsync(discoveryCriteria, ContentLocaleResolver.EnglishUnitedStates, ct),
             cancellationToken);
-        var topRatedTask = discoveryService.GetTopRatedAsync(
-            discoveryCriteria,
-            ContentLocaleResolver.EnglishUnitedStates,
+        var topRatedTask = RunScopedAsync(
+            (services, ct) => services.GetRequiredService<IDiscoveryService>()
+                .GetTopRatedAsync(discoveryCriteria, ContentLocaleResolver.EnglishUnitedStates, ct),
             cancellationToken);
-        var newReleasesTask = discoveryService.GetNewReleasesAsync(
-            discoveryCriteria,
-            ContentLocaleResolver.EnglishUnitedStates,
+        var newReleasesTask = RunScopedAsync(
+            (services, ct) => services.GetRequiredService<IDiscoveryService>()
+                .GetNewReleasesAsync(discoveryCriteria, ContentLocaleResolver.EnglishUnitedStates, ct),
             cancellationToken);
 
         await Task.WhenAll(trendingTask, topRatedTask, newReleasesTask);
@@ -55,6 +56,14 @@ public sealed class ExplorePreviewService(
             cancellationToken);
 
         return result;
+    }
+
+    private async Task<T> RunScopedAsync<T>(
+        Func<IServiceProvider, CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await operation(scope.ServiceProvider, cancellationToken);
     }
 
     private static void ValidateCriteria(ExplorePreviewCriteria criteria)
