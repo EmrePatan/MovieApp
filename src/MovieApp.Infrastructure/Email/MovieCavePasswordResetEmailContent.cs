@@ -155,7 +155,6 @@ public static class MovieCavePasswordResetEmailContent
         builder.Append(copy.BodyHtml);
         builder.Append("</p></td></tr>");
         builder.Append(BuildBulletproofCtaRowHtml(encodedResetUrl, copy));
-        builder.Append(MovieCaveEmailCtaFallback.BuildVisibleFallbackRowHtml(resetUrl, copy.FallbackPromptHtml));
         builder.Append("<tr><td class=\"section-padding\" ");
         builder.Append(SurfaceAttributes(CardColor, "padding:12px 32px 28px 32px;"));
         builder.Append("><p style=\"margin:0;font-family:");
@@ -356,7 +355,6 @@ public static class MovieCavePasswordResetEmailContent
         string BodyHtml,
         string PlainTextCtaLabel,
         string CtaHtml,
-        string FallbackPromptHtml,
         string SafetyHtml,
         string Feature1Label,
         string Feature1PlainText,
@@ -380,7 +378,6 @@ public static class MovieCavePasswordResetEmailContent
         BodyHtml: "We received a request to reset your Movie Cave password. Use the button below to choose a new password.",
         PlainTextCtaLabel: "Reset your password:",
         CtaHtml: "Reset Password &rarr;",
-        FallbackPromptHtml: "If the button doesn&apos;t work, open this link in your browser:",
         SafetyHtml: "If you didn&apos;t request a password reset, you can safely ignore this email. Your password won&apos;t change.",
         Feature1Label: "Secure",
         Feature1PlainText: "Account Protection",
@@ -404,7 +401,6 @@ public static class MovieCavePasswordResetEmailContent
         BodyHtml: "Movie Cave şifreni sıfırlamak için bir istek aldık. Yeni bir şifre belirlemek için aşağıdaki düğmeyi kullan.",
         PlainTextCtaLabel: "Şifreni sıfırla:",
         CtaHtml: "Şifremi Sıfırla &rarr;",
-        FallbackPromptHtml: "Düğme çalışmıyorsa bu bağlantıyı tarayıcında aç:",
         SafetyHtml: "Şifre sıfırlama talebinde bulunmadıysan bu e-postayı güvenle yok sayabilirsin. Şifren değişmeyecek.",
         Feature1Label: "GÜVENLİ",
         Feature1PlainText: "Hesap Koruması",

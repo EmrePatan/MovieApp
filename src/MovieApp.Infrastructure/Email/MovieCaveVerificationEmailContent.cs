@@ -155,7 +155,6 @@ public static class MovieCaveVerificationEmailContent
         builder.Append(copy.BodyHtml);
         builder.Append("</p></td></tr>");
         builder.Append(BuildBulletproofCtaRowHtml(encodedVerifyUrl, copy));
-        builder.Append(MovieCaveEmailCtaFallback.BuildVisibleFallbackRowHtml(verifyUrl, copy.FallbackPromptHtml));
         builder.Append("<tr><td class=\"section-padding\" ");
         builder.Append(SurfaceAttributes(CardColor, "padding:12px 32px 28px 32px;"));
         builder.Append("><p style=\"margin:0;font-family:");
@@ -356,7 +355,6 @@ public static class MovieCaveVerificationEmailContent
         string BodyHtml,
         string PlainTextCtaLabel,
         string CtaHtml,
-        string FallbackPromptHtml,
         string SafetyHtml,
         string Feature1Label,
         string Feature1PlainText,
@@ -380,7 +378,6 @@ public static class MovieCaveVerificationEmailContent
         BodyHtml: "Welcome to Movie Cave. Confirm your email to unlock your watchlist, discover movies and TV shows, and start finding your next favorite.",
         PlainTextCtaLabel: "Verify your email address:",
         CtaHtml: "Verify Email Address &rarr;",
-        FallbackPromptHtml: "If the button doesn&apos;t work, open this link in your browser:",
         SafetyHtml: "If you didn&apos;t create a Movie Cave account, you can safely ignore this email.",
         Feature1Label: "Discover",
         Feature1PlainText: "Movies & TV Shows",
@@ -404,7 +401,6 @@ public static class MovieCaveVerificationEmailContent
         BodyHtml: "Movie Cave&apos;e hoş geldin. İzleme listeni kullanmak, film ve dizileri keşfetmek ve sıradaki favorini bulmak için e-posta adresini doğrula.",
         PlainTextCtaLabel: "E-posta Adresimi Doğrula:",
         CtaHtml: "E-posta Adresimi Doğrula &rarr;",
-        FallbackPromptHtml: "Düğme çalışmıyorsa bu bağlantıyı tarayıcında aç:",
         SafetyHtml: "Bu Movie Cave hesabını sen oluşturmadıysan bu e-postayı güvenle yok sayabilirsin.",
         Feature1Label: "KEŞFET",
         Feature1PlainText: "Film & Diziler",

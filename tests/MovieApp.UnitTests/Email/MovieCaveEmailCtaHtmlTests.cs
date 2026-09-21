@@ -15,41 +15,25 @@ public sealed class MovieCaveEmailCtaHtmlTests
     [Theory]
     [InlineData(ProductionVerifyUrl, ContentLocaleResolver.EnglishUnitedStates)]
     [InlineData(ProductionVerifyUrl, ContentLocaleResolver.TurkishTurkey)]
-    public void VerificationHtml_ContainsClickableAbsoluteCtaAndFallback(string actionUrl, string contentLocale)
+    public void VerificationHtml_ContainsClickableAbsoluteCta(string actionUrl, string contentLocale)
     {
         var html = MovieCaveVerificationEmailContent.BuildHtml(actionUrl, heroImageUrl: null, contentLocale: contentLocale);
 
         AssertCtaIsValidAbsoluteLink(html, actionUrl);
-        if (contentLocale.StartsWith("tr", StringComparison.OrdinalIgnoreCase))
-        {
-            Assert.Contains("Düğme çalışmıyorsa", html, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains("If the button doesn", html, StringComparison.OrdinalIgnoreCase);
-        }
-
-        Assert.Contains(actionUrl, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Düğme çalışmıyorsa", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("If the button doesn", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
     [InlineData(ProductionResetUrl, ContentLocaleResolver.EnglishUnitedStates)]
     [InlineData(ProductionResetUrl, ContentLocaleResolver.TurkishTurkey)]
-    public void PasswordResetHtml_ContainsClickableAbsoluteCtaAndFallback(string actionUrl, string contentLocale)
+    public void PasswordResetHtml_ContainsClickableAbsoluteCta(string actionUrl, string contentLocale)
     {
         var html = MovieCavePasswordResetEmailContent.BuildHtml(actionUrl, heroImageUrl: null, contentLocale: contentLocale);
 
         AssertCtaIsValidAbsoluteLink(html, actionUrl);
-        if (contentLocale.StartsWith("tr", StringComparison.OrdinalIgnoreCase))
-        {
-            Assert.Contains("Düğme çalışmıyorsa", html, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains("If the button doesn", html, StringComparison.OrdinalIgnoreCase);
-        }
-
-        Assert.Contains(actionUrl, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Düğme çalışmıyorsa", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("If the button doesn", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -71,16 +55,13 @@ public sealed class MovieCaveEmailCtaHtmlTests
         var document = LoadHtml(html);
         var ctaLinks = document.DocumentNode.SelectNodes("//a[contains(@class, 'cta-button-link')]");
         Assert.NotNull(ctaLinks);
-        Assert.True(ctaLinks!.Count >= 2, "Expected primary CTA and visible fallback link.");
+        Assert.Single(ctaLinks);
 
-        foreach (var link in ctaLinks)
-        {
-            var href = link.GetAttributeValue("href", string.Empty);
-            Assert.False(string.IsNullOrWhiteSpace(href));
-            Assert.True(Uri.TryCreate(href, UriKind.Absolute, out var uri));
-            Assert.Equal(Uri.UriSchemeHttps, uri!.Scheme);
-            Assert.Equal(expectedUrl, href);
-        }
+        var href = ctaLinks![0].GetAttributeValue("href", string.Empty);
+        Assert.False(string.IsNullOrWhiteSpace(href));
+        Assert.True(Uri.TryCreate(href, UriKind.Absolute, out var uri));
+        Assert.Equal(Uri.UriSchemeHttps, uri!.Scheme);
+        Assert.Equal(expectedUrl, href);
     }
 
     private static HtmlDocument LoadHtml(string html)
