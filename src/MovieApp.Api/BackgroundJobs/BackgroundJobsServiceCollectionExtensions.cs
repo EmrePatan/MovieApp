@@ -48,10 +48,13 @@ public static class BackgroundJobsServiceCollectionExtensions
                 "BackgroundJobs.Enabled requires PostgreSql:ConnectionString to be configured.");
         }
 
-        services.AddHangfire(config =>
+        services.AddSingleton<HangfireTerminalFailureLoggingFilter>();
+
+        services.AddHangfire((serviceProvider, config) =>
         {
             config.UseSimpleAssemblyNameTypeSerializer();
             config.UseRecommendedSerializerSettings();
+            config.UseFilter(serviceProvider.GetRequiredService<HangfireTerminalFailureLoggingFilter>());
             config.UsePostgreSqlStorage(
                 options => options.UseNpgsqlConnection(connectionString),
                 new PostgreSqlStorageOptions

@@ -512,7 +512,7 @@ Know before launch:
 | Disable push delivery only | `PushNotifications__Enabled=false` or `BackgroundJobs__PushDeliveryEnabled=false` |
 | Disable individual jobs | Per-flag: `BackgroundJobs__TmdbChangesEnabled`, `HotReleaseEnabled`, etc. |
 | Provider outage | Jobs fail soft per title/batch; keyword backfill retries on later runs |
-| Logs | Hosting provider log dashboard (e.g. Render logs) — no separate APM assumed |
+| Logs | Hosting provider log dashboard (e.g. Render logs) — see `docs/PRODUCTION-OBSERVABILITY.md` |
 
 There is **no** automatic full-stack rollback. Plan forward fixes and backup restore paths.
 

@@ -38,7 +38,9 @@ public sealed class BackgroundJobOperationalRunnerTests
 
         Assert.Same(exception, thrown);
         Assert.Contains(logger.Entries, entry => entry.EventId == 6000);
-        Assert.Contains(logger.Entries, entry => entry.EventId == 6097);
+        Assert.Contains(
+            logger.Entries,
+            entry => entry.EventId == 6097 && entry.Level == LogLevel.Warning);
     }
 
     private sealed class TestLogger : ILogger

@@ -169,9 +169,20 @@ internal static partial class BackgroundJobLogMessages
         long durationMs);
 
     [LoggerMessage(
-        EventId = 6097,
+        EventId = 6095,
         Level = LogLevel.Error,
-        Message = "Background job failed: jobId={JobId}")]
+        Message = "Background job reached terminal failure: jobId={JobId} jobName={JobName} retryCount={RetryCount}")]
+    internal static partial void LogBackgroundJobTerminalFailure(
+        ILogger logger,
+        string jobId,
+        string jobName,
+        int retryCount,
+        Exception exception);
+
+    [LoggerMessage(
+        EventId = 6097,
+        Level = LogLevel.Warning,
+        Message = "Background job attempt failed: jobId={JobId}")]
     internal static partial void LogBackgroundJobFailed(
         ILogger logger,
         string jobId,

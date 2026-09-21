@@ -1,12 +1,13 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.PushNotifications;
 using MovieApp.Application.Models.PushNotifications;
 using MovieApp.Application.Services.PushNotifications;
 
 namespace MovieApp.Infrastructure.PushNotifications;
 
-public sealed class ExpoPushClient(HttpClient httpClient) : IExpoPushClient
+public sealed class ExpoPushClient(HttpClient httpClient, ILogger<ExpoPushClient> logger) : IExpoPushClient
 {
     private const int MaxBatchSize = 100;
 
@@ -44,6 +45,11 @@ public sealed class ExpoPushClient(HttpClient httpClient) : IExpoPushClient
                 requestItems,
                 SerializerOptions,
                 cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ExpoPushLogMessages.LogSendHttpFailure(logger, (int)response.StatusCode, batch.Length);
+            }
 
             response.EnsureSuccessStatusCode();
 
@@ -85,6 +91,11 @@ public sealed class ExpoPushClient(HttpClient httpClient) : IExpoPushClient
                 new ExpoPushReceiptRequest { Ids = batch.ToList() },
                 SerializerOptions,
                 cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ExpoPushLogMessages.LogReceiptHttpFailure(logger, (int)response.StatusCode, batch.Length);
+            }
 
             response.EnsureSuccessStatusCode();
 

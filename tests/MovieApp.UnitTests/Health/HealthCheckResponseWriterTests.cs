@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MovieApp.Api.Health;
 
 namespace MovieApp.UnitTests.Health;
@@ -65,10 +66,39 @@ public sealed class HealthCheckResponseWriterTests
         Assert.DoesNotContain("secret-host", body, StringComparison.Ordinal);
     }
 
-    private static DefaultHttpContext CreateHttpContext()
+    [Fact]
+    public async Task WriteResponse_LogsUnhealthyReadinessWithoutSensitiveDetails()
+    {
+        var logger = new TestLogger();
+        var context = CreateHttpContext(logger);
+        var report = new HealthReport(
+            new Dictionary<string, HealthReportEntry>
+            {
+                ["redis"] = new HealthReportEntry(
+                    HealthStatus.Unhealthy,
+                    "Connection failed: redis://secret-host:6399",
+                    TimeSpan.FromMilliseconds(50),
+                    exception: null,
+                    data: null)
+            },
+            HealthStatus.Unhealthy,
+            TimeSpan.FromMilliseconds(55));
+
+        await HealthCheckResponseWriter.WriteResponse(context, report);
+
+        var failureLog = Assert.Single(
+            logger.Messages,
+            message => message.Contains("Readiness check reported unhealthy status", StringComparison.Ordinal));
+        Assert.Contains("redis", failureLog, StringComparison.Ordinal);
+        Assert.DoesNotContain("6399", failureLog, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-host", failureLog, StringComparison.Ordinal);
+    }
+
+    private static DefaultHttpContext CreateHttpContext(TestLogger? logger = null)
     {
         var services = new ServiceCollection()
             .AddSingleton<IHostEnvironment>(new FakeHostEnvironment("Testing"))
+            .AddSingleton<ILoggerFactory>(new TestLoggerFactory(logger ?? new TestLogger()))
             .BuildServiceProvider();
 
         return new DefaultHttpContext
@@ -90,5 +120,37 @@ public sealed class HealthCheckResponseWriterTests
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
 
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class TestLogger : ILogger
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+        }
+    }
+
+    private sealed class TestLoggerFactory(TestLogger logger) : ILoggerFactory
+    {
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName) => logger;
+
+        public void Dispose()
+        {
+        }
     }
 }

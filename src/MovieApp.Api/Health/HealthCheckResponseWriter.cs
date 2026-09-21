@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MovieApp.Application;
 
 namespace MovieApp.Api.Health;
@@ -20,6 +21,19 @@ internal static class HealthCheckResponseWriter
             : StatusCodes.Status503ServiceUnavailable;
 
         var environment = context.RequestServices.GetRequiredService<IHostEnvironment>();
+
+        if (report.Status != HealthStatus.Healthy)
+        {
+            var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("MovieApp.Api.Health.Readiness");
+            var failedChecks = string.Join(
+                ", ",
+                report.Entries
+                    .Where(entry => entry.Value.Status != HealthStatus.Healthy)
+                    .Select(entry => entry.Key));
+
+            HealthCheckLogMessages.LogReadinessUnhealthy(logger, report.Status, failedChecks);
+        }
 
         var payload = new
         {
