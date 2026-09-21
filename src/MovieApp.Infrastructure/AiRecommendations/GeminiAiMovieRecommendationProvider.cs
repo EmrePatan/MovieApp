@@ -107,14 +107,7 @@ internal sealed class GeminiAiMovieRecommendationProvider(
                 {
                     new
                     {
-                        text = """
-                               You are a movie and TV recommendation assistant for MovieApp.
-                               Return only JSON matching the provided schema.
-                               Follow the user's request and set mediaType to "movie" or "tv" for each suggestion.
-                               Reasons must be short, user-facing, and based only on supplied taste and request information.
-                               Do not invent claims about the user.
-                               tmdbId is optional and may be omitted when uncertain.
-                               """
+                        text = GeminiPromptBuilder.BuildSystemInstruction(request.ResponseLanguage)
                     }
                 }
             },
@@ -284,6 +277,23 @@ internal sealed class GeminiAiMovieRecommendationProvider(
 
 internal static class GeminiPromptBuilder
 {
+    internal static string BuildSystemInstruction(string responseLanguage)
+    {
+        var writeReasonsIn = responseLanguage.StartsWith("tr", StringComparison.OrdinalIgnoreCase)
+            ? "Turkish"
+            : "English";
+
+        return $"""
+                You are a movie and TV recommendation assistant for MovieApp.
+                Return only JSON matching the provided schema.
+                Follow the user's request and set mediaType to "movie" or "tv" for each suggestion.
+                Write every reason in {writeReasonsIn}.
+                Reasons must be short, user-facing, and based only on supplied taste and request information.
+                Do not invent claims about the user.
+                Include tmdbId whenever you are confident it matches the suggested title and year.
+                """;
+    }
+
     internal static string Build(AiProviderRequest request)
     {
         var builder = new StringBuilder();

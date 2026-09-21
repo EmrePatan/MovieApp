@@ -8,5 +8,10 @@ public interface IAiMovieRecommendationService
         Guid userId,
         string message,
         Guid? sessionId,
+        string responseLanguage,
+        CancellationToken cancellationToken = default);
+
+    Task<int> GetRemainingQuotaAsync(
+        Guid userId,
         CancellationToken cancellationToken = default);
 }

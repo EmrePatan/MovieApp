@@ -19,10 +19,16 @@ public sealed class AiMovieRecommendationService(
     IAiRecommendationPerfContext perfContext,
     ILogger<AiMovieRecommendationService> logger) : IAiMovieRecommendationService
 {
+    public async Task<int> GetRemainingQuotaAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        await quotaService.GetRemainingUserQuotaAsync(userId, cancellationToken);
+
     public async Task<AiRecommendationServiceResult> GetRecommendationsAsync(
         Guid userId,
         string message,
         Guid? sessionId,
+        string responseLanguage,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -52,7 +58,8 @@ public sealed class AiMovieRecommendationService(
                     message,
                     tasteProfile,
                     session,
-                    settings.SuggestionCount);
+                    settings.SuggestionCount,
+                    responseLanguage);
 
                 AiProviderGenerationResult generation;
                 try

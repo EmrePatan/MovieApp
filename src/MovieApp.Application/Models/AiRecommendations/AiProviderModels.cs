@@ -23,7 +23,8 @@ public sealed record AiProviderRequest(
     string UserMessage,
     AiTasteProfile TasteProfile,
     AiRecommendationSessionState Session,
-    int SuggestionCount);
+    int SuggestionCount,
+    string ResponseLanguage);
 
 public sealed record ResolvedMovieIdentity(
     string MediaType,

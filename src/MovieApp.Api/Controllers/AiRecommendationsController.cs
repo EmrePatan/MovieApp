@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Contracts.AiRecommendations;
@@ -14,8 +17,26 @@ namespace MovieApp.Api.Controllers;
 [Route("api/ai/recommendations")]
 public sealed class AiRecommendationsController(
     IAiMovieRecommendationService recommendationService,
-    ICurrentUser currentUser) : ControllerBase
+    ICurrentUser currentUser,
+    IOptions<AiRecommendationOptions> options) : ControllerBase
 {
+    [HttpGet("quota")]
+    [ProducesResponseType(typeof(AiRecommendationQuotaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AiRecommendationQuotaResponse>> GetQuota(CancellationToken cancellationToken)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.UserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var remaining = await recommendationService.GetRemainingQuotaAsync(
+            currentUser.UserId.Value,
+            cancellationToken);
+
+        return Ok(new AiRecommendationQuotaResponse(remaining, options.Value.UserDailyMessageLimit));
+    }
+
     [HttpPost]
     [ProducesResponseType(typeof(AiRecommendationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -45,6 +66,7 @@ public sealed class AiRecommendationsController(
                 currentUser.UserId.Value,
                 request.Message.Trim(),
                 request.SessionId,
+                Request.ResolveContentLocale(),
                 cancellationToken);
 
             var response = AiRecommendationContractMapper.ToResponse(result);

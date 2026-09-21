@@ -85,12 +85,12 @@ public sealed class AiMovieIdentityResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncUsesLightweightProviderSearchFallback()
+    public async Task ResolveAsyncTrustsCatalogMovieWhenTmdbIdMatchesEvenIfGeminiTitleDiffers()
     {
-        var movieId = Guid.NewGuid();
+        var mismatchedCatalogId = Guid.NewGuid();
         var movieRepository = new TrackingMovieRepository();
-        movieRepository.MoviesByTmdbId[1] = CreateMovie(Guid.NewGuid(), 1, "Different Title", 2000);
-        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Arrival", 2016);
+        movieRepository.MoviesByTmdbId[1] = CreateMovie(mismatchedCatalogId, 1, "Different Title", 2000);
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(Guid.NewGuid(), 42, "Arrival", 2016);
         var movieProvider = new TrackingMovieDataProvider
         {
             SearchResults =
@@ -104,10 +104,38 @@ public sealed class AiMovieIdentityResolverTests
             new AiProviderSuggestion("Arrival", 2016, "movie", 1, "Reason"));
 
         Assert.NotNull(result);
+        Assert.Equal("Different Title", result!.Title);
+        Assert.Equal(mismatchedCatalogId, result.MovieId);
+        Assert.Equal(0, movieProvider.SearchCallCount);
+        Assert.Equal(0, movieProvider.GetMovieCallCount);
+        Assert.Equal(1, movieRepository.GetByTmdbIdCallCount);
+        Assert.Equal(0, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
+        Assert.Equal(1, movieRepository.PerfContext.Metrics.ValidationCatalogHits);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncUsesLightweightProviderSearchFallbackWhenTmdbIdMissing()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Arrival", 2016);
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary("42", 42, null, null, "Arrival", null, new DateOnly(2016, 1, 1), null, 7m, 100)
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Arrival", 2016, "movie", null, "Reason"));
+
+        Assert.NotNull(result);
         Assert.Equal("Arrival", result!.Title);
         Assert.Equal(1, movieProvider.SearchCallCount);
         Assert.Equal(0, movieProvider.GetMovieCallCount);
-        Assert.Equal(2, movieRepository.GetByTmdbIdCallCount);
+        Assert.Equal(1, movieRepository.GetByTmdbIdCallCount);
         Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
         Assert.Equal(1, movieRepository.PerfContext.Metrics.ValidationCatalogHits);
     }
@@ -164,30 +192,30 @@ public sealed class AiMovieIdentityResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncFallsBackToSearchWhenHintedProviderTitleYearMismatch()
+    public async Task ResolveAsyncTrustsProviderTmdbHintEvenWhenGeminiTitleYearMismatch()
     {
         var movieId = Guid.NewGuid();
         var movieRepository = new TrackingMovieRepository();
         movieRepository.MoviesByTmdbId[42] = CreateMovie(movieId, 42, "Arrival", 2016);
         var movieProvider = new TrackingMovieDataProvider
         {
-            MovieDetails = CreateMovieProviderDetails(545, "Different Title", 2000),
-            SearchResults =
-            [
-                new MovieProviderSummary("42", 42, null, null, "Arrival", null, new DateOnly(2016, 1, 1), null, 7m, 100)
-            ]
+            MovieDetails = CreateMovieProviderDetails(545, "Different Title", 2000)
+        };
+        var catalogUpsert = new TrackingCatalogProviderUpsertService
+        {
+            UpsertedMovie = CreateMovie(movieId, 545, "Different Title", 2000)
         };
 
-        var resolver = CreateResolver(movieRepository, movieProvider);
+        var resolver = CreateResolver(movieRepository, movieProvider, catalogUpsert: catalogUpsert);
         var result = await resolver.ResolveAsync(
             new AiProviderSuggestion("Arrival", 2016, "movie", 545, "Reason"));
 
         Assert.NotNull(result);
-        Assert.Equal("Arrival", result!.Title);
+        Assert.Equal("Different Title", result!.Title);
         Assert.Equal(1, movieProvider.GetMovieCallCount);
-        Assert.Equal(1, movieProvider.SearchCallCount);
+        Assert.Equal(0, movieProvider.SearchCallCount);
         Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationProviderFallbacks);
-        Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
+        Assert.Equal(0, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
     }
 
     [Fact]
@@ -273,7 +301,7 @@ public sealed class AiMovieIdentityResolverTests
 
         var resolver = CreateResolver(movieRepository, movieProvider);
         var result = await resolver.ResolveAsync(
-            new AiProviderSuggestion("L'Auberge Espagnole", 2002, "movie", 1, "Reason"));
+            new AiProviderSuggestion("L'Auberge Espagnole", 2002, "movie", null, "Reason"));
 
         Assert.NotNull(result);
         Assert.Equal(movieId, result!.MovieId);

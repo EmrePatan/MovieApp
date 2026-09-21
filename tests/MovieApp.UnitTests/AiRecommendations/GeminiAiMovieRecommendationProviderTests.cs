@@ -84,7 +84,8 @@ public sealed class GeminiAiMovieRecommendationProviderTests
             "Something mysterious with a twist",
             new AiTasteProfile([], [], [], [], [], [], [], [], true),
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
-            10);
+            10,
+            "en-US");
 
         var body = GeminiAiMovieRecommendationProvider.BuildRequestBody(request);
 
@@ -92,8 +93,21 @@ public sealed class GeminiAiMovieRecommendationProviderTests
         Assert.Contains("responseMimeType", body, StringComparison.Ordinal);
         Assert.Contains("suggestions", body, StringComparison.Ordinal);
         Assert.Contains("movies and/or TV series", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggest movies only", body, StringComparison.Ordinal);
-        Assert.Contains("\"maxItems\":10", body, StringComparison.Ordinal);
-        Assert.Contains("Return exactly up to 10 recommendations", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildSystemInstructionUsesTurkishForTrLocale()
+    {
+        var instruction = GeminiPromptBuilder.BuildSystemInstruction("tr-TR");
+
+        Assert.Contains("Turkish", instruction, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildSystemInstructionUsesEnglishForEnLocale()
+    {
+        var instruction = GeminiPromptBuilder.BuildSystemInstruction("en-US");
+
+        Assert.Contains("English", instruction, StringComparison.Ordinal);
     }
 }

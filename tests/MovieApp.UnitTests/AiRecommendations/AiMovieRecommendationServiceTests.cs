@@ -45,7 +45,7 @@ public sealed class AiMovieRecommendationServiceTests
                     0,
                     false)));
 
-        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US");
 
         Assert.Equal(1, result.ReturnedCount);
     }
@@ -60,7 +60,7 @@ public sealed class AiMovieRecommendationServiceTests
             new FakeValidator());
 
         await Assert.ThrowsAsync<AiRecommendationQuotaExceededException>(() =>
-            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+            service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US"));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class AiMovieRecommendationServiceTests
             new FakeValidator());
 
         await Assert.ThrowsAsync<AiRecommendationProviderUnavailableException>(() =>
-            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+            service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US"));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class AiMovieRecommendationServiceTests
                     0,
                     false)));
 
-        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US");
 
         Assert.True(result.IsAiGenerated);
         Assert.Equal(1, result.ReturnedCount);
@@ -127,7 +127,7 @@ public sealed class AiMovieRecommendationServiceTests
             provider,
             new FakeValidator());
 
-        await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+        await service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US");
 
         Assert.Equal(10, provider.LastSuggestionCount);
     }
@@ -166,7 +166,7 @@ public sealed class AiMovieRecommendationServiceTests
                     9,
                     false)));
 
-        await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+        await service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US");
 
         Assert.Equal(1, quota.CommitCount);
         Assert.Equal(0, quota.ReleaseCount);
@@ -183,7 +183,7 @@ public sealed class AiMovieRecommendationServiceTests
             new ThrowingValidator());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+            service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US"));
 
         Assert.Equal(0, quota.CommitCount);
         Assert.Equal(1, quota.ReleaseCount);
@@ -200,7 +200,7 @@ public sealed class AiMovieRecommendationServiceTests
             new FakeValidator());
 
         await Assert.ThrowsAsync<AiRecommendationProviderUnavailableException>(() =>
-            service.GetRecommendationsAsync(_userId, "mystery movie", null));
+            service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US"));
 
         Assert.Equal(0, quota.CommitCount);
         Assert.Equal(1, quota.ReleaseCount);
@@ -217,7 +217,7 @@ public sealed class AiMovieRecommendationServiceTests
             new FakeValidator(
                 new AiValidationResult([], 8, 0, 8, false)));
 
-        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null);
+        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US");
 
         Assert.Equal(0, result.ReturnedCount);
         Assert.Equal(1, provider.CallCount);
