@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -25,18 +26,21 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         SeasonProviderDetails details,
         CancellationToken cancellationToken = default)
     {
-        var season = await dbContext.Seasons
-            .Include(existingSeason => existingSeason.Episodes)
-            .FirstOrDefaultAsync(
-                existingSeason =>
-                    existingSeason.TvShowId == tvShowId &&
-                    existingSeason.SeasonNumber == details.SeasonNumber,
-                cancellationToken);
+        var transaction = await BeginCatalogHydrationTransactionAsync(tvShowId, cancellationToken);
 
-        var utcNow = DateTime.UtcNow;
-        season = ApplyProviderDetails(season, tvShowId, details, utcNow);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return season;
+        try
+        {
+            var season = await LoadTrackedSeasonAsync(tvShowId, details.SeasonNumber, cancellationToken);
+            var utcNow = DateTime.UtcNow;
+            season = await ApplyProviderDetailsAsync(season, tvShowId, details, utcNow, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await CommitCatalogHydrationTransactionAsync(transaction, cancellationToken);
+            return season;
+        }
+        finally
+        {
+            await DisposeCatalogHydrationTransactionAsync(transaction);
+        }
     }
 
     public async Task UpsertSeasonsFromProviderAsync(
@@ -49,7 +53,12 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             return;
         }
 
-        var seasonNumbers = details
+        var dedupedDetails = DeduplicateSeasonDetails(details);
+        var transaction = await BeginCatalogHydrationTransactionAsync(tvShowId, cancellationToken);
+
+        try
+        {
+        var seasonNumbers = dedupedDetails
             .Select(item => item.SeasonNumber)
             .Distinct()
             .ToList();
@@ -62,7 +71,7 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         var seasonsByNumber = existingSeasons.ToDictionary(season => season.SeasonNumber);
         var utcNow = DateTime.UtcNow;
 
-        foreach (var seasonDetails in details)
+        foreach (var seasonDetails in dedupedDetails)
         {
             if (!seasonsByNumber.TryGetValue(seasonDetails.SeasonNumber, out var season))
             {
@@ -78,10 +87,16 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             }
 
             seasonsByNumber[seasonDetails.SeasonNumber] =
-                ApplyProviderDetails(season, tvShowId, seasonDetails, utcNow);
+                await ApplyProviderDetailsAsync(season, tvShowId, seasonDetails, utcNow, cancellationToken);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await CommitCatalogHydrationTransactionAsync(transaction, cancellationToken);
+        }
+        finally
+        {
+            await DisposeCatalogHydrationTransactionAsync(transaction);
+        }
     }
 
     public async Task<Season> UpsertSummaryFromProviderAsync(
@@ -122,11 +137,66 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         return season;
     }
 
-    private Season ApplyProviderDetails(
+    private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> BeginCatalogHydrationTransactionAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken)
+    {
+        if (!IsPostgreSql())
+        {
+            return null;
+        }
+
+        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var lockKey = TvShowCatalogLockKeys.ForCatalogHydration(tvShowId);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockKey})",
+            cancellationToken);
+
+        return transaction;
+    }
+
+    private static async Task CommitCatalogHydrationTransactionAsync(
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+    }
+
+    private static async Task DisposeCatalogHydrationTransactionAsync(
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction)
+    {
+        if (transaction is not null)
+        {
+            await transaction.DisposeAsync();
+        }
+    }
+
+    private bool IsPostgreSql() =>
+        dbContext.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+
+    private async Task<Season?> LoadTrackedSeasonAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Seasons
+            .Include(existingSeason => existingSeason.Episodes)
+            .FirstOrDefaultAsync(
+                existingSeason =>
+                    existingSeason.TvShowId == tvShowId &&
+                    existingSeason.SeasonNumber == seasonNumber,
+                cancellationToken);
+    }
+
+    private async Task<Season> ApplyProviderDetailsAsync(
         Season? season,
         Guid tvShowId,
         SeasonProviderDetails details,
-        DateTime utcNow)
+        DateTime utcNow,
+        CancellationToken cancellationToken)
     {
         if (season is null)
         {
@@ -150,20 +220,46 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         season.PosterPath = details.PosterPath;
         season.UpdatedAt = utcNow;
 
-        foreach (var episodeDetails in details.Episodes)
+        var episodesByNumber = BuildEpisodeIndex(season);
+        foreach (var episodeDetails in DeduplicateEpisodeDetails(details.Episodes))
         {
-            UpsertEpisode(season, episodeDetails, utcNow);
+            await UpsertEpisodeAsync(season, episodeDetails, utcNow, episodesByNumber, cancellationToken);
         }
 
         return season;
     }
 
-    private void UpsertEpisode(
+    private static Dictionary<int, Episode> BuildEpisodeIndex(Season season)
+    {
+        var episodesByNumber = new Dictionary<int, Episode>();
+
+        foreach (var episode in season.Episodes)
+        {
+            episodesByNumber.TryAdd(episode.EpisodeNumber, episode);
+        }
+
+        return episodesByNumber;
+    }
+
+    private async Task UpsertEpisodeAsync(
         Season season,
         EpisodeProviderDetails details,
-        DateTime utcNow)
+        DateTime utcNow,
+        Dictionary<int, Episode> episodesByNumber,
+        CancellationToken cancellationToken)
     {
-        var episode = season.Episodes.FirstOrDefault(item => item.EpisodeNumber == details.EpisodeNumber);
+        if (episodesByNumber.TryGetValue(details.EpisodeNumber, out var episode))
+        {
+            ApplyEpisodeDetails(episode, details, utcNow);
+            return;
+        }
+
+        episode = await dbContext.Episodes
+            .FirstOrDefaultAsync(
+                existingEpisode =>
+                    existingEpisode.SeasonId == season.Id &&
+                    existingEpisode.EpisodeNumber == details.EpisodeNumber,
+                cancellationToken);
 
         if (episode is null)
         {
@@ -178,7 +274,20 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             season.Episodes.Add(episode);
             dbContext.Episodes.Add(episode);
         }
+        else if (!season.Episodes.Any(item => item.Id == episode.Id))
+        {
+            season.Episodes.Add(episode);
+        }
 
+        episodesByNumber[details.EpisodeNumber] = episode;
+        ApplyEpisodeDetails(episode, details, utcNow);
+    }
+
+    private static void ApplyEpisodeDetails(
+        Episode episode,
+        EpisodeProviderDetails details,
+        DateTime utcNow)
+    {
         episode.TmdbId = details.TmdbId;
         episode.TvdbId = details.TvdbId;
         episode.ImdbId = details.ImdbId;
@@ -192,4 +301,18 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         episode.VoteCount = details.VoteCount;
         episode.UpdatedAt = utcNow;
     }
+
+    private static List<SeasonProviderDetails> DeduplicateSeasonDetails(
+        IReadOnlyList<SeasonProviderDetails> details) =>
+        details
+            .GroupBy(item => item.SeasonNumber)
+            .Select(group => group.Last())
+            .ToList();
+
+    private static List<EpisodeProviderDetails> DeduplicateEpisodeDetails(
+        IReadOnlyList<EpisodeProviderDetails> episodes) =>
+        episodes
+            .GroupBy(item => item.EpisodeNumber)
+            .Select(group => group.Last())
+            .ToList();
 }

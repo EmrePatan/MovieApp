@@ -11,6 +11,9 @@ public sealed class TvShowFollowBaselineJob(
     IServiceScopeFactory serviceScopeFactory,
     ILogger<TvShowFollowBaselineJob> logger)
 {
+    public const string QueueName = "tv-follow-baseline";
+
+    [Queue(QueueName)]
     [AutomaticRetry(Attempts = 3)]
     public Task ExecuteAsync(Guid userId, Guid tvShowId) =>
         BackgroundJobOperationalRunner.RunAsync(

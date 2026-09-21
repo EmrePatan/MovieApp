@@ -63,7 +63,15 @@ public static class BackgroundJobsServiceCollectionExtensions
                 });
         });
 
-        services.AddHangfireServer();
+        services.AddHangfireServer(options =>
+        {
+            options.Queues =
+            [
+                "default",
+                TvShowFollowBaselineJob.QueueName
+            ];
+            options.WorkerCount = Math.Max(Environment.ProcessorCount, 2);
+        });
         services.AddHostedService<RecurringBackgroundJobsStartup>();
 
         services.AddScoped<TmdbTvChangesSyncJob>();

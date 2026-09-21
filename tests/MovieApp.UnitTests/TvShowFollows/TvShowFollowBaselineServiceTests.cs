@@ -200,7 +200,7 @@ public sealed class TvShowFollowBaselineServiceTests
         await service.EstablishAsync(follow);
 
         Assert.Equal(4, provider.GetSeasonCallCount);
-        Assert.Equal(1, ConcurrentFakeSeasonRepository.TotalBatchUpsertCallCount);
+        Assert.Equal(2, ConcurrentFakeSeasonRepository.TotalBatchUpsertCallCount);
         Assert.Equal(4, ConcurrentFakeSeasonRepository.TotalSeasonsPersisted);
         Assert.True(follow.IsBaselineEstablished);
     }

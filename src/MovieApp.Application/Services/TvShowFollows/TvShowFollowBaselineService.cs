@@ -26,15 +26,18 @@ public sealed class TvShowFollowBaselineService(
     IReleaseDetector releaseDetector,
     ILogger<TvShowFollowBaselineService> logger) : ITvShowFollowBaselineService
 {
-    private const int MaxConcurrentSeasonHydrations = 3;
-
     public async Task EstablishAsync(CatalogFollow follow, CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
         var summaryHydrationMs = 0L;
-        var seasonHydrationMs = 0L;
+        var providerSeasonFetchMs = 0L;
+        var seasonPersistenceMs = 0L;
+        var catalogReloadMs = 0L;
+        var markRefreshedMs = 0L;
         var releaseScanMs = 0L;
+        var baselineCompletionMs = 0L;
         var seasonsHydrated = 0;
+        var episodesHydrated = 0;
 
         var currentFollow = await tvShowFollowRepository.GetForUserAndTvShowForUpdateAsync(
             follow.UserId,
@@ -94,25 +97,35 @@ public sealed class TvShowFollowBaselineService(
         {
             var externalId = ResolveExternalId(tvShow);
 
-            var seasonStopwatch = Stopwatch.StartNew();
-            await HydrateSeasonsAsync(tvShowId, externalId, seasonsToHydrate, cancellationToken);
-            seasonStopwatch.Stop();
-            seasonHydrationMs = seasonStopwatch.ElapsedMilliseconds;
-            seasonsHydrated = seasonsToHydrate.Count;
+            var hydrationResult = await HydrateSeasonsAsync(
+                tvShowId,
+                externalId,
+                seasonsToHydrate,
+                cancellationToken);
+            providerSeasonFetchMs = hydrationResult.ProviderSeasonFetchMs;
+            seasonPersistenceMs = hydrationResult.SeasonPersistenceMs;
+            seasonsHydrated = hydrationResult.SeasonsHydrated;
+            episodesHydrated = hydrationResult.EpisodesHydrated;
             providerCatalogRefreshed = true;
 
+            var catalogReloadStopwatch = Stopwatch.StartNew();
             seasons = await releaseDetectionCatalogRepository.GetSeasonsWithEpisodesAsync(
                 tvShowId,
                 cancellationToken);
+            catalogReloadStopwatch.Stop();
+            catalogReloadMs = catalogReloadStopwatch.ElapsedMilliseconds;
         }
 
         if (providerCatalogRefreshed)
         {
+            var markRefreshedStopwatch = Stopwatch.StartNew();
             await catalogSyncStateService.MarkRefreshedAsync(
                 tvShowId,
                 TvShowCatalogRefreshReason.FollowBaseline,
                 DateTime.UtcNow,
                 cancellationToken);
+            markRefreshedStopwatch.Stop();
+            markRefreshedMs = markRefreshedStopwatch.ElapsedMilliseconds;
         }
 
         var releaseScanStopwatch = Stopwatch.StartNew();
@@ -125,8 +138,11 @@ public sealed class TvShowFollowBaselineService(
         releaseScanStopwatch.Stop();
         releaseScanMs = releaseScanStopwatch.ElapsedMilliseconds;
 
+        var baselineCompletionStopwatch = Stopwatch.StartNew();
         follow.EstablishBaseline(DateTime.UtcNow);
         await tvShowFollowRepository.SaveChangesAsync(cancellationToken);
+        baselineCompletionStopwatch.Stop();
+        baselineCompletionMs = baselineCompletionStopwatch.ElapsedMilliseconds;
 
         totalStopwatch.Stop();
         TvShowFollowBaselineLogMessages.LogBaselineCompleted(
@@ -134,9 +150,14 @@ public sealed class TvShowFollowBaselineService(
             tvShowId,
             totalStopwatch.ElapsedMilliseconds,
             summaryHydrationMs,
-            seasonHydrationMs,
+            providerSeasonFetchMs,
+            seasonPersistenceMs,
+            catalogReloadMs,
+            markRefreshedMs,
             releaseScanMs,
-            seasonsHydrated);
+            baselineCompletionMs,
+            seasonsHydrated,
+            episodesHydrated);
     }
 
     private static List<int> DetermineSeasonsToHydrate(
@@ -176,29 +197,49 @@ public sealed class TvShowFollowBaselineService(
         return externalId;
     }
 
-    private async Task HydrateSeasonsAsync(
+    private async Task<SeasonHydrationResult> HydrateSeasonsAsync(
         Guid tvShowId,
         string externalId,
         List<int> seasonNumbers,
         CancellationToken cancellationToken)
     {
-        var providerSeasons = new List<SeasonProviderDetails>(seasonNumbers.Count);
+        var providerSeasonFetchMs = 0L;
+        var seasonPersistenceMs = 0L;
+        var seasonsHydrated = 0;
+        var episodesHydrated = 0;
+        var batchSize = TvShowFollowBaselineHydrationOptions.MaxSeasonsPerPersistenceBatch;
 
-        for (var index = 0; index < seasonNumbers.Count; index += MaxConcurrentSeasonHydrations)
+        for (var index = 0; index < seasonNumbers.Count; index += batchSize)
         {
-            var batch = seasonNumbers.Skip(index).Take(MaxConcurrentSeasonHydrations).ToArray();
+            var batch = seasonNumbers.Skip(index).Take(batchSize).ToArray();
+
+            var providerFetchStopwatch = Stopwatch.StartNew();
             var hydrationTasks = batch
                 .Select(seasonNumber => FetchSeasonAsync(externalId, seasonNumber, cancellationToken))
                 .ToArray();
-
             var batchResults = await Task.WhenAll(hydrationTasks);
-            providerSeasons.AddRange(batchResults);
+            providerFetchStopwatch.Stop();
+            providerSeasonFetchMs += providerFetchStopwatch.ElapsedMilliseconds;
+
+            var persistenceStopwatch = Stopwatch.StartNew();
+            using (var scope = scopeFactory.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<ISeasonRepository>()
+                    .UpsertSeasonsFromProviderAsync(tvShowId, batchResults, cancellationToken);
+            }
+
+            persistenceStopwatch.Stop();
+            seasonPersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
+            seasonsHydrated += batchResults.Length;
+            episodesHydrated += batchResults.Sum(season => season.Episodes.Count);
         }
 
-        using var scope = scopeFactory.CreateScope();
-        await scope.ServiceProvider
-            .GetRequiredService<ISeasonRepository>()
-            .UpsertSeasonsFromProviderAsync(tvShowId, providerSeasons, cancellationToken);
+        return new SeasonHydrationResult(
+            providerSeasonFetchMs,
+            seasonPersistenceMs,
+            seasonsHydrated,
+            episodesHydrated);
     }
 
     private async Task<SeasonProviderDetails> FetchSeasonAsync(
@@ -219,4 +260,10 @@ public sealed class TvShowFollowBaselineService(
 
         return providerSeason;
     }
+
+    private sealed record SeasonHydrationResult(
+        long ProviderSeasonFetchMs,
+        long SeasonPersistenceMs,
+        int SeasonsHydrated,
+        int EpisodesHydrated);
 }

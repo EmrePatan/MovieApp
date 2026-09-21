@@ -7,13 +7,18 @@ internal static partial class TvShowFollowBaselineLogMessages
     [LoggerMessage(
         EventId = 1,
         Level = LogLevel.Information,
-        Message = "TV follow baseline completed for show {TvShowId} in {ElapsedMs}ms (summary={SummaryHydrationMs}ms, seasons={SeasonHydrationMs}ms, releaseScan={ReleaseScanMs}ms, seasonsHydrated={SeasonsHydrated}).")]
+        Message = "TV follow baseline completed for show {TvShowId} in {TotalMs}ms (summary={SummaryHydrationMs}ms, providerSeasonFetch={ProviderSeasonFetchMs}ms, seasonPersistence={SeasonPersistenceMs}ms, catalogReload={CatalogReloadMs}ms, markRefreshed={MarkRefreshedMs}ms, releaseScan={ReleaseScanMs}ms, baselineCompletion={BaselineCompletionMs}ms, seasonsHydrated={SeasonsHydrated}, episodesHydrated={EpisodesHydrated}).")]
     internal static partial void LogBaselineCompleted(
         ILogger logger,
         Guid tvShowId,
-        long elapsedMs,
+        long totalMs,
         long summaryHydrationMs,
-        long seasonHydrationMs,
+        long providerSeasonFetchMs,
+        long seasonPersistenceMs,
+        long catalogReloadMs,
+        long markRefreshedMs,
         long releaseScanMs,
-        int seasonsHydrated);
+        long baselineCompletionMs,
+        int seasonsHydrated,
+        int episodesHydrated);
 }
