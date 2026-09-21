@@ -50,7 +50,7 @@ public sealed class GetCatalogUpcomingService(
         totalStopwatch.Stop();
         CatalogUpcomingPerfLogMessages.LogRequest(
             logger,
-            scope.ToString(),
+            scope,
             totalStopwatch.ElapsedMilliseconds,
             repositoryStopwatch.ElapsedMilliseconds,
             page,
