@@ -192,10 +192,11 @@ public sealed class SeasonRepositoryIntegrationTests
         int seasonNumber,
         int episodeCount)
     {
+        var tmdbSeed = CreateUniqueTmdbSeed(tvShowId);
         var episodes = Enumerable.Range(1, episodeCount)
             .Select(episodeNumber => new EpisodeProviderDetails(
                 $"fake-tv-{tvShowId:N}",
-                920_000 + seasonNumber * 100 + episodeNumber,
+                tmdbSeed + seasonNumber * 100 + episodeNumber,
                 null,
                 null,
                 seasonNumber,
@@ -211,7 +212,7 @@ public sealed class SeasonRepositoryIntegrationTests
 
         return new SeasonProviderDetails(
             $"fake-tv-{tvShowId:N}",
-            910_000 + seasonNumber,
+            tmdbSeed + seasonNumber,
             null,
             seasonNumber,
             $"Season {seasonNumber}",
@@ -220,5 +221,12 @@ public sealed class SeasonRepositoryIntegrationTests
             episodeCount,
             null,
             episodes);
+    }
+
+    private static int CreateUniqueTmdbSeed(Guid tvShowId)
+    {
+        var bytes = tvShowId.ToByteArray();
+        var seed = BitConverter.ToUInt32(bytes, 0) ^ BitConverter.ToUInt32(bytes, 8);
+        return (int)(seed % 800_000) + 200_000;
     }
 }

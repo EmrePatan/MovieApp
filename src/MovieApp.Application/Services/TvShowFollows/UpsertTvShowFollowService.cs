@@ -82,6 +82,8 @@ public sealed class UpsertTvShowFollowService(
 
         await EnqueueBaselineEstablishmentAsync(follow, cancellationToken);
 
+        follow = await GetRefreshedFollowAsync(follow.UserId, follow.TvShowId, cancellationToken);
+
         return (TvShowFollowMutationResult.Created, ToStatusResult(follow));
     }
 
@@ -111,6 +113,8 @@ public sealed class UpsertTvShowFollowService(
             }
 
             await EnqueueBaselineEstablishmentAsync(follow, cancellationToken);
+
+            follow = await GetRefreshedFollowAsync(follow.UserId, follow.TvShowId, cancellationToken);
 
             return (TvShowFollowMutationResult.Updated, ToStatusResult(follow));
         }
