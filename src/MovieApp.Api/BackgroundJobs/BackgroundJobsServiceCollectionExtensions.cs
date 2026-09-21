@@ -64,6 +64,7 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.AddHostedService<RecurringBackgroundJobsStartup>();
 
         services.AddScoped<TmdbTvChangesSyncJob>();
+        services.AddScoped<TmdbMovieChangesSyncJob>();
         services.AddScoped<HotReleaseCheckJob>();
         services.AddScoped<MovieReleaseCheckJob>();
         services.AddScoped<ReleaseNotificationFanoutJob>();

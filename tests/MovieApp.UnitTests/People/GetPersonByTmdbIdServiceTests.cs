@@ -1,5 +1,7 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.People;
@@ -18,7 +20,8 @@ public sealed class GetPersonByTmdbIdServiceTests
             new FakePersonDataProvider(),
             personRepository,
             new NoOpMovieRepository(),
-            new NoOpTvShowRepository());
+            new NoOpTvShowRepository(),
+            new NoOpCacheService());
 
         var result = await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
 
@@ -37,7 +40,8 @@ public sealed class GetPersonByTmdbIdServiceTests
             new FakePersonDataProvider(),
             new FakePersonRepository(),
             new NoOpMovieRepository(),
-            new NoOpTvShowRepository());
+            new NoOpTvShowRepository(),
+            new NoOpCacheService());
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAsync(999999));
     }
@@ -61,7 +65,8 @@ public sealed class GetPersonByTmdbIdServiceTests
             new FakePersonDataProvider(),
             repository,
             new NoOpMovieRepository(),
-            new NoOpTvShowRepository());
+            new NoOpTvShowRepository(),
+            new NoOpCacheService());
 
         var result = await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
 
@@ -89,7 +94,8 @@ public sealed class GetPersonByTmdbIdServiceTests
             new FakePersonDataProvider(),
             repository,
             new NoOpMovieRepository(),
-            new NoOpTvShowRepository());
+            new NoOpTvShowRepository(),
+            new NoOpCacheService());
 
         await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
 
@@ -115,11 +121,111 @@ public sealed class GetPersonByTmdbIdServiceTests
             new FakePersonDataProvider(),
             repository,
             new NoOpMovieRepository(),
-            new NoOpTvShowRepository());
+            new NoOpTvShowRepository(),
+            new NoOpCacheService());
 
         await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
 
         Assert.Equal(1, repository.UpsertCallCount);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsCachedResult_OnSecondRequest()
+    {
+        var repository = new CountingPersonRepository();
+        var service = new GetPersonByTmdbIdService(
+            new FakePersonDataProvider(),
+            repository,
+            new NoOpMovieRepository(),
+            new NoOpTvShowRepository(),
+            new InMemoryCacheService());
+
+        await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
+        await service.GetAsync(FakePersonDataProvider.McConaugheyTmdbId);
+
+        Assert.Equal(1, repository.GetByTmdbIdCallCount);
+    }
+
+    private sealed class CountingPersonRepository : IPersonRepository
+    {
+        public int GetByTmdbIdCallCount { get; private set; }
+
+        public Task<Person?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default)
+        {
+            GetByTmdbIdCallCount++;
+            return Task.FromResult<Person?>(null);
+        }
+
+        public Task<Person> UpsertFromProviderAsync(
+            int tmdbId,
+            string name,
+            string? profilePath,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new Person
+            {
+                Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                TmdbId = tmdbId,
+                Name = name,
+                ProfilePath = profilePath,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+            IReadOnlyList<PersonProviderSummary> summaries,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class InMemoryCacheService : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = new(StringComparer.Ordinal);
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            if (_entries.TryGetValue(key, out var value) && value is T typed)
+            {
+                return Task.FromResult<T?>(typed);
+            }
+
+            return Task.FromResult<T?>(null);
+        }
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value!;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NoOpCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakePersonRepository : IPersonRepository

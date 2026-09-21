@@ -100,6 +100,27 @@ public sealed class ListLocalizationStage2Tests
     }
 
     [Fact]
+    public async Task SummaryOverlay_FetchesLocalizationOverlayOncePerItem()
+    {
+        var cache = new CountingCacheService();
+        await cache.SetAsync(
+            DetailLocalizationCacheKeys.Movie(157336, ContentLocaleResolver.TurkishTurkey),
+            new DetailLocalizationCacheEntry<MovieDetailLocalizationData>
+            {
+                Data = new MovieDetailLocalizationData("Yıldızlararası", "Turkish overview", null)
+            });
+
+        var service = CreateSummaryOverlayService(cache);
+        var canonical = CreateSearchPage("Interstellar", "English overview");
+
+        var result = await service.ApplyToSearchItemsAsync(canonical, ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(1, cache.GetCallCount);
+        Assert.Equal("Yıldızlararası", result.Items[0].Title);
+        Assert.Equal("Turkish overview", result.Items[0].Overview);
+    }
+
+    [Fact]
     public async Task SummaryOverlay_KeepsCanonical_WhenTurkishCacheMisses()
     {
         var service = CreateSummaryOverlayService(new InMemoryCacheService());
@@ -205,11 +226,24 @@ public sealed class ListLocalizationStage2Tests
             1,
             1);
 
-    private sealed class InMemoryCacheService : ICacheService
+    private sealed class CountingCacheService : InMemoryCacheService
+    {
+        public int GetCallCount { get; private set; }
+
+        public override Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            GetCallCount++;
+            return base.GetAsync<T>(key, cancellationToken);
+        }
+    }
+
+    private class InMemoryCacheService : ICacheService
     {
         private readonly Dictionary<string, object> _entries = new(StringComparer.Ordinal);
 
-        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+        public virtual Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+
             where T : class
         {
             if (_entries.TryGetValue(key, out var value) && value is T typed)

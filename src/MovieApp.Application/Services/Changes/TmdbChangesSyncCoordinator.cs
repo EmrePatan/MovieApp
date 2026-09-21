@@ -36,6 +36,7 @@ internal static class TmdbChangesSyncCoordinator
         }
 
         var chunks = TmdbTvChangesWindowPlanner.BuildChunks(windowStart.Value, targetDate);
+        var relevantTargets = await getRelevantTargetsAsync(cancellationToken);
         var totalChangedIds = 0;
         var totalRelevantTargets = 0;
         var totalRefreshed = 0;
@@ -52,8 +53,6 @@ internal static class TmdbChangesSyncCoordinator
                 cancellationToken);
 
             totalChangedIds += changedTmdbIds.Count;
-
-            var relevantTargets = await getRelevantTargetsAsync(cancellationToken);
 
             var targetIds = changedTmdbIds
                 .Where(relevantTargets.ContainsKey)

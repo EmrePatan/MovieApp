@@ -86,23 +86,18 @@ public sealed class SummaryLocalizationOverlayService(
                 continue;
             }
 
-            var localizedTitle = await ResolveLocalizedTitleAsync(
+            var localizedFields = await ResolveLocalizedFieldsAsync(
                 item.Type,
                 tmdbId,
                 item.Title,
-                contentLocale,
-                cancellationToken);
-            var localizedOverview = await ResolveLocalizedOverviewAsync(
-                item.Type,
-                tmdbId,
                 item.Overview,
                 contentLocale,
                 cancellationToken);
 
             localizedItems.Add(item with
             {
-                Title = localizedTitle,
-                Overview = localizedOverview
+                Title = localizedFields.Title,
+                Overview = localizedFields.Overview
             });
         }
 
@@ -153,23 +148,18 @@ public sealed class SummaryLocalizationOverlayService(
                     continue;
                 }
 
-                var localizedTitle = await ResolveLocalizedTitleAsync(
+                var localizedFields = await ResolveLocalizedFieldsAsync(
                     item.Type,
                     tmdbId,
                     item.Title,
-                    contentLocale,
-                    cancellationToken);
-                var localizedOverview = await ResolveLocalizedOverviewAsync(
-                    item.Type,
-                    tmdbId,
                     item.Overview,
                     contentLocale,
                     cancellationToken);
 
                 localizedItems.Add(item with
                 {
-                    Title = localizedTitle,
-                    Overview = localizedOverview
+                    Title = localizedFields.Title,
+                    Overview = localizedFields.Overview
                 });
             }
 
@@ -246,24 +236,46 @@ public sealed class SummaryLocalizationOverlayService(
             return item;
         }
 
-        var localizedTitle = await ResolveLocalizedTitleAsync(
+        var localizedFields = await ResolveLocalizedFieldsAsync(
             item.Type,
             item.TmdbId.Value,
             item.Title,
-            contentLocale,
-            cancellationToken);
-        var localizedOverview = await ResolveLocalizedOverviewAsync(
-            item.Type,
-            item.TmdbId.Value,
             item.Overview,
             contentLocale,
             cancellationToken);
 
         return item with
         {
-            Title = localizedTitle,
-            Overview = localizedOverview
+            Title = localizedFields.Title,
+            Overview = localizedFields.Overview
         };
+    }
+
+    private async Task<(string Title, string? Overview)> ResolveLocalizedFieldsAsync(
+        string contentType,
+        int tmdbId,
+        string canonicalTitle,
+        string? canonicalOverview,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(contentType, "movie", StringComparison.OrdinalIgnoreCase))
+        {
+            var overlay = await TryGetCachedMovieOverlayAsync(tmdbId, contentLocale, cancellationToken);
+            return (
+                LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title),
+                LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
+        }
+
+        if (string.Equals(contentType, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            var overlay = await TryGetCachedTvShowOverlayAsync(tmdbId, contentLocale, cancellationToken);
+            return (
+                LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title),
+                LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
+        }
+
+        return (canonicalTitle, canonicalOverview);
     }
 
     private async Task<string> ResolveLocalizedTitleAsync(
@@ -286,28 +298,6 @@ public sealed class SummaryLocalizationOverlayService(
         }
 
         return canonicalTitle;
-    }
-
-    private async Task<string?> ResolveLocalizedOverviewAsync(
-        string contentType,
-        int tmdbId,
-        string? canonicalOverview,
-        string contentLocale,
-        CancellationToken cancellationToken)
-    {
-        if (string.Equals(contentType, "movie", StringComparison.OrdinalIgnoreCase))
-        {
-            var overlay = await TryGetCachedMovieOverlayAsync(tmdbId, contentLocale, cancellationToken);
-            return LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview);
-        }
-
-        if (string.Equals(contentType, "tv", StringComparison.OrdinalIgnoreCase))
-        {
-            var overlay = await TryGetCachedTvShowOverlayAsync(tmdbId, contentLocale, cancellationToken);
-            return LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview);
-        }
-
-        return canonicalOverview;
     }
 
     private async Task<MovieDetailLocalizationData?> TryGetCachedMovieOverlayAsync(

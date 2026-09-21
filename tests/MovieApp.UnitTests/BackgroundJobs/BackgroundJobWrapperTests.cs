@@ -13,6 +13,7 @@ using MovieApp.Application.Services.PushNotifications;
 using MovieApp.Application.Services.ReleaseNotifications;
 using MovieApp.Application.Models.Keywords;
 using MovieApp.Application.Services.Keywords;
+using MovieApp.Application.Services.MovieChanges;
 using MovieApp.Application.Services.TvShowChanges;
 using MovieApp.Domain.Entities;
 
@@ -25,6 +26,18 @@ public sealed class BackgroundJobWrapperTests
     {
         var sync = new FakeTmdbChangesSyncService();
         var job = new TmdbTvChangesSyncJob(sync, NullLogger<TmdbTvChangesSyncJob>.Instance);
+
+        await job.ExecuteAsync();
+
+        Assert.NotNull(sync.ReceivedUtcNow);
+        Assert.Equal(DateTimeKind.Utc, sync.ReceivedUtcNow!.Value.Kind);
+    }
+
+    [Fact]
+    public async Task TmdbMovieChangesJob_UsesUtcNowAndCallsSyncService()
+    {
+        var sync = new FakeTmdbMovieChangesSyncService();
+        var job = new TmdbMovieChangesSyncJob(sync, NullLogger<TmdbMovieChangesSyncJob>.Instance);
 
         await job.ExecuteAsync();
 
@@ -150,6 +163,17 @@ public sealed class BackgroundJobWrapperTests
     }
 
     private sealed class FakeTmdbChangesSyncService : ITmdbTvChangesSyncService
+    {
+        public DateTime? ReceivedUtcNow { get; private set; }
+
+        public Task<TmdbChangesSyncResult> SyncAsync(DateTime? utcNow = null, CancellationToken cancellationToken = default)
+        {
+            ReceivedUtcNow = utcNow;
+            return Task.FromResult(new TmdbChangesSyncResult(1, 2, 1, 1, 0, 0, DateOnly.FromDateTime(DateTime.UtcNow)));
+        }
+    }
+
+    private sealed class FakeTmdbMovieChangesSyncService : ITmdbMovieChangesSyncService
     {
         public DateTime? ReceivedUtcNow { get; private set; }
 
