@@ -10,12 +10,12 @@
   </head>
   <body>
     <main id="main" class="legal-page">
-      <h1>Verify your email</h1>
+      <h1 id="page-title">Verify your email</h1>
       <div class="legal-meta">
         <p id="status-message">Opening Movie Cave…</p>
       </div>
       <div class="callout" id="action-panel" hidden>
-        <p>Continue in the Movie Cave app to verify your email address.</p>
+        <p id="action-message">Continue in the Movie Cave app to verify your email address.</p>
         <p>
           <a id="open-app-link" class="button button-primary" href="#">Open Movie Cave</a>
         </p>
@@ -23,17 +23,54 @@
       <p id="missing-token-message" hidden>
         This verification link is missing a token. Request a new verification email from the Movie Cave app.
       </p>
-      <p>
+      <p id="help-message">
         Need help? Email
         <a href="mailto:support@moviecaveapp.com">support@moviecaveapp.com</a>.
       </p>
     </main>
     <script>
       (function () {
+        var isTurkish = (navigator.language || "").toLowerCase().indexOf("tr") === 0;
+        var copy = isTurkish
+          ? {
+              lang: "tr",
+              title: "E-posta doğrula — Movie Cave",
+              pageTitle: "E-postanı doğrula",
+              opening: "Movie Cave açılıyor…",
+              actionMessage: "E-posta adresini doğrulamak için Movie Cave uygulamasına devam et.",
+              openApp: "Movie Cave'i Aç",
+              missingToken:
+                "Bu doğrulama bağlantısı eksik veya geçersiz. Movie Cave uygulamasından yeni bir doğrulama e-postası iste.",
+              incomplete: "Doğrulama bağlantısı eksik",
+              helpPrefix: "Yardıma mı ihtiyacın var? E-posta:"
+            }
+          : {
+              lang: "en",
+              title: "Verify email — Movie Cave",
+              pageTitle: "Verify your email",
+              opening: "Opening Movie Cave…",
+              actionMessage: "Continue in the Movie Cave app to verify your email address.",
+              openApp: "Open Movie Cave",
+              missingToken:
+                "This verification link is missing a token. Request a new verification email from the Movie Cave app.",
+              incomplete: "Verification link incomplete",
+              helpPrefix: "Need help? Email"
+            };
+
+        document.documentElement.lang = copy.lang;
+        document.title = copy.title;
+        document.getElementById("page-title").textContent = copy.pageTitle;
+        document.getElementById("status-message").textContent = copy.opening;
+        document.getElementById("action-message").textContent = copy.actionMessage;
+        document.getElementById("open-app-link").textContent = copy.openApp;
+        document.getElementById("missing-token-message").textContent = copy.missingToken;
+        document.getElementById("help-message").innerHTML =
+          copy.helpPrefix + ' <a href="mailto:support@moviecaveapp.com">support@moviecaveapp.com</a>.';
+
         var params = new URLSearchParams(window.location.search);
         var token = params.get("token");
         if (!token) {
-          document.getElementById("status-message").textContent = "Verification link incomplete";
+          document.getElementById("status-message").textContent = copy.incomplete;
           document.getElementById("missing-token-message").hidden = false;
           return;
         }

@@ -22,6 +22,15 @@ public sealed class MovieCavePasswordResetEmailContentTests
     }
 
     [Fact]
+    public void BuildHtmlUsesLinkCopyInsteadOfButtonWording()
+    {
+        var html = MovieCavePasswordResetEmailContent.BuildHtml(ResetUrl, heroImageUrl: null);
+
+        Assert.Contains("Use the link below", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("button below", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void BuildHtmlIncludesResetCtaAndTurkishLocale()
     {
         var html = MovieCavePasswordResetEmailContent.BuildHtml(
@@ -31,6 +40,8 @@ public sealed class MovieCavePasswordResetEmailContentTests
 
         Assert.Contains("lang=\"tr\"", html, StringComparison.Ordinal);
         Assert.Contains("Şifremi Sıfırla &rarr;", html, StringComparison.Ordinal);
+        Assert.Contains("aşağıdaki bağlantıyı kullan", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("düğme", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"href=\"{ResetUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains(MovieCavePasswordResetEmailContent.PasswordResetBadgeMarkerClass, html, StringComparison.Ordinal);
         Assert.DoesNotContain("Verify Email Address", html, StringComparison.Ordinal);

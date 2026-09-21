@@ -10,12 +10,12 @@
   </head>
   <body>
     <main id="main" class="legal-page">
-      <h1>Reset your password</h1>
+      <h1 id="page-title">Reset your password</h1>
       <div class="legal-meta">
         <p id="status-message">Opening Movie Cave…</p>
       </div>
       <div class="callout" id="action-panel" hidden>
-        <p>Continue in the Movie Cave app to choose a new password.</p>
+        <p id="action-message">Continue in the Movie Cave app to choose a new password.</p>
         <p>
           <a id="open-app-link" class="button button-primary" href="#">Open Movie Cave</a>
         </p>
@@ -23,17 +23,54 @@
       <p id="missing-token-message" hidden>
         This reset link is missing a token. Request a new password-reset email from the Movie Cave app.
       </p>
-      <p>
+      <p id="help-message">
         Need help? Email
         <a href="mailto:support@moviecaveapp.com">support@moviecaveapp.com</a>.
       </p>
     </main>
     <script>
       (function () {
+        var isTurkish = (navigator.language || "").toLowerCase().indexOf("tr") === 0;
+        var copy = isTurkish
+          ? {
+              lang: "tr",
+              title: "Şifre sıfırla — Movie Cave",
+              pageTitle: "Şifreni sıfırla",
+              opening: "Movie Cave açılıyor…",
+              actionMessage: "Yeni bir şifre belirlemek için Movie Cave uygulamasına devam et.",
+              openApp: "Movie Cave'i Aç",
+              missingToken:
+                "Bu sıfırlama bağlantısı eksik veya geçersiz. Movie Cave uygulamasından yeni bir şifre sıfırlama e-postası iste.",
+              incomplete: "Sıfırlama bağlantısı eksik",
+              helpPrefix: "Yardıma mı ihtiyacın var? E-posta:"
+            }
+          : {
+              lang: "en",
+              title: "Reset password — Movie Cave",
+              pageTitle: "Reset your password",
+              opening: "Opening Movie Cave…",
+              actionMessage: "Continue in the Movie Cave app to choose a new password.",
+              openApp: "Open Movie Cave",
+              missingToken:
+                "This reset link is missing a token. Request a new password-reset email from the Movie Cave app.",
+              incomplete: "Reset link incomplete",
+              helpPrefix: "Need help? Email"
+            };
+
+        document.documentElement.lang = copy.lang;
+        document.title = copy.title;
+        document.getElementById("page-title").textContent = copy.pageTitle;
+        document.getElementById("status-message").textContent = copy.opening;
+        document.getElementById("action-message").textContent = copy.actionMessage;
+        document.getElementById("open-app-link").textContent = copy.openApp;
+        document.getElementById("missing-token-message").textContent = copy.missingToken;
+        document.getElementById("help-message").innerHTML =
+          copy.helpPrefix + ' <a href="mailto:support@moviecaveapp.com">support@moviecaveapp.com</a>.';
+
         var params = new URLSearchParams(window.location.search);
         var token = params.get("token");
         if (!token) {
-          document.getElementById("status-message").textContent = "Reset link incomplete";
+          document.getElementById("status-message").textContent = copy.incomplete;
           document.getElementById("missing-token-message").hidden = false;
           return;
         }
