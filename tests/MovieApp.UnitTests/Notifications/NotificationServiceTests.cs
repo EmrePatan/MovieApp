@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Notifications;
 using MovieApp.Application.Services.Notifications;
 using MovieApp.Domain.Enums;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MovieApp.UnitTests.Notifications;
 
@@ -48,7 +49,10 @@ public sealed class NotificationServiceTests
     public async Task GetUnreadCount_ReturnsRepositoryCount()
     {
         var repository = new FakeNotificationRepository { UnreadCount = 3 };
-        var service = new GetUnreadNotificationCountService(new FakeCurrentUser(UserId), repository);
+        var service = new GetUnreadNotificationCountService(
+            new FakeCurrentUser(UserId),
+            repository,
+            NullLogger<GetUnreadNotificationCountService>.Instance);
 
         var count = await service.GetAsync();
 

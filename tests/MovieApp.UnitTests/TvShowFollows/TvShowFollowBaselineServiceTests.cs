@@ -529,6 +529,11 @@ public sealed class TvShowFollowBaselineServiceTests
             SeasonProviderSummary summary,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new Season { SeasonNumber = summary.SeasonNumber });
+
+        public Task<IReadOnlySet<int>> GetRegularSeasonNumbersWithEpisodesAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
     }
 
     private sealed class ConcurrentFakeSeasonRepository : FakeSeasonRepository

@@ -21,6 +21,20 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
                 cancellationToken);
     }
 
+    public async Task<IReadOnlySet<int>> GetRegularSeasonNumbersWithEpisodesAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        var seasonNumbers = await dbContext.Seasons
+            .AsNoTracking()
+            .Where(season => season.TvShowId == tvShowId && season.SeasonNumber >= 1)
+            .Where(season => season.Episodes.Any())
+            .Select(season => season.SeasonNumber)
+            .ToListAsync(cancellationToken);
+
+        return seasonNumbers.ToHashSet();
+    }
+
     public Task<Season> UpsertFromProviderAsync(
         Guid tvShowId,
         SeasonProviderDetails details,

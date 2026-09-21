@@ -11,6 +11,8 @@ using MovieApp.Application.Services.TvShows;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace MovieApp.Application.Services.WatchHistory;
 
@@ -25,7 +27,8 @@ public sealed class WatchHistoryService(
     IGetSeasonService getSeasonService,
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     ITvShowCatalogSyncStateService catalogSyncStateService,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IWatchHistoryService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    ILogger<WatchHistoryService> logger) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
@@ -179,9 +182,14 @@ public sealed class WatchHistoryService(
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
 
+        var existenceStopwatch = Stopwatch.StartNew();
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+        existenceStopwatch.Stop();
+
+        var progressStopwatch = Stopwatch.StartNew();
         var episodeCounts = await episodeRepository.GetEpisodeCountsBySeasonAsync(tvShowId, cancellationToken);
         var watchedCounts = await watchedEpisodeRepository.GetWatchedEpisodeCountsBySeasonAsync(
             userId,
@@ -211,6 +219,16 @@ public sealed class WatchHistoryService(
         var isFullyWatched = regularTotalEpisodes > 0 &&
                              regularWatchedEpisodes >= regularTotalEpisodes;
         var nextEpisode = await episodeRepository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId, cancellationToken);
+        progressStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        WatchHistoryPerfLogMessages.LogTvShowProgress(
+            logger,
+            tvShowId,
+            totalStopwatch.ElapsedMilliseconds,
+            existenceStopwatch.ElapsedMilliseconds,
+            progressStopwatch.ElapsedMilliseconds,
+            dbRoundTrips: 4);
 
         return new TvShowWatchProgressResult(
             tvShowId,
@@ -451,7 +469,11 @@ public sealed class WatchHistoryService(
         Guid tvShowId,
         CancellationToken cancellationToken)
     {
+        var totalStopwatch = Stopwatch.StartNew();
+
+        var summaryStopwatch = Stopwatch.StartNew();
         var hydrationResult = await seasonSummaryHydrator.EnsureSeasonSummariesAsync(tvShowId, cancellationToken);
+        summaryStopwatch.Stop();
         if (hydrationResult.ProviderCatalogRefreshed)
         {
             await catalogSyncStateService.MarkRefreshedAsync(
@@ -461,13 +483,36 @@ public sealed class WatchHistoryService(
                 cancellationToken);
         }
 
-        foreach (var seasonNumber in hydrationResult.TvShow.Seasons
-                     .Where(season => season.SeasonNumber >= 1)
-                     .Select(season => season.SeasonNumber)
-                     .OrderBy(seasonNumber => seasonNumber))
+        var seasonLookupStopwatch = Stopwatch.StartNew();
+        var regularSeasonNumbers = hydrationResult.TvShow.Seasons
+            .Where(season => season.SeasonNumber >= 1)
+            .Select(season => season.SeasonNumber)
+            .OrderBy(seasonNumber => seasonNumber)
+            .ToList();
+        var seasonsWithEpisodes = await seasonRepository.GetRegularSeasonNumbersWithEpisodesAsync(
+            tvShowId,
+            cancellationToken);
+        var seasonsNeedingHydration = regularSeasonNumbers
+            .Where(seasonNumber => !seasonsWithEpisodes.Contains(seasonNumber))
+            .ToList();
+        seasonLookupStopwatch.Stop();
+
+        var seasonsHydrated = 0;
+        foreach (var seasonNumber in seasonsNeedingHydration)
         {
             await getSeasonService.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+            seasonsHydrated++;
         }
+
+        totalStopwatch.Stop();
+        WatchHistoryPerfLogMessages.LogTvShowHydration(
+            logger,
+            tvShowId,
+            totalStopwatch.ElapsedMilliseconds,
+            summaryStopwatch.ElapsedMilliseconds,
+            seasonLookupStopwatch.ElapsedMilliseconds,
+            seasonsNeedingHydration.Count,
+            seasonsHydrated);
     }
 
     private Task InvalidateProfileStatisticsAsync(Guid userId, CancellationToken cancellationToken) =>

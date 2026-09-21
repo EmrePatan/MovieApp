@@ -10,6 +10,10 @@ public interface ISeasonRepository
         int seasonNumber,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlySet<int>> GetRegularSeasonNumbersWithEpisodesAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
     Task<Season> UpsertFromProviderAsync(
         Guid tvShowId,
         SeasonProviderDetails details,

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Identity;
@@ -8,13 +10,15 @@ namespace MovieApp.Application.Services.PushDevices;
 
 public sealed class RegisterPushDeviceService(
     ICurrentUser currentUser,
-    IPushDeviceRepository pushDeviceRepository) : IRegisterPushDeviceService
+    IPushDeviceRepository pushDeviceRepository,
+    ILogger<RegisterPushDeviceService> logger) : IRegisterPushDeviceService
 {
     public async Task RegisterAsync(
         string expoPushToken,
         string platform,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         PushDeviceValidator.ValidateRegistration(expoPushToken, platform);
 
         if (!PushDeviceValidator.TryParsePlatform(platform, out var parsedPlatform))
@@ -25,6 +29,7 @@ public sealed class RegisterPushDeviceService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         var utcNow = DateTime.UtcNow;
 
+        var persistenceStopwatch = Stopwatch.StartNew();
         await pushDeviceRepository.RegisterOrReassignAsync(
             userId,
             expoPushToken.Trim(),
@@ -32,5 +37,13 @@ public sealed class RegisterPushDeviceService(
             deviceIdentifier: null,
             utcNow,
             cancellationToken);
+        persistenceStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        PushDevicePerfLogMessages.LogRegister(
+            logger,
+            totalStopwatch.ElapsedMilliseconds,
+            persistenceStopwatch.ElapsedMilliseconds,
+            platform);
     }
 }

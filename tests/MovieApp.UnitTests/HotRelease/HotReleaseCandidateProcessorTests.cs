@@ -252,6 +252,11 @@ public sealed class HotReleaseCandidateProcessorTests
             SeasonProviderSummary summary,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlySet<int>> GetRegularSeasonNumbersWithEpisodesAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
     }
 
     private sealed class FakeExternalIdResolver : ITvShowExternalIdResolver

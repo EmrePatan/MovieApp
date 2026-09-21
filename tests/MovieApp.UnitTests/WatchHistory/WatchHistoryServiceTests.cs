@@ -10,6 +10,7 @@ using MovieApp.Domain.Enums;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.UnitTests.Caching;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MovieApp.UnitTests.WatchHistory;
 
@@ -61,7 +62,8 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkMovieWatchedAsync(MovieId));
     }
@@ -139,7 +141,8 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.MarkEpisodeWatchedAsync(EpisodeId1));
     }
@@ -206,7 +209,8 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -249,7 +253,8 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
         var result = await service.GetTvShowWatchProgressAsync(TvShowId);
 
@@ -290,7 +295,8 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetSeasonWatchProgressAsync(TvShowId, 99));
     }
@@ -420,7 +426,8 @@ public sealed class WatchHistoryServiceTests
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
 
     private static Movie CreateMovie() =>
         new()
@@ -861,6 +868,11 @@ public sealed class WatchHistoryServiceTests
             SeasonProviderSummary summary,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlySet<int>> GetRegularSeasonNumbersWithEpisodesAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
     }
 
     private sealed class FakeSeasonSummaryHydrator : ITvShowSeasonSummaryHydrator
