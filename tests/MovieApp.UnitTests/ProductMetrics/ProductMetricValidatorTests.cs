@@ -9,10 +9,17 @@ public sealed class ProductMetricValidatorTests
     [InlineData(ProductMetricNames.DiscoverOpened)]
     [InlineData(ProductMetricNames.StreamingServicesOpened)]
     [InlineData(ProductMetricNames.ContentDetailOpened)]
-    [InlineData(ProductMetricNames.PickSomethingUsed)]
+    [InlineData(ProductMetricNames.PickSomethingOpened)]
+    [InlineData(ProductMetricNames.PickSomethingGenerated)]
     [InlineData(ProductMetricNames.AiRecommendationsOpened)]
-    [InlineData(ProductMetricNames.AiRecommendationsUsed)]
+    [InlineData(ProductMetricNames.AiRecommendationsGenerated)]
+    [InlineData(ProductMetricNames.SearchSubmitted)]
+    [InlineData(ProductMetricNames.WatchlistCreated)]
+    [InlineData(ProductMetricNames.ReviewCreated)]
+    [InlineData(ProductMetricNames.RatingCreated)]
     [InlineData(ProductMetricNames.InsightsOpened)]
+    [InlineData(ProductMetricNames.PickSomethingUsed)]
+    [InlineData(ProductMetricNames.AiRecommendationsUsed)]
     public void ValidateAcceptsAllowListedMetrics(string metricName)
     {
         var result = ProductMetricValidator.Validate(metricName);

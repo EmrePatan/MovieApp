@@ -33,7 +33,13 @@ public sealed class ProductMetricsApiTests(ProductMetricsFixture fixture)
 
     [Theory]
     [InlineData(ProductMetricNames.AiRecommendationsOpened)]
-    [InlineData(ProductMetricNames.AiRecommendationsUsed)]
+    [InlineData(ProductMetricNames.AiRecommendationsGenerated)]
+    [InlineData(ProductMetricNames.PickSomethingOpened)]
+    [InlineData(ProductMetricNames.PickSomethingGenerated)]
+    [InlineData(ProductMetricNames.SearchSubmitted)]
+    [InlineData(ProductMetricNames.WatchlistCreated)]
+    [InlineData(ProductMetricNames.ReviewCreated)]
+    [InlineData(ProductMetricNames.RatingCreated)]
     [InlineData(ProductMetricNames.InsightsOpened)]
     public async Task IncrementAcceptsMobileFeatureMetrics(string metricName)
     {
