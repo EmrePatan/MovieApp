@@ -45,6 +45,8 @@ public sealed class AutocompleteService(
                 contentLocale,
                 cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             await cacheService.SetAsync(
                 cacheKey,
                 new SearchAutocompleteCacheEntry { Items = items },
@@ -52,6 +54,10 @@ public sealed class AutocompleteService(
                 cancellationToken);
 
             return items;
+        }
+        catch (Exception exception) when (SearchRequestCancellation.IsCallerCancellation(exception, cancellationToken))
+        {
+            throw;
         }
         catch (Exception exception)
         {

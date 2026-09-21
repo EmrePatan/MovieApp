@@ -265,6 +265,8 @@ public sealed class UnifiedSearchProviderIngestionService(
             await Task.WhenAll(movieSearchTask, tvSearchTask, personSearchTask);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         var movieSearchResult = await movieSearchTask;
         var tvSearchResult = await tvSearchTask;
         var personSearchResult = await personSearchTask;
@@ -278,17 +280,36 @@ public sealed class UnifiedSearchProviderIngestionService(
             ? personSearchResult
             : await personCanonicalTask;
 
-        var movieIds = await movieRepository.EnsureFromSummariesAsync(
-            movieIngestResult.Results,
-            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
-            tvIngestResult.Results,
-            cancellationToken);
+        var catalogTargets = ProviderSearchMapper.SelectAutocompleteCatalogTargets(
+            query,
+            movieSearchResult,
+            tvSearchResult,
+            personSearchResult,
+            limit);
 
-        var personIds = await personRepository.EnsureFromSummariesAsync(
-            personIngestResult.Results,
-            cancellationToken);
+        var movieIngestSummaries = ProviderSearchMapper.SelectMovieIngestSummariesForTargets(
+            catalogTargets,
+            movieIngestResult);
+        var tvIngestSummaries = ProviderSearchMapper.SelectTvIngestSummariesForTargets(
+            catalogTargets,
+            tvIngestResult);
+        var personIngestSummaries = ProviderSearchMapper.SelectPersonIngestSummariesForTargets(
+            catalogTargets,
+            personIngestResult);
+
+        var movieIds = movieIngestSummaries.Count == 0
+            ? new Dictionary<int, Guid>()
+            : await movieRepository.EnsureFromSummariesAsync(movieIngestSummaries, cancellationToken);
+
+        var tvIds = tvIngestSummaries.Count == 0
+            ? new Dictionary<int, Guid>()
+            : await tvShowRepository.EnsureFromSummariesAsync(tvIngestSummaries, cancellationToken);
+
+        var personIds = personIngestSummaries.Count == 0
+            ? new Dictionary<int, Guid>()
+            : await personRepository.EnsureFromSummariesAsync(personIngestSummaries, cancellationToken);
 
         var suggestions = ProviderSearchMapper.MergeAutocompleteSuggestions(
             query,

@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MovieApp.UnitTests.Search;
@@ -74,6 +75,75 @@ public sealed class AutocompleteServiceTests
     }
 
     [Fact]
+    public async Task GetSuggestionsAsyncDoesNotFallbackWhenCallerCancelsDuringProviderSearch()
+    {
+        using var cts = new CancellationTokenSource();
+        var repository = new FakeSearchRepository([]);
+        var provider = new CancellingProviderIngestionService(cts);
+        var service = new AutocompleteService(
+            repository,
+            provider,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            new FakeCacheService(null),
+            NullLogger<AutocompleteService>.Instance);
+
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetSuggestionsAsync("jimmy", ContentLocaleResolver.EnglishUnitedStates, cts.Token));
+
+        Assert.Equal(0, repository.AutocompleteCount);
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsyncDoesNotFallbackWhenCallerCancelsDuringRepositoryWork()
+    {
+        var repository = new FakeSearchRepository([]);
+        var provider = new FakeProviderIngestionService
+        {
+            ThrowOnAutocomplete = true,
+            ThrowCancellation = true
+        };
+        var logger = new TestLogger<AutocompleteService>();
+        var service = new AutocompleteService(
+            repository,
+            provider,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            new FakeCacheService(null),
+            logger);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetSuggestionsAsync("jimmy", ContentLocaleResolver.EnglishUnitedStates, cts.Token));
+
+        Assert.Equal(0, repository.AutocompleteCount);
+        Assert.Empty(logger.WarningMessages);
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsyncFallsBackWhenProviderTimesOutWithoutCallerCancellation()
+    {
+        var suggestions = new List<SearchSuggestion>
+        {
+            new(Guid.NewGuid(), "movie", "Jimmy Neutron", "/fake/jimmy-poster.jpg"),
+        };
+        var repository = new FakeSearchRepository(suggestions);
+        var service = new AutocompleteService(
+            repository,
+            new FakeProviderIngestionService { ThrowTimeout = true },
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            new FakeCacheService(null),
+            NullLogger<AutocompleteService>.Instance);
+
+        var result = await service.GetSuggestionsAsync("jimmy", ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Single(result);
+        Assert.Equal(1, repository.AutocompleteCount);
+    }
+
+    [Fact]
     public async Task GetSuggestionsAsyncThrowsForShortQuery()
     {
         var service = new AutocompleteService(
@@ -84,32 +154,6 @@ public sealed class AutocompleteServiceTests
             NullLogger<AutocompleteService>.Instance);
 
         await Assert.ThrowsAsync<ValidationException>(() => service.GetSuggestionsAsync("a", ContentLocaleResolver.EnglishUnitedStates));
-    }
-
-    private sealed class FakeProviderIngestionService : IUnifiedSearchProviderIngestionService
-    {
-        public int AutocompleteCount { get; private set; }
-
-        public bool ThrowOnAutocomplete { get; set; }
-
-        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            Task.FromResult(UnifiedSearchProviderIngestionResult.NotRequired());
-
-        public Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default)
-        {
-            AutocompleteCount++;
-
-            if (ThrowOnAutocomplete)
-            {
-                throw new InvalidOperationException("provider unavailable");
-            }
-
-            return Task.FromResult<IReadOnlyList<SearchSuggestion>>(
-            [
-                new(Guid.NewGuid(), "movie", "Avatar", "/poster.jpg"),
-                new(Guid.NewGuid(), "tv", "Avatar: The Last Airbender", null)
-            ]);
-        }
     }
 
     private sealed class FakeSearchRepository(IReadOnlyList<SearchSuggestion> suggestions) : ISearchRepository
@@ -158,6 +202,90 @@ public sealed class AutocompleteServiceTests
 
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
+    }
+
+    private sealed class CancellingProviderIngestionService(CancellationTokenSource cancellationTokenSource)
+        : FakeProviderIngestionService
+    {
+        public override Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
+            string query,
+            int limit,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            AutocompleteCount++;
+            return Task.FromException<IReadOnlyList<SearchSuggestion>>(
+                new OperationCanceledException(cancellationTokenSource.Token));
+        }
+    }
+
+    private class FakeProviderIngestionService : IUnifiedSearchProviderIngestionService
+    {
+        public int AutocompleteCount { get; protected set; }
+
+        public bool ThrowOnAutocomplete { get; set; }
+
+        public bool ThrowCancellation { get; set; }
+
+        public bool ThrowTimeout { get; set; }
+
+        public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
+            SearchCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(UnifiedSearchProviderIngestionResult.NotRequired());
+
+        public virtual Task<IReadOnlyList<SearchSuggestion>> GetAutocompleteSuggestionsAsync(
+            string query,
+            int limit,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            AutocompleteCount++;
+
+            if (ThrowCancellation)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+
+            if (ThrowTimeout)
+            {
+                throw new TaskCanceledException("Simulated HttpClient timeout.");
+            }
+
+            if (ThrowOnAutocomplete)
+            {
+                throw new InvalidOperationException("provider unavailable");
+            }
+
+            return Task.FromResult<IReadOnlyList<SearchSuggestion>>(
+            [
+                new(Guid.NewGuid(), "movie", "Avatar", "/poster.jpg"),
+                new(Guid.NewGuid(), "tv", "Avatar: The Last Airbender", null)
+            ]);
+        }
+    }
+
+    private sealed class TestLogger<T> : ILogger<T>
+    {
+        public List<string> WarningMessages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                WarningMessages.Add(formatter(state, exception));
+            }
+        }
     }
 
     private sealed class FakeCacheService(IReadOnlyList<SearchSuggestion>? suggestions) : ICacheService

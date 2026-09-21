@@ -5,6 +5,8 @@ using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Services.Search;
 
+internal readonly record struct AutocompleteCatalogTarget(string Type, int TmdbId);
+
 internal static class ProviderSearchMapper
 {
     public static SearchItem ToSearchItem(MovieProviderSummary summary, Guid id) =>
@@ -140,6 +142,111 @@ internal static class ProviderSearchMapper
         };
     }
 
+    public static IReadOnlyList<AutocompleteCatalogTarget> SelectAutocompleteCatalogTargets(
+        string query,
+        MovieProviderSearchResult movieResult,
+        TvShowProviderSearchResult tvResult,
+        PersonProviderSearchResult personResult,
+        int limit)
+    {
+        var rankingItems = new List<SearchItem>();
+
+        foreach (var summary in movieResult.Results)
+        {
+            if (summary.TmdbId is null)
+            {
+                continue;
+            }
+
+            rankingItems.Add(ToRankingSearchItem("movie", summary.Title, summary.VoteAverage, summary.VoteCount, summary.TmdbId));
+        }
+
+        foreach (var summary in tvResult.Results)
+        {
+            if (summary.TmdbId is null)
+            {
+                continue;
+            }
+
+            rankingItems.Add(ToRankingSearchItem("tv", summary.Title, summary.VoteAverage, summary.VoteCount, summary.TmdbId));
+        }
+
+        foreach (var summary in personResult.Results)
+        {
+            rankingItems.Add(ToRankingSearchItem(
+                "person",
+                summary.Name,
+                summary.Popularity,
+                0,
+                summary.TmdbId,
+                summary.KnownForDepartment));
+        }
+
+        var normalizedQuery = QueryNormalizer.Normalize(query);
+
+        return ApplyRelevanceSort(rankingItems, normalizedQuery)
+            .Take(limit)
+            .Select(item => new AutocompleteCatalogTarget(item.Type, item.TmdbId!.Value))
+            .ToList();
+    }
+
+    public static IReadOnlyList<MovieProviderSummary> SelectMovieIngestSummariesForTargets(
+        IReadOnlyList<AutocompleteCatalogTarget> targets,
+        MovieProviderSearchResult ingestResult)
+    {
+        var targetIds = targets
+            .Where(target => target.Type == "movie")
+            .Select(target => target.TmdbId)
+            .ToHashSet();
+
+        if (targetIds.Count == 0)
+        {
+            return [];
+        }
+
+        return ingestResult.Results
+            .Where(summary => summary.TmdbId.HasValue && targetIds.Contains(summary.TmdbId.Value))
+            .ToList();
+    }
+
+    public static IReadOnlyList<TvShowProviderSummary> SelectTvIngestSummariesForTargets(
+        IReadOnlyList<AutocompleteCatalogTarget> targets,
+        TvShowProviderSearchResult ingestResult)
+    {
+        var targetIds = targets
+            .Where(target => target.Type == "tv")
+            .Select(target => target.TmdbId)
+            .ToHashSet();
+
+        if (targetIds.Count == 0)
+        {
+            return [];
+        }
+
+        return ingestResult.Results
+            .Where(summary => summary.TmdbId.HasValue && targetIds.Contains(summary.TmdbId.Value))
+            .ToList();
+    }
+
+    public static IReadOnlyList<PersonProviderSummary> SelectPersonIngestSummariesForTargets(
+        IReadOnlyList<AutocompleteCatalogTarget> targets,
+        PersonProviderSearchResult ingestResult)
+    {
+        var targetIds = targets
+            .Where(target => target.Type == "person")
+            .Select(target => target.TmdbId)
+            .ToHashSet();
+
+        if (targetIds.Count == 0)
+        {
+            return [];
+        }
+
+        return ingestResult.Results
+            .Where(summary => targetIds.Contains(summary.TmdbId))
+            .ToList();
+    }
+
     public static IReadOnlyList<SearchSuggestion> MergeAutocompleteSuggestions(
         string query,
         MovieProviderSearchResult? movieResult,
@@ -263,6 +370,28 @@ internal static class ProviderSearchMapper
             totalCount,
             totalPages);
     }
+
+    private static SearchItem ToRankingSearchItem(
+        string type,
+        string title,
+        decimal voteAverage,
+        int voteCount,
+        int? tmdbId,
+        string? knownForDepartment = null) =>
+        new(
+            Guid.Empty,
+            type,
+            title,
+            null,
+            null,
+            null,
+            null,
+            null,
+            voteAverage,
+            voteCount,
+            null,
+            tmdbId,
+            knownForDepartment);
 
     private static List<SearchItem> ApplyRelevanceSort(
         IReadOnlyList<SearchItem> items,
