@@ -6,7 +6,7 @@
     <title>Delete your Movie Cave account</title>
     <meta
       name="description"
-      content="How to delete your Movie Cave account and what data is removed."
+      content="How to delete your Movie Cave account or remove specific account data without deleting your account."
     />
     <link rel="stylesheet" href="/assets/css/site.css" />
     <link rel="icon" href="/assets/images/movie-cave-logo.png" type="image/png" />
@@ -27,12 +27,167 @@
     <main id="main" class="legal-page">
       <h1>Delete your account</h1>
       <div class="legal-meta">
-        <p><strong>Last updated:</strong> September 21, 2026</p>
+        <p><strong>Last updated:</strong> September 23, 2026</p>
         <p>
-          You can permanently delete your Movie Cave account from inside the mobile app. This page describes the
-          current in-app process and what happens to your data.
+          Movie Cave is the mobile app and related services described on this site. You can delete specific
+          account-associated data without deleting your account, or permanently delete your entire Movie Cave
+          account from inside the app. This page describes both flows and what happens to your data.
         </p>
       </div>
+
+      <section>
+        <h2>Delete specific data without deleting your account</h2>
+        <p>
+          If you want to remove particular content stored with your Movie Cave account but keep your account,
+          use the in-app actions below while signed in. These actions remove the selected data from our primary
+          application database. They do not delete your account credentials, profile, or unrelated activity unless
+          you choose the full account deletion flow described later on this page.
+        </p>
+
+        <h3>Favorites</h3>
+        <ul>
+          <li>
+            Open a favorited movie or TV show from anywhere in the app, then on the detail screen tap
+            <strong>Favorite</strong> again to remove it from your favorites.
+          </li>
+        </ul>
+
+        <h3>Watchlists and watchlist items</h3>
+        <ul>
+          <li>
+            On a movie or TV detail screen, tap <strong>Watchlist</strong>, then tap a list that already contains
+            the title to remove it from that list.
+          </li>
+          <li>
+            Go to the <strong>Library</strong> tab, open the <strong>Watchlists</strong> category, open a list,
+            then long-press a poster to remove that title from the list.
+          </li>
+          <li>
+            To delete an entire watchlist, open the list from <strong>Library</strong> →
+            <strong>Watchlists</strong>, tap the menu (⋯), choose <strong>Delete List</strong>, and confirm.
+          </li>
+        </ul>
+
+        <h3>Ratings</h3>
+        <ul>
+          <li>
+            On a movie or TV detail screen, find the <strong>Your Rating</strong> section. Clear your rating by
+            dragging the star control to the far-left clear zone, or by using the accessibility decrease control
+            until the rating is cleared.
+          </li>
+        </ul>
+
+        <h3>Reviews</h3>
+        <ul>
+          <li>
+            On a movie or TV detail screen, open <strong>Reviews</strong>, tap <strong>Edit</strong> on your
+            review, then tap <strong>Delete review</strong> and confirm.
+          </li>
+        </ul>
+
+        <h3>Watch history</h3>
+        <ul>
+          <li>
+            On a movie detail screen, tap <strong>Watched</strong> while the title is marked watched to mark it
+            as unwatched and remove it from your watch history.
+          </li>
+          <li>
+            On a TV show detail screen, tap <strong>Watched</strong> while the show is marked watched to remove
+            the show-level watched state from your history.
+          </li>
+          <li>
+            On a TV show detail screen, open <strong>Seasons</strong> and toggle a season off to remove that
+            season&apos;s watched state from your history.
+          </li>
+          <li>
+            On a season page, toggle an episode off to remove that episode from your watch history.
+          </li>
+        </ul>
+
+        <h3>Search history</h3>
+        <ul>
+          <li>
+            Open <strong>Search</strong> from Home or Discover. In <strong>Recent Searches</strong>, tap the
+            delete control on an individual query to remove that entry.
+          </li>
+          <li>
+            On the same screen, tap <strong>Clear all</strong> to remove all stored search history for your
+            account.
+          </li>
+        </ul>
+
+        <h3>Notifications</h3>
+        <ul>
+          <li>
+            From Home, tap the notifications bell, then swipe a notification left and choose delete, or use the
+            accessibility delete action on a notification row.
+          </li>
+          <li>
+            Read in-app notifications that remain in your inbox may be removed automatically after a configured
+            retention period (currently seven days for read notifications), as described in our
+            <a href="/privacy/">Privacy Policy</a>.
+          </li>
+        </ul>
+
+        <h3>Catalog follows (release alerts)</h3>
+        <ul>
+          <li>
+            For an unreleased movie with release alerts enabled, open the movie detail screen and tap the release
+            alert action again to turn the alert off and remove the follow record.
+          </li>
+          <li>
+            For a TV show, open the detail screen, tap <strong>Follow</strong> or <strong>Manage follow</strong>,
+            turn off both new-season and new-episode notification preferences, then save to unfollow the show.
+          </li>
+        </ul>
+
+        <h3>Push notification device registration</h3>
+        <ul>
+          <li>
+            Movie Cave does not provide a separate &quot;unregister this device&quot; button in the app. When you
+            sign out from <strong>Profile</strong>, the app removes locally stored push registration state and
+            unregisters the known push device with our servers for that session.
+          </li>
+          <li>
+            You can also disable Movie Cave notifications in your device operating system settings.
+          </li>
+        </ul>
+
+        <h3>What may remain after deleting specific data</h3>
+        <ul>
+          <li>
+            Deleting individual items removes them from our primary application database, but unrelated account
+            data and other categories listed above remain unless you delete them separately.
+          </li>
+          <li>
+            <strong>Server logs and infrastructure backups</strong> may retain limited technical records for
+            security, troubleshooting, and disaster recovery for some period determined by hosting and logging
+            practices.
+          </li>
+          <li>
+            <strong>Aggregated product metrics</strong> are not linked to your account in our metrics store.
+          </li>
+          <li>
+            <strong>Temporary AI recommendation session cache</strong> in Redis expires automatically and is not
+            explicitly purged when you delete individual activity items in the current implementation.
+          </li>
+        </ul>
+
+        <h3>If you cannot delete specific data in the app</h3>
+        <div class="callout">
+          <p>
+            Email
+            <a href="mailto:support@moviecaveapp.com">support@moviecaveapp.com</a>
+            from the address associated with your Movie Cave account and describe the specific data you want
+            removed (for example, a rating, review, watchlist, or search history). Include enough information for
+            us to identify the correct account, such as your account email address or username.
+          </p>
+          <p>
+            For your security, do <strong>not</strong> send passwords, authentication tokens, or other secrets in
+            email.
+          </p>
+        </div>
+      </section>
 
       <section>
         <h2>Delete your account in the app</h2>
