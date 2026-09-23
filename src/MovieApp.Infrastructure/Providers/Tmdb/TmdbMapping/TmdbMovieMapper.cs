@@ -19,7 +19,8 @@ internal static class TmdbMovieMapper
             PosterPath: NormalizeImagePath(result.PosterPath),
             VoteAverage: result.VoteAverage,
             VoteCount: result.VoteCount,
-            OriginalTitle: result.OriginalTitle);
+            OriginalTitle: result.OriginalTitle,
+            Popularity: Convert.ToDecimal(result.Popularity));
     }
 
     internal static MovieProviderDetails ToDetails(TmdbMovieDetailsResponseJson details)

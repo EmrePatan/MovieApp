@@ -22,7 +22,8 @@ internal static class ProviderSearchMapper
             summary.VoteAverage,
             summary.VoteCount,
             summary.ReleaseDate?.Year,
-            summary.TmdbId);
+            summary.TmdbId,
+            Popularity: summary.Popularity);
 
     public static SearchItem ToSearchItem(TvShowProviderSummary summary, Guid id) =>
         new(
@@ -37,7 +38,8 @@ internal static class ProviderSearchMapper
             summary.VoteAverage,
             summary.VoteCount,
             summary.FirstAirDate?.Year,
-            summary.TmdbId);
+            summary.TmdbId,
+            Popularity: summary.Popularity);
 
     public static SearchItem ToSearchItem(PersonProviderSummary summary, Guid id) =>
         new(
@@ -53,7 +55,8 @@ internal static class ProviderSearchMapper
             0,
             null,
             summary.TmdbId,
-            summary.KnownForDepartment);
+            summary.KnownForDepartment,
+            summary.Popularity);
 
     public static SearchSuggestion ToSuggestion(SearchItem item) =>
         new(item.Id, item.Type, item.Title, item.PosterUrl, item.TmdbId, item.KnownForDepartment);
@@ -114,7 +117,10 @@ internal static class ProviderSearchMapper
             ? null
             : QueryNormalizer.Normalize(criteria.Query);
 
-        var sortedItems = ApplyRelevanceSort(items, normalizedQuery);
+        var sortedItems = ApplyRelevanceSort(
+            items,
+            normalizedQuery,
+            preferCatalogContent: criteria.Type == SearchContentType.All);
 
         return criteria.Type switch
         {
@@ -158,7 +164,13 @@ internal static class ProviderSearchMapper
                 continue;
             }
 
-            rankingItems.Add(ToRankingSearchItem("movie", summary.Title, summary.VoteAverage, summary.VoteCount, summary.TmdbId));
+            rankingItems.Add(ToRankingSearchItem(
+                "movie",
+                summary.Title,
+                summary.VoteAverage,
+                summary.VoteCount,
+                summary.TmdbId,
+                popularity: summary.Popularity));
         }
 
         foreach (var summary in tvResult.Results)
@@ -168,7 +180,13 @@ internal static class ProviderSearchMapper
                 continue;
             }
 
-            rankingItems.Add(ToRankingSearchItem("tv", summary.Title, summary.VoteAverage, summary.VoteCount, summary.TmdbId));
+            rankingItems.Add(ToRankingSearchItem(
+                "tv",
+                summary.Title,
+                summary.VoteAverage,
+                summary.VoteCount,
+                summary.TmdbId,
+                popularity: summary.Popularity));
         }
 
         foreach (var summary in personResult.Results)
@@ -184,7 +202,7 @@ internal static class ProviderSearchMapper
 
         var normalizedQuery = QueryNormalizer.Normalize(query);
 
-        return ApplyRelevanceSort(rankingItems, normalizedQuery)
+        return ApplyRelevanceSort(rankingItems, normalizedQuery, preferCatalogContent: true)
             .Take(limit)
             .Select(item => new AutocompleteCatalogTarget(item.Type, item.TmdbId!.Value))
             .ToList();
@@ -302,7 +320,7 @@ internal static class ProviderSearchMapper
 
         var normalizedQuery = QueryNormalizer.Normalize(query);
 
-        return ApplyRelevanceSort(items, normalizedQuery)
+        return ApplyRelevanceSort(items, normalizedQuery, preferCatalogContent: true)
             .Take(limit)
             .Select(ToSuggestion)
             .ToList();
@@ -377,7 +395,8 @@ internal static class ProviderSearchMapper
         decimal voteAverage,
         int voteCount,
         int? tmdbId,
-        string? knownForDepartment = null) =>
+        string? knownForDepartment = null,
+        decimal popularity = 0) =>
         new(
             Guid.Empty,
             type,
@@ -391,41 +410,57 @@ internal static class ProviderSearchMapper
             voteCount,
             null,
             tmdbId,
-            knownForDepartment);
+            knownForDepartment,
+            popularity);
 
     private static List<SearchItem> ApplyRelevanceSort(
         IReadOnlyList<SearchItem> items,
-        string? normalizedQuery)
+        string? normalizedQuery,
+        bool preferCatalogContent = false)
     {
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
             return items
-                .OrderByDescending(item => item.VoteAverage)
+                .OrderByDescending(GetSearchRankingPopularity)
                 .ThenByDescending(item => item.VoteCount)
+                .ThenByDescending(item => item.VoteAverage)
                 .ToList();
         }
 
         return items
-            .OrderBy(item => ComputeRelevanceRank(item.Title, normalizedQuery))
-            .ThenByDescending(item => item.VoteAverage)
+            .OrderBy(item => ComputeRelevanceRank(item.Title, normalizedQuery, item.Type, preferCatalogContent))
+            .ThenByDescending(GetSearchRankingPopularity)
             .ThenByDescending(item => item.VoteCount)
+            .ThenByDescending(item => item.VoteAverage)
             .ToList();
     }
 
-    private static int ComputeRelevanceRank(string title, string normalizedQuery)
+    private static decimal GetSearchRankingPopularity(SearchItem item) =>
+        item.Popularity > 0 ? item.Popularity : item.VoteAverage;
+
+    private static int ComputeRelevanceRank(
+        string title,
+        string normalizedQuery,
+        string type,
+        bool preferCatalogContent)
     {
         var normalizedTitle = QueryNormalizer.Normalize(title);
+        var rank = 2;
 
         if (string.Equals(normalizedTitle, normalizedQuery, StringComparison.OrdinalIgnoreCase))
         {
-            return 0;
+            rank = 0;
         }
-
-        if (normalizedTitle.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+        else if (normalizedTitle.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
         {
-            return 1;
+            rank = 1;
         }
 
-        return 2;
+        if (preferCatalogContent && type == "person")
+        {
+            rank = Math.Min(rank + 2, 2);
+        }
+
+        return rank;
     }
 }

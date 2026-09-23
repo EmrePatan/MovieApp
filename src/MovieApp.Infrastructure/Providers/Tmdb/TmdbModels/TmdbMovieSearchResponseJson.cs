@@ -28,4 +28,6 @@ internal sealed class TmdbMovieSearchResultJson
     public decimal VoteAverage { get; set; }
 
     public int VoteCount { get; set; }
+
+    public double Popularity { get; set; }
 }

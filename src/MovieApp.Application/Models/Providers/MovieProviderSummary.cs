@@ -11,4 +11,5 @@ public sealed record MovieProviderSummary(
     string? PosterPath,
     decimal VoteAverage,
     int VoteCount,
-    string? OriginalTitle = null);
+    string? OriginalTitle = null,
+    decimal Popularity = 0);

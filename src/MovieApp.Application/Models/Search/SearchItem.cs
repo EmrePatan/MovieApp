@@ -13,4 +13,5 @@ public sealed record SearchItem(
     int VoteCount,
     int? Year,
     int? TmdbId = null,
-    string? KnownForDepartment = null);
+    string? KnownForDepartment = null,
+    decimal Popularity = 0);

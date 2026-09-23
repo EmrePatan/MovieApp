@@ -13,4 +13,5 @@ public sealed record TvShowProviderSummary(
     string? BackdropPath,
     string? OriginalLanguage,
     decimal VoteAverage,
-    int VoteCount);
+    int VoteCount,
+    decimal Popularity = 0);

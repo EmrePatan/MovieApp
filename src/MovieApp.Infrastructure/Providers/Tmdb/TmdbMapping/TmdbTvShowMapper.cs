@@ -20,7 +20,8 @@ internal static class TmdbTvShowMapper
             BackdropPath: TmdbMovieMapper.NormalizeImagePath(result.BackdropPath),
             OriginalLanguage: result.OriginalLanguage,
             VoteAverage: result.VoteAverage,
-            VoteCount: result.VoteCount);
+            VoteCount: result.VoteCount,
+            Popularity: Convert.ToDecimal(result.Popularity));
     }
 
     internal static TvShowProviderDetails ToDetails(TmdbTvDetailsResponseJson details)

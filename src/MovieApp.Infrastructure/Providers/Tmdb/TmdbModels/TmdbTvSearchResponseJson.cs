@@ -32,4 +32,6 @@ internal sealed class TmdbTvSearchResultJson
     public decimal VoteAverage { get; set; }
 
     public int VoteCount { get; set; }
+
+    public double Popularity { get; set; }
 }

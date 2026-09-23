@@ -275,8 +275,8 @@ internal static class SearchQueryBuilder
         {
             return ApplyDeterministicTieBreak(
                 query
-                    .OrderByDescending(item => item.VoteAverage)
-                    .ThenByDescending(item => item.VoteCount));
+                    .OrderByDescending(item => item.VoteCount)
+                    .ThenByDescending(item => item.VoteAverage));
         }
 
         return ApplyDeterministicTieBreak(
@@ -287,8 +287,8 @@ internal static class SearchQueryBuilder
                         : EF.Functions.ILike(item.Title, normalizedQuery + "%")
                             ? 1
                             : 2)
-                .ThenByDescending(item => item.VoteAverage)
-                .ThenByDescending(item => item.VoteCount));
+                .ThenByDescending(item => item.VoteCount)
+                .ThenByDescending(item => item.VoteAverage));
     }
 
     public static IQueryable<SearchItemProjection> ApplyTrendingSort(IQueryable<SearchItemProjection> query)
