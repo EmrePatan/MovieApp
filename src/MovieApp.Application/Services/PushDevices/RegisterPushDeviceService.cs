@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Enums;
 
@@ -16,6 +17,7 @@ public sealed class RegisterPushDeviceService(
     public async Task RegisterAsync(
         string expoPushToken,
         string platform,
+        string? contentLocale = null,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -30,11 +32,16 @@ public sealed class RegisterPushDeviceService(
         var utcNow = DateTime.UtcNow;
 
         var persistenceStopwatch = Stopwatch.StartNew();
+        var normalizedContentLocale = string.IsNullOrWhiteSpace(contentLocale)
+            ? null
+            : ContentLocaleResolver.Normalize(contentLocale);
+
         await pushDeviceRepository.RegisterOrReassignAsync(
             userId,
             expoPushToken.Trim(),
             parsedPlatform,
             deviceIdentifier: null,
+            normalizedContentLocale,
             utcNow,
             cancellationToken);
         persistenceStopwatch.Stop();

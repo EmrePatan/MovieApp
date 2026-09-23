@@ -26,6 +26,7 @@ public sealed class PushDeviceController(
             await registerPushDeviceService.RegisterAsync(
                 request.ExpoPushToken,
                 request.Platform,
+                request.ContentLocale,
                 cancellationToken);
 
             return NoContent();

@@ -14,6 +14,8 @@ public sealed class PushDevice
 
     public string? DeviceIdentifier { get; set; }
 
+    public string? ContentLocale { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAtUtc { get; set; }

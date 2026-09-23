@@ -5,5 +5,6 @@ public interface IRegisterPushDeviceService
     Task RegisterAsync(
         string expoPushToken,
         string platform,
+        string? contentLocale = null,
         CancellationToken cancellationToken = default);
 }

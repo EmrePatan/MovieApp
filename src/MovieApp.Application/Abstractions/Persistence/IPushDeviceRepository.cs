@@ -17,6 +17,7 @@ public interface IPushDeviceRepository
         string expoPushToken,
         PushDevicePlatform platform,
         string? deviceIdentifier,
+        string? contentLocale,
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 

@@ -30,6 +30,9 @@ internal sealed class PushDeviceConfiguration : IEntityTypeConfiguration<PushDev
         builder.Property(device => device.DeviceIdentifier)
             .HasMaxLength(128);
 
+        builder.Property(device => device.ContentLocale)
+            .HasMaxLength(10);
+
         builder.Property(device => device.IsActive)
             .IsRequired()
             .HasDefaultValue(true);

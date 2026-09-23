@@ -283,7 +283,15 @@ internal static class GeminiPromptBuilder
             ? "Turkish"
             : responseLanguage.StartsWith("es", StringComparison.OrdinalIgnoreCase)
                 ? "Spanish"
-                : "English";
+                : responseLanguage.StartsWith("de", StringComparison.OrdinalIgnoreCase)
+                    ? "German"
+                    : responseLanguage.StartsWith("fr", StringComparison.OrdinalIgnoreCase)
+                        ? "French"
+                        : responseLanguage.StartsWith("it", StringComparison.OrdinalIgnoreCase)
+                            ? "Italian"
+                            : responseLanguage.StartsWith("pt", StringComparison.OrdinalIgnoreCase)
+                                ? "Brazilian Portuguese"
+                                : "English";
 
         return $"""
                 You are a movie and TV recommendation assistant for MovieApp.

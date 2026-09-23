@@ -8,11 +8,8 @@ public sealed class ContentLocaleResolverTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("en")]
-    [InlineData("en-US")]
-    [InlineData("en-GB;q=0.9")]
-    [InlineData("de")]
-    [InlineData("fr-FR")]
+    [InlineData("ja")]
+    [InlineData("ja-JP;q=0.9")]
     public void ResolveFromAcceptLanguage_ReturnsEnglishUnitedStates_ForUnsupportedOrMissing(string? header)
     {
         var locale = ContentLocaleResolver.ResolveFromAcceptLanguage(header);
@@ -46,6 +43,55 @@ public sealed class ContentLocaleResolverTests
         Assert.True(ContentLocaleResolver.RequiresLocalization(locale));
     }
 
+    [Theory]
+    [InlineData("de")]
+    [InlineData("de-DE")]
+    [InlineData("de-DE,en-US;q=0.8")]
+    public void ResolveFromAcceptLanguage_ReturnsGermanGermany_ForGermanHeader(string header)
+    {
+        var locale = ContentLocaleResolver.ResolveFromAcceptLanguage(header);
+
+        Assert.Equal(ContentLocaleResolver.GermanGermany, locale);
+        Assert.True(ContentLocaleResolver.RequiresLocalization(locale));
+    }
+
+    [Theory]
+    [InlineData("fr")]
+    [InlineData("fr-FR")]
+    [InlineData("fr-FR,en-US;q=0.8")]
+    public void ResolveFromAcceptLanguage_ReturnsFrenchFrance_ForFrenchHeader(string header)
+    {
+        var locale = ContentLocaleResolver.ResolveFromAcceptLanguage(header);
+
+        Assert.Equal(ContentLocaleResolver.FrenchFrance, locale);
+        Assert.True(ContentLocaleResolver.RequiresLocalization(locale));
+    }
+
+    [Theory]
+    [InlineData("it")]
+    [InlineData("it-IT")]
+    [InlineData("it-IT,en-US;q=0.8")]
+    public void ResolveFromAcceptLanguage_ReturnsItalianItaly_ForItalianHeader(string header)
+    {
+        var locale = ContentLocaleResolver.ResolveFromAcceptLanguage(header);
+
+        Assert.Equal(ContentLocaleResolver.ItalianItaly, locale);
+        Assert.True(ContentLocaleResolver.RequiresLocalization(locale));
+    }
+
+    [Theory]
+    [InlineData("pt")]
+    [InlineData("pt-BR")]
+    [InlineData("pt-BR,en-US;q=0.8")]
+    [InlineData("pt-PT")]
+    public void ResolveFromAcceptLanguage_ReturnsPortugueseBrazil_ForPortugueseHeader(string header)
+    {
+        var locale = ContentLocaleResolver.ResolveFromAcceptLanguage(header);
+
+        Assert.Equal(ContentLocaleResolver.PortugueseBrazil, locale);
+        Assert.True(ContentLocaleResolver.RequiresLocalization(locale));
+    }
+
     [Fact]
     public void ResolveFromAcceptLanguage_PrefersHigherQualitySpanishOverEnglish()
     {
@@ -61,6 +107,14 @@ public sealed class ContentLocaleResolverTests
     [InlineData("tr-TR", ContentLocaleResolver.TurkishTurkey)]
     [InlineData("es", ContentLocaleResolver.SpanishSpain)]
     [InlineData("es-ES", ContentLocaleResolver.SpanishSpain)]
+    [InlineData("de", ContentLocaleResolver.GermanGermany)]
+    [InlineData("de-DE", ContentLocaleResolver.GermanGermany)]
+    [InlineData("fr", ContentLocaleResolver.FrenchFrance)]
+    [InlineData("fr-FR", ContentLocaleResolver.FrenchFrance)]
+    [InlineData("it", ContentLocaleResolver.ItalianItaly)]
+    [InlineData("it-IT", ContentLocaleResolver.ItalianItaly)]
+    [InlineData("pt", ContentLocaleResolver.PortugueseBrazil)]
+    [InlineData("pt-BR", ContentLocaleResolver.PortugueseBrazil)]
     public void Normalize_ReturnsSupportedLocale(string input, string expected)
     {
         Assert.Equal(expected, ContentLocaleResolver.Normalize(input));

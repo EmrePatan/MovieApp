@@ -48,4 +48,19 @@ public sealed class ReleaseNotificationBodyLocalizationTests
 
         Assert.Equal("2 estrenos", body);
     }
+
+    [Theory]
+    [InlineData(ContentLocaleResolver.GermanGermany, "Jetzt verfügbar")]
+    [InlineData(ContentLocaleResolver.FrenchFrance, "Disponible maintenant")]
+    [InlineData(ContentLocaleResolver.ItalianItaly, "Ora disponibile")]
+    [InlineData(ContentLocaleResolver.PortugueseBrazil, "Disponível agora")]
+    public void LocalizeBody_ReturnsLocalizedMovieReleased(string locale, string expected)
+    {
+        var body = ReleaseNotificationBodyLocalization.LocalizeBody(
+            UserReleaseNotificationType.MovieReleased,
+            "Now available",
+            locale);
+
+        Assert.Equal(expected, body);
+    }
 }

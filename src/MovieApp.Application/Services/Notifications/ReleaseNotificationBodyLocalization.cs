@@ -27,6 +27,10 @@ public static class ReleaseNotificationBodyLocalization
         {
             ContentLocaleResolver.TurkishTurkey => LocalizeTurkish(notificationType, eventCount),
             ContentLocaleResolver.SpanishSpain => LocalizeSpanish(notificationType, eventCount),
+            ContentLocaleResolver.GermanGermany => LocalizeGerman(notificationType, eventCount),
+            ContentLocaleResolver.FrenchFrance => LocalizeFrench(notificationType, eventCount),
+            ContentLocaleResolver.ItalianItaly => LocalizeItalian(notificationType, eventCount),
+            ContentLocaleResolver.PortugueseBrazil => LocalizePortugueseBrazil(notificationType, eventCount),
             _ => LocalizeEnglish(notificationType, eventCount),
         };
     }
@@ -80,6 +84,54 @@ public static class ReleaseNotificationBodyLocalization
                 eventCount == 1 ? "Estreno de nueva temporada" : $"{eventCount} estrenos de temporada",
             UserReleaseNotificationType.MovieReleased =>
                 eventCount == 1 ? "Ya disponible" : $"{eventCount} estrenos",
+            _ => string.Empty,
+        };
+
+    private static string LocalizeGerman(UserReleaseNotificationType notificationType, int eventCount) =>
+        notificationType switch
+        {
+            UserReleaseNotificationType.NewEpisodes =>
+                eventCount == 1 ? "1 neue Folge" : $"{eventCount} neue Folgen",
+            UserReleaseNotificationType.NewSeason =>
+                eventCount == 1 ? "Neue Staffel verfügbar" : $"{eventCount} neue Staffeln",
+            UserReleaseNotificationType.MovieReleased =>
+                eventCount == 1 ? "Jetzt verfügbar" : $"{eventCount} neue Veröffentlichungen",
+            _ => string.Empty,
+        };
+
+    private static string LocalizeFrench(UserReleaseNotificationType notificationType, int eventCount) =>
+        notificationType switch
+        {
+            UserReleaseNotificationType.NewEpisodes =>
+                eventCount == 1 ? "1 nouvel épisode" : $"{eventCount} nouveaux épisodes",
+            UserReleaseNotificationType.NewSeason =>
+                eventCount == 1 ? "Nouvelle saison disponible" : $"{eventCount} nouvelles saisons",
+            UserReleaseNotificationType.MovieReleased =>
+                eventCount == 1 ? "Disponible maintenant" : $"{eventCount} nouvelles sorties",
+            _ => string.Empty,
+        };
+
+    private static string LocalizeItalian(UserReleaseNotificationType notificationType, int eventCount) =>
+        notificationType switch
+        {
+            UserReleaseNotificationType.NewEpisodes =>
+                eventCount == 1 ? "1 nuovo episodio" : $"{eventCount} nuovi episodi",
+            UserReleaseNotificationType.NewSeason =>
+                eventCount == 1 ? "Nuova stagione disponibile" : $"{eventCount} nuove stagioni",
+            UserReleaseNotificationType.MovieReleased =>
+                eventCount == 1 ? "Ora disponibile" : $"{eventCount} nuove uscite",
+            _ => string.Empty,
+        };
+
+    private static string LocalizePortugueseBrazil(UserReleaseNotificationType notificationType, int eventCount) =>
+        notificationType switch
+        {
+            UserReleaseNotificationType.NewEpisodes =>
+                eventCount == 1 ? "1 novo episódio" : $"{eventCount} novos episódios",
+            UserReleaseNotificationType.NewSeason =>
+                eventCount == 1 ? "Nova temporada disponível" : $"{eventCount} novas temporadas",
+            UserReleaseNotificationType.MovieReleased =>
+                eventCount == 1 ? "Disponível agora" : $"{eventCount} novos lançamentos",
             _ => string.Empty,
         };
 }

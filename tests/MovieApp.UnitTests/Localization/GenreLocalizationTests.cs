@@ -47,6 +47,16 @@ public sealed class GenreLocalizationTests
         Assert.Equal(expected, GenreLocalization.Localize(canonical, contentLocale));
     }
 
+    [Theory]
+    [InlineData("de-DE", "Komödie")]
+    [InlineData("fr-FR", "Comédie")]
+    [InlineData("it-IT", "Commedia")]
+    [InlineData("pt-BR", "Comédia")]
+    public void Localize_ReturnsLocalizedName_ForNewLocales(string contentLocale, string expected)
+    {
+        Assert.Equal(expected, GenreLocalization.Localize("Comedy", contentLocale));
+    }
+
     [Fact]
     public void Localize_FallsBackToCanonical_ForUnknownGenre()
     {

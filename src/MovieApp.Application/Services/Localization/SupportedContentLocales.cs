@@ -5,13 +5,21 @@ public static class SupportedContentLocales
     public const string EnglishUnitedStates = "en-US";
     public const string TurkishTurkey = "tr-TR";
     public const string SpanishSpain = "es-ES";
+    public const string GermanGermany = "de-DE";
+    public const string FrenchFrance = "fr-FR";
+    public const string ItalianItaly = "it-IT";
+    public const string PortugueseBrazil = "pt-BR";
     public const string Default = EnglishUnitedStates;
 
     private static readonly string[] All =
     [
         EnglishUnitedStates,
         TurkishTurkey,
-        SpanishSpain
+        SpanishSpain,
+        GermanGermany,
+        FrenchFrance,
+        ItalianItaly,
+        PortugueseBrazil,
     ];
 
     private static readonly Dictionary<string, string> ExactLocaleMap =
@@ -26,6 +34,18 @@ public static class SupportedContentLocales
             ["es"] = SpanishSpain,
             ["es-es"] = SpanishSpain,
             [SpanishSpain] = SpanishSpain,
+            ["de"] = GermanGermany,
+            ["de-de"] = GermanGermany,
+            [GermanGermany] = GermanGermany,
+            ["fr"] = FrenchFrance,
+            ["fr-fr"] = FrenchFrance,
+            [FrenchFrance] = FrenchFrance,
+            ["it"] = ItalianItaly,
+            ["it-it"] = ItalianItaly,
+            [ItalianItaly] = ItalianItaly,
+            ["pt"] = PortugueseBrazil,
+            ["pt-br"] = PortugueseBrazil,
+            [PortugueseBrazil] = PortugueseBrazil,
         };
 
     public static IReadOnlyList<string> SupportedLocales => All;

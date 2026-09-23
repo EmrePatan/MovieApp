@@ -34,7 +34,7 @@ public sealed class PushNotificationMessageComposerTests
         var message = PushNotificationMessageComposer.Compose(delivery, 3);
 
         Assert.Equal("TV Show", message.Title);
-        Assert.Equal("3 new episodes are available.", message.Body);
+        Assert.Equal("3 new episodes", message.Body);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class PushNotificationMessageComposerTests
 
         var message = PushNotificationMessageComposer.Compose(delivery, 1);
 
-        Assert.Equal("A new season is available.", message.Body);
+        Assert.Equal("New season premiere", message.Body);
     }
 
     private static PushNotificationDelivery CreateDelivery(

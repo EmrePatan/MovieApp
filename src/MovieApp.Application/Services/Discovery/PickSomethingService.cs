@@ -111,7 +111,11 @@ public sealed class PickSomethingService(
             contentLocale,
             cancellationToken);
 
-        return localized.Items[0];
+        var localizedPick = localized.Items[0];
+        return localizedPick with
+        {
+            Reason = RecommendationReasonLocalization.Localize(localizedPick.Reason, contentLocale),
+        };
     }
 
     private async Task<RecommendationItem?> BuildPersonalizedPickAsync(

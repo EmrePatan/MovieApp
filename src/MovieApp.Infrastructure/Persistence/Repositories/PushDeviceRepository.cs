@@ -30,6 +30,7 @@ public sealed class PushDeviceRepository(ApplicationDbContext dbContext) : IPush
         string expoPushToken,
         PushDevicePlatform platform,
         string? deviceIdentifier,
+        string? contentLocale,
         DateTime utcNow,
         CancellationToken cancellationToken = default)
     {
@@ -44,6 +45,7 @@ public sealed class PushDeviceRepository(ApplicationDbContext dbContext) : IPush
                 ExpoPushToken = expoPushToken,
                 Platform = platform,
                 DeviceIdentifier = deviceIdentifier,
+                ContentLocale = contentLocale,
                 IsActive = true,
                 CreatedAtUtc = utcNow,
                 UpdatedAtUtc = utcNow,
@@ -58,6 +60,7 @@ public sealed class PushDeviceRepository(ApplicationDbContext dbContext) : IPush
         existing.UserId = userId;
         existing.Platform = platform;
         existing.DeviceIdentifier = deviceIdentifier;
+        existing.ContentLocale = contentLocale;
         existing.IsActive = true;
         existing.UpdatedAtUtc = utcNow;
         existing.LastSeenAtUtc = utcNow;
