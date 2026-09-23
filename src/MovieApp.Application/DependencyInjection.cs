@@ -141,6 +141,7 @@ public static class DependencyInjection
 
         services.AddScoped<IRatingService, RatingService>();
         services.AddScoped<IReviewService, ReviewService>();
+        services.AddScoped<IReviewTranslationService, ReviewTranslationService>();
 
         services.AddScoped<IWatchHistoryService, WatchHistoryService>();
 

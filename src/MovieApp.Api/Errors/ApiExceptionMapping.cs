@@ -110,6 +110,14 @@ internal static class ApiExceptionMappings
                     ApiErrorCodes.AiRecommendationUnavailable,
                     LogAsError: false);
                 return true;
+            case MovieApp.Application.Exceptions.ReviewTranslationUnavailableException translationUnavailable:
+                mapping = new ApiExceptionMapping(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Review translation unavailable.",
+                    translationUnavailable.Message,
+                    ApiErrorCodes.ReviewTranslationUnavailable,
+                    LogAsError: false);
+                return true;
             default:
                 return false;
         }

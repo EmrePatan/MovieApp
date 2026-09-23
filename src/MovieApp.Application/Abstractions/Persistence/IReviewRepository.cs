@@ -64,4 +64,8 @@ public interface IReviewRepository
         ReviewListSort sort,
         int? ratingStars = null,
         CancellationToken cancellationToken = default);
+
+    Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
+        Guid reviewId,
+        CancellationToken cancellationToken = default);
 }

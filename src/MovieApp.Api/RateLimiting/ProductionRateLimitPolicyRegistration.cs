@@ -19,6 +19,10 @@ internal static class ProductionRateLimitPolicyRegistration
             .GetSection(TvShowFollowRateLimitOptions.SectionName)
             .Get<TvShowFollowRateLimitOptions>() ?? new TvShowFollowRateLimitOptions();
 
+        var reviewTranslationOptions = configuration
+            .GetSection(ReviewTranslationRateLimitOptions.SectionName)
+            .Get<ReviewTranslationRateLimitOptions>() ?? new ReviewTranslationRateLimitOptions();
+
         rateLimiterOptions.AddPolicy(SearchRateLimitPolicies.UnifiedSearch, httpContext =>
             DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,
@@ -73,6 +77,14 @@ internal static class ProductionRateLimitPolicyRegistration
                 TvShowFollowRateLimitPolicies.Mutation,
                 tvShowFollowOptions.MutationPermitLimit,
                 tvShowFollowOptions.MutationWindowMinutes,
+                AccountPartitionKeyFactory.Create));
+
+        rateLimiterOptions.AddPolicy(ReviewTranslationRateLimitPolicies.Translation, httpContext =>
+            DistributedRateLimitPolicyFactory.CreatePolicy(
+                httpContext,
+                ReviewTranslationRateLimitPolicies.Translation,
+                reviewTranslationOptions.PermitLimit,
+                reviewTranslationOptions.WindowMinutes,
                 AccountPartitionKeyFactory.Create));
     }
 }

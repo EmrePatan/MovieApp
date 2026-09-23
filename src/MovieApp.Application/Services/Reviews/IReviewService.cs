@@ -8,21 +8,25 @@ public interface IReviewService
     Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default);
 
     Task<ReviewResult> CreateTvShowReviewAsync(
         Guid tvShowId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default);
 
     Task<ReviewResult> UpdateMovieReviewAsync(
         Guid movieId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default);
 
     Task<ReviewResult> UpdateTvShowReviewAsync(
         Guid tvShowId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default);
 
     Task DeleteMovieReviewAsync(Guid movieId, CancellationToken cancellationToken = default);

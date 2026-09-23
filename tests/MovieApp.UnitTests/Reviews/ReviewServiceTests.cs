@@ -21,9 +21,10 @@ public sealed class ReviewServiceTests
         var repository = new FakeReviewRepository();
         var service = CreateService(repository, movie: CreateMovie());
 
-        var result = await service.CreateMovieReviewAsync(MovieId, "Great movie");
+        var result = await service.CreateMovieReviewAsync(MovieId, "Great movie", "en-US");
 
         Assert.Equal("Great movie", result.Content);
+        Assert.Equal("en-US", result.AuthoringLocale);
         Assert.Equal(1, repository.AddCount);
     }
 
@@ -34,7 +35,7 @@ public sealed class ReviewServiceTests
         var service = CreateService(repository, movie: CreateMovie());
 
         await Assert.ThrowsAsync<ConflictException>(() =>
-            service.CreateMovieReviewAsync(MovieId, "Duplicate"));
+            service.CreateMovieReviewAsync(MovieId, "Duplicate", "en-US"));
     }
 
     [Fact]
@@ -44,21 +45,22 @@ public sealed class ReviewServiceTests
         var service = CreateService(repository, movie: CreateMovie());
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            service.UpdateMovieReviewAsync(MovieId, "Updated"));
+            service.UpdateMovieReviewAsync(MovieId, "Updated", "en-US"));
     }
 
     [Fact]
     public async Task UpdateMovieReviewAsyncUpdatesOwnReview()
     {
-        var review = Review.CreateForMovie(UserId, MovieId, "Original", DateTime.UtcNow);
+        var review = Review.CreateForMovie(UserId, MovieId, "Original", "en-US", DateTime.UtcNow);
         review.User = new User { Id = UserId, DisplayName = "Emre" };
 
         var repository = new FakeReviewRepository(trackedMovieReview: review);
         var service = CreateService(repository, movie: CreateMovie());
 
-        var result = await service.UpdateMovieReviewAsync(MovieId, "Updated content");
+        var result = await service.UpdateMovieReviewAsync(MovieId, "Updated content", "tr-TR");
 
         Assert.Equal("Updated content", result.Content);
+        Assert.Equal("tr-TR", result.AuthoringLocale);
         Assert.Equal(1, repository.UpdateCount);
     }
 
@@ -68,7 +70,7 @@ public sealed class ReviewServiceTests
         var service = CreateService(new FakeReviewRepository(), movie: null);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            service.CreateMovieReviewAsync(MovieId, "Missing movie"));
+            service.CreateMovieReviewAsync(MovieId, "Missing movie", "en-US"));
     }
 
     [Fact]
@@ -77,7 +79,7 @@ public sealed class ReviewServiceTests
         var service = CreateService(new FakeReviewRepository(), movie: CreateMovie());
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.CreateMovieReviewAsync(MovieId, "   "));
+            service.CreateMovieReviewAsync(MovieId, "   ", "en-US"));
     }
 
     private static ReviewService CreateService(FakeReviewRepository repository, Movie? movie) =>
@@ -206,6 +208,11 @@ public sealed class ReviewServiceTests
             int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
+
+        public Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
+            Guid reviewId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ReviewTranslationSource?>(null);
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository

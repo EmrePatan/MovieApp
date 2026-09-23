@@ -12,5 +12,6 @@ internal static class ApiErrorCodes
     internal const string SearchProviderUnavailable = "SEARCH_PROVIDER_UNAVAILABLE";
     internal const string TvShowFollowBaselineUnavailable = "TV_SHOW_FOLLOW_BASELINE_UNAVAILABLE";
     internal const string AiRecommendationUnavailable = "AI_RECOMMENDATION_UNAVAILABLE";
+    internal const string ReviewTranslationUnavailable = "REVIEW_TRANSLATION_UNAVAILABLE";
     internal const string InternalError = "INTERNAL_ERROR";
 }

@@ -19,6 +19,7 @@ using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.PushNotifications;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.AiRecommendations;
+using MovieApp.Infrastructure.Providers.AzureTranslator;
 using MovieApp.Infrastructure.RateLimiting;
 using StackExchange.Redis;
 
@@ -129,6 +130,7 @@ public static class DependencyInjection
         services.AddSingleton<IValidateOptions<ResendVerificationEmailOptions>, ResendVerificationEmailOptionsValidator>();
 
         services.AddAiRecommendations(configuration);
+        services.AddReviewTranslation(configuration);
 
         services.AddMovieDataProviders(configuration);
 

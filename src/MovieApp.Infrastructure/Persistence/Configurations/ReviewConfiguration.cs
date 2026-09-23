@@ -28,6 +28,9 @@ internal sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .IsRequired()
             .HasMaxLength(ReviewContentRules.MaxLength);
 
+        builder.Property(review => review.AuthoringLocale)
+            .HasMaxLength(10);
+
         builder.Property(review => review.CreatedAt)
             .IsRequired();
 

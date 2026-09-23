@@ -21,6 +21,7 @@ public sealed class ReviewService(
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
@@ -32,7 +33,7 @@ public sealed class ReviewService(
             throw new ConflictException("A review for this movie already exists.");
         }
 
-        var review = Review.CreateForMovie(userId, movieId, content, DateTime.UtcNow);
+        var review = Review.CreateForMovie(userId, movieId, content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.AddAsync(review, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
@@ -43,6 +44,7 @@ public sealed class ReviewService(
     public async Task<ReviewResult> CreateTvShowReviewAsync(
         Guid tvShowId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
@@ -54,7 +56,7 @@ public sealed class ReviewService(
             throw new ConflictException("A review for this TV show already exists.");
         }
 
-        var review = Review.CreateForTvShow(userId, tvShowId, content, DateTime.UtcNow);
+        var review = Review.CreateForTvShow(userId, tvShowId, content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.AddAsync(review, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
@@ -65,6 +67,7 @@ public sealed class ReviewService(
     public async Task<ReviewResult> UpdateMovieReviewAsync(
         Guid movieId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
@@ -76,7 +79,7 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        review.UpdateContent(content, DateTime.UtcNow);
+        review.UpdateContent(content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.UpdateAsync(review, cancellationToken);
         return ReviewMapper.ToResult(review);
     }
@@ -84,6 +87,7 @@ public sealed class ReviewService(
     public async Task<ReviewResult> UpdateTvShowReviewAsync(
         Guid tvShowId,
         string content,
+        string authoringLocale,
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
@@ -95,7 +99,7 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        review.UpdateContent(content, DateTime.UtcNow);
+        review.UpdateContent(content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.UpdateAsync(review, cancellationToken);
         return ReviewMapper.ToResult(review);
     }

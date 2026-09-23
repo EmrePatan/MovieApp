@@ -14,5 +14,6 @@ public static class ReviewMapper
             review.Content,
             review.CreatedAt,
             review.UpdatedAt,
-            userRating);
+            userRating,
+            review.AuthoringLocale);
 }

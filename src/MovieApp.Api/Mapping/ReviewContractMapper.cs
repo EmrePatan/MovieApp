@@ -13,7 +13,16 @@ public static class ReviewContractMapper
             result.Content,
             result.CreatedAt,
             result.UpdatedAt,
-            result.UserRating);
+            result.UserRating,
+            result.AuthoringLocale);
+
+    public static ReviewTranslationResponse ToTranslationResponse(ReviewTranslationResult result) =>
+        new(
+            result.ReviewId,
+            result.Outcome.ToString(),
+            result.TranslatedText,
+            result.DetectedSourceLanguage,
+            result.TargetLocale);
 
     public static ReviewListResponse ToListResponse(PaginatedResult<ReviewResult> result) =>
         new(

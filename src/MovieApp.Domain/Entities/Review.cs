@@ -14,6 +14,8 @@ public sealed class Review
 
     public string Content { get; set; } = string.Empty;
 
+    public string? AuthoringLocale { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -24,7 +26,12 @@ public sealed class Review
 
     public TvShow? TvShow { get; set; }
 
-    public static Review CreateForMovie(Guid userId, Guid movieId, string content, DateTime utcNow)
+    public static Review CreateForMovie(
+        Guid userId,
+        Guid movieId,
+        string content,
+        string? authoringLocale,
+        DateTime utcNow)
     {
         if (userId == Guid.Empty)
         {
@@ -43,12 +50,18 @@ public sealed class Review
             MovieId = movieId,
             TvShowId = null,
             Content = ReviewContentRules.Normalize(content),
+            AuthoringLocale = authoringLocale,
             CreatedAt = utcNow,
             UpdatedAt = utcNow
         };
     }
 
-    public static Review CreateForTvShow(Guid userId, Guid tvShowId, string content, DateTime utcNow)
+    public static Review CreateForTvShow(
+        Guid userId,
+        Guid tvShowId,
+        string content,
+        string? authoringLocale,
+        DateTime utcNow)
     {
         if (userId == Guid.Empty)
         {
@@ -67,14 +80,16 @@ public sealed class Review
             MovieId = null,
             TvShowId = tvShowId,
             Content = ReviewContentRules.Normalize(content),
+            AuthoringLocale = authoringLocale,
             CreatedAt = utcNow,
             UpdatedAt = utcNow
         };
     }
 
-    public void UpdateContent(string content, DateTime utcNow)
+    public void UpdateContent(string content, string? authoringLocale, DateTime utcNow)
     {
         Content = ReviewContentRules.Normalize(content);
+        AuthoringLocale = authoringLocale;
         UpdatedAt = utcNow;
     }
 

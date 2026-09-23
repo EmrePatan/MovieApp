@@ -239,4 +239,18 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
 
         return (reviews, totalCount);
     }
+
+    public async Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
+        Guid reviewId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Reviews
+            .AsNoTracking()
+            .Where(review => review.Id == reviewId)
+            .Select(review => new ReviewTranslationSource(
+                review.Id,
+                review.Content,
+                review.UpdatedAt))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }

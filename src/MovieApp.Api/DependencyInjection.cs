@@ -28,6 +28,8 @@ public static class DependencyInjection
         services.Configure<AccountRateLimitOptions>(configuration.GetSection(AccountRateLimitOptions.SectionName));
         services.Configure<TvShowFollowRateLimitOptions>(
             configuration.GetSection(TvShowFollowRateLimitOptions.SectionName));
+        services.Configure<ReviewTranslationRateLimitOptions>(
+            configuration.GetSection(ReviewTranslationRateLimitOptions.SectionName));
 
         services.AddAuthRateLimiting(configuration);
 

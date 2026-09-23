@@ -17,3 +17,8 @@ public static class AccountRateLimitPolicies
 
     public const string DeleteAccount = "account-delete";
 }
+
+public static class ReviewTranslationRateLimitPolicies
+{
+    public const string Translation = "review-translation";
+}

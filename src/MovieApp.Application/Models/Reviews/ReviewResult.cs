@@ -8,4 +8,5 @@ public sealed record ReviewResult(
     string Content,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int? UserRating = null);
+    int? UserRating = null,
+    string? AuthoringLocale = null);
