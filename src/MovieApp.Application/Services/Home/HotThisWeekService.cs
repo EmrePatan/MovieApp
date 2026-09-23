@@ -92,7 +92,7 @@ public sealed class HotThisWeekService(
     }
 
     private async Task<IReadOnlyList<SearchItem>> ApplySnapshotLocalizationAsync(
-        IReadOnlyList<SearchItem> items,
+        List<SearchItem> items,
         string contentLocale,
         CancellationToken cancellationToken)
     {
