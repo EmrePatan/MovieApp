@@ -51,11 +51,28 @@ public sealed class PushNotificationMessageComposerTests
         Assert.Equal("New season premiere", message.Body);
     }
 
+    [Fact]
+    public void Compose_UsesDeviceContentLocaleForGeneratedBody()
+    {
+        var delivery = CreateDelivery(
+            title: null,
+            body: null,
+            notificationType: UserReleaseNotificationType.NewEpisodes,
+            eventCount: 3,
+            contentLocale: "tr-TR");
+
+        var message = PushNotificationMessageComposer.Compose(delivery, 3);
+
+        Assert.Equal("Dizi", message.Title);
+        Assert.Equal("3 yeni bölüm", message.Body);
+    }
+
     private static PushNotificationDelivery CreateDelivery(
         string? title,
         string? body,
         UserReleaseNotificationType notificationType,
-        int eventCount)
+        int eventCount,
+        string? contentLocale = null)
     {
         var notification = new UserReleaseNotification
         {
@@ -76,7 +93,8 @@ public sealed class PushNotificationMessageComposerTests
             UserReleaseNotification = notification,
             PushDevice = new PushDevice
             {
-                ExpoPushToken = "ExponentPushToken[abcdefghijklmnopqrstuvwxyz123456]"
+                ExpoPushToken = "ExponentPushToken[abcdefghijklmnopqrstuvwxyz123456]",
+                ContentLocale = contentLocale
             }
         };
     }
