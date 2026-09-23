@@ -7,5 +7,6 @@ public interface IPickSomethingService
 {
     Task<RecommendationItem?> PickAsync(
         PickSomethingCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

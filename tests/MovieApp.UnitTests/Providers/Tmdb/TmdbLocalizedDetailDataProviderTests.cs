@@ -36,6 +36,35 @@ public sealed class TmdbLocalizedDetailDataProviderTests
         Assert.DoesNotContain("language=en-US", query, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetMovieLocalizationAsync_UsesSpanishLanguage_ForSpanishLocale()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "id": 157336,
+                  "title": "Interestelar",
+                  "original_title": "Interstellar",
+                  "overview": "Spanish overview"
+                }
+                """)
+        });
+
+        var provider = CreateProvider(handler);
+        var result = await provider.GetMovieLocalizationAsync(
+            157336,
+            ContentLocaleResolver.SpanishSpain);
+
+        Assert.NotNull(result);
+        Assert.Equal("Interestelar", result.Title);
+        var query = handler.Requests.Single().RequestUri?.Query ?? string.Empty;
+        Assert.Contains("language=es-ES", query, StringComparison.Ordinal);
+        Assert.DoesNotContain("language=en-US", query, StringComparison.Ordinal);
+    }
+
     private static TmdbLocalizedDetailDataProvider CreateProvider(MockHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)

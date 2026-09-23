@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Discovery;
+using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
@@ -17,6 +18,7 @@ namespace MovieApp.Application.Services.Discovery;
 public sealed class PickSomethingService(
     IRecommendationRepository recommendationRepository,
     IDiscoveryService discoveryService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ICurrentUser currentUser,
     IOptions<RecommendationOptions> options) : IPickSomethingService
 {
@@ -29,6 +31,7 @@ public sealed class PickSomethingService(
 
     public async Task<RecommendationItem?> PickAsync(
         PickSomethingCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = PickSomethingValidator.Validate(criteria);
@@ -46,32 +49,37 @@ public sealed class PickSomethingService(
 
             if (context.MeaningfulInteractionCount >= _options.MinimumPersonalizationInteractions)
             {
-                return await BuildPersonalizedPickAsync(context, criteria, cancellationToken);
+                return await BuildPersonalizedPickAsync(context, criteria, contentLocale, cancellationToken);
             }
         }
 
-        return await BuildColdStartPickAsync(criteria, cancellationToken);
+        return await BuildColdStartPickAsync(criteria, contentLocale, cancellationToken);
     }
 
     private async Task<RecommendationItem?> BuildColdStartPickAsync(
         PickSomethingCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var discoveryType = MapToSearchContentType(criteria.MediaType);
         var trending = await discoveryService.GetTrendingAsync(
             new DiscoveryCriteria(discoveryType, 1, PickSomethingSelector.CandidatePoolSize),
-            ContentLocaleResolver.EnglishUnitedStates,
+            contentLocale,
             cancellationToken);
 
         var trendingItems = FilterColdStartItems(trending.Items, criteria);
         if (trendingItems.Count > 0)
         {
-            return PickSomethingSelector.SelectFromBand(RankColdStartItems(trendingItems, ColdStartTrendingReason));
+            var trendingPick = PickSomethingSelector.SelectFromBand(
+                RankColdStartItems(trendingItems, ColdStartTrendingReason));
+            return trendingPick is null
+                ? null
+                : await LocalizePickAsync(trendingPick, contentLocale, cancellationToken);
         }
 
         var popular = await discoveryService.GetPopularAsync(
             new DiscoveryCriteria(discoveryType, 1, PickSomethingSelector.CandidatePoolSize),
-            ContentLocaleResolver.EnglishUnitedStates,
+            contentLocale,
             cancellationToken);
         var popularItems = FilterColdStartItems(popular.Items, criteria);
         if (popularItems.Count == 0)
@@ -79,12 +87,37 @@ public sealed class PickSomethingService(
             return null;
         }
 
-        return PickSomethingSelector.SelectFromBand(RankColdStartItems(popularItems, ColdStartPopularReason));
+        var pick = PickSomethingSelector.SelectFromBand(RankColdStartItems(popularItems, ColdStartPopularReason));
+        return pick is null ? null : await LocalizePickAsync(pick, contentLocale, cancellationToken);
+    }
+
+    private async Task<RecommendationItem> LocalizePickAsync(
+        RecommendationItem pick,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
+        {
+            return pick;
+        }
+
+        var localized = await summaryLocalizationOverlayService.ApplyToRecommendationItemsAsync(
+            new PaginatedResult<RecommendationItem>(
+                [pick],
+                1,
+                1,
+                1,
+                1),
+            contentLocale,
+            cancellationToken);
+
+        return localized.Items[0];
     }
 
     private async Task<RecommendationItem?> BuildPersonalizedPickAsync(
         UserRecommendationContext context,
         PickSomethingCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var watchlistMovieIds = GetWatchlistIds(context, "movie");
@@ -113,7 +146,7 @@ public sealed class PickSomethingService(
 
         if (candidates.Count == 0)
         {
-            return await BuildColdStartPickAsync(criteria, cancellationToken);
+            return await BuildColdStartPickAsync(criteria, contentLocale, cancellationToken);
         }
 
         var scored = PersonalizedRecommendationEngine.ScoreCandidates(
@@ -127,7 +160,7 @@ public sealed class PickSomethingService(
         var diversified = PersonalizedRecommendationEngine.ApplyDiversity(scored, _options);
         if (!HasConfidentPersonalization(diversified))
         {
-            return await BuildColdStartPickAsync(criteria, cancellationToken);
+            return await BuildColdStartPickAsync(criteria, contentLocale, cancellationToken);
         }
 
         var ranked = ApplyWatchlistPreference(diversified, watchlistMovieIds, watchlistTvShowIds)
@@ -136,7 +169,13 @@ public sealed class PickSomethingService(
             .Take(PickSomethingSelector.CandidatePoolSize)
             .ToList();
 
-        return PickSomethingSelector.SelectFromBand(ranked);
+        var pick = PickSomethingSelector.SelectFromBand(ranked);
+        if (pick is null)
+        {
+            return null;
+        }
+
+        return await LocalizePickAsync(pick, contentLocale, cancellationToken);
     }
 
     private static bool HasConfidentPersonalization(IReadOnlyList<ScoredRecommendation> recommendations)

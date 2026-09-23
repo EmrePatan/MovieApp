@@ -6,5 +6,7 @@ public interface IGetHomeComingUpService
 {
     Task<IReadOnlyList<CatalogUpcomingItemResult>> GetItemsAsync(
         int limit,
+        string? releaseRegion,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

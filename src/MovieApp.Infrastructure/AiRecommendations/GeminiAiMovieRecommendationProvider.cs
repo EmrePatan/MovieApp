@@ -281,7 +281,9 @@ internal static class GeminiPromptBuilder
     {
         var writeReasonsIn = responseLanguage.StartsWith("tr", StringComparison.OrdinalIgnoreCase)
             ? "Turkish"
-            : "English";
+            : responseLanguage.StartsWith("es", StringComparison.OrdinalIgnoreCase)
+                ? "Spanish"
+                : "English";
 
         return $"""
                 You are a movie and TV recommendation assistant for MovieApp.

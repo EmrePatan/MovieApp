@@ -24,6 +24,7 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
     public async Task<ActionResult<HomeResponse>> GetHome(
         [FromQuery] string? type,
         [FromQuery] int? sectionSize,
+        [FromQuery] string? releaseRegion,
         CancellationToken cancellationToken)
     {
         try
@@ -37,6 +38,7 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
             var result = await homeService.GetHomeAsync(
                 criteria!,
                 Request.ResolveContentLocale(),
+                releaseRegion,
                 cancellationToken);
             return Ok(HomeContractMapper.ToHomeResponse(result));
         }
@@ -63,6 +65,7 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
     public async Task<ActionResult<HomeBrowseResponse>> GetHomeBrowse(
         [FromQuery] string? type,
         [FromQuery] int? sectionSize,
+        [FromQuery] string? releaseRegion,
         CancellationToken cancellationToken)
     {
         try
@@ -76,6 +79,7 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
             var result = await homeService.GetHomeBrowseAsync(
                 criteria!,
                 Request.ResolveContentLocale(),
+                releaseRegion,
                 cancellationToken);
             return Ok(HomeContractMapper.ToHomeBrowseResponse(result));
         }
@@ -102,6 +106,7 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
     public async Task<ActionResult<HomePersonalizedResponse>> GetHomePersonalized(
         [FromQuery] string? type,
         [FromQuery] int? sectionSize,
+        [FromQuery] string? releaseRegion,
         CancellationToken cancellationToken)
     {
         try
@@ -115,6 +120,7 @@ public sealed class HomeController(IHomeService homeService, IOptions<HomeOption
             var result = await homeService.GetHomePersonalizedAsync(
                 criteria!,
                 Request.ResolveContentLocale(),
+                releaseRegion,
                 cancellationToken);
             return Ok(HomeContractMapper.ToHomePersonalizedResponse(result));
         }

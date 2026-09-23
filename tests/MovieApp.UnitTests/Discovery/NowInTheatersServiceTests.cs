@@ -12,6 +12,8 @@ using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Application.Services.Discovery;
+using MovieApp.Application.Services.Localization;
+using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Discovery;
 
@@ -32,11 +34,11 @@ public sealed class NowInTheatersServiceTests
             1);
 
         await cache.SetAsync(
-            NowInTheatersCacheKeys.Create(criteria),
+            NowInTheatersCacheKeys.Create(criteria, ContentLocaleResolver.EnglishUnitedStates),
             new DiscoveryCacheEntry { Result = cachedResult },
             TimeSpan.FromMinutes(30));
 
-        var result = await service.GetNowInTheatersAsync(criteria);
+        var result = await service.GetNowInTheatersAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(0, catalog.CallCount);
@@ -48,7 +50,7 @@ public sealed class NowInTheatersServiceTests
         var catalog = new RecordingNowInTheatersMovieCatalog();
         var service = CreateService(catalog, new NowInTheatersFakeCache());
 
-        await service.GetNowInTheatersAsync(new NowInTheatersCriteria("us", 1, 20));
+        await service.GetNowInTheatersAsync(new NowInTheatersCriteria("us", 1, 20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, catalog.CallCount);
         Assert.Equal("US", catalog.LastReleaseRegion);
@@ -61,7 +63,7 @@ public sealed class NowInTheatersServiceTests
         var catalog = new RecordingNowInTheatersMovieCatalog();
         var service = CreateService(catalog, new NowInTheatersFakeCache());
 
-        var result = await service.GetNowInTheatersAsync(new NowInTheatersCriteria("TR", 1, 20));
+        var result = await service.GetNowInTheatersAsync(new NowInTheatersCriteria("TR", 1, 20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Items);
         Assert.All(result.Items, item => Assert.Equal("movie", item.Type));
@@ -74,7 +76,7 @@ public sealed class NowInTheatersServiceTests
         var service = CreateService(catalog, new NowInTheatersFakeCache());
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(
-            () => service.GetNowInTheatersAsync(new NowInTheatersCriteria("TR", 1, 20)));
+            () => service.GetNowInTheatersAsync(new NowInTheatersCriteria("TR", 1, 20), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -83,7 +85,7 @@ public sealed class NowInTheatersServiceTests
         var catalog = new RecordingNowInTheatersMovieCatalog();
         var service = CreateService(catalog, new NowInTheatersFakeCache());
 
-        var result = await service.GetNowInTheatersAsync(new NowInTheatersCriteria("GB", 1, 20));
+        var result = await service.GetNowInTheatersAsync(new NowInTheatersCriteria("GB", 1, 20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalCount);
@@ -96,6 +98,7 @@ public sealed class NowInTheatersServiceTests
             catalog,
             new FakeMovieRepository(),
             cache,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
             NullLogger<NowInTheatersService>.Instance);
 

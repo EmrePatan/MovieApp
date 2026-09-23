@@ -10,8 +10,17 @@ public static class ForgotPasswordMessageLocalization
     public const string TurkishSuccessMessage =
         "Bu e-posta adresine kayıtlı bir hesap varsa, şifreni sıfırlamak için talimatlar gönderilecektir.";
 
-    public static string GetSuccessMessage(string contentLocale) =>
-        ContentLocaleResolver.RequiresLocalization(contentLocale)
-            ? TurkishSuccessMessage
-            : EnglishSuccessMessage;
+    public const string SpanishSuccessMessage =
+        "Si existe una cuenta asociada a este correo electrónico, recibirás instrucciones para restablecer tu contraseña.";
+
+    public static string GetSuccessMessage(string contentLocale)
+    {
+        var normalizedLocale = ContentLocaleResolver.Normalize(contentLocale);
+        return normalizedLocale switch
+        {
+            ContentLocaleResolver.TurkishTurkey => TurkishSuccessMessage,
+            ContentLocaleResolver.SpanishSpain => SpanishSuccessMessage,
+            _ => EnglishSuccessMessage
+        };
+    }
 }

@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
+using MovieApp.UnitTests.Search;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
@@ -137,6 +138,7 @@ public sealed class HotThisWeekServiceTests
         new(
             discovery,
             snapshotService,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             cache,
             Options.Create(new HomeOptions { HotThisWeekCacheTtlMinutes = 30 }),
             NullLogger<HotThisWeekService>.Instance);

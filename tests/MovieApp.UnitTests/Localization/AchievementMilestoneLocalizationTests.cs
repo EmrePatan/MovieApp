@@ -24,6 +24,20 @@ public sealed class AchievementMilestoneLocalizationTests
     }
 
     [Theory]
+    [InlineData("es-ES")]
+    [InlineData("es")]
+    [InlineData("es-ES,en-US;q=0.8")]
+    public void GetTitle_ReturnsSpanishForSpanishLocale(string contentLocale)
+    {
+        var title = AchievementMilestoneLocalization.GetTitle(
+            "movies-10",
+            contentLocale,
+            "fallback");
+
+        Assert.Equal("10 películas vistas", title);
+    }
+
+    [Theory]
     [InlineData("tr-TR")]
     [InlineData("tr")]
     [InlineData("tr-TR,en-US;q=0.8")]

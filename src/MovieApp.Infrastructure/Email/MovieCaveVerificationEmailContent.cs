@@ -181,13 +181,13 @@ public static class MovieCaveVerificationEmailContent
 
     private static VerificationEmailCopy GetCopy(string contentLocale)
     {
-        if (ContentLocaleResolver.RequiresLocalization(
-                ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale)))
+        var normalizedLocale = ContentLocaleResolver.Normalize(contentLocale);
+        return normalizedLocale switch
         {
-            return TurkishCopy;
-        }
-
-        return EnglishCopy;
+            ContentLocaleResolver.TurkishTurkey => TurkishCopy,
+            ContentLocaleResolver.SpanishSpain => SpanishCopy,
+            _ => EnglishCopy
+        };
     }
 
     private static string BuildHeaderLogoHtml(string? logoImageUrl)
@@ -413,4 +413,27 @@ public static class MovieCaveVerificationEmailContent
         Feature3TextHtml: "Sıradaki Favorin",
         FooterTagline: "Film ve dizi için sinematik evin.",
         Safety: "Bu Movie Cave hesabını sen oluşturmadıysan bu e-postayı güvenle yok sayabilirsin.");
+
+    private static readonly VerificationEmailCopy SpanishCopy = new(
+        HtmlLang: "es",
+        Subject: "Verifica tu dirección de correo de Movie Cave",
+        Preheader: "Solo un paso más para lo bueno. Verifica tu dirección de correo de Movie Cave.",
+        HeroHeadline: "Solo un paso más para lo bueno.",
+        Title: "Verifica tu dirección de correo",
+        BodyPlain: "Bienvenido a Movie Cave. Confirma tu correo para desbloquear tu lista, descubrir películas y series, y empezar a encontrar tu próximo favorito.",
+        BodyHtml: "Bienvenido a Movie Cave. Confirma tu correo para desbloquear tu lista, descubrir películas y series, y empezar a encontrar tu próximo favorito.",
+        PlainTextCtaLabel: "Verificar mi dirección de correo:",
+        CtaHtml: "Verificar dirección de correo &rarr;",
+        SafetyHtml: "Si no creaste una cuenta de Movie Cave, puedes ignorar este correo con tranquilidad.",
+        Feature1Label: "DESCUBRE",
+        Feature1PlainText: "Películas y series",
+        Feature1TextHtml: "Películas y series",
+        Feature2Label: "GUARDA",
+        Feature2PlainText: "Tu lista",
+        Feature2TextHtml: "Tu lista",
+        Feature3Label: "DISFRUTA",
+        Feature3PlainText: "Tu próximo favorito",
+        Feature3TextHtml: "Tu próximo favorito",
+        FooterTagline: "Tu hogar cinematográfico para películas y series.",
+        Safety: "Si no creaste una cuenta de Movie Cave, puedes ignorar este correo con tranquilidad.");
 }

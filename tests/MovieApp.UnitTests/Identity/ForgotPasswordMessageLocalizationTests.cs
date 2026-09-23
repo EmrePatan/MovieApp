@@ -20,4 +20,12 @@ public sealed class ForgotPasswordMessageLocalizationTests
             ForgotPasswordMessageLocalization.TurkishSuccessMessage,
             ForgotPasswordMessageLocalization.GetSuccessMessage(ContentLocaleResolver.TurkishTurkey));
     }
+
+    [Fact]
+    public void GetSuccessMessage_ReturnsSpanish_ForSpanishLocale()
+    {
+        Assert.Equal(
+            ForgotPasswordMessageLocalization.SpanishSuccessMessage,
+            ForgotPasswordMessageLocalization.GetSuccessMessage(ContentLocaleResolver.SpanishSpain));
+    }
 }

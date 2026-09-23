@@ -8,5 +8,6 @@ public interface IOnTvThisWeekService
 {
     Task<PaginatedResult<SearchItem>> GetOnTvThisWeekAsync(
         OnTvThisWeekCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

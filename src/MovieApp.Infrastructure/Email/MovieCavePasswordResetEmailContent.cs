@@ -181,13 +181,13 @@ public static class MovieCavePasswordResetEmailContent
 
     private static PasswordResetEmailCopy GetCopy(string contentLocale)
     {
-        if (ContentLocaleResolver.RequiresLocalization(
-                ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale)))
+        var normalizedLocale = ContentLocaleResolver.Normalize(contentLocale);
+        return normalizedLocale switch
         {
-            return TurkishCopy;
-        }
-
-        return EnglishCopy;
+            ContentLocaleResolver.TurkishTurkey => TurkishCopy,
+            ContentLocaleResolver.SpanishSpain => SpanishCopy,
+            _ => EnglishCopy
+        };
     }
 
     private static string BuildHeaderLogoHtml(string? logoImageUrl)
@@ -413,4 +413,27 @@ public static class MovieCavePasswordResetEmailContent
         Feature3TextHtml: "İzleme Listen",
         FooterTagline: "Film ve dizi için sinematik evin.",
         Safety: "Şifre sıfırlama talebinde bulunmadıysan bu e-postayı güvenle yok sayabilirsin. Şifren değişmeyecek.");
+
+    private static readonly PasswordResetEmailCopy SpanishCopy = new(
+        HtmlLang: "es",
+        Subject: "Restablece tu contraseña de Movie Cave",
+        Preheader: "Crea una nueva contraseña para tu cuenta de Movie Cave.",
+        HeroHeadline: "Volvamos a tu cuenta.",
+        Title: "Restablece tu contraseña",
+        BodyPlain: "Recibimos una solicitud para restablecer tu contraseña de Movie Cave. Usa el enlace de abajo para crear una nueva contraseña.",
+        BodyHtml: "Recibimos una solicitud para restablecer tu contraseña de Movie Cave. Usa el enlace de abajo para crear una nueva contraseña.",
+        PlainTextCtaLabel: "Restablecer contraseña:",
+        CtaHtml: "Restablecer contraseña &rarr;",
+        SafetyHtml: "Si no solicitaste restablecer tu contraseña, puedes ignorar este correo con tranquilidad. Tu contraseña no cambiará.",
+        Feature1Label: "SEGURO",
+        Feature1PlainText: "Protección de cuenta",
+        Feature1TextHtml: "Protección de cuenta",
+        Feature2Label: "RÁPIDO",
+        Feature2PlainText: "Enlace de un solo uso",
+        Feature2TextHtml: "Enlace de un solo uso",
+        Feature3Label: "VUELVE",
+        Feature3PlainText: "A tu lista",
+        Feature3TextHtml: "A tu lista",
+        FooterTagline: "Tu hogar cinematográfico para películas y series.",
+        Safety: "Si no solicitaste restablecer tu contraseña, puedes ignorar este correo con tranquilidad. Tu contraseña no cambiará.");
 }

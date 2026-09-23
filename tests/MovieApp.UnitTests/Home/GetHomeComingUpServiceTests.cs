@@ -3,7 +3,12 @@ using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.CatalogFollows;
+using MovieApp.Application.Models.Home;
+using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Models.Recommendations;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.UnitTests.Home;
@@ -17,7 +22,7 @@ public sealed class GetHomeComingUpServiceTests
     {
         var service = CreateService(new FakeCurrentUser(false, null), new FakeCatalogFollowCatalogRepository());
 
-        var result = await service.GetItemsAsync(5);
+        var result = await service.GetItemsAsync(5, null, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Empty(result);
     }
@@ -43,17 +48,87 @@ public sealed class GetHomeComingUpServiceTests
         var repository = new FakeCatalogFollowCatalogRepository(expected);
         var service = CreateService(new FakeCurrentUser(true, UserId), repository);
 
-        var result = await service.GetItemsAsync(5);
+        var result = await service.GetItemsAsync(5, null, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(expected, result);
         Assert.Equal(UserId, repository.LastUserId);
         Assert.Equal(5, repository.LastLimit);
+        Assert.Equal("TR", repository.LastRegion);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_UsesProvidedReleaseRegion_WhenSupplied()
+    {
+        var repository = new FakeCatalogFollowCatalogRepository([]);
+        var service = CreateService(new FakeCurrentUser(true, UserId), repository);
+
+        await service.GetItemsAsync(5, "ES", ContentLocaleResolver.SpanishSpain);
+
+        Assert.Equal("ES", repository.LastRegion);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_UsesDefaultRegion_WhenReleaseRegionMissing()
+    {
+        var repository = new FakeCatalogFollowCatalogRepository([]);
+        var service = CreateService(
+            new FakeCurrentUser(true, UserId),
+            repository,
+            defaultRegion: "DE");
+
+        await service.GetItemsAsync(5, null, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal("DE", repository.LastRegion);
     }
 
     private static GetHomeComingUpService CreateService(
         ICurrentUser currentUser,
-        ICatalogFollowCatalogRepository repository) =>
-        new(currentUser, repository, Options.Create(new ReleaseRegionOptions()));
+        ICatalogFollowCatalogRepository repository,
+        string defaultRegion = "TR") =>
+        new(
+            currentUser,
+            repository,
+            new PassthroughSummaryLocalizationOverlayService(),
+            Options.Create(new ReleaseRegionOptions { DefaultRegion = defaultRegion }));
+
+    private sealed class PassthroughSummaryLocalizationOverlayService : ISummaryLocalizationOverlayService
+    {
+        public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+            PaginatedResult<SearchItem> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<SearchSuggestion>> ApplyToSearchSuggestionsAsync(
+            IReadOnlyList<SearchSuggestion> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<PaginatedResult<RecommendationItem>> ApplyToRecommendationItemsAsync(
+            PaginatedResult<RecommendationItem> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<HomeResult> ApplyToHomeResultAsync(
+            HomeResult canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<RecommendationSection>> ApplyToRecommendationSectionsAsync(
+            IReadOnlyList<RecommendationSection> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<CatalogUpcomingItemResult>> ApplyToUpcomingItemsAsync(
+            IReadOnlyList<CatalogUpcomingItemResult> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+    }
 
     private sealed class FakeCurrentUser(bool isAuthenticated, Guid? userId) : ICurrentUser
     {
@@ -68,6 +143,8 @@ public sealed class GetHomeComingUpServiceTests
         public Guid? LastUserId { get; private set; }
 
         public int LastLimit { get; private set; }
+
+        public string? LastRegion { get; private set; }
 
         public Task<(IReadOnlyList<CatalogFollowItemResult> Items, int TotalCount)> GetFollowingCatalogAsync(
             Guid userId,
@@ -103,6 +180,7 @@ public sealed class GetHomeComingUpServiceTests
         {
             LastUserId = userId;
             LastLimit = limit;
+            LastRegion = region;
             return Task.FromResult<IReadOnlyList<CatalogUpcomingItemResult>>(items ?? []);
         }
     }

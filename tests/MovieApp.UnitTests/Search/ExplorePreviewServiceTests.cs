@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.UnitTests.Search;
@@ -14,7 +15,7 @@ public sealed class ExplorePreviewServiceTests
         var discovery = new FakeDiscoveryService();
         var service = CreateService(discovery, new PassthroughCacheService());
 
-        var result = await service.GetPreviewAsync(new ExplorePreviewCriteria(10));
+        var result = await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Trending.Items);
         Assert.NotEmpty(result.TopRated.Items);
@@ -33,8 +34,8 @@ public sealed class ExplorePreviewServiceTests
         var cache = new InMemoryCacheService();
         var service = CreateService(discovery, cache);
 
-        await service.GetPreviewAsync(new ExplorePreviewCriteria(10));
-        await service.GetPreviewAsync(new ExplorePreviewCriteria(10));
+        await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
+        await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, discovery.TrendingCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
@@ -49,7 +50,7 @@ public sealed class ExplorePreviewServiceTests
             new PassthroughCacheService());
 
         await Assert.ThrowsAsync<MovieApp.Application.Exceptions.ValidationException>(() =>
-            service.GetPreviewAsync(new ExplorePreviewCriteria(25)));
+            service.GetPreviewAsync(new ExplorePreviewCriteria(25), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -58,7 +59,7 @@ public sealed class ExplorePreviewServiceTests
         var service = CreateServiceWithScopedDiscovery<ConcurrentDiscoveryService>(
             new PassthroughCacheService());
 
-        var result = await service.GetPreviewAsync(new ExplorePreviewCriteria(10));
+        var result = await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Trending.Items);
         Assert.NotEmpty(result.TopRated.Items);

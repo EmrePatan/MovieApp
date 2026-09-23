@@ -8,5 +8,6 @@ public interface INowInTheatersService
 {
     Task<PaginatedResult<SearchItem>> GetNowInTheatersAsync(
         NowInTheatersCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

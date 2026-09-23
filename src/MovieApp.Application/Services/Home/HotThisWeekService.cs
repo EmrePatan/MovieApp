@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.Application.Services.Home;
@@ -11,6 +13,7 @@ namespace MovieApp.Application.Services.Home;
 public sealed class HotThisWeekService(
     IDiscoveryService discoveryService,
     IHotThisWeekTrendingSnapshotService trendingSnapshotService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ICacheService cacheService,
     IOptions<HomeOptions> options,
     ILogger<HotThisWeekService> logger) : IHotThisWeekService
@@ -41,7 +44,8 @@ public sealed class HotThisWeekService(
 
         if (snapshot is { Items.Count: > 0 })
         {
-            items = FilterAndTake(snapshot.Items, type, maxItems);
+            var filtered = FilterAndTake(snapshot.Items, type, maxItems);
+            items = await ApplySnapshotLocalizationAsync(filtered, contentLocale, cancellationToken);
             snapshotRefreshedAt = snapshot.RefreshedAt;
             HotThisWeekTrendingSnapshotLogMessages.LogReadSource(
                 logger,
@@ -85,6 +89,29 @@ public sealed class HotThisWeekService(
         };
 
         return filtered.Take(maxItems).ToList();
+    }
+
+    private async Task<IReadOnlyList<SearchItem>> ApplySnapshotLocalizationAsync(
+        IReadOnlyList<SearchItem> items,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || items.Count == 0)
+        {
+            return items;
+        }
+
+        var page = new PaginatedResult<SearchItem>(
+            items,
+            1,
+            items.Count,
+            items.Count,
+            1);
+        var localized = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+            page,
+            contentLocale,
+            cancellationToken);
+        return localized.Items;
     }
 }
 

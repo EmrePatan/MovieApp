@@ -55,6 +55,7 @@ public sealed class HomeService(
     public async Task<HomeResult> GetHomeAsync(
         HomeCriteria criteria,
         string contentLocale,
+        string? releaseRegion = null,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -100,7 +101,7 @@ public sealed class HomeService(
             cancellationToken);
 
         var comingUpTask = RunScopedTimedAsync(
-            (services, ct) => BuildComingUpSectionAsync(services, ct),
+            (services, ct) => BuildComingUpSectionAsync(services, releaseRegion, contentLocale, ct),
             cancellationToken);
 
         var trendingTask = RunScopedTimedAsync(
@@ -201,6 +202,7 @@ public sealed class HomeService(
     public async Task<HomeBrowseResult> GetHomeBrowseAsync(
         HomeCriteria criteria,
         string contentLocale,
+        string? releaseRegion = null,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -277,6 +279,7 @@ public sealed class HomeService(
     public async Task<HomePersonalizedResult> GetHomePersonalizedAsync(
         HomeCriteria criteria,
         string contentLocale,
+        string? releaseRegion = null,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -296,7 +299,7 @@ public sealed class HomeService(
             cancellationToken);
 
         var comingUpTask = RunScopedTimedAsync(
-            (services, ct) => BuildComingUpSectionAsync(services, ct),
+            (services, ct) => BuildComingUpSectionAsync(services, releaseRegion, contentLocale, ct),
             cancellationToken);
 
         var hotThisWeekDedupTask = RunScopedTimedAsync(
@@ -352,11 +355,13 @@ public sealed class HomeService(
 
     private async Task<HomeSection> BuildComingUpSectionAsync(
         IServiceProvider services,
+        string? releaseRegion,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var items = await services
             .GetRequiredService<IGetHomeComingUpService>()
-            .GetItemsAsync(_options.ComingUpSectionSize, cancellationToken);
+            .GetItemsAsync(_options.ComingUpSectionSize, releaseRegion, contentLocale, cancellationToken);
 
         var homeItems = items
             .Select(HomeMapper.FromUpcomingItem)

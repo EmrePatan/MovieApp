@@ -9,6 +9,8 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Discovery;
+using MovieApp.Application.Services.Localization;
+using MovieApp.UnitTests.Search;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.UnitTests.Discovery;
@@ -30,11 +32,11 @@ public sealed class OnTvThisWeekServiceTests
             1);
 
         await cache.SetAsync(
-            OnTvThisWeekCacheKeys.Create(criteria),
+            OnTvThisWeekCacheKeys.Create(criteria, ContentLocaleResolver.EnglishUnitedStates),
             new DiscoveryCacheEntry { Result = cachedResult },
             TimeSpan.FromMinutes(30));
 
-        var result = await service.GetOnTvThisWeekAsync(criteria);
+        var result = await service.GetOnTvThisWeekAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(0, catalog.CallCount);
@@ -45,7 +47,7 @@ public sealed class OnTvThisWeekServiceTests
     {
         var service = CreateService(new RecordingOnTvThisWeekCatalog(), new OnTvThisWeekFakeCache());
 
-        var result = await service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20));
+        var result = await service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotEmpty(result.Items);
         Assert.All(result.Items, item => Assert.Equal("tv", item.Type));
@@ -58,7 +60,7 @@ public sealed class OnTvThisWeekServiceTests
         var service = CreateService(catalog, new OnTvThisWeekFakeCache());
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(
-            () => service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20)));
+            () => service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20), ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -67,7 +69,7 @@ public sealed class OnTvThisWeekServiceTests
         var catalog = new RecordingOnTvThisWeekCatalog();
         var service = CreateService(catalog, new OnTvThisWeekFakeCache());
 
-        await service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20));
+        await service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, catalog.CallCount);
     }
@@ -79,6 +81,7 @@ public sealed class OnTvThisWeekServiceTests
             catalog,
             new FakeTvShowRepository(),
             cache,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             NullLogger<OnTvThisWeekService>.Instance);
 
     private static SearchItem CreateTvItem(Guid id, string title) =>

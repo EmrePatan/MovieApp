@@ -26,6 +26,7 @@ internal static class HomeSectionBuilders
         IDiscoveryService discoveryService,
         IReadOnlyList<string> genreNames,
         HomeCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken)
     {
         var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
@@ -38,7 +39,7 @@ internal static class HomeSectionBuilders
             var discovery = await discoveryService.GetByGenreAsync(
                 genreName,
                 discoveryCriteria,
-                ContentLocaleResolver.EnglishUnitedStates,
+                contentLocale,
                 cancellationToken);
             var items = DeduplicateItems(discovery.Items.Select(HomeMapper.FromSearchItem), criteria.SectionSize);
             var filteredItems = FilterByType(items, criteria.Type);
@@ -48,7 +49,11 @@ internal static class HomeSectionBuilders
                 continue;
             }
 
-            sections.Add(new HomeSection(HomeSectionType.Genre, genreName, filteredItems, 0));
+            sections.Add(new HomeSection(
+                HomeSectionType.Genre,
+                GenreLocalization.Localize(genreName, contentLocale),
+                filteredItems,
+                0));
         }
 
         return sections;

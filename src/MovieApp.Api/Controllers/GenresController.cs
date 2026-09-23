@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Contracts.Genres;
 
@@ -13,7 +14,7 @@ public sealed class GenresController(IGenreService genreService) : ControllerBas
     public async Task<ActionResult<IReadOnlyList<GenreResponse>>> GetGenres(
         CancellationToken cancellationToken)
     {
-        var genres = await genreService.GetAllAsync(cancellationToken);
+        var genres = await genreService.GetAllAsync(Request.ResolveContentLocale(), cancellationToken);
         var response = genres
             .Select(genre => new GenreResponse(genre.Id, genre.Name))
             .ToList();

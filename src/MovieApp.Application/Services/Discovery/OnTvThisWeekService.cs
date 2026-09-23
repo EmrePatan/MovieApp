@@ -9,6 +9,7 @@ using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 
@@ -18,12 +19,14 @@ public sealed class OnTvThisWeekService(
     IOnTvThisWeekCatalog onTvThisWeekCatalog,
     ITvShowRepository tvShowRepository,
     ICacheService cacheService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ILogger<OnTvThisWeekService> logger) : IOnTvThisWeekService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
 
     public async Task<PaginatedResult<SearchItem>> GetOnTvThisWeekAsync(
         OnTvThisWeekCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = OnTvThisWeekValidator.Validate(criteria);
@@ -32,7 +35,7 @@ public sealed class OnTvThisWeekService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = OnTvThisWeekCacheKeys.Create(criteria);
+        var cacheKey = OnTvThisWeekCacheKeys.Create(criteria, contentLocale);
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -55,11 +58,15 @@ public sealed class OnTvThisWeekService(
         var tvIds = await tvShowRepository.EnsureFromSummariesAsync(searchResult.Results, cancellationToken);
         var items = MapTvResults(searchResult.Results, tvIds);
 
-        var result = DiscoverBrowseMerger.CreateSingleTypeResult(
+        var canonical = DiscoverBrowseMerger.CreateSingleTypeResult(
             items,
             criteria.Page,
             criteria.PageSize,
             searchResult.TotalCount);
+        var result = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+            canonical,
+            contentLocale,
+            cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,

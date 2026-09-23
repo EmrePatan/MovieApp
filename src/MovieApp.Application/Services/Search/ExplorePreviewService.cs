@@ -16,11 +16,12 @@ public sealed class ExplorePreviewService(
 
     public async Task<ExplorePreviewResult> GetPreviewAsync(
         ExplorePreviewCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         ValidateCriteria(criteria);
 
-        var cacheKey = ExplorePreviewCacheKeys.Create(criteria.SectionSize);
+        var cacheKey = ExplorePreviewCacheKeys.Create(criteria.SectionSize, contentLocale);
         var cached = await cacheService.GetAsync<ExplorePreviewCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -31,15 +32,15 @@ public sealed class ExplorePreviewService(
 
         var trendingTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetTrendingAsync(discoveryCriteria, ContentLocaleResolver.EnglishUnitedStates, ct),
+                .GetTrendingAsync(discoveryCriteria, contentLocale, ct),
             cancellationToken);
         var topRatedTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetTopRatedAsync(discoveryCriteria, ContentLocaleResolver.EnglishUnitedStates, ct),
+                .GetTopRatedAsync(discoveryCriteria, contentLocale, ct),
             cancellationToken);
         var newReleasesTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetNewReleasesAsync(discoveryCriteria, ContentLocaleResolver.EnglishUnitedStates, ct),
+                .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
             cancellationToken);
 
         await Task.WhenAll(trendingTask, topRatedTask, newReleasesTask);

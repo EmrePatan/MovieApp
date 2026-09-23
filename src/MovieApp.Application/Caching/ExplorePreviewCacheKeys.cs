@@ -6,6 +6,6 @@ public static class ExplorePreviewCacheKeys
 
     public const string Version = "v1";
 
-    public static string Create(int sectionSize) =>
-        $"{Prefix}{sectionSize}:{Version}";
+    public static string Create(int sectionSize, string contentLocale) =>
+        ContentLocaleCacheKeySegment.Append($"{Prefix}{sectionSize}:{Version}", contentLocale);
 }

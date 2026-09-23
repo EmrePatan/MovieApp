@@ -39,6 +39,31 @@ public sealed class ListLocalizationStage2Tests
     }
 
     [Fact]
+    public void CacheKeys_IsolateSpanishLocale_ForSearchAndHome()
+    {
+        var criteria = new SearchCriteria(
+            "inception",
+            SearchContentType.Movie,
+            null,
+            null,
+            null,
+            null,
+            SearchSortOption.Relevance,
+            1,
+            20);
+        var userId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+        var searchKey = UnifiedSearchCacheKeys.Create(criteria, ContentLocaleResolver.SpanishSpain);
+        var homeKey = HomeCacheKeys.Create(userId, SearchContentType.All, 10, ContentLocaleResolver.SpanishSpain);
+
+        Assert.EndsWith(":loc:es-es", searchKey);
+        Assert.EndsWith(":loc:es-es", homeKey);
+        Assert.NotEqual(
+            UnifiedSearchCacheKeys.Create(criteria, ContentLocaleResolver.TurkishTurkey),
+            searchKey);
+    }
+
+    [Fact]
     public void CacheKeys_IsolateTurkishLocale_ForSearchAndHome()
     {
         var criteria = new SearchCriteria(

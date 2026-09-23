@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Models.Home;
@@ -474,6 +475,12 @@ internal static class SearchTestDoubles
 
         public Task<IReadOnlyList<RecommendationSection>> ApplyToRecommendationSectionsAsync(
             IReadOnlyList<RecommendationSection> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<CatalogUpcomingItemResult>> ApplyToUpcomingItemsAsync(
+            IReadOnlyList<CatalogUpcomingItemResult> canonical,
             string contentLocale,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(canonical);

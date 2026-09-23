@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.CatalogFollows;
@@ -68,6 +69,7 @@ public sealed class CatalogUpcomingController(IGetCatalogUpcomingService getCata
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         [FromQuery] string? scope,
+        [FromQuery] string? releaseRegion,
         CancellationToken cancellationToken)
     {
         if (!TryParseScope(scope, out var parsedScope))
@@ -84,6 +86,8 @@ public sealed class CatalogUpcomingController(IGetCatalogUpcomingService getCata
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
                 parsedScope,
+                releaseRegion,
+                Request.ResolveContentLocale(),
                 cancellationToken);
 
             return Ok(CatalogFollowContractMapper.ToUpcomingResponse(result));

@@ -6,5 +6,6 @@ public interface IExplorePreviewService
 {
     Task<ExplorePreviewResult> GetPreviewAsync(
         ExplorePreviewCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

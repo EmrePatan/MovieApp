@@ -8,5 +8,6 @@ public interface IWorldCinemaService
 {
     Task<PaginatedResult<SearchItem>> GetWorldCinemaAsync(
         WorldCinemaCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

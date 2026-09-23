@@ -20,6 +20,7 @@ public sealed class WorldCinemaService(
 
     public async Task<PaginatedResult<SearchItem>> GetWorldCinemaAsync(
         WorldCinemaCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = WorldCinemaValidator.Validate(criteria);
@@ -28,7 +29,7 @@ public sealed class WorldCinemaService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = WorldCinemaCacheKeys.Create(criteria);
+        var cacheKey = WorldCinemaCacheKeys.Create(criteria, contentLocale);
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -40,7 +41,7 @@ public sealed class WorldCinemaService(
         {
             result = await advancedDiscoverService.DiscoverAsync(
                 ToAdvancedDiscoverCriteria(criteria),
-                ContentLocaleResolver.EnglishUnitedStates,
+                contentLocale,
                 cancellationToken);
         }
         catch (SearchProviderUnavailableException)

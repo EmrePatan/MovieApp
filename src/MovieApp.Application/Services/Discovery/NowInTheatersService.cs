@@ -11,6 +11,7 @@ using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 
@@ -20,6 +21,7 @@ public sealed class NowInTheatersService(
     INowInTheatersMovieCatalog nowInTheatersMovieCatalog,
     IMovieRepository movieRepository,
     ICacheService cacheService,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
     ILogger<NowInTheatersService> logger) : INowInTheatersService
 {
@@ -27,6 +29,7 @@ public sealed class NowInTheatersService(
 
     public async Task<PaginatedResult<SearchItem>> GetNowInTheatersAsync(
         NowInTheatersCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var normalizedCriteria = NormalizeCriteria(criteria);
@@ -36,7 +39,7 @@ public sealed class NowInTheatersService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = NowInTheatersCacheKeys.Create(normalizedCriteria);
+        var cacheKey = NowInTheatersCacheKeys.Create(normalizedCriteria, contentLocale);
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -64,11 +67,15 @@ public sealed class NowInTheatersService(
         var movieIds = await movieRepository.EnsureFromSummariesAsync(searchResult.Results, cancellationToken);
         var items = MapMovieResults(searchResult.Results, movieIds);
 
-        var result = DiscoverBrowseMerger.CreateSingleTypeResult(
+        var canonical = DiscoverBrowseMerger.CreateSingleTypeResult(
             items,
             normalizedCriteria.Page,
             normalizedCriteria.PageSize,
             searchResult.TotalCount);
+        var result = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+            canonical,
+            contentLocale,
+            cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,

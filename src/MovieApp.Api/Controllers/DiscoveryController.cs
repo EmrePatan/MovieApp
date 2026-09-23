@@ -49,7 +49,10 @@ public sealed class DiscoveryController(
                 contentType,
                 PickSomethingValidator.ParseSessionExcludedIds(excludeIds));
 
-            var item = await pickSomethingService.PickAsync(criteria, cancellationToken);
+            var item = await pickSomethingService.PickAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
 
             return Ok(new PickSomethingResponse(
                 item is null ? null : RecommendationContractMapper.ToRecommendationItemResponse(item)));
@@ -74,7 +77,10 @@ public sealed class DiscoveryController(
         {
             var criteria = new ExplorePreviewCriteria(
                 sectionSize ?? SearchPaginationDefaults.DefaultPageSize);
-            var result = await explorePreviewService.GetPreviewAsync(criteria, cancellationToken);
+            var result = await explorePreviewService.GetPreviewAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
 
             return Ok(new ExplorePreviewResponse(
                 SearchContractMapper.ToSearchResponse(result.Trending),
@@ -199,7 +205,10 @@ public sealed class DiscoveryController(
         try
         {
             var criteria = BuildNowInTheatersCriteria(releaseRegion, page, pageSize);
-            var result = await nowInTheatersService.GetNowInTheatersAsync(criteria, cancellationToken);
+            var result = await nowInTheatersService.GetNowInTheatersAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -235,7 +244,10 @@ public sealed class DiscoveryController(
         try
         {
             var criteria = BuildWorldCinemaCriteria(mediaType, originCountry, sort, page, pageSize);
-            var result = await worldCinemaService.GetWorldCinemaAsync(criteria, cancellationToken);
+            var result = await worldCinemaService.GetWorldCinemaAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -268,7 +280,10 @@ public sealed class DiscoveryController(
         try
         {
             var criteria = BuildOnTvThisWeekCriteria(page, pageSize);
-            var result = await onTvThisWeekService.GetOnTvThisWeekAsync(criteria, cancellationToken);
+            var result = await onTvThisWeekService.GetOnTvThisWeekAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)

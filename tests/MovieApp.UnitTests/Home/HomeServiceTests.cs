@@ -266,6 +266,7 @@ public sealed class HomeServiceTests
             service.GetHomeAsync(
                 new HomeCriteria(SearchContentType.All, 5),
                 ContentLocaleResolver.EnglishUnitedStates,
+                releaseRegion: null,
                 cts.Token));
     }
 
@@ -1162,6 +1163,8 @@ public sealed class HomeServiceTests
     {
         public Task<IReadOnlyList<Application.Models.CatalogFollows.CatalogUpcomingItemResult>> GetItemsAsync(
             int limit,
+            string? releaseRegion,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Application.Models.CatalogFollows.CatalogUpcomingItemResult>>(
                 (items ?? []).Take(limit).ToList());

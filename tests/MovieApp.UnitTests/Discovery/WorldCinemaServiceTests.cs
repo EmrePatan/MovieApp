@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Discovery;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 
 namespace MovieApp.UnitTests.Discovery;
@@ -26,11 +27,11 @@ public sealed class WorldCinemaServiceTests
             1);
 
         await cache.SetAsync(
-            WorldCinemaCacheKeys.Create(criteria),
+            WorldCinemaCacheKeys.Create(criteria, ContentLocaleResolver.EnglishUnitedStates),
             new DiscoveryCacheEntry { Result = cachedResult },
             TimeSpan.FromMinutes(30));
 
-        var result = await service.GetWorldCinemaAsync(criteria);
+        var result = await service.GetWorldCinemaAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(0, advancedDiscover.CallCount);
@@ -43,7 +44,8 @@ public sealed class WorldCinemaServiceTests
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
 
         await service.GetWorldCinemaAsync(
-            new WorldCinemaCriteria(SearchContentType.Movie, "kr", AdvancedDiscoverSort.PopularityDesc, 1, 20));
+            new WorldCinemaCriteria(SearchContentType.Movie, "kr", AdvancedDiscoverSort.PopularityDesc, 1, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         var mapped = advancedDiscover.LastCriteria;
         Assert.NotNull(mapped);
@@ -59,7 +61,8 @@ public sealed class WorldCinemaServiceTests
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
 
         await service.GetWorldCinemaAsync(
-            new WorldCinemaCriteria(SearchContentType.Movie, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20));
+            new WorldCinemaCriteria(SearchContentType.Movie, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(200, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Movie, advancedDiscover.LastCriteria?.MediaType);
@@ -72,7 +75,8 @@ public sealed class WorldCinemaServiceTests
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
 
         await service.GetWorldCinemaAsync(
-            new WorldCinemaCriteria(SearchContentType.Tv, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20));
+            new WorldCinemaCriteria(SearchContentType.Tv, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(100, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Tv, advancedDiscover.LastCriteria?.MediaType);
@@ -89,7 +93,8 @@ public sealed class WorldCinemaServiceTests
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
 
         await service.GetWorldCinemaAsync(
-            new WorldCinemaCriteria(SearchContentType.Movie, "KR", sort, 1, 20));
+            new WorldCinemaCriteria(SearchContentType.Movie, "KR", sort, 1, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Null(advancedDiscover.LastCriteria?.MinVoteCount);
     }
@@ -101,7 +106,8 @@ public sealed class WorldCinemaServiceTests
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
 
         await service.GetWorldCinemaAsync(
-            new WorldCinemaCriteria(SearchContentType.Movie, "JP", AdvancedDiscoverSort.PopularityDesc, 3, 20));
+            new WorldCinemaCriteria(SearchContentType.Movie, "JP", AdvancedDiscoverSort.PopularityDesc, 3, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(3, advancedDiscover.LastCriteria?.Page);
         Assert.Equal(20, advancedDiscover.LastCriteria?.PageSize);
@@ -115,7 +121,8 @@ public sealed class WorldCinemaServiceTests
 
         await Assert.ThrowsAsync<SearchProviderUnavailableException>(
             () => service.GetWorldCinemaAsync(
-                new WorldCinemaCriteria(SearchContentType.Movie, "JP", AdvancedDiscoverSort.PopularityDesc, 1, 20)));
+                new WorldCinemaCriteria(SearchContentType.Movie, "JP", AdvancedDiscoverSort.PopularityDesc, 1, 20),
+                ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]

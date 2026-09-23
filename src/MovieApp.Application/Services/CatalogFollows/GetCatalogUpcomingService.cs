@@ -7,6 +7,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.CatalogFollows;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.CatalogFollows;
@@ -14,6 +15,7 @@ namespace MovieApp.Application.Services.CatalogFollows;
 public sealed class GetCatalogUpcomingService(
     ICurrentUser currentUser,
     ICatalogFollowCatalogRepository catalogFollowCatalogRepository,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
     ILogger<GetCatalogUpcomingService> logger) : IGetCatalogUpcomingService
 {
@@ -21,6 +23,8 @@ public sealed class GetCatalogUpcomingService(
         int page,
         int pageSize,
         CatalogUpcomingScope scope = CatalogUpcomingScope.Catalog,
+        string? releaseRegion = null,
+        string contentLocale = ContentLocaleResolver.EnglishUnitedStates,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -31,7 +35,7 @@ public sealed class GetCatalogUpcomingService(
         }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
+        var region = ResolveRegion(releaseRegion);
 
         var repositoryStopwatch = Stopwatch.StartNew();
         (IReadOnlyList<CatalogUpcomingItemResult> items, int totalCount) result = scope switch
@@ -42,6 +46,10 @@ public sealed class GetCatalogUpcomingService(
         repositoryStopwatch.Stop();
 
         var (items, totalCount) = result;
+        var localizedItems = await summaryLocalizationOverlayService.ApplyToUpcomingItemsAsync(
+            items,
+            contentLocale,
+            cancellationToken);
 
         var totalPages = totalCount == 0
             ? 0
@@ -56,10 +64,10 @@ public sealed class GetCatalogUpcomingService(
             page,
             pageSize,
             totalCount,
-            items.Count,
+            localizedItems.Count,
             currentUser.IsAuthenticated);
 
-        return new CatalogUpcomingListResult(items, page, pageSize, totalCount, totalPages);
+        return new CatalogUpcomingListResult(localizedItems, page, pageSize, totalCount, totalPages);
     }
 
     private async Task<(IReadOnlyList<CatalogUpcomingItemResult> Items, int TotalCount)> GetCatalogAsync(
@@ -104,5 +112,15 @@ public sealed class GetCatalogUpcomingService(
             today,
             region,
             cancellationToken);
+    }
+
+    private string ResolveRegion(string? releaseRegion)
+    {
+        if (!string.IsNullOrWhiteSpace(releaseRegion))
+        {
+            return WatchProviderRegionValidator.Normalize(releaseRegion);
+        }
+
+        return WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
     }
 }

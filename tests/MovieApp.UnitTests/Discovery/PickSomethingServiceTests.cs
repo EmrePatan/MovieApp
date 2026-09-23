@@ -8,7 +8,9 @@ using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
 using MovieApp.Application.Services.Discovery;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
+using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Discovery;
 
@@ -35,7 +37,7 @@ public sealed class PickSomethingServiceTests
         };
         var service = CreateService(new StubRecommendationRepository(), discovery, new GuestCurrentUser());
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.All));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(1, discovery.TrendingCallCount);
@@ -53,7 +55,7 @@ public sealed class PickSomethingServiceTests
         };
         var service = CreateService(new StubRecommendationRepository(), discovery, new GuestCurrentUser());
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(TrendingMovieId, pick.Id);
@@ -69,7 +71,7 @@ public sealed class PickSomethingServiceTests
             new RecordingDiscoveryService(),
             new GuestCurrentUser());
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.All));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Null(pick);
     }
@@ -91,7 +93,7 @@ public sealed class PickSomethingServiceTests
         };
         var service = CreateService(new StubRecommendationRepository(), discovery, new GuestCurrentUser());
 
-        var pick = await service.PickAsync(CreateCriteria(mediaType));
+        var pick = await service.PickAsync(CreateCriteria(mediaType), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(expectedType, pick.Type);
@@ -112,7 +114,7 @@ public sealed class PickSomethingServiceTests
 
         var pick = await service.PickAsync(CreateCriteria(
             RecommendationContentType.All,
-            [TrendingMovieId]));
+            [TrendingMovieId]), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(TrendingTvId, pick.Id);
@@ -129,7 +131,7 @@ public sealed class PickSomethingServiceTests
         var discovery = new RecordingDiscoveryService();
         var service = CreateService(repository, discovery, new AuthenticatedCurrentUser(UserId));
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(CandidateMovieId, pick.Id);
@@ -157,7 +159,7 @@ public sealed class PickSomethingServiceTests
         };
         var service = CreateService(repository, new RecordingDiscoveryService(), new AuthenticatedCurrentUser(UserId));
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.DoesNotContain("Comedy", pick.Reason ?? string.Empty);
@@ -173,7 +175,7 @@ public sealed class PickSomethingServiceTests
         };
         var service = CreateService(repository, new RecordingDiscoveryService(), new AuthenticatedCurrentUser(UserId));
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(WatchlistMovieId, pick.Id);
@@ -195,7 +197,7 @@ public sealed class PickSomethingServiceTests
         };
         var service = CreateService(repository, new RecordingDiscoveryService(), new AuthenticatedCurrentUser(UserId));
 
-        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie));
+        var pick = await service.PickAsync(CreateCriteria(RecommendationContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(pick);
         Assert.Equal(CandidateMovieId, pick.Id);
@@ -215,7 +217,7 @@ public sealed class PickSomethingServiceTests
 
         await service.PickAsync(CreateCriteria(
             RecommendationContentType.Movie,
-            [sessionExcludedId]));
+            [sessionExcludedId]), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Contains(sessionExcludedId, repository.LastExcludedMovieIds);
     }
@@ -234,7 +236,7 @@ public sealed class PickSomethingServiceTests
 
         var pick = await service.PickAsync(CreateCriteria(
             RecommendationContentType.Movie,
-            [TrendingMovieId]));
+            [TrendingMovieId]), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Null(pick);
     }
@@ -246,6 +248,7 @@ public sealed class PickSomethingServiceTests
         new(
             repository,
             discoveryService,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             currentUser,
             Options.Create(new RecommendationOptions
             {

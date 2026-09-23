@@ -8,6 +8,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
@@ -688,6 +689,12 @@ internal sealed class LoadTestSummaryLocalizationOverlayService : ISummaryLocali
 
     public Task<IReadOnlyList<RecommendationSection>> ApplyToRecommendationSectionsAsync(
         IReadOnlyList<RecommendationSection> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
+
+    public Task<IReadOnlyList<CatalogUpcomingItemResult>> ApplyToUpcomingItemsAsync(
+        IReadOnlyList<CatalogUpcomingItemResult> canonical,
         string contentLocale,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(canonical);

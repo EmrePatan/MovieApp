@@ -141,6 +141,7 @@ public sealed class HomeGlobalSectionsProvider(
             discoveryService,
             _options.GenreSections,
             criteria,
+            ContentLocaleResolver.EnglishUnitedStates,
             cancellationToken);
 
         return new HomeGlobalSections(trending, popular, newReleases, topRated, genreSections);

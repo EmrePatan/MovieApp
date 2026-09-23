@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
+using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Localization;
 using MovieApp.Application.Models.Movies;
@@ -352,5 +353,62 @@ public sealed class SummaryLocalizationOverlayService(
         }
 
         return combined;
+    }
+
+    public async Task<IReadOnlyList<CatalogUpcomingItemResult>> ApplyToUpcomingItemsAsync(
+        IReadOnlyList<CatalogUpcomingItemResult> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || canonical.Count == 0)
+        {
+            return canonical;
+        }
+
+        var movieIds = canonical
+            .Where(item => item.ContentType == Domain.Enums.CatalogContentType.Movie)
+            .Select(item => item.ContentId)
+            .ToList();
+        var tvIds = canonical
+            .Where(item => item.ContentType == Domain.Enums.CatalogContentType.Tv)
+            .Select(item => item.ContentId)
+            .ToList();
+
+        var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
+        var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
+
+        var localizedItems = new List<CatalogUpcomingItemResult>(canonical.Count);
+        foreach (var item in canonical)
+        {
+            if (item.ContentType == Domain.Enums.CatalogContentType.Movie &&
+                movieTmdbIds.TryGetValue(item.ContentId, out var movieTmdbId))
+            {
+                var localizedTitle = await ResolveLocalizedTitleAsync(
+                    "movie",
+                    movieTmdbId,
+                    item.Title,
+                    contentLocale,
+                    cancellationToken);
+                localizedItems.Add(item with { Title = localizedTitle });
+                continue;
+            }
+
+            if (item.ContentType == Domain.Enums.CatalogContentType.Tv &&
+                tvTmdbIds.TryGetValue(item.ContentId, out var tvTmdbId))
+            {
+                var localizedTitle = await ResolveLocalizedTitleAsync(
+                    "tv",
+                    tvTmdbId,
+                    item.Title,
+                    contentLocale,
+                    cancellationToken);
+                localizedItems.Add(item with { Title = localizedTitle });
+                continue;
+            }
+
+            localizedItems.Add(item);
+        }
+
+        return localizedItems;
     }
 }
