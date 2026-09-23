@@ -74,3 +74,13 @@ Desktop.ini
 
 ## Serilog
 logs/
+
+## Local publish / CI artifacts
+.publish-test/
+.publish-*/
+check-runs.json
+ci-job-logs.zip
+.ci-job-log.zip
+local-integration-test-output.txt
+.docker-unit-test.log
+.old-composer-tests.cs
