@@ -1,5 +1,6 @@
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Models.Notifications;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.UnitTests.Notifications;
@@ -20,9 +21,12 @@ public sealed class NotificationContractMapperTests
             3,
             1);
 
-        var response = NotificationContractMapper.ToNotificationsResponse(result);
+        var response = NotificationContractMapper.ToNotificationsResponse(
+            result,
+            ContentLocaleResolver.SpanishSpain);
 
         Assert.Equal(3, response.Items.Count);
+        Assert.Equal("Ya disponible", response.Items[0].Body);
         Assert.Equal("MovieReleased", response.Items[0].Type);
         Assert.Equal("NewSeason", response.Items[1].Type);
         Assert.Equal("NewEpisodes", response.Items[2].Type);
@@ -36,7 +40,7 @@ public sealed class NotificationContractMapperTests
             Guid.NewGuid(),
             type,
             "Title",
-            "Body",
+            "Now available",
             DateTime.UtcNow,
             null,
             contentType,

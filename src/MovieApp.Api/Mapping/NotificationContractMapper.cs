@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Notifications;
+using MovieApp.Application.Services.Notifications;
 using MovieApp.Contracts.Notifications;
 using MovieApp.Domain.Enums;
 
@@ -6,9 +7,11 @@ namespace MovieApp.Api.Mapping;
 
 public static class NotificationContractMapper
 {
-    public static NotificationsResponse ToNotificationsResponse(NotificationsListResult result) =>
+    public static NotificationsResponse ToNotificationsResponse(
+        NotificationsListResult result,
+        string contentLocale) =>
         new(
-            result.Items.Select(ToNotificationItemResponse).ToList(),
+            result.Items.Select(item => ToNotificationItemResponse(item, contentLocale)).ToList(),
             result.Page,
             result.PageSize,
             result.TotalCount,
@@ -24,12 +27,17 @@ public static class NotificationContractMapper
         MarkAllNotificationsReadResult result) =>
         new(result.AffectedCount);
 
-    private static NotificationItemResponse ToNotificationItemResponse(NotificationInboxItemResult item) =>
+    private static NotificationItemResponse ToNotificationItemResponse(
+        NotificationInboxItemResult item,
+        string contentLocale) =>
         new(
             item.Id,
             ToNotificationTypeString(item.NotificationType),
             item.Title,
-            item.Body,
+            ReleaseNotificationBodyLocalization.LocalizeBody(
+                item.NotificationType,
+                item.Body,
+                contentLocale),
             item.CreatedAtUtc,
             item.ReadAtUtc,
             item.ContentType,

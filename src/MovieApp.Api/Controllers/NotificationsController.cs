@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -34,7 +35,9 @@ public sealed class NotificationsController(
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
                 cancellationToken);
 
-            return Ok(NotificationContractMapper.ToNotificationsResponse(result));
+            return Ok(NotificationContractMapper.ToNotificationsResponse(
+                result,
+                Request.ResolveContentLocale()));
         }
         catch (ValidationException exception)
         {
