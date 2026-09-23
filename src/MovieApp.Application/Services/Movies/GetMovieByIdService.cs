@@ -1,6 +1,8 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
@@ -18,6 +20,8 @@ public sealed class GetMovieByIdService(
     IMovieRegionalReleaseRepository movieRegionalReleaseRepository,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
     ICatalogKeywordIngestionService catalogKeywordIngestionService,
+    IMovieDataProvider movieDataProvider,
+    ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
@@ -60,6 +64,8 @@ public sealed class GetMovieByIdService(
         Movie movie,
         CancellationToken cancellationToken)
     {
+        movie = await TryEnrichMissingCollectionAsync(movie, cancellationToken);
+
         await catalogKeywordIngestionService.TryEnrichMovieKeywordsAsync(
             movie.Id,
             refreshKeywords: false,
@@ -83,5 +89,30 @@ public sealed class GetMovieByIdService(
             CanFollowForRelease = canFollowForRelease,
             CanSetReleaseAlert = canSetReleaseAlert
         };
+    }
+
+    private async Task<Movie> TryEnrichMissingCollectionAsync(
+        Movie movie,
+        CancellationToken cancellationToken)
+    {
+        if (movie.TmdbCollectionId.HasValue || movie.TmdbId is not int tmdbId || tmdbId <= 0)
+        {
+            return movie;
+        }
+
+        var providerDetails = await movieDataProvider.GetMovieAsync(
+            tmdbId.ToString(CultureInfo.InvariantCulture),
+            includeKeywords: false,
+            cancellationToken);
+
+        if (providerDetails?.TmdbCollectionId is null)
+        {
+            return movie;
+        }
+
+        return await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
+            providerDetails,
+            enrichKeywords: false,
+            cancellationToken);
     }
 }

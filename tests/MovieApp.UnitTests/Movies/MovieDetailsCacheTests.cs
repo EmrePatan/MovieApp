@@ -44,6 +44,8 @@ public sealed class MovieDetailsCacheTests
             new NoOpMovieRegionalReleaseRepository(),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
             new NoOpCatalogKeywordIngestionService(),
+            new NullMovieDataProvider(),
+            new NoOpCatalogProviderUpsertService(),
             cache);
 
     private static Movie CreateMovie() =>

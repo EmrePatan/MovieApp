@@ -83,6 +83,8 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
             new FakeMovieRegionalReleaseRepository(regionalRelease),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
             new NoOpCatalogKeywordIngestionService(),
+            new NullMovieDataProvider(),
+            new NoOpCatalogProviderUpsertService(),
             new NoOpCacheService());
 
     private static Movie CreateMovie(DateOnly? releaseDate) =>

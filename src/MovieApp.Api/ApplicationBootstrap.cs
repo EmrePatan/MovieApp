@@ -72,22 +72,7 @@ public static class ApplicationBootstrap
             };
 
             options.GetLevel = static (httpContext, _, exception) =>
-            {
-                if (exception is not null
-                    && RequestAbortExceptionHandling.IsRequestAbortedCancellation(httpContext, exception))
-                {
-                    return LogEventLevel.Debug;
-                }
-
-                if (exception is not null)
-                {
-                    return LogEventLevel.Error;
-                }
-
-                return httpContext.Response.StatusCode > 499
-                    ? LogEventLevel.Error
-                    : LogEventLevel.Information;
-            };
+                RequestLoggingLevelPolicy.GetLevel(httpContext, exception);
         });
         app.UseProductionTransportSecurity();
         app.UseConfiguredCors();
