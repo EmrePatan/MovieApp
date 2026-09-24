@@ -126,7 +126,17 @@ function Read-LoadTestIdentityCount {
     return $count
 }
 
-function Export-LoadTestIdentitiesPayload {
+function Get-LoadTestGrafanaCloudManifestFileName {
+    return 'grafana-cloud-identities.manifest.json'
+}
+
+function Get-LoadTestGrafanaCloudManifestPath {
+    param([string]$LoadRoot)
+
+    return Join-Path $LoadRoot ('data\' + (Get-LoadTestGrafanaCloudManifestFileName))
+}
+
+function Read-LoadTestMinimalIdentitiesFromTokensFile {
     param([string]$TokensFilePath)
 
     if (-not (Test-Path $TokensFilePath)) {
@@ -149,7 +159,114 @@ function Export-LoadTestIdentitiesPayload {
         throw 'No valid bearer tokens in tokens file.'
     }
 
+    return ,$minimal
+}
+
+function Export-LoadTestIdentitiesPayload {
+    param([string]$TokensFilePath)
+
+    $minimal = Read-LoadTestMinimalIdentitiesFromTokensFile -TokensFilePath $TokensFilePath
     return (@{ identities = $minimal } | ConvertTo-Json -Compress -Depth 5)
+}
+
+function Get-LoadTestGrafanaIdentityShardEnvName {
+    param([int]$ShardIndex)
+
+    return ('LOAD_TEST_IDENTITIES_JSON_{0}' -f $ShardIndex.ToString('000'))
+}
+
+function Split-LoadTestIdentitiesForGrafanaShards {
+    param(
+        [Parameter(Mandatory)]
+        [array]$Identities,
+        [int]$MaxShardChars = 4500
+    )
+
+    if ($Identities.Count -lt 1) {
+        throw 'At least one identity is required to build Grafana shards.'
+    }
+
+    $encoded = @()
+    foreach ($id in $Identities) {
+        $encoded += (@{ id = [string]$id.id; bearerToken = [string]$id.bearerToken } | ConvertTo-Json -Compress -Depth 3)
+    }
+
+    $prefix = '{"identities":['
+    $suffix = ']}'
+    $shards = [System.Collections.Generic.List[string]]::new()
+    $current = $null
+    $i = 0
+    $total = $encoded.Count
+
+    while ($i -lt $total) {
+        $enc = $encoded[$i]
+        if ($null -eq $current) {
+            $candidate = if ($i -eq 0) { $prefix + $enc } else { ',' + $enc }
+        } else {
+            $candidate = $current + ',' + $enc
+        }
+
+        $isLast = ($i -eq ($total - 1))
+        $withClose = if ($isLast) { $candidate + $suffix } else { $candidate }
+
+        if ($withClose.Length -le $MaxShardChars) {
+            if ($isLast) {
+                $shards.Add($withClose)
+                $current = $null
+            } else {
+                $current = $candidate
+            }
+            $i++
+            continue
+        }
+
+        if ($null -eq $current -or $current.Length -eq 0) {
+            throw "Identity at index $i exceeds Grafana shard limit ($MaxShardChars characters)."
+        }
+
+        $shards.Add($current)
+        $current = $null
+    }
+
+    $shardEnvNames = @()
+    for ($s = 1; $s -le $shards.Count; $s++) {
+        $shardEnvNames += Get-LoadTestGrafanaIdentityShardEnvName -ShardIndex $s
+    }
+
+    $assembled = -join $shards
+    $roundTrip = $assembled | ConvertFrom-Json
+    if ($roundTrip.identities.Count -ne $Identities.Count) {
+        throw 'Shard assembly round-trip identity count mismatch.'
+    }
+
+    return @{
+        Shards         = $shards
+        ShardEnvNames  = $shardEnvNames
+        AssembledJson  = $assembled
+        MaxShardChars  = $MaxShardChars
+    }
+}
+
+function Read-LoadTestGrafanaCloudManifest {
+    param([string]$ManifestPath)
+
+    if (-not $ManifestPath -or -not (Test-Path $ManifestPath)) {
+        return $null
+    }
+
+    $parsed = Get-Content $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -eq $parsed.schemaVersion) {
+        throw "Invalid Grafana Cloud identity manifest (missing schemaVersion): $ManifestPath"
+    }
+
+    return $parsed
+}
+
+function Test-LoadTestManifestContainsNoSecrets {
+    param([string]$ManifestPath)
+
+    $raw = Get-Content $ManifestPath -Raw -Encoding UTF8
+    return (-not ($raw -match 'bearerToken|eyJ[A-Za-z0-9_-]{10,}'))
 }
 
 function Invoke-K6Cli {
@@ -220,7 +337,12 @@ function Format-LoadTestCloudPreflight {
         [string]$Duration,
         [string]$LoadZone,
         [string]$SearchProfileHint,
-        [bool]$IsProduction
+        [bool]$IsProduction,
+        [int]$LocalTokenCount = 0,
+        [int]$CloudManifestIdentityCount = 0,
+        [int]$CloudManifestShardCount = 0,
+        [string]$CloudTransport = '',
+        [string]$ManifestNote = ''
     )
 
     $reuseText = if ([double]::IsPositiveInfinity($ReuseRatio)) {
@@ -230,9 +352,29 @@ function Format-LoadTestCloudPreflight {
     }
     $lines = @(
         "Execution mode:     $ExecutionMode",
-        "Stage target VUs:   $StageVus",
-        "Identity pool:      $IdentityCount",
-        "VU/identity reuse:  $reuseText",
+        "Stage target VUs:   $StageVus"
+    )
+
+    if ($ExecutionMode -eq 'Cloud' -and $CloudManifestIdentityCount -gt 0) {
+        $lines += "Cloud identity pool (manifest): $CloudManifestIdentityCount"
+        if ($CloudTransport -eq 'sharded' -and $CloudManifestShardCount -gt 0) {
+            $lines += "Cloud identity shards:          $CloudManifestShardCount"
+        } elseif ($CloudTransport -eq 'single') {
+            $lines += 'Cloud identity transport:     single LOAD_TEST_IDENTITIES_JSON'
+        }
+        if ($LocalTokenCount -gt 0) {
+            $lines += "Local tokens (preflight only):  $LocalTokenCount"
+        }
+        if ($ManifestNote) {
+            $lines += "Manifest note:                $ManifestNote"
+        }
+        $lines += "VU/identity reuse (manifest): $reuseText"
+    } else {
+        $lines += "Identity pool:      $IdentityCount"
+        $lines += "VU/identity reuse:  $reuseText"
+    }
+
+    $lines += @(
         "Preset duration:    $Duration",
         "VU-hour estimate:   $VuHours (approx.; not billing-accurate)",
         "Cloud load zone:    $LoadZone",
@@ -251,7 +393,14 @@ Export-ModuleMember -Function @(
     'Test-LoadTestIsProductionTarget',
     'Get-LoadTestK6Executable',
     'Read-LoadTestIdentityCount',
+    'Read-LoadTestMinimalIdentitiesFromTokensFile',
     'Export-LoadTestIdentitiesPayload',
+    'Get-LoadTestGrafanaCloudManifestFileName',
+    'Get-LoadTestGrafanaCloudManifestPath',
+    'Get-LoadTestGrafanaIdentityShardEnvName',
+    'Split-LoadTestIdentitiesForGrafanaShards',
+    'Read-LoadTestGrafanaCloudManifest',
+    'Test-LoadTestManifestContainsNoSecrets',
     'Assert-LoadTestCloudAuth',
     'Get-LoadTestK6PathEnvValues',
     'Build-LoadTestK6EnvArgs',

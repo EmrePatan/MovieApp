@@ -3,6 +3,8 @@ param(
 
     [string]$OutFile = '',
 
+    [int]$MaxShardChars = 4500,
+
     [switch]$WhatIf
 )
 
@@ -18,48 +20,114 @@ if (-not (Test-Path $TokensFile)) {
 }
 
 Import-Module (Join-Path $PSScriptRoot 'LoadTestHarness.psm1') -Force
-$payload = Export-LoadTestIdentitiesPayload -TokensFilePath $TokensFile
-$identityCount = (ConvertFrom-Json $payload).identities.Count
+$identities = Read-LoadTestMinimalIdentitiesFromTokensFile -TokensFilePath $TokensFile
+$identityCount = $identities.Count
+$singlePayload = (@{ identities = $identities } | ConvertTo-Json -Compress -Depth 5)
+$manifestPath = Get-LoadTestGrafanaCloudManifestPath -LoadRoot $loadRoot
+$dataDir = Join-Path $loadRoot 'data'
 
 Write-Host @"
 
 ================================================================================
-Grafana Cloud identity payload preparation (Movie Cave JWTs)
+Grafana Cloud identity export (Movie Cave JWTs)
 ================================================================================
 
-This step prepares ONLY bearer tokens (and identity ids) for Grafana Cloud.
-It does NOT upload automatically.
+Source identities (valid bearer tokens): $identityCount
+Max shard size (characters): $MaxShardChars
 
-What leaves your machine if you paste/upload this payload:
-  - $identityCount production JWT access tokens (LOAD60 pool)
-  - identity ids (non-secret labels)
-
-What is NOT included:
-  - campaign passwords
-  - PostgreSQL credentials
-  - JWT signing keys
-  - email addresses (unless you stored them in tokens.json — avoid)
-
-Recommended: Grafana Cloud UI → Testing & synthetics → Performance → Settings
-→ Environment variables → create LOAD_TEST_IDENTITIES_JSON (encrypted at rest).
-
-Do NOT pass this JSON via k6 cloud run -e (CLI env vars are stored in the archive in plain text).
+This tooling writes local operator files only. It does NOT upload to Grafana Cloud.
+JWT values are never printed to the terminal.
 
 "@
 
 if (-not $WhatIf) {
-    $confirm = Read-Host "Type YES to write the minimal JSON payload to a local file (still not uploaded)"
+    $confirm = Read-Host "Type YES to write manifest and export artifact(s) under tests/load/data"
     if ($confirm -ne 'YES') {
-        Write-Host 'Aborted. No file written.'
+        Write-Host 'Aborted. No files written.'
         exit 0
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($OutFile)) {
-    $OutFile = Join-Path $loadRoot "data\grafana-cloud-identities.payload.json"
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+if ($singlePayload.Length -le $MaxShardChars) {
+    $transport = 'single'
+    if ([string]::IsNullOrWhiteSpace($OutFile)) {
+        $OutFile = Join-Path $dataDir 'grafana-cloud-identities.payload.json'
+    }
+
+    if (-not $WhatIf) {
+        [System.IO.File]::WriteAllText($OutFile, $singlePayload, $utf8NoBom)
+    }
+
+    $manifest = @{
+        schemaVersion = 1
+        transport     = $transport
+        identityCount = $identityCount
+        shardCount    = 0
+        maxShardChars = $MaxShardChars
+        singleEnvVar  = 'LOAD_TEST_IDENTITIES_JSON'
+        shardEnvNames = @()
+        exportedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $manifestJson = $manifest | ConvertTo-Json -Compress -Depth 5
+    if (-not $WhatIf) {
+        [System.IO.File]::WriteAllText($manifestPath, $manifestJson, $utf8NoBom)
+    }
+
+    Write-Host "Transport: single env var (payload length $($singlePayload.Length) <= $MaxShardChars)."
+    Write-Host "Manifest:  $manifestPath"
+    Write-Host "Payload:   $OutFile"
+    Write-Host ''
+    Write-Host 'Grafana Cloud env vars to set:'
+    Write-Host '  - LOAD_TEST_IDENTITIES_JSON  (paste payload file contents)'
+    Write-Host '  - Remove LOAD_TEST_IDENTITIES_SHARD_COUNT and LOAD_TEST_IDENTITIES_JSON_* when using single-var mode.'
+    exit 0
 }
 
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText($OutFile, $payload, $utf8NoBom)
-Write-Host "Wrote $identityCount identities to: $OutFile"
-Write-Host 'Copy the file contents into Grafana Cloud env var LOAD_TEST_IDENTITIES_JSON, then delete the local payload file when done.'
+$split = Split-LoadTestIdentitiesForGrafanaShards -Identities $identities -MaxShardChars $MaxShardChars
+$shardCount = $split.Shards.Count
+foreach ($shard in $split.Shards) {
+    if ($shard.Length -gt $MaxShardChars) {
+        throw "Internal error: shard length $($shard.Length) exceeds limit $MaxShardChars"
+    }
+}
+
+$manifest = @{
+    schemaVersion = 1
+    transport     = 'sharded'
+    identityCount = $identityCount
+    shardCount    = $shardCount
+    maxShardChars = $MaxShardChars
+    singleEnvVar  = $null
+    shardEnvNames = $split.ShardEnvNames
+    exportedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+}
+$manifestJson = $manifest | ConvertTo-Json -Compress -Depth 5
+if ($manifestJson -match 'bearerToken|eyJ[A-Za-z0-9_-]{10,}') {
+    throw 'Manifest must not contain JWT material.'
+}
+
+if (-not $WhatIf) {
+    [System.IO.File]::WriteAllText($manifestPath, $manifestJson, $utf8NoBom)
+    for ($i = 0; $i -lt $shardCount; $i++) {
+        $shardFile = Join-Path $dataDir ("grafana-cloud-identities.shard-{0}.txt" -f ($i + 1).ToString('000'))
+        [System.IO.File]::WriteAllText($shardFile, $split.Shards[$i], $utf8NoBom)
+    }
+}
+
+Write-Host "Transport: sharded ($shardCount Grafana env vars + LOAD_TEST_IDENTITIES_SHARD_COUNT)."
+Write-Host "Manifest:  $manifestPath"
+Write-Host "Shard files: $dataDir\grafana-cloud-identities.shard-*.txt"
+Write-Host ''
+Write-Host 'Grafana Cloud env vars to create/update (encrypted at rest in Grafana UI):'
+Write-Host "  - LOAD_TEST_IDENTITIES_SHARD_COUNT = $shardCount"
+for ($i = 0; $i -lt $shardCount; $i++) {
+    $envName = $split.ShardEnvNames[$i]
+    $len = $split.Shards[$i].Length
+    Write-Host "  - $envName  (paste shard-$($i + 1) file; $len chars)"
+}
+Write-Host ''
+Write-Host 'When switching from single-var to sharded mode:'
+Write-Host '  - Clear or delete LOAD_TEST_IDENTITIES_JSON in Grafana Cloud to avoid single-var taking precedence.'
+Write-Host 'Do NOT pass shard values via k6 cloud run -e (archive stores CLI env as plain text).'

@@ -46,8 +46,43 @@ Assert-True 'payload has identities' ($payload -match 'identities')
 Assert-True 'payload omits description field' (-not ($payload -match 'description'))
 Assert-True 'payload strips to bearer only' ($payload -match 'eyJ\.test')
 
-$preflight = Format-LoadTestCloudPreflight -ExecutionMode Cloud -StageVus 150 -IdentityCount 100 -ReuseRatio 1.5 -VuHours 36 -Duration '00:17:00' -LoadZone 'amazon:de:frankfurt' -SearchProfileHint 'autocomplete-only' -IsProduction $true
+$preflight = Format-LoadTestCloudPreflight -ExecutionMode Cloud -StageVus 150 -IdentityCount 100 -ReuseRatio 1.5 -VuHours 36 -Duration '00:17:00' -LoadZone 'amazon:de:frankfurt' -SearchProfileHint 'autocomplete-only' -IsProduction $true -LocalTokenCount 100 -CloudManifestIdentityCount 100 -CloudManifestShardCount 12 -CloudTransport 'sharded'
 Assert-True 'preflight mentions reuse' ($preflight -match '1.5:1')
+Assert-True 'preflight uses manifest cloud pool line' ($preflight -match 'Cloud identity pool \(manifest\): 100')
+Assert-True 'preflight lists shard count' ($preflight -match 'Cloud identity shards:\s+12')
+
+$fakeIdentities = @()
+for ($n = 1; $n -le 100; $n++) {
+    $fakeIdentities += @{
+        id          = "load60-$n"
+        bearerToken = ('eyJ.fake.{0}.sig' -f ($n.ToString('000')))
+    }
+}
+$split = Split-LoadTestIdentitiesForGrafanaShards -Identities $fakeIdentities -MaxShardChars 4500
+Assert-True '100 identities shard into at least 2 parts' ($split.Shards.Count -ge 2)
+Assert-True 'reassembled count is 100' (($split.AssembledJson | ConvertFrom-Json).identities.Count -eq 100)
+Assert-True 'every shard under 4500 chars' (-not ($split.Shards | Where-Object { $_.Length -gt 4500 }))
+Assert-Equal 'first shard env name' 'LOAD_TEST_IDENTITIES_JSON_001' $split.ShardEnvNames[0]
+Assert-Equal 'shard env name count matches shards' $split.Shards.Count $split.ShardEnvNames.Count
+$joined = -join $split.Shards
+$roundTrip = $joined | ConvertFrom-Json
+Assert-Equal 'order preserved first id' 'load60-1' $roundTrip.identities[0].id
+Assert-Equal 'order preserved last id' 'load60-100' $roundTrip.identities[99].id
+foreach ($shard in $split.Shards) {
+    Assert-True 'shard does not split bearerToken key mid-token' ($shard -notmatch 'bearerTo$')
+}
+
+$manifestTemp = Join-Path $env:TEMP ("grafana-manifest-{0}.json" -f [Guid]::NewGuid())
+@{
+    schemaVersion = 1
+    transport     = 'sharded'
+    identityCount = 100
+    shardCount    = $split.Shards.Count
+} | ConvertTo-Json -Compress | Set-Content -Path $manifestTemp -Encoding UTF8
+Assert-True 'manifest file has no jwt material' (Test-LoadTestManifestContainsNoSecrets -ManifestPath $manifestTemp)
+$readManifest = Read-LoadTestGrafanaCloudManifest -ManifestPath $manifestTemp
+Assert-Equal 'manifest identityCount' 100 $readManifest.identityCount
+Remove-Item $manifestTemp -Force
 
 $loadRootSample = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $cloudPaths = Get-LoadTestK6PathEnvValues -ExecutionMode Cloud -LoadRoot $loadRootSample

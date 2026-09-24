@@ -1,16 +1,32 @@
 import { SharedArray } from 'k6/data';
 import { dataPath } from './config.js';
 import { parseJsonOpen } from './jsonText.js';
+import {
+  loadIdentitiesFromShardEnv,
+  normalizeIdentityList,
+  parseIdentitiesPayload,
+} from './identitiesShardParsing.js';
 
 function loadFromIdentitiesJsonEnv() {
   const raw = __ENV.LOAD_TEST_IDENTITIES_JSON;
   if (!raw || raw.trim() === '') {
     return null;
   }
-  const parsed = JSON.parse(raw);
-  const source = Array.isArray(parsed) ? parsed : parsed.identities || [];
-  const list = source.filter((i) => i?.bearerToken && i.bearerToken !== 'REPLACE_WITH_JWT');
-  return list.length > 0 ? list : null;
+  return parseIdentitiesPayload(raw);
+}
+
+function loadFromShardedIdentitiesEnv() {
+  const countRaw = __ENV.LOAD_TEST_IDENTITIES_SHARD_COUNT;
+  if (!countRaw || countRaw.trim() === '') {
+    return null;
+  }
+
+  const shardCount = parseInt(countRaw, 10);
+  if (Number.isNaN(shardCount)) {
+    throw new Error(`Invalid LOAD_TEST_IDENTITIES_SHARD_COUNT: ${countRaw}`);
+  }
+
+  return loadIdentitiesFromShardEnv(__ENV, shardCount);
 }
 
 export const identityPool = new SharedArray('identities', function loadIdentities() {
@@ -19,10 +35,16 @@ export const identityPool = new SharedArray('identities', function loadIdentitie
     return fromEnvJson;
   }
 
+  const fromShards = loadFromShardedIdentitiesEnv();
+  if (fromShards) {
+    return fromShards;
+  }
+
   const file = __ENV.LOAD_TEST_TOKENS_FILE;
   if (file) {
     const parsed = parseJsonOpen(file);
-    return (parsed.identities || []).filter((i) => i.bearerToken && i.bearerToken !== 'REPLACE_WITH_JWT');
+    const list = normalizeIdentityList(parsed);
+    return list || [];
   }
 
   const inline = [];
@@ -38,7 +60,8 @@ export const identityPool = new SharedArray('identities', function loadIdentitie
 
   try {
     const parsed = parseJsonOpen(dataPath('tokens.json'));
-    return (parsed.identities || []).filter((i) => i.bearerToken && i.bearerToken !== 'REPLACE_WITH_JWT');
+    const list = normalizeIdentityList(parsed);
+    return list || [];
   } catch (_) {
     return [];
   }

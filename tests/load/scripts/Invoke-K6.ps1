@@ -77,7 +77,29 @@ if ([string]::IsNullOrWhiteSpace($tokensFile)) {
     }
 }
 
-$identityCount = if ($tokensFile) { Read-LoadTestIdentityCount -TokensFilePath $tokensFile } else { 0 }
+$localTokenCount = if ($tokensFile) { Read-LoadTestIdentityCount -TokensFilePath $tokensFile } else { 0 }
+$cloudManifestPath = Get-LoadTestGrafanaCloudManifestPath -LoadRoot $loadRoot
+$cloudManifest = $null
+$cloudManifestIdentityCount = 0
+$cloudManifestShardCount = 0
+$cloudTransport = ''
+$manifestNote = ''
+$identityCount = $localTokenCount
+
+if ($ExecutionMode -eq 'Cloud') {
+    $cloudManifest = Read-LoadTestGrafanaCloudManifest -ManifestPath $cloudManifestPath
+    if ($null -ne $cloudManifest) {
+        $cloudManifestIdentityCount = [int]$cloudManifest.identityCount
+        $cloudManifestShardCount = [int]$cloudManifest.shardCount
+        $cloudTransport = [string]$cloudManifest.transport
+        $identityCount = $cloudManifestIdentityCount
+        $manifestNote = 'Manifest records operator export; runtime proof is identityPool.length in Grafana summary.'
+        if ($localTokenCount -gt 0 -and $localTokenCount -ne $cloudManifestIdentityCount) {
+            Write-Warning "Local tokens.json count ($localTokenCount) does not match Cloud manifest identityCount ($cloudManifestIdentityCount)."
+        }
+    }
+}
+
 $stageVus = if ($StageTarget -gt 0) { $StageTarget } else { 5 }
 $reuseRatio = Get-LoadTestIdentityReuseRatio -StageVus $stageVus -IdentityCount $identityCount
 $vuHours = Get-LoadTestVuHourEstimate -StageVus $stageVus -PresetName $Preset -StageTarget $StageTarget
@@ -129,8 +151,22 @@ if ($ExecutionMode -eq 'Local') {
     }
 } else {
     # Never bundle production JWTs into a cloud archive via -e or open(tokens.json).
-    if ($identityCount -lt 1) {
-        throw "Cloud mode requires a local tokens.json for preflight identity count, and Grafana Cloud env var LOAD_TEST_IDENTITIES_JSON for execution."
+    if ($localTokenCount -lt 1) {
+        throw "Cloud mode requires a local tokens.json for operator preflight (Test-LoadTokens.ps1)."
+    }
+    if ($null -eq $cloudManifest) {
+        throw @"
+Cloud mode requires a Grafana Cloud identity manifest at:
+  $cloudManifestPath
+Run: .\scripts\Export-LoadTestIdentitiesForGrafanaCloud.ps1
+Then configure Grafana Cloud env vars per tests/load/docs/grafana-cloud-k6.md (never via k6 cloud -e).
+"@
+    }
+    if ($cloudManifestIdentityCount -lt 1) {
+        throw 'Cloud manifest identityCount must be >= 1.'
+    }
+    if ($cloudTransport -eq 'sharded' -and $cloudManifestShardCount -lt 1) {
+        throw 'Sharded Cloud manifest requires shardCount >= 1.'
     }
 }
 
@@ -149,7 +185,12 @@ Write-Host (Format-LoadTestCloudPreflight `
     -Duration $duration `
     -LoadZone $(if ($ExecutionMode -eq 'Cloud') { $CloudLoadZone } else { 'n/a' }) `
     -SearchProfileHint $searchProfileHint `
-    -IsProduction $isProduction)
+    -IsProduction $isProduction `
+    -LocalTokenCount $(if ($ExecutionMode -eq 'Cloud') { $localTokenCount } else { 0 }) `
+    -CloudManifestIdentityCount $cloudManifestIdentityCount `
+    -CloudManifestShardCount $cloudManifestShardCount `
+    -CloudTransport $cloudTransport `
+    -ManifestNote $(if ($ExecutionMode -eq 'Cloud') { $manifestNote } else { '' }))
 
 if ($ExecutionMode -eq 'Cloud') {
     if ($vuHours -ge 50) {
