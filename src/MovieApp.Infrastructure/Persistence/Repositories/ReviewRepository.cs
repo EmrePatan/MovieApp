@@ -240,6 +240,48 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         return (reviews, totalCount);
     }
 
+    public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
+        Guid movieId,
+        CancellationToken cancellationToken = default) =>
+        GetReviewScoreDistributionAsync(
+            dbContext.Reviews.AsNoTracking().Where(review => review.MovieId == movieId),
+            dbContext.Ratings.AsNoTracking().Where(rating => rating.MovieId == movieId),
+            cancellationToken);
+
+    public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default) =>
+        GetReviewScoreDistributionAsync(
+            dbContext.Reviews.AsNoTracking().Where(review => review.TvShowId == tvShowId),
+            dbContext.Ratings.AsNoTracking().Where(rating => rating.TvShowId == tvShowId),
+            cancellationToken);
+
+    private static async Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionAsync(
+        IQueryable<Review> reviewsQuery,
+        IQueryable<Rating> ratingsQuery,
+        CancellationToken cancellationToken)
+    {
+        var rows = await (
+                from review in reviewsQuery
+                join rating in ratingsQuery on review.UserId equals rating.UserId
+                group rating by rating.Score
+                into scoreGroup
+                select new { Score = scoreGroup.Key, Count = scoreGroup.Count() })
+            .ToListAsync(cancellationToken);
+
+        var distribution = RatingMapper.CreateEmptyDistribution()
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        foreach (var row in rows)
+        {
+            if (distribution.ContainsKey(row.Score))
+            {
+                distribution[row.Score] = row.Count;
+            }
+        }
+
+        return distribution;
+    }
+
     public async Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
         Guid reviewId,
         CancellationToken cancellationToken = default)

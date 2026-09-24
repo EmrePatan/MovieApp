@@ -1,4 +1,3 @@
-using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Contracts.Reviews;
 
@@ -24,13 +23,14 @@ public static class ReviewContractMapper
             result.DetectedSourceLanguage,
             result.TargetLocale);
 
-    public static ReviewListResponse ToListResponse(PaginatedResult<ReviewResult> result) =>
+    public static ReviewListResponse ToListResponse(ReviewListPageResult result) =>
         new(
-            result.Items.Select(ToResponse).ToList(),
-            result.Page,
-            result.PageSize,
-            result.TotalCount,
-            result.TotalPages,
-            result.HasNextPage,
-            result.HasPreviousPage);
+            result.Page.Items.Select(ToResponse).ToList(),
+            result.Page.Page,
+            result.Page.PageSize,
+            result.Page.TotalCount,
+            result.Page.TotalPages,
+            result.Page.HasNextPage,
+            result.Page.HasPreviousPage,
+            result.ReviewScoreDistribution);
 }

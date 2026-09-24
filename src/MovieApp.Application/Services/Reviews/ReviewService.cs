@@ -160,7 +160,7 @@ public sealed class ReviewService(
         return ReviewMapper.ToResult(review);
     }
 
-    public async Task<PaginatedResult<ReviewResult>> GetMovieReviewsAsync(
+    public async Task<ReviewListPageResult> GetMovieReviewsAsync(
         Guid movieId,
         int page,
         int pageSize,
@@ -172,18 +172,25 @@ public sealed class ReviewService(
         ValidateRatingStars(ratingStars);
         await EnsureMovieExistsAsync(movieId, cancellationToken);
 
-        var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForMovieAsync(
+        var reviewsTask = reviewRepository.GetPublicReviewsForMovieAsync(
             movieId,
             page,
             pageSize,
             sort,
             ratingStars,
             cancellationToken);
+        var distributionTask = reviewRepository.GetReviewScoreDistributionForMovieAsync(
+            movieId,
+            cancellationToken);
+        await Task.WhenAll(reviewsTask, distributionTask);
 
-        return ToPaginatedResult(reviews, page, pageSize, totalCount);
+        var (reviews, totalCount) = await reviewsTask;
+        return new ReviewListPageResult(
+            ToPaginatedResult(reviews, page, pageSize, totalCount),
+            await distributionTask);
     }
 
-    public async Task<PaginatedResult<ReviewResult>> GetTvShowReviewsAsync(
+    public async Task<ReviewListPageResult> GetTvShowReviewsAsync(
         Guid tvShowId,
         int page,
         int pageSize,
@@ -195,15 +202,22 @@ public sealed class ReviewService(
         ValidateRatingStars(ratingStars);
         await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
 
-        var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForTvShowAsync(
+        var reviewsTask = reviewRepository.GetPublicReviewsForTvShowAsync(
             tvShowId,
             page,
             pageSize,
             sort,
             ratingStars,
             cancellationToken);
+        var distributionTask = reviewRepository.GetReviewScoreDistributionForTvShowAsync(
+            tvShowId,
+            cancellationToken);
+        await Task.WhenAll(reviewsTask, distributionTask);
 
-        return ToPaginatedResult(reviews, page, pageSize, totalCount);
+        var (reviews, totalCount) = await reviewsTask;
+        return new ReviewListPageResult(
+            ToPaginatedResult(reviews, page, pageSize, totalCount),
+            await distributionTask);
     }
 
     private static void ValidateRatingStars(int? ratingStars)

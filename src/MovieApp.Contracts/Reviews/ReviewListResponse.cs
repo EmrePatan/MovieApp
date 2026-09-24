@@ -7,4 +7,5 @@ public sealed record ReviewListResponse(
     int TotalCount,
     int TotalPages,
     bool HasNextPage,
-    bool HasPreviousPage);
+    bool HasPreviousPage,
+    IReadOnlyDictionary<int, int>? ReviewScoreDistribution = null);

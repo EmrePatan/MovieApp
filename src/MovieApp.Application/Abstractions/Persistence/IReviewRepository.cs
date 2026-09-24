@@ -65,6 +65,14 @@ public interface IReviewRepository
         int? ratingStars = null,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
+        Guid movieId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
     Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
         Guid reviewId,
         CancellationToken cancellationToken = default);

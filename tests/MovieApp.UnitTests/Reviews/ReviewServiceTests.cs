@@ -5,6 +5,7 @@ using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Ratings;
 
 using MovieApp.UnitTests.Caching;
 
@@ -82,6 +83,32 @@ public sealed class ReviewServiceTests
             service.CreateMovieReviewAsync(MovieId, "   ", "en-US"));
     }
 
+    [Fact]
+    public async Task GetMovieReviewsAsyncReturnsUnfilteredReviewScoreDistribution()
+    {
+        var distribution = RatingMapper.CreateEmptyDistribution().ToDictionary(pair => pair.Key, pair => pair.Value);
+        distribution[3] = 1;
+        distribution[4] = 1;
+
+        var service = CreateService(
+            new FakeReviewRepository(reviewScoreDistribution: distribution),
+            CreateMovie());
+
+        var result = await service.GetMovieReviewsAsync(
+            MovieId,
+            page: 1,
+            pageSize: 20,
+            ReviewListSort.Newest,
+            ratingStars: 2);
+
+        Assert.Equal(1, result.ReviewScoreDistribution[3]);
+        Assert.Equal(1, result.ReviewScoreDistribution[4]);
+        Assert.Equal(0, result.ReviewScoreDistribution[8]);
+        Assert.Equal(0, result.Page.TotalCount);
+        Assert.Equal(2, RatingStarMapping.ToStarBucket(3));
+        Assert.Equal(2, RatingStarMapping.ToStarBucket(4));
+    }
+
     private static ReviewService CreateService(FakeReviewRepository repository, Movie? movie) =>
         new(
             new FakeCurrentUser(UserId),
@@ -108,7 +135,8 @@ public sealed class ReviewServiceTests
 
     private sealed class FakeReviewRepository(
         bool existsForMovie = false,
-        Review? trackedMovieReview = null) : IReviewRepository
+        Review? trackedMovieReview = null,
+        IReadOnlyDictionary<int, int>? reviewScoreDistribution = null) : IReviewRepository
     {
         private Review? _createdReview;
 
@@ -208,6 +236,16 @@ public sealed class ReviewServiceTests
             int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
+
+        public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
+            Guid movieId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(reviewScoreDistribution ?? RatingMapper.CreateEmptyDistribution());
+
+        public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(RatingMapper.CreateEmptyDistribution());
 
         public Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
             Guid reviewId,

@@ -41,7 +41,7 @@ public interface IReviewService
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
-    Task<PaginatedResult<ReviewResult>> GetMovieReviewsAsync(
+    Task<ReviewListPageResult> GetMovieReviewsAsync(
         Guid movieId,
         int page,
         int pageSize,
@@ -49,7 +49,7 @@ public interface IReviewService
         int? ratingStars = null,
         CancellationToken cancellationToken = default);
 
-    Task<PaginatedResult<ReviewResult>> GetTvShowReviewsAsync(
+    Task<ReviewListPageResult> GetTvShowReviewsAsync(
         Guid tvShowId,
         int page,
         int pageSize,

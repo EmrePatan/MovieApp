@@ -120,6 +120,72 @@ public sealed class RatingsReviewsApiTests(RatingsReviewsApiFixture fixture)
         Assert.Single(filteredReviews.Items);
         Assert.Equal("Loved it.", filteredReviews.Items[0].Content);
         Assert.Equal(8, filteredReviews.Items[0].UserRating);
+        Assert.NotNull(filteredReviews.ReviewScoreDistribution);
+        Assert.Equal(1, filteredReviews.ReviewScoreDistribution[8]);
+        Assert.Equal(1, filteredReviews.ReviewScoreDistribution[3]);
+        Assert.Equal(0, filteredReviews.ReviewScoreDistribution[4]);
+    }
+
+    [Fact]
+    public async Task ReviewScoreDistributionCountsOnlyWrittenReviewsAndSharesStarBucketMapping()
+    {
+        await fixture.ResetAsync();
+
+        var twoStarReviewerToken = await RegisterAndGetTokenAsync("two-star-reviewer");
+        var twoStarRaterToken = await RegisterAndGetTokenAsync("two-star-rater");
+        var halfStarReviewerToken = await RegisterAndGetTokenAsync("half-star-reviewer");
+        var movieId = await SeedMovieAsync();
+
+        await SendAuthorizedPostAsync(
+            $"/api/ratings/movies/{movieId}",
+            twoStarReviewerToken,
+            new CreateRatingRequest(4));
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/movies/{movieId}",
+            twoStarReviewerToken,
+            new CreateReviewRequest("Two stars, written."));
+
+        await SendAuthorizedPostAsync(
+            $"/api/ratings/movies/{movieId}",
+            twoStarRaterToken,
+            new CreateRatingRequest(3));
+
+        await SendAuthorizedPostAsync(
+            $"/api/ratings/movies/{movieId}",
+            halfStarReviewerToken,
+            new CreateRatingRequest(3));
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/movies/{movieId}",
+            halfStarReviewerToken,
+            new CreateReviewRequest("One and a half stars, written."));
+
+        var summaryResponse = await _client.GetAsync($"/api/ratings/movies/{movieId}");
+        var summary = await summaryResponse.Content.ReadFromJsonAsync<RatingSummaryResponse>();
+        Assert.NotNull(summary);
+        Assert.Equal(3, summary.RatingCount);
+        Assert.Equal(1, summary.ScoreDistribution[4]);
+        Assert.Equal(2, summary.ScoreDistribution[3]);
+
+        var reviewsResponse = await _client.GetAsync(
+            $"/api/reviews/movies/{movieId}?page=1&pageSize=20");
+        var reviews = await reviewsResponse.Content.ReadFromJsonAsync<ReviewListResponse>();
+        Assert.NotNull(reviews);
+        Assert.Equal(2, reviews.TotalCount);
+        Assert.NotNull(reviews.ReviewScoreDistribution);
+        Assert.Equal(1, reviews.ReviewScoreDistribution[4]);
+        Assert.Equal(1, reviews.ReviewScoreDistribution[3]);
+        Assert.Equal(0, reviews.ReviewScoreDistribution[2]);
+
+        var twoStarReviewsResponse = await _client.GetAsync(
+            $"/api/reviews/movies/{movieId}?page=1&pageSize=20&ratingStars=2");
+        var twoStarReviews = await twoStarReviewsResponse.Content.ReadFromJsonAsync<ReviewListResponse>();
+        Assert.NotNull(twoStarReviews);
+        Assert.Equal(2, twoStarReviews.TotalCount);
+        var twoStarContents = twoStarReviews.Items.Select(item => item.Content).ToHashSet();
+        Assert.Contains("Two stars, written.", twoStarContents);
+        Assert.Contains("One and a half stars, written.", twoStarContents);
+        Assert.Equal(1, twoStarReviews.ReviewScoreDistribution![4]);
+        Assert.Equal(1, twoStarReviews.ReviewScoreDistribution[3]);
     }
 
     [Fact]

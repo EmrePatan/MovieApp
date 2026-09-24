@@ -248,5 +248,15 @@ public sealed class ReviewTranslationServiceTests
             int? ratingStars = null,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
+            Guid movieId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }
