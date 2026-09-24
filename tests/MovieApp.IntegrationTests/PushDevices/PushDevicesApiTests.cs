@@ -150,6 +150,31 @@ public sealed class PushDevicesApiTests(PushDevicesFixture fixture)
         Assert.Equal("Android", device.Platform.ToString());
     }
 
+    [Fact]
+    public async Task AccountDeletionRemovesPushDevicesSoClientNeedNotUnregister()
+    {
+        await PushDevicesFixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("push-delete-account");
+        await SendAuthorizedPutAsync(token, ValidTokenA, "ios");
+
+        var deleteAccount = new HttpRequestMessage(HttpMethod.Delete, "/api/users/me")
+        {
+            Content = JsonContent.Create(new MovieApp.Contracts.Users.DeleteAccountRequest("StrongPassword123"))
+        };
+        deleteAccount.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var deleteAccountResponse = await _client.SendAsync(deleteAccount);
+        Assert.Equal(HttpStatusCode.NoContent, deleteAccountResponse.StatusCode);
+
+        await using (var context = PushDevicesFixture.CreateContext())
+        {
+            Assert.Equal(0, await context.PushDevices.CountAsync());
+        }
+
+        var lateUnregister = await SendAuthorizedDeleteAsync(token, ValidTokenA);
+        Assert.Equal(HttpStatusCode.Unauthorized, lateUnregister.StatusCode);
+    }
+
     private Task<string> RegisterAndGetTokenAsync(string username) =>
         AuthIntegrationHelpers.RegisterVerifyAndGetAccessTokenAsync(
             _client,
