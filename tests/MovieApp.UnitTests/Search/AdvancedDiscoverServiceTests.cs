@@ -149,6 +149,7 @@ public sealed class AdvancedDiscoverServiceTests
         new(
             type,
             [],
+            GenreMatchMode.All,
             null,
             null,
             null,
@@ -159,6 +160,9 @@ public sealed class AdvancedDiscoverServiceTests
             null,
             null,
             null,
+            null,
+            null,
+            [],
             null,
             [],
             [],

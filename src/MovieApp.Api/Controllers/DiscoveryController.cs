@@ -313,6 +313,7 @@ public sealed class DiscoveryController(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         [FromQuery] string[]? genreId,
+        [FromQuery] string? genreMatch,
         [FromQuery] int? year,
         [FromQuery] int? yearFrom,
         [FromQuery] int? yearTo,
@@ -323,6 +324,9 @@ public sealed class DiscoveryController(
         [FromQuery] int? maxRuntimeMinutes,
         [FromQuery] string? originalLanguage,
         [FromQuery(Name = "originCountry")] string? originCountry,
+        [FromQuery] string? certification,
+        [FromQuery] string? certificationCountry,
+        [FromQuery] string[]? releaseType,
         [FromQuery] string? watchRegion,
         [FromQuery] string[]? watchProviderId,
         [FromQuery] string[]? watchMonetizationType,
@@ -336,6 +340,7 @@ public sealed class DiscoveryController(
                 page,
                 pageSize,
                 genreId,
+                genreMatch,
                 year,
                 yearFrom,
                 yearTo,
@@ -346,6 +351,9 @@ public sealed class DiscoveryController(
                 maxRuntimeMinutes,
                 originalLanguage,
                 originCountry,
+                certification,
+                certificationCountry,
+                releaseType,
                 watchRegion,
                 watchProviderId,
                 watchMonetizationType,
@@ -491,6 +499,7 @@ public sealed class DiscoveryController(
         int? page,
         int? pageSize,
         string[]? genreId,
+        string? genreMatch,
         int? year,
         int? yearFrom,
         int? yearTo,
@@ -501,6 +510,9 @@ public sealed class DiscoveryController(
         int? maxRuntimeMinutes,
         string? originalLanguage,
         string? originCountry,
+        string? certification,
+        string? certificationCountry,
+        string[]? releaseType,
         string? watchRegion,
         string[]? watchProviderId,
         string[]? watchMonetizationType,
@@ -525,12 +537,26 @@ public sealed class DiscoveryController(
             throw new ValidationException(monetizationValidation.ErrorMessage!);
         }
 
+        var genreMatchValidation = AdvancedDiscoverValidator.ValidateGenreMatchValue(genreMatch);
+        if (!genreMatchValidation.IsValid)
+        {
+            throw new ValidationException(genreMatchValidation.ErrorMessage!);
+        }
+
+        var releaseTypeValidation = AdvancedDiscoverValidator.ValidateReleaseTypeValues(releaseType);
+        if (!releaseTypeValidation.IsValid)
+        {
+            throw new ValidationException(releaseTypeValidation.ErrorMessage!);
+        }
+
         _ = AdvancedSearchValidator.TryParseType(mediaType, out var contentType);
         _ = AdvancedDiscoverValidator.TryParseSort(sort, out var discoverSort);
+        _ = AdvancedDiscoverValidator.TryParseGenreMatch(genreMatch, out var parsedGenreMatch);
 
         var criteria = new AdvancedDiscoverCriteria(
             contentType,
             AdvancedDiscoverValidator.ParseGenreIds(genreId),
+            parsedGenreMatch,
             year,
             yearFrom,
             yearTo,
@@ -541,6 +567,9 @@ public sealed class DiscoveryController(
             maxRuntimeMinutes,
             originalLanguage,
             originCountry,
+            string.IsNullOrWhiteSpace(certification) ? null : certification.Trim(),
+            string.IsNullOrWhiteSpace(certificationCountry) ? null : certificationCountry.Trim(),
+            AdvancedDiscoverValidator.ParseReleaseTypes(releaseType),
             string.IsNullOrWhiteSpace(watchRegion)
                 ? null
                 : WatchProviderRegionValidator.Normalize(watchRegion),

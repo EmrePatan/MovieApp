@@ -93,6 +93,7 @@ public sealed class AdvancedDiscoverService(
         return new AdvancedDiscoverProviderCriteria(
             criteria.Page,
             genreTmdbIds,
+            criteria.GenreMatch,
             criteria.Year,
             criteria.YearFrom,
             criteria.YearTo,
@@ -103,6 +104,13 @@ public sealed class AdvancedDiscoverService(
             criteria.MaxRuntimeMinutes,
             criteria.OriginalLanguage?.Trim().ToLowerInvariant(),
             criteria.OriginCountry?.Trim().ToUpperInvariant(),
+            string.IsNullOrWhiteSpace(criteria.Certification)
+                ? null
+                : criteria.Certification.Trim(),
+            string.IsNullOrWhiteSpace(criteria.CertificationCountry)
+                ? null
+                : DiscoverMovieCertificationCatalog.NormalizeCountry(criteria.CertificationCountry),
+            criteria.ReleaseTypes,
             string.IsNullOrWhiteSpace(criteria.WatchRegion)
                 ? null
                 : WatchProviderRegionValidator.Normalize(criteria.WatchRegion),

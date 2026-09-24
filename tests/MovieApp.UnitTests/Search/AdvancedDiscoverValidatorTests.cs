@@ -112,6 +112,7 @@ public sealed class AdvancedDiscoverValidatorTests
         new(
             SearchContentType.Movie,
             [],
+            GenreMatchMode.All,
             year,
             yearFrom,
             yearTo,
@@ -122,6 +123,9 @@ public sealed class AdvancedDiscoverValidatorTests
             maxRuntimeMinutes,
             null,
             originCountry,
+            null,
+            null,
+            [],
             null,
             [],
             [],

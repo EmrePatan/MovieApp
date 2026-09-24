@@ -27,6 +27,7 @@ public static class AdvancedDiscoverCacheKeys
             "advanced-discover",
             criteria.MediaType.ToString().ToLowerInvariant(),
             genreSegment,
+            criteria.GenreMatch.ToString(),
             criteria.Year?.ToString(CultureInfo.InvariantCulture) ?? "y",
             criteria.YearFrom?.ToString(CultureInfo.InvariantCulture) ?? "yf",
             criteria.YearTo?.ToString(CultureInfo.InvariantCulture) ?? "yt",
@@ -37,6 +38,11 @@ public static class AdvancedDiscoverCacheKeys
             criteria.MaxRuntimeMinutes?.ToString(CultureInfo.InvariantCulture) ?? "rtmax",
             criteria.OriginalLanguage?.Trim().ToLowerInvariant() ?? "lang",
             criteria.OriginCountry?.Trim().ToUpperInvariant() ?? "country",
+            criteria.Certification?.Trim() ?? "cert",
+            criteria.CertificationCountry?.Trim().ToUpperInvariant() ?? "certc",
+            criteria.ReleaseTypes.Count == 0
+                ? "rt"
+                : string.Join('-', criteria.ReleaseTypes.OrderBy(type => type)),
             criteria.WatchRegion?.Trim().ToUpperInvariant() ?? "wr",
             providerSegment,
             monetizationSegment,

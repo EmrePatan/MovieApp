@@ -16,6 +16,7 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
 
         AppendSharedFilters(parameters, criteria);
         AppendMovieYearFilters(parameters, criteria);
+        AppendMovieOnlyFilters(parameters, criteria);
 
         return string.Join('&', parameters);
     }
@@ -39,7 +40,9 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
     {
         if (criteria.GenreTmdbIds.Count > 0)
         {
-            parameters.Add($"with_genres={string.Join(',', criteria.GenreTmdbIds)}");
+            var genreDelimiter = criteria.GenreMatch == GenreMatchMode.Any ? '|' : ',';
+            parameters.Add(
+                $"with_genres={string.Join(genreDelimiter, criteria.GenreTmdbIds)}");
         }
 
         if (criteria.MinRating.HasValue)
@@ -125,6 +128,30 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             WatchMonetizationType.Buy => "buy",
             _ => "flatrate"
         };
+
+    private static void AppendMovieOnlyFilters(
+        List<string> parameters,
+        AdvancedDiscoverProviderCriteria criteria)
+    {
+        if (!string.IsNullOrWhiteSpace(criteria.Certification) &&
+            !string.IsNullOrWhiteSpace(criteria.CertificationCountry))
+        {
+            parameters.Add(
+                $"certification={Uri.EscapeDataString(criteria.Certification.Trim())}");
+            parameters.Add(
+                $"certification_country={Uri.EscapeDataString(criteria.CertificationCountry.Trim().ToUpperInvariant())}");
+        }
+
+        if (criteria.ReleaseTypes.Count > 0)
+        {
+            var releaseTypeIds = criteria.ReleaseTypes
+                .Distinct()
+                .OrderBy(type => (int)type)
+                .Select(type => ((int)type).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            parameters.Add($"with_release_type={string.Join('|', releaseTypeIds)}");
+        }
+    }
 
     private static void AppendMovieYearFilters(List<string> parameters, AdvancedDiscoverProviderCriteria criteria)
     {

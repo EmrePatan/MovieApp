@@ -11,6 +11,7 @@ public sealed class AdvancedDiscoverCacheKeysTests
         var baseCriteria = new AdvancedDiscoverCriteria(
             SearchContentType.Movie,
             [],
+            GenreMatchMode.All,
             null,
             null,
             null,
@@ -21,6 +22,9 @@ public sealed class AdvancedDiscoverCacheKeysTests
             null,
             null,
             "KR",
+            null,
+            null,
+            [],
             null,
             [],
             [],

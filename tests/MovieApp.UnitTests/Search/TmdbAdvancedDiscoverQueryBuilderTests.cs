@@ -60,6 +60,29 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
     }
 
     [Fact]
+    public void BuildMovieQueryUsesPipeDelimiterForGenreAnyMatch()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            genreTmdbIds: [28, 12],
+            genreMatch: GenreMatchMode.Any));
+
+        Assert.Contains("with_genres=28|12", query);
+    }
+
+    [Fact]
+    public void BuildMovieQueryMapsCertificationAndReleaseTypes()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            certification: "PG-13",
+            certificationCountry: "US",
+            releaseTypes: [DiscoverReleaseType.Theatrical, DiscoverReleaseType.Digital]));
+
+        Assert.Contains("certification=PG-13", query);
+        Assert.Contains("certification_country=US", query);
+        Assert.Contains("with_release_type=3|4", query);
+    }
+
+    [Fact]
     public void BuildMovieQueryMapsWatchRegionProvidersAndMonetizationWithOrDelimiter()
     {
         var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
@@ -100,6 +123,7 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
     private static AdvancedDiscoverProviderCriteria CreateCriteria(
         int page = 1,
         IReadOnlyList<int>? genreTmdbIds = null,
+        GenreMatchMode genreMatch = GenreMatchMode.All,
         int? year = null,
         int? yearFrom = null,
         int? yearTo = null,
@@ -110,6 +134,9 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         int? maxRuntimeMinutes = null,
         string? originalLanguage = null,
         string? originCountry = null,
+        string? certification = null,
+        string? certificationCountry = null,
+        IReadOnlyList<DiscoverReleaseType>? releaseTypes = null,
         string? watchRegion = null,
         IReadOnlyList<int>? watchProviderIds = null,
         IReadOnlyList<WatchMonetizationType>? watchMonetizationTypes = null,
@@ -117,6 +144,7 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         new(
             page,
             genreTmdbIds ?? [],
+            genreMatch,
             year,
             yearFrom,
             yearTo,
@@ -127,6 +155,9 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
             maxRuntimeMinutes,
             originalLanguage,
             originCountry,
+            certification,
+            certificationCountry,
+            releaseTypes ?? [],
             watchRegion,
             watchProviderIds ?? [],
             watchMonetizationTypes ?? [],

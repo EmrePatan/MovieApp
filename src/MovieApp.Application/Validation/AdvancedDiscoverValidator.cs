@@ -96,6 +96,22 @@ public static class AdvancedDiscoverValidator
             return watchFilterValidation;
         }
 
+        var genreMatchValidation = ValidateGenreMatch(criteria.GenreMatch);
+        if (!genreMatchValidation.IsValid)
+        {
+            return genreMatchValidation;
+        }
+
+        var movieOnlyValidation = ValidateMovieOnlyFilters(
+            criteria.MediaType,
+            criteria.Certification,
+            criteria.CertificationCountry,
+            criteria.ReleaseTypes);
+        if (!movieOnlyValidation.IsValid)
+        {
+            return movieOnlyValidation;
+        }
+
         return Enum.IsDefined(criteria.Sort)
             ? SearchQueryValidationResult.Success()
             : SearchQueryValidationResult.Failure("Sort is not supported.");
@@ -418,6 +434,198 @@ public static class AdvancedDiscoverValidator
         }
 
         return types.Distinct().ToList();
+    }
+
+    public static SearchQueryValidationResult ValidateGenreMatch(GenreMatchMode genreMatch) =>
+        Enum.IsDefined(genreMatch)
+            ? SearchQueryValidationResult.Success()
+            : SearchQueryValidationResult.Failure("Genre match mode is not supported.");
+
+    public static SearchQueryValidationResult ValidateGenreMatchValue(string? genreMatch)
+    {
+        if (string.IsNullOrWhiteSpace(genreMatch))
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        return TryParseGenreMatch(genreMatch, out _)
+            ? SearchQueryValidationResult.Success()
+            : SearchQueryValidationResult.Failure("Genre match must be all or any.");
+    }
+
+    public static bool TryParseGenreMatch(string? value, out GenreMatchMode genreMatch)
+    {
+        genreMatch = GenreMatchMode.All;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "all":
+                genreMatch = GenreMatchMode.All;
+                return true;
+            case "any":
+                genreMatch = GenreMatchMode.Any;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public static SearchQueryValidationResult ValidateMovieOnlyFilters(
+        SearchContentType mediaType,
+        string? certification,
+        string? certificationCountry,
+        IReadOnlyList<DiscoverReleaseType> releaseTypes)
+    {
+        var hasCertification = !string.IsNullOrWhiteSpace(certification);
+        var hasCertificationCountry = !string.IsNullOrWhiteSpace(certificationCountry);
+        var hasReleaseTypes = releaseTypes.Count > 0;
+
+        if (mediaType != SearchContentType.Movie &&
+            (hasCertification || hasCertificationCountry || hasReleaseTypes))
+        {
+            return SearchQueryValidationResult.Failure(
+                "Certification and release type filters are only supported for movies.");
+        }
+
+        if (hasCertification ^ hasCertificationCountry)
+        {
+            return SearchQueryValidationResult.Failure(
+                "Certification and certification country must be specified together.");
+        }
+
+        if (hasCertification && hasCertificationCountry)
+        {
+            var countryValidation = ValidateOriginCountry(certificationCountry);
+            if (!countryValidation.IsValid)
+            {
+                return countryValidation;
+            }
+
+            if (!DiscoverMovieCertificationCatalog.IsAllowed(certificationCountry, certification))
+            {
+                return SearchQueryValidationResult.Failure(
+                    "Certification is not supported for the selected country.");
+            }
+        }
+
+        var releaseTypeValidation = ValidateReleaseTypes(releaseTypes);
+        if (!releaseTypeValidation.IsValid)
+        {
+            return releaseTypeValidation;
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateReleaseTypes(IReadOnlyList<DiscoverReleaseType> releaseTypes)
+    {
+        if (releaseTypes.Count == 0)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        if (releaseTypes.Any(type => !Enum.IsDefined(type)))
+        {
+            return SearchQueryValidationResult.Failure("Release type is not supported.");
+        }
+
+        if (releaseTypes.Distinct().Count() != releaseTypes.Count)
+        {
+            return SearchQueryValidationResult.Failure("Duplicate release types are not allowed.");
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateReleaseTypeValues(IEnumerable<string>? values)
+    {
+        if (values is null)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (!TryParseReleaseType(value, out _))
+            {
+                return SearchQueryValidationResult.Failure(
+                    "Release type must be one of: premiere, theatrical_limited, theatrical, digital, physical, television.");
+            }
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static IReadOnlyList<DiscoverReleaseType> ParseReleaseTypes(IEnumerable<string>? values)
+    {
+        if (values is null)
+        {
+            return [];
+        }
+
+        var types = new List<DiscoverReleaseType>();
+
+        foreach (var rawValue in values)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                continue;
+            }
+
+            foreach (var segment in rawValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (TryParseReleaseType(segment, out var releaseType))
+                {
+                    types.Add(releaseType);
+                }
+            }
+        }
+
+        return types.Distinct().ToList();
+    }
+
+    public static bool TryParseReleaseType(string? value, out DiscoverReleaseType releaseType)
+    {
+        releaseType = DiscoverReleaseType.Theatrical;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "premiere":
+                releaseType = DiscoverReleaseType.Premiere;
+                return true;
+            case "theatrical_limited":
+                releaseType = DiscoverReleaseType.TheatricalLimited;
+                return true;
+            case "theatrical":
+                releaseType = DiscoverReleaseType.Theatrical;
+                return true;
+            case "digital":
+                releaseType = DiscoverReleaseType.Digital;
+                return true;
+            case "physical":
+                releaseType = DiscoverReleaseType.Physical;
+                return true;
+            case "television":
+                releaseType = DiscoverReleaseType.Television;
+                return true;
+            default:
+                return false;
+        }
     }
 
     public static bool TryParseWatchMonetizationType(

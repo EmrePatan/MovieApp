@@ -11,6 +11,7 @@ public sealed class AdvancedDiscoverWatchFilterValidatorTests
         var criteria = new AdvancedDiscoverCriteria(
             SearchContentType.Movie,
             [],
+            GenreMatchMode.All,
             null,
             null,
             null,
@@ -21,6 +22,9 @@ public sealed class AdvancedDiscoverWatchFilterValidatorTests
             null,
             null,
             null,
+            null,
+            null,
+            [],
             null,
             [8],
             [WatchMonetizationType.Stream],

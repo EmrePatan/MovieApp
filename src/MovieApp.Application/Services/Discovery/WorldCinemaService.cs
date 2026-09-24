@@ -66,6 +66,7 @@ public sealed class WorldCinemaService(
         new(
             criteria.MediaType,
             [],
+            GenreMatchMode.All,
             null,
             null,
             null,
@@ -76,6 +77,9 @@ public sealed class WorldCinemaService(
             null,
             null,
             criteria.OriginCountry.Trim().ToUpperInvariant(),
+            null,
+            null,
+            [],
             null,
             [],
             [],
