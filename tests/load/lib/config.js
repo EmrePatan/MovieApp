@@ -82,10 +82,20 @@ function readJsonFile(path) {
   return JSON.parse(raw);
 }
 
+function resolveContentFileName(dataset) {
+  const base = dataset === 'varied' ? 'varied-content.json' : 'hot-content.json';
+  const production = base.replace('.json', '.production.json');
+  try {
+    open(dataPath(production));
+    return production;
+  } catch (_) {
+    return base;
+  }
+}
+
 export function loadContentPools() {
   const dataset = contentDataset();
-  const file =
-    dataset === 'varied' ? 'varied-content.json' : 'hot-content.json';
+  const file = resolveContentFileName(dataset);
   const fallback = dataset === 'varied' ? 'varied-content.example.json' : 'hot-content.example.json';
   let parsed;
   try {

@@ -31,7 +31,9 @@ There is **no** production admin API, seed CLI, or bulk test-user utility in the
    - `POST /api/auth/register` (local script, **not** k6).
    - Complete `POST /api/auth/verify-email` (link from mailbox).
    - Optionally `POST /api/auth/login` before each campaign segment to refresh `AccessToken` / `ExpiresAt`.
-3. Write tokens to gitignored `data/tokens.json`:
+3. Or run locally (interactive, no JWT echoed): `.\scripts\Get-LoadTestToken.ps1 -BaseUrl https://movieapp-fpkg.onrender.com` — calls `POST /api/auth/login` with `{ "email", "password" }`, writes `data/tokens.json` from `AuthResponse.accessToken` / `expiresAt`.
+
+4. Or write tokens manually to gitignored `data/tokens.json`:
 
 ```json
 {
