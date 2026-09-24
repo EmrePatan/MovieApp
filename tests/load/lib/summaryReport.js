@@ -15,6 +15,9 @@ const TRACKED_GROUPS = [
   'ratings-me',
 ];
 
+/** k6 `name` tag — finer-grained than `group` (e.g. TV show detail vs season-1). */
+const TRACKED_REQUEST_NAMES = ['tv-detail', 'tv-season-1'];
+
 const LATENCY_STATS = ['med', 'p(90)', 'p(95)', 'p(99)', 'max'];
 
 export function pickMetricValues(metrics, name) {
@@ -159,6 +162,35 @@ export function buildGroupReport(metrics, rootGroup) {
   return groups;
 }
 
+export function buildRequestNameReport(metrics) {
+  const durationByName = collectTaggedMetrics(metrics, 'http_req_duration', 'name');
+  const reqsByName = collectTaggedMetrics(metrics, 'http_reqs', 'name');
+  const failedByName = collectTaggedMetrics(metrics, 'http_req_failed', 'name');
+
+  const requestNames = {};
+  for (const requestName of TRACKED_REQUEST_NAMES) {
+    const duration = pickLatency(durationByName[requestName]);
+    const reqs = reqsByName[requestName];
+    const failed = failedByName[requestName];
+    const hasData = duration || reqs || failed;
+    if (!hasData) {
+      continue;
+    }
+    requestNames[requestName] = {
+      http_reqs: reqs ? { count: reqs.count, rate: reqs.rate } : null,
+      http_req_failed: failed
+        ? {
+            rate: failed.rate,
+            passes: failed.passes,
+            fails: failed.fails,
+          }
+        : null,
+      latency: duration,
+    };
+  }
+  return requestNames;
+}
+
 export function buildOutcomeCounters(metrics) {
   const counterNames = {
     success2xx: 'http_outcome_2xx_success',
@@ -247,8 +279,9 @@ export function buildEnhancedReport(data, metadata = {}) {
       rate_limited_count: pickMetricValues(metrics, 'rate_limited_count'),
     },
     groups: buildGroupReport(metrics, data?.root_group),
+    requestNames: buildRequestNameReport(metrics),
     root_group: data?.root_group,
   };
 }
 
-export { TRACKED_GROUPS };
+export { TRACKED_GROUPS, TRACKED_REQUEST_NAMES };

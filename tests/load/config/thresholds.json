@@ -17,9 +17,6 @@
     "movie-detail": {
       "http_req_duration": ["p(95)<3500"]
     },
-    "tv-detail": {
-      "http_req_duration": ["p(95)<3500"]
-    },
     "detail-status": {
       "http_req_duration": ["p(95)<2500"]
     },
@@ -43,6 +40,15 @@
     },
     "saturation-catalog": {
       "http_req_duration": ["p(95)<3000"]
+    }
+  },
+  "names": {
+    "tv-detail": {
+      "http_req_duration": ["p(95)<3500"]
+    },
+    "tv-season-1": {
+      "http_req_duration": ["p(95)<3500"],
+      "abortOnFail": false
     }
   },
   "applicationScoped": {

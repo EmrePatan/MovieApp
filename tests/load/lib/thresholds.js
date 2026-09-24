@@ -13,6 +13,20 @@ export function loadThresholds() {
     }
   }
 
+  for (const [requestName, rules] of Object.entries(parsed.names || {})) {
+    const observeOnly = rules.abortOnFail === false;
+    for (const [metric, expr] of Object.entries(rules)) {
+      if (metric === 'abortOnFail') {
+        continue;
+      }
+      const key = `${metric}{name:${requestName}}`;
+      const expressions = Array.isArray(expr) ? expr : [expr];
+      thresholds[key] = observeOnly
+        ? expressions.map((threshold) => ({ threshold, abortOnFail: false }))
+        : expressions;
+    }
+  }
+
   Object.assign(thresholds, parsed.applicationScoped || {});
 
   return thresholds;

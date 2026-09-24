@@ -55,6 +55,7 @@ $scenarios = @(
     "search-rate-limit.js",
     "semantics-selfcheck.js",
     "summary-report-selfcheck.js",
+    "thresholds-config-selfcheck.js",
     "tokens-loader-selfcheck.js",
     "preflight-no-auth-selfcheck.js"
 )

@@ -1,5 +1,5 @@
 import { check } from 'k6';
-import { buildEnhancedReport, TRACKED_GROUPS } from '../lib/summaryReport.js';
+import { buildEnhancedReport, TRACKED_GROUPS, TRACKED_REQUEST_NAMES } from '../lib/summaryReport.js';
 
 export const options = {
   vus: 1,
@@ -14,6 +14,14 @@ export default function summaryReportSelfCheck() {
       'http_req_duration{group:home}': {
         values: { med: 200, 'p(90)': 400, 'p(95)': 500, 'p(99)': 800, max: 1200 },
       },
+      'http_req_duration{name:tv-detail}': {
+        values: { med: 300, 'p(95)': 900, max: 1100 },
+      },
+      'http_req_duration{name:tv-season-1}': {
+        values: { med: 1200, 'p(95)': 4200, max: 5000 },
+      },
+      'http_reqs{name:tv-detail}': { values: { count: 12, rate: 1.2 } },
+      'http_reqs{name:tv-season-1}': { values: { count: 3, rate: 0.3 } },
       http_req_duration: { values: { med: 220, 'p(95)': 850, max: 1500 } },
       http_outcome_2xx_success: { values: { count: 90 } },
       http_outcome_transport_timeout: { values: { count: 5 } },
@@ -50,5 +58,8 @@ export default function summaryReportSelfCheck() {
     'application RPS': (r) => r.application.http_reqs.rate === 9.5,
     'interrupted iterations': (r) => r.iterations.interrupted.count === 2,
     'tracked groups list non-empty': () => TRACKED_GROUPS.length >= 10,
+    'tv-detail request name latency': (r) => r.requestNames['tv-detail']?.latency?.['p(95)'] === 900,
+    'tv-season-1 request name latency': (r) => r.requestNames['tv-season-1']?.latency?.['p(95)'] === 4200,
+    'tracked request names list': () => TRACKED_REQUEST_NAMES.includes('tv-season-1'),
   });
 }
