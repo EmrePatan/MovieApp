@@ -31,10 +31,10 @@ Write-Host "Validating content IDs from $path against $base"
 foreach ($movieId in @($data.movieIds)) {
     try {
         $r = Invoke-WebRequest -Uri "$base/api/movies/$movieId" -Headers @{ Accept = "application/json" } -UseBasicParsing -TimeoutSec 30
-        Write-Host "  [OK] movie $movieId — $($r.StatusCode)"
+        Write-Host "  [OK] movie $movieId - $($r.StatusCode)"
     } catch {
         $status = $_.Exception.Response.StatusCode.value__
-        Write-Host "  [FAIL] movie $movieId — HTTP $status"
+        Write-Host "  [FAIL] movie $movieId - HTTP $status"
         $failures++
     }
 }
@@ -42,10 +42,10 @@ foreach ($movieId in @($data.movieIds)) {
 foreach ($tvId in @($data.tvShowIds)) {
     try {
         $r = Invoke-WebRequest -Uri "$base/api/tvshows/$tvId" -Headers @{ Accept = "application/json" } -UseBasicParsing -TimeoutSec 30
-        Write-Host "  [OK] tv $tvId — $($r.StatusCode)"
+        Write-Host "  [OK] tv $tvId - $($r.StatusCode)"
     } catch {
         $status = $_.Exception.Response.StatusCode.value__
-        Write-Host "  [FAIL] tv $tvId — HTTP $status"
+        Write-Host "  [FAIL] tv $tvId - HTTP $status"
         $failures++
     }
 }
@@ -54,10 +54,10 @@ if ($data.externalRatingsWarmMovieIds) {
     foreach ($id in @($data.externalRatingsWarmMovieIds)) {
         try {
             $r = Invoke-WebRequest -Uri "$base/api/movies/$id/external-ratings" -Headers @{ Accept = "application/json" } -UseBasicParsing -TimeoutSec 30
-            Write-Host "  [OK] warm external movie $id — $($r.StatusCode)"
+            Write-Host "  [OK] warm external movie $id - $($r.StatusCode)"
         } catch {
             $status = $_.Exception.Response.StatusCode.value__
-            Write-Host "  [FAIL] warm external movie $id — HTTP $status"
+            Write-Host "  [FAIL] warm external movie $id - HTTP $status"
             $failures++
         }
     }

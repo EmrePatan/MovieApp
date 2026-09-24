@@ -44,22 +44,22 @@ foreach ($identity in $sample) {
     $id = $identity.id
     $token = $identity.bearerToken
     if ([string]::IsNullOrWhiteSpace($token)) {
-        Write-Host "  [SKIP] $id — empty token"
+        Write-Host "  [SKIP] $id - empty token"
         continue
     }
 
     $exp = Get-JwtExpiryUtc $token
     if ($exp) {
         if ($exp -lt $stageDeadline) {
-            Write-Host "  [WARN] $id — JWT exp $exp UTC is before required window ($stageDeadline UTC)"
+            Write-Host "  [WARN] $id - JWT exp $exp UTC is before required window ($stageDeadline UTC)"
             $expiryWarnings++
         } else {
-            Write-Host "  [OK]   $id — JWT exp $exp UTC"
+            Write-Host "  [OK]   $id - JWT exp $exp UTC"
         }
     } elseif ($identity.expiresAtUtc) {
         $parsed = [DateTime]::Parse($identity.expiresAtUtc).ToUniversalTime()
         if ($parsed -lt $stageDeadline) {
-            Write-Host "  [WARN] $id — expiresAtUtc $parsed before window"
+            Write-Host "  [WARN] $id - expiresAtUtc $parsed before window"
             $expiryWarnings++
         }
     }
@@ -67,17 +67,17 @@ foreach ($identity in $sample) {
     $headers = @{ Authorization = "Bearer $token"; Accept = "application/json" }
     try {
         $response = Invoke-WebRequest -Uri "$base/api/home?type=all&sectionSize=5" -Headers $headers -Method Get -UseBasicParsing -TimeoutSec 30
-        Write-Host "  [OK]   $id — home HTTP $($response.StatusCode)"
+        Write-Host "  [OK]   $id - home HTTP $($response.StatusCode)"
     } catch {
         $status = $_.Exception.Response.StatusCode.value__
-        Write-Host "  [FAIL] $id — home HTTP $status"
+        Write-Host "  [FAIL] $id - home HTTP $status"
         if ($status -eq 401 -or $status -eq 403) { $authFailures++ }
     }
 }
 
 if ($expiryWarnings -gt 0) {
     Write-Host ""
-    Write-Host "$expiryWarnings token(s) may expire during the next stage — re-login out of band and update tokens.json."
+    Write-Host "$expiryWarnings token(s) may expire during the next stage - re-login out of band and update tokens.json."
 }
 
 if ($FailOnAuthError -and $authFailures -gt 0) {
