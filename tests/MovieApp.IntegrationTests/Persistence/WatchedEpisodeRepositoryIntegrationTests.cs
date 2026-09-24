@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
@@ -129,6 +130,84 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
 
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 5);
         Assert.Single(items);
+    }
+
+    [Fact]
+    public async Task BulkMarkWatchedAsyncInsertsMissingAndUpdatesExistingAgainstPostgreSql()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var userId = Guid.NewGuid();
+        var (_, episodeIds) = await SeedTvShowEpisodeIdsAsync(context, episodeCount: 3);
+        var originalWatchedAt = DateTime.UtcNow.AddDays(-5);
+        await SeedWatchedEpisodeAsync(context, userId, episodeIds[0], originalWatchedAt);
+        var existing = await context.WatchedEpisodes.AsNoTracking()
+            .SingleAsync(item => item.UserId == userId && item.EpisodeId == episodeIds[0]);
+
+        var watchedAt = DateTime.UtcNow;
+        var affected = await new WatchedEpisodeRepository(context)
+            .BulkMarkWatchedAsync(userId, [.. episodeIds, episodeIds[1]], watchedAt);
+
+        Assert.Equal(3, affected);
+        var rows = await context.WatchedEpisodes.AsNoTracking()
+            .Where(item => item.UserId == userId)
+            .ToListAsync();
+        Assert.Equal(episodeIds.OrderBy(id => id), rows.Select(row => row.EpisodeId).OrderBy(id => id));
+        Assert.All(rows, row => Assert.Equal(watchedAt, row.WatchedAt, TimeSpan.FromMilliseconds(1)));
+        Assert.All(rows, row => Assert.Equal(watchedAt, row.UpdatedAt, TimeSpan.FromMilliseconds(1)));
+        var updated = rows.Single(row => row.EpisodeId == episodeIds[0]);
+        Assert.Equal(existing.Id, updated.Id);
+        Assert.Equal(existing.CreatedAt, updated.CreatedAt, TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
+    public async Task BulkUnmarkWatchedAsyncDeletesOnlyRequestedRowsForUserAgainstPostgreSql()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var (_, episodeIds) = await SeedTvShowEpisodeIdsAsync(context, episodeCount: 3);
+        var watchedAt = DateTime.UtcNow;
+        await SeedWatchedEpisodeAsync(context, userId, episodeIds[0], watchedAt);
+        await SeedWatchedEpisodeAsync(context, userId, episodeIds[2], watchedAt);
+        await SeedWatchedEpisodeAsync(context, otherUserId, episodeIds[0], watchedAt);
+
+        var removed = await new WatchedEpisodeRepository(context)
+            .BulkUnmarkWatchedAsync(userId, [episodeIds[0], episodeIds[1], episodeIds[0]]);
+
+        Assert.Equal(1, removed);
+        Assert.Equal(
+            [episodeIds[2]],
+            await context.WatchedEpisodes.Where(item => item.UserId == userId).Select(item => item.EpisodeId).ToListAsync());
+        Assert.True(await context.WatchedEpisodes.AnyAsync(item => item.UserId == otherUserId));
+    }
+
+    [Fact]
+    public async Task BulkWatchStateForVeryLargeShowUsesSingleStatementAgainstPostgreSql()
+    {
+        var commandCount = 0;
+        await using var context = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(IntegrationTestDatabase.GetConnectionString())
+                .LogTo(_ => Interlocked.Increment(ref commandCount), [RelationalEventId.CommandExecuted])
+                .Options);
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(context, userId);
+        var (_, episodeIds) = await SeedTvShowEpisodeIdsAsync(context, episodeCount: 3347);
+        var repository = new WatchedEpisodeRepository(context);
+
+        commandCount = 0;
+        Assert.Equal(3347, await repository.BulkMarkWatchedAsync(userId, episodeIds, DateTime.UtcNow));
+        Assert.Equal(1, commandCount);
+        Assert.Empty(context.ChangeTracker.Entries<WatchedEpisode>());
+
+        commandCount = 0;
+        Assert.Equal(3347, await repository.BulkMarkWatchedAsync(userId, episodeIds, DateTime.UtcNow));
+        Assert.Equal(1, commandCount);
+
+        commandCount = 0;
+        Assert.Equal(3347, await repository.BulkUnmarkWatchedAsync(userId, episodeIds));
+        Assert.Equal(1, commandCount);
+        Assert.False(await context.WatchedEpisodes.AnyAsync(item => item.UserId == userId));
     }
 
     private static async Task<(Guid TvShowId, Guid WatchedEpisodeId, IReadOnlyList<Guid> EpisodeIds)> SeedTvShowWithEpisodesAsync(

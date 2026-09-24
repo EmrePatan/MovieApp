@@ -286,29 +286,23 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
             return 0;
         }
 
-        var distinctIds = episodeIds.Distinct().ToList();
-        var existingEpisodes = await dbContext.WatchedEpisodes
-            .Where(watchedEpisode =>
-                watchedEpisode.UserId == userId &&
-                distinctIds.Contains(watchedEpisode.EpisodeId))
-            .ToListAsync(cancellationToken);
+        var distinctIds = episodeIds.Distinct().ToArray();
+        var newRowIds = distinctIds.Select(_ => Guid.NewGuid()).ToArray();
 
-        var existingIds = existingEpisodes
-            .Select(watchedEpisode => watchedEpisode.EpisodeId)
-            .ToHashSet();
+        // ON CONFLICT DO UPDATE rejects touching the same row twice, so ids must be distinct.
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+             INSERT INTO watched_episodes ("Id", "UserId", "EpisodeId", "WatchedAt", "CreatedAt", "UpdatedAt")
+             SELECT rows.id, {userId}, rows.episode_id, {watchedAt}, {watchedAt}, {watchedAt}
+             FROM unnest({newRowIds}::uuid[], {distinctIds}::uuid[]) AS rows(id, episode_id)
+             ON CONFLICT ("UserId", "EpisodeId")
+             DO UPDATE SET
+                 "WatchedAt" = EXCLUDED."WatchedAt",
+                 "UpdatedAt" = EXCLUDED."UpdatedAt"
+             """,
+            cancellationToken);
 
-        foreach (var watchedEpisode in existingEpisodes)
-        {
-            watchedEpisode.UpdateWatchedAt(watchedAt);
-        }
-
-        foreach (var episodeId in distinctIds.Where(id => !existingIds.Contains(id)))
-        {
-            dbContext.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodeId, watchedAt));
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return distinctIds.Count;
+        return distinctIds.Length;
     }
 
     public async Task<int> BulkUnmarkWatchedAsync(
@@ -321,20 +315,12 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
             return 0;
         }
 
-        var distinctIds = episodeIds.Distinct().ToList();
-        var watchedEpisodes = await dbContext.WatchedEpisodes
-            .Where(watchedEpisode =>
-                watchedEpisode.UserId == userId &&
-                distinctIds.Contains(watchedEpisode.EpisodeId))
-            .ToListAsync(cancellationToken);
-
-        if (watchedEpisodes.Count == 0)
-        {
-            return 0;
-        }
-
-        dbContext.WatchedEpisodes.RemoveRange(watchedEpisodes);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return watchedEpisodes.Count;
+        var distinctIds = episodeIds.Distinct().ToArray();
+        return await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+             DELETE FROM watched_episodes
+             WHERE "UserId" = {userId} AND "EpisodeId" = ANY({distinctIds}::uuid[])
+             """,
+            cancellationToken);
     }
 }
