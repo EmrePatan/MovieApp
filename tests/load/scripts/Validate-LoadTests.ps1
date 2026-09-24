@@ -58,6 +58,7 @@ $scenarios = @(
     "thresholds-config-selfcheck.js",
     "tokens-loader-selfcheck.js",
     "identities-shard-selfcheck.js",
+    "identities-grafana-secrets-selfcheck.js",
     "preflight-no-auth-selfcheck.js"
 )
 $k6Native = Get-Command k6 -ErrorAction SilentlyContinue

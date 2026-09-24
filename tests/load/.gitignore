@@ -8,6 +8,8 @@ data/tokens.local.json
 data/grafana-cloud-identities.payload.json
 data/grafana-cloud-identities.manifest.json
 data/grafana-cloud-identities.shard-*.txt
+data/grafana-cloud-identities.secret-*.txt
+data/grafana-cloud-identities.sync-state.json
 data/load60-identities.manifest.json
 data/*-local.json
 data/*.production.json

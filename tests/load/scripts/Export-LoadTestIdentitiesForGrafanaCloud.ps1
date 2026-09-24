@@ -5,6 +5,10 @@ param(
 
     [int]$MaxShardChars = 4500,
 
+    [int]$MaxSecretPartUtf8Bytes = 22528,
+
+    [switch]$IncludeEnvShardArtifacts,
+
     [switch]$WhatIf
 )
 
@@ -33,10 +37,11 @@ Grafana Cloud identity export (Movie Cave JWTs)
 ================================================================================
 
 Source identities (valid bearer tokens): $identityCount
-Max shard size (characters): $MaxShardChars
+Env shard max (characters): $MaxShardChars
+Grafana secret part max (UTF-8 bytes): $MaxSecretPartUtf8Bytes
 
-This tooling writes local operator files only. It does NOT upload to Grafana Cloud.
-JWT values are never printed to the terminal.
+Writes gitignored local artifacts only. JWT values are never printed.
+Normal Cloud workflow uses transport 'grafana-secrets' + Sync-LoadTestIdentitiesToGrafanaSecrets.ps1.
 
 "@
 
@@ -61,14 +66,19 @@ if ($singlePayload.Length -le $MaxShardChars) {
     }
 
     $manifest = @{
-        schemaVersion = 1
-        transport     = $transport
-        identityCount = $identityCount
-        shardCount    = 0
-        maxShardChars = $MaxShardChars
-        singleEnvVar  = 'LOAD_TEST_IDENTITIES_JSON'
-        shardEnvNames = @()
-        exportedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+        schemaVersion       = 1
+        transport           = $transport
+        identityCount       = $identityCount
+        shardCount          = 0
+        secretPartCount     = 0
+        maxShardChars       = $MaxShardChars
+        maxPartUtf8Bytes    = $MaxSecretPartUtf8Bytes
+        singleEnvVar        = 'LOAD_TEST_IDENTITIES_JSON'
+        shardEnvNames       = @()
+        secretNames         = @()
+        secretPartFiles     = @()
+        secretPartByteSizes = @()
+        exportedAtUtc       = (Get-Date).ToUniversalTime().ToString('o')
     }
     $manifestJson = $manifest | ConvertTo-Json -Compress -Depth 5
     if (-not $WhatIf) {
@@ -78,56 +88,62 @@ if ($singlePayload.Length -le $MaxShardChars) {
     Write-Host "Transport: single env var (payload length $($singlePayload.Length) <= $MaxShardChars)."
     Write-Host "Manifest:  $manifestPath"
     Write-Host "Payload:   $OutFile"
-    Write-Host ''
-    Write-Host 'Grafana Cloud env vars to set:'
-    Write-Host '  - LOAD_TEST_IDENTITIES_JSON  (paste payload file contents)'
-    Write-Host '  - Remove LOAD_TEST_IDENTITIES_SHARD_COUNT and LOAD_TEST_IDENTITIES_JSON_* when using single-var mode.'
     exit 0
 }
 
-$split = Split-LoadTestIdentitiesForGrafanaShards -Identities $identities -MaxShardChars $MaxShardChars
-$shardCount = $split.Shards.Count
-foreach ($shard in $split.Shards) {
-    if ($shard.Length -gt $MaxShardChars) {
-        throw "Internal error: shard length $($shard.Length) exceeds limit $MaxShardChars"
+$secretSplit = Split-LoadTestIdentitiesForGrafanaSecrets -Identities $identities -MaxPartUtf8Bytes $MaxSecretPartUtf8Bytes
+foreach ($byteSize in $secretSplit.PartByteSizes) {
+    if ($byteSize -gt $MaxSecretPartUtf8Bytes) {
+        throw "Internal error: secret part byte size $byteSize exceeds limit $MaxSecretPartUtf8Bytes"
     }
 }
 
 $manifest = @{
-    schemaVersion = 1
-    transport     = 'sharded'
-    identityCount = $identityCount
-    shardCount    = $shardCount
-    maxShardChars = $MaxShardChars
-    singleEnvVar  = $null
-    shardEnvNames = $split.ShardEnvNames
-    exportedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+    schemaVersion       = 1
+    transport           = 'grafana-secrets'
+    identityCount       = $identityCount
+    shardCount          = 0
+    secretPartCount     = $secretSplit.Parts.Count
+    maxShardChars       = $MaxShardChars
+    maxPartUtf8Bytes    = $MaxSecretPartUtf8Bytes
+    singleEnvVar        = $null
+    shardEnvNames       = @()
+    secretNames         = $secretSplit.SecretNames
+    secretPartFiles     = $secretSplit.PartFiles
+    secretPartByteSizes = $secretSplit.PartByteSizes
+    exportedAtUtc       = (Get-Date).ToUniversalTime().ToString('o')
 }
-$manifestJson = $manifest | ConvertTo-Json -Compress -Depth 5
+$manifestJson = $manifest | ConvertTo-Json -Compress -Depth 6
 if ($manifestJson -match 'bearerToken|eyJ[A-Za-z0-9_-]{10,}') {
     throw 'Manifest must not contain JWT material.'
 }
 
 if (-not $WhatIf) {
     [System.IO.File]::WriteAllText($manifestPath, $manifestJson, $utf8NoBom)
-    for ($i = 0; $i -lt $shardCount; $i++) {
-        $shardFile = Join-Path $dataDir ("grafana-cloud-identities.shard-{0}.txt" -f ($i + 1).ToString('000'))
-        [System.IO.File]::WriteAllText($shardFile, $split.Shards[$i], $utf8NoBom)
+    for ($i = 0; $i -lt $secretSplit.Parts.Count; $i++) {
+        $secretFile = Join-Path $dataDir $secretSplit.PartFiles[$i]
+        [System.IO.File]::WriteAllText($secretFile, $secretSplit.Parts[$i], $utf8NoBom)
     }
 }
 
-Write-Host "Transport: sharded ($shardCount Grafana env vars + LOAD_TEST_IDENTITIES_SHARD_COUNT)."
+Write-Host "Transport: grafana-secrets ($($secretSplit.Parts.Count) secret part file(s), max $MaxSecretPartUtf8Bytes UTF-8 bytes each)."
 Write-Host "Manifest:  $manifestPath"
-Write-Host "Shard files: $dataDir\grafana-cloud-identities.shard-*.txt"
+Write-Host "Secret files: $dataDir\grafana-cloud-identities.secret-*.txt"
 Write-Host ''
-Write-Host 'Grafana Cloud env vars to create/update (encrypted at rest in Grafana UI):'
-Write-Host "  - LOAD_TEST_IDENTITIES_SHARD_COUNT = $shardCount"
-for ($i = 0; $i -lt $shardCount; $i++) {
-    $envName = $split.ShardEnvNames[$i]
-    $len = $split.Shards[$i].Length
-    Write-Host "  - $envName  (paste shard-$($i + 1) file; $len chars)"
+Write-Host 'Next step (no JWT paste in Grafana UI):'
+Write-Host '  .\scripts\Sync-LoadTestIdentitiesToGrafanaSecrets.ps1 -DryRun'
+Write-Host '  .\scripts\Sync-LoadTestIdentitiesToGrafanaSecrets.ps1'
+
+if ($IncludeEnvShardArtifacts) {
+    $envSplit = Split-LoadTestIdentitiesForGrafanaShards -Identities $identities -MaxShardChars $MaxShardChars
+    if (-not $WhatIf) {
+        for ($i = 0; $i -lt $envSplit.Shards.Count; $i++) {
+            $shardFile = Join-Path $dataDir ("grafana-cloud-identities.shard-{0}.txt" -f ($i + 1).ToString('000'))
+            [System.IO.File]::WriteAllText($shardFile, $envSplit.Shards[$i], $utf8NoBom)
+        }
+    }
+
+    Write-Host ''
+    Write-Host "Optional env-shard fallback artifacts written: $($envSplit.Shards.Count) shard file(s)."
+    Write-Host 'Fallback only — do NOT pass shard values via k6 cloud run -e.'
 }
-Write-Host ''
-Write-Host 'When switching from single-var to sharded mode:'
-Write-Host '  - Clear or delete LOAD_TEST_IDENTITIES_JSON in Grafana Cloud to avoid single-var taking precedence.'
-Write-Host 'Do NOT pass shard values via k6 cloud run -e (archive stores CLI env as plain text).'

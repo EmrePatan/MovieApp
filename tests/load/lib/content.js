@@ -1,6 +1,6 @@
 import { SharedArray } from 'k6/data';
 import { loadContentPools, loadSearchTerms } from './config.js';
-import { identityPool } from './identities.js';
+import { getEffectiveIdentityPool, getRuntimeIdentityTransportLabel } from './identitiesRuntime.js';
 
 const pools = new SharedArray('content-pools', () => [loadContentPools()]);
 const pool = () => pools[0];
@@ -15,11 +15,12 @@ function resolveVuId(vu) {
 }
 
 export function identityForVu(vu) {
-  if (identityPool.length === 0) {
+  const pool = getEffectiveIdentityPool();
+  if (pool.length === 0) {
     return null;
   }
   const vuId = resolveVuId(vu);
-  return identityPool[(vuId - 1) % identityPool.length];
+  return pool[(vuId - 1) % pool.length];
 }
 
 export function pickMovieId(seed) {
@@ -74,7 +75,8 @@ export function contentPoolStats() {
     tvShowCount: data.tvShowIds?.length || 0,
     warmExternalMovieCount: data.externalRatingsWarmMovieIds?.length || 0,
     warmExternalTvCount: data.externalRatingsWarmTvShowIds?.length || 0,
-    identityCount: identityPool.length,
+    identityCount: getEffectiveIdentityPool().length,
+    identityTransport: getRuntimeIdentityTransportLabel(),
     searchTermCount: list?.length || 0,
   };
 }

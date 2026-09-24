@@ -30,6 +30,10 @@ function loadFromShardedIdentitiesEnv() {
 }
 
 export const identityPool = new SharedArray('identities', function loadIdentities() {
+  if ((__ENV.LOAD_TEST_IDENTITIES_TRANSPORT || '').toLowerCase() === 'grafana-secrets') {
+    return [];
+  }
+
   const fromEnvJson = loadFromIdentitiesJsonEnv();
   if (fromEnvJson) {
     return fromEnvJson;

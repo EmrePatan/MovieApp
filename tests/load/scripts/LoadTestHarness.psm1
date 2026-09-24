@@ -175,15 +175,58 @@ function Get-LoadTestGrafanaIdentityShardEnvName {
     return ('LOAD_TEST_IDENTITIES_JSON_{0}' -f $ShardIndex.ToString('000'))
 }
 
-function Split-LoadTestIdentitiesForGrafanaShards {
+function Get-LoadTestGrafanaSecretPartName {
+    param([int]$PartIndex)
+
+    return ('movie-cave-load-identities-{0}' -f $PartIndex.ToString('000'))
+}
+
+function Get-LoadTestGrafanaSecretPartFileName {
+    param([int]$PartIndex)
+
+    return ('grafana-cloud-identities.secret-{0}.txt' -f $PartIndex.ToString('000'))
+}
+
+function Get-LoadTestGrafanaSecretsSyncStateFileName {
+    return 'grafana-cloud-identities.sync-state.json'
+}
+
+function Get-LoadTestGrafanaSecretsSyncStatePath {
+    param([string]$LoadRoot)
+
+    return Join-Path $LoadRoot ('data\' + (Get-LoadTestGrafanaSecretsSyncStateFileName))
+}
+
+function Get-LoadTestUtf8ByteCount {
+    param([string]$Text)
+
+    return [System.Text.Encoding]::UTF8.GetByteCount($Text)
+}
+
+function Split-LoadTestIdentitiesJsonParts {
     param(
         [Parameter(Mandatory)]
         [array]$Identities,
-        [int]$MaxShardChars = 4500
+        [int]$MaxUtf8Bytes = 0,
+        [int]$MaxChars = 0
     )
 
     if ($Identities.Count -lt 1) {
-        throw 'At least one identity is required to build Grafana shards.'
+        throw 'At least one identity is required to build identity JSON parts.'
+    }
+
+    if ($MaxUtf8Bytes -le 0 -and $MaxChars -le 0) {
+        throw 'Specify MaxUtf8Bytes or MaxChars for identity JSON part splitting.'
+    }
+
+    function Test-PartFits {
+        param([string]$Text)
+
+        if ($MaxUtf8Bytes -gt 0) {
+            return (Get-LoadTestUtf8ByteCount -Text $Text) -le $MaxUtf8Bytes
+        }
+
+        return $Text.Length -le $MaxChars
     }
 
     $encoded = @()
@@ -193,7 +236,7 @@ function Split-LoadTestIdentitiesForGrafanaShards {
 
     $prefix = '{"identities":['
     $suffix = ']}'
-    $shards = [System.Collections.Generic.List[string]]::new()
+    $parts = [System.Collections.Generic.List[string]]::new()
     $current = $null
     $i = 0
     $total = $encoded.Count
@@ -209,9 +252,9 @@ function Split-LoadTestIdentitiesForGrafanaShards {
         $isLast = ($i -eq ($total - 1))
         $withClose = if ($isLast) { $candidate + $suffix } else { $candidate }
 
-        if ($withClose.Length -le $MaxShardChars) {
+        if (Test-PartFits -Text $withClose) {
             if ($isLast) {
-                $shards.Add($withClose)
+                $parts.Add($withClose)
                 $current = $null
             } else {
                 $current = $candidate
@@ -221,29 +264,286 @@ function Split-LoadTestIdentitiesForGrafanaShards {
         }
 
         if ($null -eq $current -or $current.Length -eq 0) {
-            throw "Identity at index $i exceeds Grafana shard limit ($MaxShardChars characters)."
+            $limitLabel = if ($MaxUtf8Bytes -gt 0) { "$MaxUtf8Bytes UTF-8 bytes" } else { "$MaxChars characters" }
+            throw "Identity at index $i exceeds Grafana part limit ($limitLabel)."
         }
 
-        $shards.Add($current)
+        $parts.Add($current)
         $current = $null
     }
 
-    $shardEnvNames = @()
-    for ($s = 1; $s -le $shards.Count; $s++) {
-        $shardEnvNames += Get-LoadTestGrafanaIdentityShardEnvName -ShardIndex $s
-    }
-
-    $assembled = -join $shards
+    $assembled = -join $parts
     $roundTrip = $assembled | ConvertFrom-Json
     if ($roundTrip.identities.Count -ne $Identities.Count) {
-        throw 'Shard assembly round-trip identity count mismatch.'
+        throw 'Identity JSON part assembly round-trip count mismatch.'
+    }
+
+    $partByteSizes = @()
+    foreach ($part in $parts) {
+        $partByteSizes += (Get-LoadTestUtf8ByteCount -Text $part)
     }
 
     return @{
-        Shards         = $shards
-        ShardEnvNames  = $shardEnvNames
+        Parts          = $parts
         AssembledJson  = $assembled
+        PartByteSizes  = $partByteSizes
+        MaxUtf8Bytes   = $MaxUtf8Bytes
+        MaxChars       = $MaxChars
+    }
+}
+
+function Split-LoadTestIdentitiesForGrafanaShards {
+    param(
+        [Parameter(Mandatory)]
+        [array]$Identities,
+        [int]$MaxShardChars = 4500
+    )
+
+    $split = Split-LoadTestIdentitiesJsonParts -Identities $Identities -MaxChars $MaxShardChars
+    $shardEnvNames = @()
+    for ($s = 1; $s -le $split.Parts.Count; $s++) {
+        $shardEnvNames += Get-LoadTestGrafanaIdentityShardEnvName -ShardIndex $s
+    }
+
+    return @{
+        Shards         = $split.Parts
+        ShardEnvNames  = $shardEnvNames
+        AssembledJson  = $split.AssembledJson
         MaxShardChars  = $MaxShardChars
+    }
+}
+
+function Split-LoadTestIdentitiesForGrafanaSecrets {
+    param(
+        [Parameter(Mandatory)]
+        [array]$Identities,
+        [int]$MaxPartUtf8Bytes = 22528
+    )
+
+    $split = Split-LoadTestIdentitiesJsonParts -Identities $Identities -MaxUtf8Bytes $MaxPartUtf8Bytes
+    $secretNames = @()
+    $partFiles = @()
+    for ($p = 1; $p -le $split.Parts.Count; $p++) {
+        $secretNames += Get-LoadTestGrafanaSecretPartName -PartIndex $p
+        $partFiles += Get-LoadTestGrafanaSecretPartFileName -PartIndex $p
+    }
+
+    return @{
+        Parts          = $split.Parts
+        PartByteSizes  = $split.PartByteSizes
+        SecretNames    = $secretNames
+        PartFiles      = $partFiles
+        AssembledJson  = $split.AssembledJson
+        MaxPartUtf8Bytes = $MaxPartUtf8Bytes
+    }
+}
+
+function New-LoadTestGrafanaSecureValueRequestBody {
+    param(
+        [Parameter(Mandatory)][string]$SecretName,
+        [Parameter(Mandatory)][string]$SecretValue,
+        [string]$Description
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Description)) {
+        $Description = ('MC load id {0}' -f ($SecretName -replace '^movie-cave-load-identities-', ''))
+    }
+
+    if ($Description.Length -gt 25) {
+        $Description = $Description.Substring(0, 25)
+    }
+
+    return @{
+        metadata = @{ name = $SecretName }
+        spec     = @{
+            description = $Description
+            value       = $SecretValue
+            decrypters  = @('k6-cloud')
+        }
+    }
+}
+
+function Get-LoadTestStaleManagedGrafanaSecretNames {
+    param(
+        [string[]]$PreviousSecretNames,
+        [string[]]$CurrentSecretNames,
+        [string]$ManagedNamePrefix = 'movie-cave-load-identities-'
+    )
+
+    $currentSet = @{}
+    foreach ($name in $CurrentSecretNames) {
+        $currentSet[$name] = $true
+    }
+
+    $stale = @()
+    foreach ($name in $PreviousSecretNames) {
+        if ($name -like ($ManagedNamePrefix + '*') -and -not $currentSet.ContainsKey($name)) {
+            $stale += $name
+        }
+    }
+
+    return ,$stale
+}
+
+function Invoke-LoadTestGrafanaSecretsSync {
+    param(
+        [Parameter(Mandatory)][string]$LoadRoot,
+        [string]$GrafanaUrl = $env:GRAFANA_URL,
+        [string]$GrafanaToken = $env:GRAFANA_SA_TOKEN,
+        [switch]$DryRun,
+        [switch]$PruneStaleManagedSecrets,
+        [scriptblock]$RestMethodInvoker
+    )
+
+    if ([string]::IsNullOrWhiteSpace($GrafanaUrl) -or [string]::IsNullOrWhiteSpace($GrafanaToken)) {
+        throw 'Set GRAFANA_URL and GRAFANA_SA_TOKEN in the local environment before syncing Grafana secrets.'
+    }
+
+    $manifestPath = Get-LoadTestGrafanaCloudManifestPath -LoadRoot $LoadRoot
+    $manifest = Read-LoadTestGrafanaCloudManifest -ManifestPath $manifestPath
+    if ($null -eq $manifest) {
+        throw "Missing manifest: $manifestPath"
+    }
+
+    if ([string]$manifest.transport -ne 'grafana-secrets') {
+        throw "Manifest transport must be 'grafana-secrets' (found '$($manifest.transport)'). Re-run Export-LoadTestIdentitiesForGrafanaCloud.ps1."
+    }
+
+    if (-not (Test-LoadTestManifestContainsNoSecrets -ManifestPath $manifestPath)) {
+        throw 'Manifest must not contain JWT material.'
+    }
+
+    $secretNames = @($manifest.secretNames)
+    $partFiles = @($manifest.secretPartFiles)
+    $maxBytes = [int]$manifest.maxPartUtf8Bytes
+    if ($secretNames.Count -lt 1 -or $secretNames.Count -ne $partFiles.Count) {
+        throw 'Manifest secretNames and secretPartFiles must be aligned and non-empty.'
+    }
+
+    $dataDir = Join-Path $LoadRoot 'data'
+    $partsToUpload = @()
+    for ($i = 0; $i -lt $secretNames.Count; $i++) {
+        $filePath = Join-Path $dataDir $partFiles[$i]
+        if (-not (Test-Path $filePath)) {
+            throw "Missing secret part file: $filePath"
+        }
+
+        $bytes = [System.IO.File]::ReadAllBytes($filePath)
+        $byteCount = $bytes.Length
+        if ($byteCount -gt $maxBytes) {
+            throw "Secret part file exceeds maxPartUtf8Bytes ($maxBytes): $filePath ($byteCount bytes)"
+        }
+
+        $partsToUpload += @{
+            SecretName = [string]$secretNames[$i]
+            FilePath   = $filePath
+            ByteCount  = $byteCount
+            Value      = [System.Text.Encoding]::UTF8.GetString($bytes)
+        }
+    }
+
+    $syncStatePath = Get-LoadTestGrafanaSecretsSyncStatePath -LoadRoot $LoadRoot
+    $previousNames = @()
+    if (Test-Path $syncStatePath) {
+        $state = Get-Content $syncStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $previousNames = @($state.secretNames)
+    }
+
+    $staleNames = Get-LoadTestStaleManagedGrafanaSecretNames -PreviousSecretNames $previousNames -CurrentSecretNames $secretNames
+    if ($staleNames.Count -gt 0) {
+        Write-Host ("Stale managed Grafana secret name(s) from prior sync: {0}" -f ($staleNames -join ', '))
+        if (-not $PruneStaleManagedSecrets) {
+            Write-Host 'Pass -PruneStaleManagedSecrets to delete only these stale movie-cave-load-identities-* secrets.'
+        }
+    }
+
+    Write-Host ("Grafana secrets sync plan: {0} part(s), identityCount={1}, dryRun={2}" -f $partsToUpload.Count, [int]$manifest.identityCount, $DryRun.IsPresent)
+    foreach ($part in $partsToUpload) {
+        Write-Host ("  - {0} ({1} UTF-8 bytes)" -f $part.SecretName, $part.ByteCount)
+    }
+
+    if ($DryRun) {
+        return @{
+            DryRun      = $true
+            SecretNames = $secretNames
+            StaleNames  = $staleNames
+        }
+    }
+
+    $baseUrl = $GrafanaUrl.TrimEnd('/')
+    $headers = @{
+        Authorization = "Bearer $GrafanaToken"
+        Accept        = 'application/json'
+    }
+
+    if ($null -eq $RestMethodInvoker) {
+        $RestMethodInvoker = {
+            param($Method, $Uri, $Headers, $Body)
+            $json = if ($null -ne $Body) { $Body | ConvertTo-Json -Compress -Depth 6 } else { $null }
+            $params = @{
+                Method      = $Method
+                Uri         = $Uri
+                Headers     = $Headers
+                ContentType = 'application/json'
+            }
+            if ($null -ne $json) {
+                $params.Body = $json
+            }
+            return Invoke-RestMethod @params
+        }
+    }
+
+    foreach ($part in $partsToUpload) {
+        $body = New-LoadTestGrafanaSecureValueRequestBody -SecretName $part.SecretName -SecretValue $part.Value
+        $uri = '{0}/apis/secret.grafana.app/v1beta1/namespaces/default/securevalues/{1}' -f $baseUrl, $part.SecretName
+        $exists = $false
+        try {
+            & $RestMethodInvoker -Method 'Get' -Uri $uri -Headers $headers -Body $null | Out-Null
+            $exists = $true
+        } catch {
+            $exists = $false
+        }
+
+        $method = if ($exists) { 'Put' } else { 'Post' }
+        $writeUri = if ($exists) {
+            $uri
+        } else {
+            '{0}/apis/secret.grafana.app/v1beta1/namespaces/default/securevalues' -f $baseUrl
+        }
+
+        try {
+            & $RestMethodInvoker -Method $method -Uri $writeUri -Headers $headers -Body $body | Out-Null
+        } catch {
+            throw "Grafana secret sync failed for $($part.SecretName). Check GRAFANA_URL, GRAFANA_SA_TOKEN permissions (secret.securevalues:*), and stack Grafana version (Secrets Management API)."
+        }
+    }
+
+    if ($PruneStaleManagedSecrets -and $staleNames.Count -gt 0) {
+        foreach ($stale in $staleNames) {
+            $deleteUri = '{0}/apis/secret.grafana.app/v1beta1/namespaces/default/securevalues/{1}' -f $baseUrl, $stale
+            try {
+                & $RestMethodInvoker -Method 'Delete' -Uri $deleteUri -Headers $headers -Body $null | Out-Null
+                Write-Host "Deleted stale managed secret: $stale"
+            } catch {
+                throw "Failed to delete stale managed secret: $stale"
+            }
+        }
+    }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $stateJson = (@{
+            schemaVersion  = 1
+            secretNames    = $secretNames
+            secretPartCount = $secretNames.Count
+            identityCount  = [int]$manifest.identityCount
+            syncedAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+        } | ConvertTo-Json -Compress -Depth 5)
+    [System.IO.File]::WriteAllText($syncStatePath, $stateJson, $utf8NoBom)
+
+    return @{
+        DryRun      = $false
+        SecretNames = $secretNames
+        StaleNames  = $staleNames
     }
 }
 
@@ -357,7 +657,12 @@ function Format-LoadTestCloudPreflight {
 
     if ($ExecutionMode -eq 'Cloud' -and $CloudManifestIdentityCount -gt 0) {
         $lines += "Cloud identity pool (manifest): $CloudManifestIdentityCount"
-        if ($CloudTransport -eq 'sharded' -and $CloudManifestShardCount -gt 0) {
+        if ($CloudTransport -eq 'grafana-secrets') {
+            $lines += 'Cloud identity transport:     Grafana Secrets'
+            if ($CloudManifestShardCount -gt 0) {
+                $lines += "Cloud identity secret parts:  $CloudManifestShardCount"
+            }
+        } elseif ($CloudTransport -eq 'sharded' -and $CloudManifestShardCount -gt 0) {
             $lines += "Cloud identity shards:          $CloudManifestShardCount"
         } elseif ($CloudTransport -eq 'single') {
             $lines += 'Cloud identity transport:     single LOAD_TEST_IDENTITIES_JSON'
@@ -399,6 +704,15 @@ Export-ModuleMember -Function @(
     'Get-LoadTestGrafanaCloudManifestPath',
     'Get-LoadTestGrafanaIdentityShardEnvName',
     'Split-LoadTestIdentitiesForGrafanaShards',
+    'Split-LoadTestIdentitiesJsonParts',
+    'Split-LoadTestIdentitiesForGrafanaSecrets',
+    'Get-LoadTestGrafanaSecretPartName',
+    'Get-LoadTestGrafanaSecretPartFileName',
+    'Get-LoadTestUtf8ByteCount',
+    'New-LoadTestGrafanaSecureValueRequestBody',
+    'Get-LoadTestStaleManagedGrafanaSecretNames',
+    'Invoke-LoadTestGrafanaSecretsSync',
+    'Get-LoadTestGrafanaSecretsSyncStatePath',
     'Read-LoadTestGrafanaCloudManifest',
     'Test-LoadTestManifestContainsNoSecrets',
     'Assert-LoadTestCloudAuth',

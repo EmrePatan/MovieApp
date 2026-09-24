@@ -46,10 +46,11 @@ Assert-True 'payload has identities' ($payload -match 'identities')
 Assert-True 'payload omits description field' (-not ($payload -match 'description'))
 Assert-True 'payload strips to bearer only' ($payload -match 'eyJ\.test')
 
-$preflight = Format-LoadTestCloudPreflight -ExecutionMode Cloud -StageVus 150 -IdentityCount 100 -ReuseRatio 1.5 -VuHours 36 -Duration '00:17:00' -LoadZone 'amazon:de:frankfurt' -SearchProfileHint 'autocomplete-only' -IsProduction $true -LocalTokenCount 100 -CloudManifestIdentityCount 100 -CloudManifestShardCount 12 -CloudTransport 'sharded'
+$preflight = Format-LoadTestCloudPreflight -ExecutionMode Cloud -StageVus 150 -IdentityCount 100 -ReuseRatio 1.5 -VuHours 36 -Duration '00:17:00' -LoadZone 'amazon:de:frankfurt' -SearchProfileHint 'autocomplete-only' -IsProduction $true -LocalTokenCount 100 -CloudManifestIdentityCount 100 -CloudManifestShardCount 3 -CloudTransport 'grafana-secrets'
 Assert-True 'preflight mentions reuse' ($preflight -match '1.5:1')
 Assert-True 'preflight uses manifest cloud pool line' ($preflight -match 'Cloud identity pool \(manifest\): 100')
-Assert-True 'preflight lists shard count' ($preflight -match 'Cloud identity shards:\s+12')
+Assert-True 'preflight lists grafana secrets transport' ($preflight -match 'Grafana Secrets')
+Assert-True 'preflight lists secret part count' ($preflight -match 'Cloud identity secret parts:\s+3')
 
 $fakeIdentities = @()
 for ($n = 1; $n -le 100; $n++) {
@@ -83,6 +84,94 @@ Assert-True 'manifest file has no jwt material' (Test-LoadTestManifestContainsNo
 $readManifest = Read-LoadTestGrafanaCloudManifest -ManifestPath $manifestTemp
 Assert-Equal 'manifest identityCount' 100 $readManifest.identityCount
 Remove-Item $manifestTemp -Force
+
+$secretSplit = Split-LoadTestIdentitiesForGrafanaSecrets -Identities $fakeIdentities -MaxPartUtf8Bytes 22528
+Assert-True '100 fake identities produce grafana secret parts' ($secretSplit.Parts.Count -ge 1)
+$secretSplitSmall = Split-LoadTestIdentitiesForGrafanaSecrets -Identities $fakeIdentities -MaxPartUtf8Bytes 3000
+Assert-True '100 identities split into multiple parts when limit is small' ($secretSplitSmall.Parts.Count -ge 2)
+Assert-True 'secret parts within utf8 byte limit' (-not ($secretSplit.PartByteSizes | Where-Object { $_ -gt 22528 }))
+Assert-Equal 'first secret name' 'movie-cave-load-identities-001' $secretSplit.SecretNames[0]
+Assert-Equal 'secret names match parts' $secretSplit.Parts.Count $secretSplit.SecretNames.Count
+$secretJoined = -join $secretSplit.Parts
+Assert-Equal 'secret round-trip count' 100 (($secretJoined | ConvertFrom-Json).identities.Count)
+
+$secureBody = New-LoadTestGrafanaSecureValueRequestBody -SecretName 'movie-cave-load-identities-001' -SecretValue 'not-a-jwt' -Description 'MC load id 001'
+Assert-True 'secure value request includes k6-cloud decrypter' ($secureBody.spec.decrypters -contains 'k6-cloud')
+Assert-True 'secure value description within 25 chars' ($secureBody.spec.description.Length -le 25)
+
+$stale = Get-LoadTestStaleManagedGrafanaSecretNames -PreviousSecretNames @('movie-cave-load-identities-001', 'movie-cave-load-identities-002', 'other-secret') -CurrentSecretNames @('movie-cave-load-identities-001')
+Assert-Equal 'stale managed secret count' 1 $stale.Count
+Assert-Equal 'stale managed secret name' 'movie-cave-load-identities-002' $stale[0]
+
+$syncRoot = Join-Path $env:TEMP ("load-grafana-sync-{0}" -f [Guid]::NewGuid())
+$syncData = Join-Path $syncRoot 'data'
+New-Item -ItemType Directory -Path $syncData -Force | Out-Null
+for ($i = 0; $i -lt $secretSplit.Parts.Count; $i++) {
+    $partPath = Join-Path $syncData $secretSplit.PartFiles[$i]
+    [System.IO.File]::WriteAllText($partPath, $secretSplit.Parts[$i], (New-Object System.Text.UTF8Encoding($false)))
+}
+$syncManifest = @{
+    schemaVersion       = 1
+    transport           = 'grafana-secrets'
+    identityCount       = 100
+    secretPartCount     = $secretSplit.Parts.Count
+    maxPartUtf8Bytes    = 22528
+    secretNames         = $secretSplit.SecretNames
+    secretPartFiles     = $secretSplit.PartFiles
+    secretPartByteSizes = $secretSplit.PartByteSizes
+} | ConvertTo-Json -Compress -Depth 6
+$syncManifestPath = Join-Path $syncData 'grafana-cloud-identities.manifest.json'
+[System.IO.File]::WriteAllText($syncManifestPath, $syncManifest, (New-Object System.Text.UTF8Encoding($false)))
+
+$httpCalls = [System.Collections.Generic.List[object]]::new()
+$mockRest = {
+    param($Method, $Uri, $Headers, $Body)
+    $httpCalls.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Body = $Body }) | Out-Null
+    if ($Method -eq 'Get') {
+        throw '404 not found'
+    }
+    return @{ status = 'ok' }
+}
+
+$env:GRAFANA_URL = 'https://grafana.example.net'
+$env:GRAFANA_SA_TOKEN = 'unit-test-token'
+$dry = Invoke-LoadTestGrafanaSecretsSync -LoadRoot $syncRoot -DryRun -RestMethodInvoker $mockRest
+Assert-True 'dry run makes no http calls' ($httpCalls.Count -eq 0)
+Assert-True 'dry run returns secret names' ($dry.SecretNames.Count -eq $secretSplit.Parts.Count)
+
+$null = Invoke-LoadTestGrafanaSecretsSync -LoadRoot $syncRoot -RestMethodInvoker $mockRest
+$postCalls = @($httpCalls | Where-Object { $_.Method -eq 'Post' })
+Assert-Equal 'sync post calls per secret part' $secretSplit.Parts.Count $postCalls.Count
+foreach ($call in $postCalls) {
+    Assert-True 'sync body includes k6-cloud decrypter' ($call.Body.spec.decrypters -contains 'k6-cloud')
+}
+
+Remove-Item $syncRoot -Recurse -Force
+Remove-Item Env:GRAFANA_URL -ErrorAction SilentlyContinue
+Remove-Item Env:GRAFANA_SA_TOKEN -ErrorAction SilentlyContinue
+
+$oversizeRoot = Join-Path $env:TEMP ("load-grafana-oversize-{0}" -f [Guid]::NewGuid())
+$oversizeData = Join-Path $oversizeRoot 'data'
+New-Item -ItemType Directory -Path $oversizeData -Force | Out-Null
+$oversizeManifest = @{
+    schemaVersion   = 1
+    transport       = 'grafana-secrets'
+    identityCount   = 1
+    secretPartCount = 1
+    maxPartUtf8Bytes = 10
+    secretNames     = @('movie-cave-load-identities-001')
+    secretPartFiles = @('grafana-cloud-identities.secret-001.txt')
+} | ConvertTo-Json -Compress
+[System.IO.File]::WriteAllText((Join-Path $oversizeData 'grafana-cloud-identities.manifest.json'), $oversizeManifest, (New-Object System.Text.UTF8Encoding($false)))
+[System.IO.File]::WriteAllText((Join-Path $oversizeData 'grafana-cloud-identities.secret-001.txt'), '{"identities":[{"id":"x","bearerToken":"eyJ.oversize"}]}', (New-Object System.Text.UTF8Encoding($false)))
+$oversizeFailed = $false
+try {
+    Invoke-LoadTestGrafanaSecretsSync -LoadRoot $oversizeRoot -DryRun
+} catch {
+    $oversizeFailed = $true
+}
+Assert-True 'oversized secret part fails before network' $oversizeFailed
+Remove-Item $oversizeRoot -Recurse -Force
 
 $loadRootSample = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $cloudPaths = Get-LoadTestK6PathEnvValues -ExecutionMode Cloud -LoadRoot $loadRootSample

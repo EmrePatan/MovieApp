@@ -24,49 +24,73 @@ Local execution remains the default and is unchanged when `-ExecutionMode Local`
 |----------|-----------|
 | Local `k6 run` | Gitignored `data/tokens.json` or `LOAD_TEST_TOKENS_FILE` |
 | Grafana Cloud (smoke / small pool) | Single org env var **`LOAD_TEST_IDENTITIES_JSON`** (when export fits ≤ 4500 chars) |
-| Grafana Cloud (full 100 LOAD60 pool) | **Sharded** org env vars **`LOAD_TEST_IDENTITIES_JSON_001`…** + **`LOAD_TEST_IDENTITIES_SHARD_COUNT`** |
+| Grafana Cloud (full 100 LOAD60 pool, **recommended**) | **Grafana Secrets** (`transport: grafana-secrets`) synced via API; workers read with **`k6/secrets`** |
+| Grafana Cloud (legacy fallback) | **Sharded** org env vars **`LOAD_TEST_IDENTITIES_JSON_001`…** + **`LOAD_TEST_IDENTITIES_SHARD_COUNT`** (manual paste; use `-IncludeEnvShardArtifacts` on export) |
 
-Grafana’s Performance **environment variable UI** limits a single value to about **5000 characters**. A 100-identity minimal JSON payload is ~48 KB, so the full pool must be sharded. JWT shards must **never** be passed via `k6 cloud run -e` and must **never** be bundled into the uploaded k6 archive.
+Grafana’s Performance **environment variable UI** limits a single value to about **5000 characters**. A 100-identity minimal JSON payload is ~48 KB, so the full pool cannot live in one env var. **Secrets Management** allows up to **24 KiB per secure value**; export splits on identity boundaries at **≤ 22 KiB UTF-8 bytes** per part (`movie-cave-load-identities-001`, …). JWT material must **never** be passed via `k6 cloud run -e` and must **never** be bundled into the uploaded k6 archive.
 
 ### What leaves your machine
 
 When you run `Export-LoadTestIdentitiesForGrafanaCloud.ps1`:
 
 - **Operator copies into Grafana (encrypted at rest):** `id` + `bearerToken` per identity, split across shards when needed.
-- **Written locally (gitignored):** `data/grafana-cloud-identities.manifest.json` (counts/transport only — **no JWTs**), plus `grafana-cloud-identities.payload.json` (single mode) or `grafana-cloud-identities.shard-*.txt` (sharded mode).
+- **Written locally (gitignored):** `data/grafana-cloud-identities.manifest.json` (counts/transport only — **no JWTs**), plus `grafana-cloud-identities.payload.json` (single mode), `grafana-cloud-identities.secret-*.txt` (grafana-secrets mode), and optionally `grafana-cloud-identities.shard-*.txt` (legacy env-shard fallback).
 - **Not sent by tooling:** campaign password, PostgreSQL credentials, JWT signing keys, Grafana tokens.
 
 ### What Grafana Cloud receives during a test
 
 - Bundled **non-secret** files via `open()` (e.g. `hot-content.json`, presets, thresholds).
 - **Harness env** from `k6 cloud run -e` (non-secret only — CLI `-e` values are stored in the archive as plain text).
-- **Identity JWTs** from Grafana org environment variables (single var or shards), injected on workers.
+- **Identity JWTs** from Grafana **Secrets** (`k6-cloud` decrypter) when `LOAD_TEST_IDENTITIES_TRANSPORT=grafana-secrets`, or from org environment variables (single var or legacy shards).
 - **Target URL** (`LOAD_TEST_BASE_URL`) — production API hostname.
 - **No** `LOAD_TEST_TOKENS_FILE` in cloud mode (prevents JWTs being embedded in the archive).
 
-Harness load order in `lib/identities.js`:
+Harness load order in `lib/identities.js` / `user-concurrency.js` `setup()`:
 
-1. `LOAD_TEST_IDENTITIES_JSON` (if set — **takes precedence** over shards; use for 5-VU smoke only when intentionally small)
-2. Else `LOAD_TEST_IDENTITIES_SHARD_COUNT` + ordered `LOAD_TEST_IDENTITIES_JSON_001`, `_002`, …
-3. `LOAD_TEST_TOKENS_FILE` (local only)
-4. `LOAD_TEST_TOKEN_*` env vars
-5. `data/tokens.json` fallback (local)
+1. **`LOAD_TEST_IDENTITIES_TRANSPORT=grafana-secrets`** — async `secrets.get` per manifest name (Cloud full pool; **not** `SharedArray` env load)
+2. `LOAD_TEST_IDENTITIES_JSON` (if set — **takes precedence** over shards; use for 5-VU smoke only when intentionally small)
+3. Else `LOAD_TEST_IDENTITIES_SHARD_COUNT` + ordered `LOAD_TEST_IDENTITIES_JSON_001`, `_002`, …
+4. `LOAD_TEST_TOKENS_FILE` (local only)
+5. `LOAD_TEST_TOKEN_*` env vars
+6. `data/tokens.json` fallback (local)
 
 VU mapping is unchanged: `(vuId - 1) % identityPool.length`.
 
-### Operator flow (mint → export → Grafana → verify)
+### Operator flow (mint → export → sync secrets → verify)
 
 ```powershell
 cd tests\load
 # 1) Mint / validate gitignored pool
 .\scripts\Test-LoadTokens.ps1
-# 2) Export for Grafana (writes manifest + payload/shard files)
+# 2) Export for Grafana (writes manifest + secret part files for large pools)
 .\scripts\Export-LoadTestIdentitiesForGrafanaCloud.ps1
+# 3) Sync to Grafana Secrets (operator machine — requires GRAFANA_URL + GRAFANA_SA_TOKEN in .env)
+.\scripts\Sync-LoadTestIdentitiesToGrafanaSecrets.ps1 -DryRun
+.\scripts\Sync-LoadTestIdentitiesToGrafanaSecrets.ps1
+# Optional: remove stale movie-cave-load-identities-* after rotation
+.\scripts\Sync-LoadTestIdentitiesToGrafanaSecrets.ps1 -PruneStaleManagedSecrets
 ```
+
+**Grafana service account (sync only, never commit):**
+
+- Set in gitignored `.env`: `GRAFANA_URL` (stack root, e.g. `https://your-stack.grafana.net`) and `GRAFANA_SA_TOKEN`.
+- Token needs **Secrets Management** permissions on the stack (`secret.securevalues:create`, `get`, `update`, and `delete` if pruning).
+- Sync uses `decrypters: ["k6-cloud"]` so Cloud workers can read values during the test.
+
+**Cloud harness env (set by `Invoke-K6.ps1`, non-secret):**
+
+| Variable | Purpose |
+|----------|---------|
+| `LOAD_TEST_IDENTITIES_TRANSPORT` | `grafana-secrets` when manifest transport is grafana-secrets |
+| `LOAD_TEST_IDENTITIES_SECRET_COUNT` | Part count from manifest (`secretPartCount`) |
+| `LOAD_TEST_IDENTITIES_SECRET_NAMES` | Comma-separated secret names (same order as export parts) |
+| `LOAD_TEST_EXPECTED_IDENTITY_COUNT` | Manifest `identityCount` for runtime validation |
 
 **Grafana Cloud → Testing & synthetics → Performance → Settings → Environment variables**
 
-**Sharded mode (100 identities, typical):**
+**Grafana-secrets mode (100 identities, typical):** no JWT paste — run sync script above. Clear legacy `LOAD_TEST_IDENTITIES_JSON` / shard vars if still set.
+
+**Legacy sharded env mode (manual paste):**
 
 | Variable | Value |
 |----------|--------|
@@ -87,7 +111,7 @@ cd tests\load
 
 ### Manifest (`data/grafana-cloud-identities.manifest.json`)
 
-- Records **operator export** (`identityCount`, `shardCount`, `transport`, `schemaVersion`) — **not runtime proof** that Grafana has every shard configured.
+- Records **operator export** (`identityCount`, `transport`, `schemaVersion`, and for grafana-secrets: `secretPartCount`, `secretNames`, `secretPartFiles`, `maxPartUtf8Bytes`) — **not runtime proof** that Grafana has every secret or shard configured.
 - `Invoke-K6.ps1` **Cloud** mode requires this file and uses it for preflight reuse math (`Cloud identity pool (manifest)`).
 - Local `tokens.json` count is shown separately for token lifetime checks; mismatch vs manifest emits a **warning**.
 
@@ -95,13 +119,16 @@ cd tests\load
 
 1. Re-mint / refresh `data/tokens.json` (`Mint-LoadTestTokens.ps1`, `Test-LoadTokens.ps1`).
 2. Re-run `Export-LoadTestIdentitiesForGrafanaCloud.ps1`.
-3. Update **all** Grafana shard vars (or single var) from new export files.
-4. Delete local payload/shard files when done.
+3. **Grafana-secrets:** `Sync-LoadTestIdentitiesToGrafanaSecrets.ps1` (optionally `-PruneStaleManagedSecrets` after verifying part count unchanged or names rotated).
+4. **Legacy shards:** update **all** Grafana shard vars (or single var) from new export files.
+5. Delete local payload/secret/shard files when done.
+
+**Rollback:** re-export previous `tokens.json` snapshot, sync again, or restore legacy env shards from `-IncludeEnvShardArtifacts` export; set manifest transport back to `sharded` only if you intentionally revert the harness (not recommended for 100-pool).
 
 ### Verify before 150-VU Cloud
 
 1. `.\scripts\Validate-LoadTests.ps1` and `LoadTestHarness.Tests.ps1` (operator machine).
-2. Optional: `k6 run scenarios/identities-shard-selfcheck.js` (fake tokens; no production).
+2. Optional: `k6 run scenarios/identities-shard-selfcheck.js` and `k6 run scenarios/identities-grafana-secrets-selfcheck.js` (fake tokens; no production).
 3. Cloud **validate-only** upload (`-CloudValidateOnly`) after Grafana env update.
 4. Small Cloud smoke (5 VU) with **single** var if desired.
 5. Before 150 VU: confirm Grafana run summary metadata **`identityCount`** matches manifest (e.g. 100) — that is runtime proof on workers.
@@ -246,7 +273,7 @@ Verify codes with `k6 cloud load-zone list` for your account.
 |------|-------|-------|
 | Scenario JS | `k6 run` | `k6 cloud run` (same file) |
 | `open()` data files | `LOAD_TEST_DATA_DIR` | Bundled in archive |
-| JWTs | `tokens.json` | Grafana org env: `LOAD_TEST_IDENTITIES_JSON` (small) or sharded `LOAD_TEST_IDENTITIES_JSON_*` + `LOAD_TEST_IDENTITIES_SHARD_COUNT` |
+| JWTs | `tokens.json` | Grafana Secrets (`grafana-secrets` transport) or org env: `LOAD_TEST_IDENTITIES_JSON` (small) or legacy sharded `LOAD_TEST_IDENTITIES_JSON_*` |
 | `handleSummary` file | Written under `reports/` | Use Grafana UI; optional path may not persist |
 | Load zone | N/A | `options.cloud.distribution` via `LOAD_TEST_EXECUTION_MODE=grafana-cloud` |
 | 30s HTTP timeout | `LOAD_TEST_HTTP_TIMEOUT_MS` | Same env |

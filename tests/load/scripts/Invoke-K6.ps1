@@ -82,6 +82,7 @@ $cloudManifestPath = Get-LoadTestGrafanaCloudManifestPath -LoadRoot $loadRoot
 $cloudManifest = $null
 $cloudManifestIdentityCount = 0
 $cloudManifestShardCount = 0
+$cloudManifestSecretPartCount = 0
 $cloudTransport = ''
 $manifestNote = ''
 $identityCount = $localTokenCount
@@ -91,9 +92,10 @@ if ($ExecutionMode -eq 'Cloud') {
     if ($null -ne $cloudManifest) {
         $cloudManifestIdentityCount = [int]$cloudManifest.identityCount
         $cloudManifestShardCount = [int]$cloudManifest.shardCount
+        $cloudManifestSecretPartCount = [int]$cloudManifest.secretPartCount
         $cloudTransport = [string]$cloudManifest.transport
         $identityCount = $cloudManifestIdentityCount
-        $manifestNote = 'Manifest records operator export; runtime proof is identityPool.length in Grafana summary.'
+        $manifestNote = 'Manifest is operator export/sync config only; runtime proof is summary identityCount on workers.'
         if ($localTokenCount -gt 0 -and $localTokenCount -ne $cloudManifestIdentityCount) {
             Write-Warning "Local tokens.json count ($localTokenCount) does not match Cloud manifest identityCount ($cloudManifestIdentityCount)."
         }
@@ -141,6 +143,14 @@ if ($StageTarget -gt 0) {
     $envMap.LOAD_TEST_STAGE_TARGET = "$StageTarget"
 }
 
+if ($ExecutionMode -eq 'Cloud' -and $cloudTransport -eq 'grafana-secrets') {
+    $secretNames = @($cloudManifest.secretNames)
+    $envMap.LOAD_TEST_IDENTITIES_TRANSPORT = 'grafana-secrets'
+    $envMap.LOAD_TEST_IDENTITIES_SECRET_COUNT = "$cloudManifestSecretPartCount"
+    $envMap.LOAD_TEST_IDENTITIES_SECRET_NAMES = ($secretNames -join ',')
+    $envMap.LOAD_TEST_EXPECTED_IDENTITY_COUNT = "$cloudManifestIdentityCount"
+}
+
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH-mm-ssZ")
 $reportPath = Join-Path $loadRoot "reports\$Scenario-$Preset-$(if ($StageTarget -gt 0) { $StageTarget } else { 'custom' })-$stamp.json"
 $envMap.LOAD_TEST_REPORT_PATH = $reportPath
@@ -165,8 +175,11 @@ Then configure Grafana Cloud env vars per tests/load/docs/grafana-cloud-k6.md (n
     if ($cloudManifestIdentityCount -lt 1) {
         throw 'Cloud manifest identityCount must be >= 1.'
     }
+    if ($cloudTransport -eq 'grafana-secrets' -and $cloudManifestSecretPartCount -lt 1) {
+        throw 'Grafana-secrets manifest requires secretPartCount >= 1. Run Export and Sync-LoadTestIdentitiesToGrafanaSecrets.ps1.'
+    }
     if ($cloudTransport -eq 'sharded' -and $cloudManifestShardCount -lt 1) {
-        throw 'Sharded Cloud manifest requires shardCount >= 1.'
+        throw 'Sharded env-var manifest requires shardCount >= 1.'
     }
 }
 
@@ -188,7 +201,7 @@ Write-Host (Format-LoadTestCloudPreflight `
     -IsProduction $isProduction `
     -LocalTokenCount $(if ($ExecutionMode -eq 'Cloud') { $localTokenCount } else { 0 }) `
     -CloudManifestIdentityCount $cloudManifestIdentityCount `
-    -CloudManifestShardCount $cloudManifestShardCount `
+    -CloudManifestShardCount $(if ($cloudTransport -eq 'grafana-secrets') { $cloudManifestSecretPartCount } else { $cloudManifestShardCount }) `
     -CloudTransport $cloudTransport `
     -ManifestNote $(if ($ExecutionMode -eq 'Cloud') { $manifestNote } else { '' }))
 

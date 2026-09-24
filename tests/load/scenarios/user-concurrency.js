@@ -13,6 +13,8 @@ import {
 import { loadThresholds } from '../lib/thresholds.js';
 import { handleSummaryFactory } from '../lib/summary.js';
 import { identityForVu, contentPoolStats } from '../lib/content.js';
+import { isGrafanaSecretsTransport, loadIdentitiesFromGrafanaSecrets } from '../lib/identitiesGrafanaSecrets.js';
+import { setRuntimeIdentityPool } from '../lib/identitiesRuntime.js';
 import { runUserJourney } from '../lib/journey.js';
 import { thinkBetweenIterations } from '../lib/thinktime.js';
 import { applyCloudOptions } from '../lib/cloudOptions.js';
@@ -39,6 +41,19 @@ const optionsBase = {
 };
 
 export const options = applyCloudOptions(optionsBase);
+
+export async function setup() {
+  if (!isGrafanaSecretsTransport()) {
+    return { identityTransport: 'env', identityCount: null };
+  }
+
+  const identities = await loadIdentitiesFromGrafanaSecrets();
+  setRuntimeIdentityPool(identities);
+  return {
+    identityTransport: 'grafana-secrets',
+    identityCount: identities.length,
+  };
+}
 
 export default function userConcurrency() {
   const vu = currentVu();
@@ -76,6 +91,7 @@ export function handleSummary(data) {
     loadTestCommitSha: loadTestCommitSha(),
     executionMode: executionModeLabel(),
     identityCount: pool.identityCount,
+    identityTransport: pool.identityTransport,
     identityReuseRatio: identityReuseRatio(stage, pool.identityCount),
     cloudLoadZone: __ENV.LOAD_TEST_CLOUD_LOAD_ZONE || null,
   })(data);
