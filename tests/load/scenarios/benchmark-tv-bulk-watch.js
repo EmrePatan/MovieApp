@@ -1,4 +1,4 @@
-import { scenario } from 'k6/execution';
+import { currentVu, currentIteration } from '../lib/executionContext.js';
 import { buildStagesFromPreset, presetName, stageTarget } from '../lib/config.js';
 import { loadThresholds } from '../lib/thresholds.js';
 import { handleSummaryFactory } from '../lib/summary.js';
@@ -34,8 +34,8 @@ export const options = {
 };
 
 export default function tvBulkWatch() {
-  const vu = scenario.vuIdInTest;
-  const iter = scenario.iterationInTest;
+  const vu = currentVu();
+  const iter = currentIteration();
   const identity = identityForVu(vu);
   if (!identity) {
     throw new Error('Bulk watch benchmark requires bearer tokens');

@@ -1,4 +1,4 @@
-import { scenario } from 'k6/execution';
+import { currentVu, currentIteration } from '../lib/executionContext.js';
 import {
   buildStagesFromPreset,
   presetName,
@@ -37,8 +37,8 @@ export const options = {
 };
 
 export default function userConcurrency() {
-  const vu = scenario.vuIdInTest;
-  const iter = scenario.iterationInTest;
+  const vu = currentVu();
+  const iter = currentIteration();
   const identity = identityForVu(vu);
   runUserJourney({ vu, iter, token: identity?.bearerToken });
   thinkBetweenIterations();

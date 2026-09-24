@@ -47,8 +47,17 @@ $env:LOAD_TEST_CONTENT_DATASET = $ContentDataset
 $env:LOAD_TEST_ENVIRONMENT = $Environment
 $env:LOAD_TEST_BACKEND_SHA = $backendSha
 $env:LOAD_TEST_TOOL_SHA = $backendSha
-$env:LOAD_TEST_DATA_DIR = Join-Path $loadRoot "data"
-$env:LOAD_TEST_THRESHOLDS_FILE = Join-Path $loadRoot "config\thresholds.json"
+$env:LOAD_TEST_DATA_DIR = (Join-Path $loadRoot "data").Replace('\', '/')
+$env:LOAD_TEST_THRESHOLDS_FILE = (Join-Path $loadRoot "config\thresholds.json").Replace('\', '/')
+
+if ([string]::IsNullOrWhiteSpace($env:LOAD_TEST_TOKENS_FILE)) {
+    $defaultTokens = Join-Path $loadRoot "data\tokens.json"
+    if (Test-Path $defaultTokens) {
+        $env:LOAD_TEST_TOKENS_FILE = $defaultTokens.Replace('\', '/')
+    }
+} else {
+    $env:LOAD_TEST_TOKENS_FILE = $env:LOAD_TEST_TOKENS_FILE.Replace('\', '/')
+}
 
 if ($StageTarget -gt 0) {
     $env:LOAD_TEST_STAGE_TARGET = "$StageTarget"

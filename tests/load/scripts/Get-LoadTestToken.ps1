@@ -74,7 +74,8 @@ if (-not (Test-Path $dir)) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 }
 
-Set-Content -Path $OutputPath -Value $json -Encoding UTF8 -NoNewline
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($OutputPath, $json, $utf8NoBom)
 
 # Never log token or password
 Write-Host "Wrote token identity '$IdentityId' to $OutputPath (JWT not displayed)."

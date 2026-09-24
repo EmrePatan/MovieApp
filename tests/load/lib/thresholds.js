@@ -1,8 +1,10 @@
+import { parseJsonOpen } from './jsonText.js';
+
 export function loadThresholds() {
   const path = __ENV.LOAD_TEST_THRESHOLDS_FILE
     ? __ENV.LOAD_TEST_THRESHOLDS_FILE.replace(/\\/g, '/')
     : '../config/thresholds.json';
-  const parsed = JSON.parse(open(path));
+  const parsed = parseJsonOpen(path);
   const thresholds = { ...parsed.global };
 
   for (const [group, rules] of Object.entries(parsed.groups || {})) {

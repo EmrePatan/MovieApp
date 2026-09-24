@@ -1,4 +1,4 @@
-import { SharedArray } from 'k6/data';
+import { parseJsonOpen } from './jsonText.js';
 
 const required = (name) => {
   const value = __ENV[name];
@@ -78,8 +78,7 @@ export const dataPath = (fileName) => {
 };
 
 function readJsonFile(path) {
-  const raw = open(path);
-  return JSON.parse(raw);
+  return parseJsonOpen(path);
 }
 
 function resolveContentFileName(dataset) {
@@ -118,32 +117,6 @@ export function loadSearchTerms() {
     return readJsonFile(dataPath('search-terms.example.json')).terms || [];
   }
 }
-
-export const identityPool = new SharedArray('identities', function loadIdentities() {
-  const file = __ENV.LOAD_TEST_TOKENS_FILE;
-  if (file) {
-    const parsed = JSON.parse(open(file));
-    return (parsed.identities || []).filter((i) => i.bearerToken && i.bearerToken !== 'REPLACE_WITH_JWT');
-  }
-
-  const inline = [];
-  for (let i = 1; i <= 200; i += 1) {
-    const token = __ENV[`LOAD_TEST_TOKEN_${String(i).padStart(3, '0')}`];
-    if (token) {
-      inline.push({ id: `env-token-${i}`, bearerToken: token });
-    }
-  }
-  if (inline.length > 0) {
-    return inline;
-  }
-
-  try {
-    const parsed = JSON.parse(open(dataPath('tokens.json')));
-    return (parsed.identities || []).filter((i) => i.bearerToken && i.bearerToken !== 'REPLACE_WITH_JWT');
-  } catch (_) {
-    return [];
-  }
-});
 
 export function buildStagesFromPreset(presets) {
   const preset = presets[presetName()] || presets.smoke;

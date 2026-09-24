@@ -1,4 +1,4 @@
-import { scenario } from 'k6/execution';
+import { currentVu, currentIteration } from '../lib/executionContext.js';
 import {
   buildStagesFromPreset,
   presetName,
@@ -38,8 +38,8 @@ export const options = {
 };
 
 export default function requestCapacity() {
-  const vu = scenario.vuIdInTest;
-  const iter = scenario.iterationInTest;
+  const vu = currentVu();
+  const iter = currentIteration();
   const seed = vu * 1000 + iter;
   const bucket = seed % 4;
 

@@ -6,8 +6,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
 $loadRoot = Join-Path $repoRoot "tests\load"
 
-$env:LOAD_TEST_DATA_DIR = Join-Path $loadRoot "data"
-$env:LOAD_TEST_THRESHOLDS_FILE = Join-Path $loadRoot "config\thresholds.json"
+$env:LOAD_TEST_DATA_DIR = (Join-Path $loadRoot "data").Replace('\', '/')
+$env:LOAD_TEST_THRESHOLDS_FILE = (Join-Path $loadRoot "config\thresholds.json").Replace('\', '/')
 $env:LOAD_TEST_CONTENT_DATASET = "hot"
 $env:LOAD_TEST_BASE_URL = "http://127.0.0.1:59999"
 $env:LOAD_TEST_ENVIRONMENT = "validation"
@@ -53,7 +53,9 @@ $scenarios = @(
     "request-capacity.js",
     "preflight-health.js",
     "search-rate-limit.js",
-    "semantics-selfcheck.js"
+    "semantics-selfcheck.js",
+    "tokens-loader-selfcheck.js",
+    "preflight-no-auth-selfcheck.js"
 )
 $k6Native = Get-Command k6 -ErrorAction SilentlyContinue
 foreach ($s in $scenarios) {

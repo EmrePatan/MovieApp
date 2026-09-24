@@ -7,12 +7,16 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$loadRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
     throw "Set LOAD_TEST_BASE_URL or pass -BaseUrl"
 }
-if ([string]::IsNullOrWhiteSpace($TokensFile) -or -not (Test-Path $TokensFile)) {
-    throw "Set LOAD_TEST_TOKENS_FILE to a readable tokens.json path"
+if ([string]::IsNullOrWhiteSpace($TokensFile)) {
+    $TokensFile = Join-Path $loadRoot "data\tokens.json"
+}
+if (-not (Test-Path $TokensFile)) {
+    throw "Set LOAD_TEST_TOKENS_FILE to a readable tokens.json path (default: data/tokens.json)"
 }
 
 $base = $BaseUrl.TrimEnd("/")

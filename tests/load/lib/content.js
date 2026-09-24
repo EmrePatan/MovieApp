@@ -1,16 +1,25 @@
 import { SharedArray } from 'k6/data';
-import { loadContentPools, loadSearchTerms, identityPool } from './config.js';
+import { loadContentPools, loadSearchTerms } from './config.js';
+import { identityPool } from './identities.js';
 
 const pools = new SharedArray('content-pools', () => [loadContentPools()]);
 const pool = () => pools[0];
 const searchTerms = new SharedArray('search-terms', () => [loadSearchTerms()]);
 const terms = () => searchTerms[0];
 
+function resolveVuId(vu) {
+  if (typeof vu === 'number' && vu > 0) {
+    return vu;
+  }
+  return __VU;
+}
+
 export function identityForVu(vu) {
   if (identityPool.length === 0) {
     return null;
   }
-  return identityPool[(vu - 1) % identityPool.length];
+  const vuId = resolveVuId(vu);
+  return identityPool[(vuId - 1) % identityPool.length];
 }
 
 export function pickMovieId(seed) {
