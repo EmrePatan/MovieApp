@@ -5,8 +5,8 @@ namespace MovieApp.Application.Validation;
 /// </summary>
 public static class DiscoverMovieCertificationCatalog
 {
-    private static readonly IReadOnlyDictionary<string, HashSet<string>> AllowedByCountry =
-        new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, HashSet<string>> AllowedByCountry =
+        new(StringComparer.OrdinalIgnoreCase)
         {
             ["US"] = new(StringComparer.OrdinalIgnoreCase)
             {
