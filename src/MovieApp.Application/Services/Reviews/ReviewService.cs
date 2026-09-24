@@ -172,22 +172,20 @@ public sealed class ReviewService(
         ValidateRatingStars(ratingStars);
         await EnsureMovieExistsAsync(movieId, cancellationToken);
 
-        var reviewsTask = reviewRepository.GetPublicReviewsForMovieAsync(
+        var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForMovieAsync(
             movieId,
             page,
             pageSize,
             sort,
             ratingStars,
             cancellationToken);
-        var distributionTask = reviewRepository.GetReviewScoreDistributionForMovieAsync(
+        var reviewScoreDistribution = await reviewRepository.GetReviewScoreDistributionForMovieAsync(
             movieId,
             cancellationToken);
-        await Task.WhenAll(reviewsTask, distributionTask);
 
-        var (reviews, totalCount) = await reviewsTask;
         return new ReviewListPageResult(
             ToPaginatedResult(reviews, page, pageSize, totalCount),
-            await distributionTask);
+            reviewScoreDistribution);
     }
 
     public async Task<ReviewListPageResult> GetTvShowReviewsAsync(
@@ -202,22 +200,20 @@ public sealed class ReviewService(
         ValidateRatingStars(ratingStars);
         await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
 
-        var reviewsTask = reviewRepository.GetPublicReviewsForTvShowAsync(
+        var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForTvShowAsync(
             tvShowId,
             page,
             pageSize,
             sort,
             ratingStars,
             cancellationToken);
-        var distributionTask = reviewRepository.GetReviewScoreDistributionForTvShowAsync(
+        var reviewScoreDistribution = await reviewRepository.GetReviewScoreDistributionForTvShowAsync(
             tvShowId,
             cancellationToken);
-        await Task.WhenAll(reviewsTask, distributionTask);
 
-        var (reviews, totalCount) = await reviewsTask;
         return new ReviewListPageResult(
             ToPaginatedResult(reviews, page, pageSize, totalCount),
-            await distributionTask);
+            reviewScoreDistribution);
     }
 
     private static void ValidateRatingStars(int? ratingStars)
