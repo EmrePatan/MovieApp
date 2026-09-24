@@ -1,11 +1,14 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Insights;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsightsRepository
+public sealed class InsightsRepository(
+    ApplicationDbContext dbContext,
+    IServiceScopeFactory scopeFactory) : IInsightsRepository
 {
     private sealed record SummaryCountsRow(
         DateTime MemberSince,
@@ -42,7 +45,7 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
 
         var ratingScoreCounts = await ExecuteTimedQueryAsync(
             metrics,
-            () => GetRatingScoreCountsAsync(userId, cancellationToken));
+            () => GetRatingScoreCountsAsync(dbContext, userId, cancellationToken));
 
         var movieTitles = await ExecuteTimedQueryAsync(
             metrics,
@@ -114,7 +117,7 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         var ratingsStopwatch = Stopwatch.StartNew();
         var ratingScoreCounts = await ExecuteTimedQueryAsync(
             metrics,
-            () => GetRatingScoreCountsAsync(userId, cancellationToken));
+            () => GetRatingScoreCountsAsync(dbContext, userId, cancellationToken));
         ratingsStopwatch.Stop();
         metrics.RatingsMs = ratingsStopwatch.ElapsedMilliseconds;
 
@@ -343,10 +346,11 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
     }
 
     private async Task<IReadOnlyList<(int Score, int Count)>> GetRatingScoreCountsAsync(
+        ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.Ratings
+        return await context.Ratings
             .AsNoTracking()
             .Where(rating => rating.UserId == userId)
             .GroupBy(rating => rating.Score)
@@ -407,22 +411,85 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         var (currentYearStart, currentYearEnd) = GetCalendarYearUtcBounds(year, timeZone);
         var (previousYearStart, previousYearEnd) = GetCalendarYearUtcBounds(year - 1, timeZone);
 
-        var summaryStopwatch = Stopwatch.StartNew();
-        var summary = await ExecuteTimedV3PgCommandAsync(
+        var summaryTask = TimedScopedV3PgCommandAsync(
             metrics,
-            () => GetV3SummaryAsync(userId, cancellationToken));
-        summaryStopwatch.Stop();
-        metrics.SummaryMs = summaryStopwatch.ElapsedMilliseconds;
+            (context, ct) => GetV3SummaryAsync(context, userId, ct),
+            cancellationToken);
+        var movieWatchRowsTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            (context, ct) => GetMovieWatchProjectionRowsAsync(context, userId, ct),
+            cancellationToken);
+        var episodeWatchRowsTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            (context, ct) => GetEpisodeWatchProjectionRowsAsync(context, userId, ct),
+            cancellationToken);
+        var recordsTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            (context, ct) => InsightsV3SqlQueries.GetRecordsAsync(context, userId, timeZoneId, ct),
+            cancellationToken);
+        var runtimeTotalsTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            async (context, ct) =>
+            {
+                var totals = await InsightsV3SqlQueries.GetRuntimeTotalsAsync(context, userId, ct);
 
-        var dnaStopwatch = Stopwatch.StartNew();
-        var movieWatchRows = await ExecuteTimedV3PgCommandAsync(
+                return new V3RuntimeTotalsRow(
+                    totals.MovieTotalMinutes,
+                    totals.MovieKnownCount,
+                    totals.EpisodeTotalMinutes,
+                    totals.EpisodeKnownCount);
+            },
+            cancellationToken);
+        var ratingScoreCountsTask = TimedScopedV3PgCommandAsync(
             metrics,
-            () => GetMovieWatchProjectionRowsAsync(userId, cancellationToken));
-        var episodeWatchRows = await ExecuteTimedV3PgCommandAsync(
+            (context, ct) => GetRatingScoreCountsAsync(context, userId, ct),
+            cancellationToken);
+        var genreRatingsTask = TimedScopedV3PgCommandAsync(
             metrics,
-            () => GetEpisodeWatchProjectionRowsAsync(userId, cancellationToken));
-        dnaStopwatch.Stop();
-        metrics.DnaMs = dnaStopwatch.ElapsedMilliseconds;
+            (context, ct) => InsightsV3SqlQueries.GetGenreRatingsAsync(context, userId, ct),
+            cancellationToken);
+        var oldestTitleTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            (context, ct) => InsightsV3SqlQueries.GetOldestTitleAsync(context, userId, ct),
+            cancellationToken);
+        var showCompletionsTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            (context, ct) => InsightsV3SqlQueries.GetShowCompletionsAsync(context, userId, ct),
+            cancellationToken);
+        var milestoneTimestampsTask = TimedScopedV3PgCommandAsync(
+            metrics,
+            (context, ct) => InsightsV3SqlQueries.GetMilestoneTimestampsAsync(context, userId, ct),
+            cancellationToken);
+
+        await Task.WhenAll(
+            summaryTask,
+            movieWatchRowsTask,
+            episodeWatchRowsTask,
+            recordsTask,
+            runtimeTotalsTask,
+            ratingScoreCountsTask,
+            genreRatingsTask,
+            oldestTitleTask,
+            showCompletionsTask,
+            milestoneTimestampsTask);
+
+        var (summary, summaryMs) = await summaryTask;
+        var (movieWatchRows, movieWatchMs) = await movieWatchRowsTask;
+        var (episodeWatchRows, episodeWatchMs) = await episodeWatchRowsTask;
+        var (records, recordsMs) = await recordsTask;
+        var (runtimeTotals, runtimeMs) = await runtimeTotalsTask;
+        var (ratingScoreCounts, ratingScoreMs) = await ratingScoreCountsTask;
+        var (genreRatings, genreRatingsMs) = await genreRatingsTask;
+        var (oldestTitle, _) = await oldestTitleTask;
+        var (showCompletions, showCompletionsMs) = await showCompletionsTask;
+        var (milestoneTimestamps, milestoneTimestampsMs) = await milestoneTimestampsTask;
+
+        metrics.SummaryMs = summaryMs;
+        metrics.DnaMs = Math.Max(movieWatchMs, episodeWatchMs);
+        metrics.RecordsMs = recordsMs;
+        metrics.RuntimeMs = runtimeMs;
+        metrics.RatingsMs = Math.Max(ratingScoreMs, genreRatingsMs);
+        metrics.MilestonesMs = Math.Max(showCompletionsMs, milestoneTimestampsMs);
 
         var yearActivityStopwatch = Stopwatch.StartNew();
         var movieTitles = InsightsV3DnaProjections.ToAllTimeMovieTitles(movieWatchRows);
@@ -449,56 +516,6 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
             currentYearEnd);
         yearActivityStopwatch.Stop();
         metrics.YearActivityMs = yearActivityStopwatch.ElapsedMilliseconds;
-
-        var recordsStopwatch = Stopwatch.StartNew();
-        var records = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            () => InsightsV3SqlQueries.GetRecordsAsync(dbContext, userId, timeZoneId, cancellationToken));
-        recordsStopwatch.Stop();
-        metrics.RecordsMs = recordsStopwatch.ElapsedMilliseconds;
-
-        var runtimeStopwatch = Stopwatch.StartNew();
-        var runtimeTotals = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            async () =>
-            {
-                var totals = await InsightsV3SqlQueries.GetRuntimeTotalsAsync(
-                    dbContext,
-                    userId,
-                    cancellationToken);
-
-                return new V3RuntimeTotalsRow(
-                    totals.MovieTotalMinutes,
-                    totals.MovieKnownCount,
-                    totals.EpisodeTotalMinutes,
-                    totals.EpisodeKnownCount);
-            });
-        runtimeStopwatch.Stop();
-        metrics.RuntimeMs = runtimeStopwatch.ElapsedMilliseconds;
-
-        var ratingsStopwatch = Stopwatch.StartNew();
-        var ratingScoreCounts = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            () => GetRatingScoreCountsAsync(userId, cancellationToken));
-        var genreRatings = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            () => InsightsV3SqlQueries.GetGenreRatingsAsync(dbContext, userId, cancellationToken));
-        ratingsStopwatch.Stop();
-        metrics.RatingsMs = ratingsStopwatch.ElapsedMilliseconds;
-
-        var oldestTitle = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            () => InsightsV3SqlQueries.GetOldestTitleAsync(dbContext, userId, cancellationToken));
-
-        var milestonesStopwatch = Stopwatch.StartNew();
-        var showCompletions = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            () => InsightsV3SqlQueries.GetShowCompletionsAsync(dbContext, userId, cancellationToken));
-        var milestoneTimestamps = await ExecuteTimedV3PgCommandAsync(
-            metrics,
-            () => InsightsV3SqlQueries.GetMilestoneTimestampsAsync(dbContext, userId, cancellationToken));
-        milestonesStopwatch.Stop();
-        metrics.MilestonesMs = milestonesStopwatch.ElapsedMilliseconds;
 
         var milestoneRaw = new InsightsAnalyticsRawData(
             summary.MemberSince,
@@ -556,27 +573,30 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
         return (raw, metrics);
     }
 
-    private async Task<V3SummaryRow> GetV3SummaryAsync(Guid userId, CancellationToken cancellationToken)
+    private async Task<V3SummaryRow> GetV3SummaryAsync(
+        ApplicationDbContext context,
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        return await dbContext.Users
+        return await context.Users
             .AsNoTracking()
             .Where(user => user.Id == userId)
             .Select(user => new V3SummaryRow(
                 user.CreatedAt,
-                dbContext.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
-                dbContext.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId),
-                dbContext.WatchedEpisodes
+                context.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
+                context.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId),
+                context.WatchedEpisodes
                     .Where(watchedEpisode => watchedEpisode.UserId == userId)
                     .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
                     .Distinct()
                     .Count(),
-                dbContext.Ratings.Count(rating => rating.UserId == userId),
-                dbContext.WatchedMovies
+                context.Ratings.Count(rating => rating.UserId == userId),
+                context.WatchedMovies
                     .Where(watchedMovie => watchedMovie.UserId == userId)
                     .Select(watchedMovie => watchedMovie.MovieId)
                     .Distinct()
                     .Count(),
-                dbContext.WatchedEpisodes
+                context.WatchedEpisodes
                     .Where(watchedEpisode => watchedEpisode.UserId == userId)
                     .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
                     .Distinct()
@@ -585,10 +605,11 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
     }
 
     private async Task<IReadOnlyList<InsightsV3DnaProjections.MovieWatchRow>> GetMovieWatchProjectionRowsAsync(
+        ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.WatchedMovies
+        return await context.WatchedMovies
             .AsNoTracking()
             .Where(watchedMovie => watchedMovie.UserId == userId)
             .Select(watchedMovie => new InsightsV3DnaProjections.MovieWatchRow(
@@ -606,10 +627,11 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
     }
 
     private async Task<IReadOnlyList<InsightsV3DnaProjections.EpisodeWatchRow>> GetEpisodeWatchProjectionRowsAsync(
+        ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.WatchedEpisodes
+        return await context.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode => watchedEpisode.UserId == userId)
             .Select(watchedEpisode => new InsightsV3DnaProjections.EpisodeWatchRow(
@@ -779,5 +801,35 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
     {
         metrics.PgCommandRoundTrips++;
         return await command();
+    }
+
+    private static async Task<(T Result, long ElapsedMs)> TimedScopedV3PgCommandAsync<T>(
+        InsightsV3QueryMetrics metrics,
+        IServiceScopeFactory scopeFactory,
+        Func<ApplicationDbContext, CancellationToken, Task<T>> command,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        IncrementV3PgCommandMetrics(metrics);
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var result = await command(context, cancellationToken);
+        stopwatch.Stop();
+        return (result, stopwatch.ElapsedMilliseconds);
+    }
+
+    private Task<(T Result, long ElapsedMs)> TimedScopedV3PgCommandAsync<T>(
+        InsightsV3QueryMetrics metrics,
+        Func<ApplicationDbContext, CancellationToken, Task<T>> command,
+        CancellationToken cancellationToken) =>
+        TimedScopedV3PgCommandAsync(metrics, scopeFactory, command, cancellationToken);
+
+    private static void IncrementV3PgCommandMetrics(InsightsV3QueryMetrics metrics)
+    {
+        lock (metrics)
+        {
+            metrics.DbRoundTrips++;
+            metrics.PgCommandRoundTrips++;
+        }
     }
 }

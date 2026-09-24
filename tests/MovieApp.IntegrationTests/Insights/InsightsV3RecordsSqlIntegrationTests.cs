@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Services.Insights;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
@@ -295,7 +296,7 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
         });
         await context.SaveChangesAsync();
 
-        var repository = new InsightsRepository(context);
+        var repository = CreateInsightsRepository(context);
         var timeZone = InsightsTimeZoneGuard.RequireValidTimeZone("Europe/Istanbul");
         var (_, metrics) = await repository.GetV3RawDataAsync(userId, timeZone, 2026);
 
@@ -310,5 +311,14 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    private static InsightsRepository CreateInsightsRepository(ApplicationDbContext context)
+    {
+        var connectionString = IntegrationTestDatabase.GetConnectionString("movieapp_insights_v3_records_sql_tests");
+        var services = new ServiceCollection();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        return new InsightsRepository(context, scopeFactory);
     }
 }

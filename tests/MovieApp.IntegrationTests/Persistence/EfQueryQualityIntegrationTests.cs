@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
@@ -65,7 +66,7 @@ public sealed class EfQueryQualityIntegrationTests
         await using var context = CreateStrictQueryContext();
         var userId = await SeedUserAsync(context, $"ef-insights-{Guid.NewGuid():N}");
 
-        var insightsRepository = new InsightsRepository(context);
+        var insightsRepository = CreateInsightsRepository(context);
         _ = await insightsRepository.GetSummaryRawDataAsync(userId);
         _ = await insightsRepository.GetAnalyticsRawDataAsync(userId, DateTime.UtcNow.AddDays(-30));
         _ = await insightsRepository.GetV3RawDataAsync(userId, TimeZoneInfo.Utc, DateTime.UtcNow.Year);
@@ -275,5 +276,14 @@ public sealed class EfQueryQualityIntegrationTests
 
         await context.SaveChangesAsync();
         return (tvShowId, tmdbId);
+    }
+
+    private static InsightsRepository CreateInsightsRepository(ApplicationDbContext context)
+    {
+        var connectionString = IntegrationTestDatabase.GetConnectionString();
+        var services = new ServiceCollection();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        return new InsightsRepository(context, scopeFactory);
     }
 }
