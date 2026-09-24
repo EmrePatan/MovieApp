@@ -54,7 +54,7 @@ public sealed class NowInTheatersService(
                 normalizedCriteria.Page,
                 cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             NowInTheatersLogMessages.LogProviderFailed(
                 logger,

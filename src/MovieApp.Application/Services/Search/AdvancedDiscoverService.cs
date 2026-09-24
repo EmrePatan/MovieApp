@@ -187,7 +187,7 @@ public sealed class AdvancedDiscoverService(
         {
             return await movieDataProvider.AdvancedDiscoverMoviesAsync(criteria, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             DiscoverBrowseLogMessages.LogMovieDiscoverFailed(logger, criteria.Page, exception);
             throw new SearchProviderUnavailableException();
@@ -202,7 +202,7 @@ public sealed class AdvancedDiscoverService(
         {
             return await tvShowDataProvider.AdvancedDiscoverTvShowsAsync(criteria, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             DiscoverBrowseLogMessages.LogTvDiscoverFailed(logger, criteria.Page, exception);
             throw new SearchProviderUnavailableException();
@@ -221,7 +221,7 @@ public sealed class AdvancedDiscoverService(
                 contentLocale,
                 cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             DiscoverBrowseLogMessages.LogMovieDiscoverFailed(logger, criteria.Page, exception);
             throw new SearchProviderUnavailableException();
@@ -240,7 +240,7 @@ public sealed class AdvancedDiscoverService(
                 contentLocale,
                 cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             DiscoverBrowseLogMessages.LogTvDiscoverFailed(logger, criteria.Page, exception);
             throw new SearchProviderUnavailableException();

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -65,19 +66,30 @@ public sealed class TmdbApiClient
     {
         var requestUri = BuildRequestUri(relativePath);
         var logPath = SanitizePathForLogging(relativePath);
+        var budget = TimeSpan.FromSeconds(Math.Max(1, _options.RequestBudgetSeconds));
+        var attemptTimeout = TimeSpan.FromSeconds(Math.Max(1, _options.RequestTimeoutSeconds));
+        var budgetStopwatch = Stopwatch.StartNew();
 
         for (var attempt = 0; attempt <= RetryDelays.Length; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var remainingBudget = budget - budgetStopwatch.Elapsed;
+            if (remainingBudget <= TimeSpan.Zero)
+            {
+                break;
+            }
+
             HttpResponseMessage response;
 
             try
             {
+                using var attemptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                attemptCancellation.CancelAfter(attemptTimeout < remainingBudget ? attemptTimeout : remainingBudget);
                 using var request = CreateRequest(requestUri);
-                response = await _httpClient.SendAsync(request, cancellationToken);
+                response = await _httpClient.SendAsync(request, attemptCancellation.Token);
             }
-            catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
                 TmdbApiClientLogMessages.LogTransportFailure(_logger, logPath, attempt + 1, exception);
                 throw CreateTransientAvailabilityException("TMDB request timed out.", exception);
@@ -95,16 +107,19 @@ public sealed class TmdbApiClient
                     return await response.Content.ReadFromJsonAsync<TResponse>(SerializerOptions, cancellationToken);
                 }
 
-                if (ShouldRetry(response.StatusCode) && attempt < RetryDelays.Length)
+                var delay = ShouldRetry(response.StatusCode) && attempt < RetryDelays.Length
+                    ? GetRetryDelay(response, attempt)
+                    : (TimeSpan?)null;
+
+                if (delay is not null && delay.Value < budget - budgetStopwatch.Elapsed)
                 {
-                    var delay = GetRetryDelay(response, attempt);
                     TmdbApiClientLogMessages.LogRequestRetryScheduled(
                         _logger,
                         logPath,
                         (int)response.StatusCode,
                         attempt + 1,
-                        (long)delay.TotalMilliseconds);
-                    await Task.Delay(delay, cancellationToken);
+                        (long)delay.Value.TotalMilliseconds);
+                    await Task.Delay(delay.Value, cancellationToken);
                     continue;
                 }
 
@@ -122,7 +137,7 @@ public sealed class TmdbApiClient
             logPath,
             (int)HttpStatusCode.ServiceUnavailable,
             RetryDelays.Length + 1);
-        throw CreateTransientAvailabilityException("TMDB request failed after retries.");
+        throw CreateTransientAvailabilityException("TMDB request exceeded its time budget.");
     }
 
     private HttpRequestMessage CreateRequest(string requestUri)

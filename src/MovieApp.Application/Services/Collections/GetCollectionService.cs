@@ -38,7 +38,7 @@ public sealed class GetCollectionService(
         {
             providerDetails = await collectionDataProvider.GetCollectionAsync(tmdbCollectionId, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             GetCollectionLogMessages.LogProviderFailed(logger, tmdbCollectionId, exception);
             throw new SearchProviderUnavailableException();

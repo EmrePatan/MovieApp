@@ -101,6 +101,25 @@ public sealed class AdvancedDiscoverServiceTests
     }
 
     [Fact]
+    public async Task DiscoverAsyncPropagatesCallerCancellationInsteadOfReportingProviderOutage()
+    {
+        var service = CreateService(
+            new AdvancedDiscoverFakeCacheService(null),
+            new MovieDataProviderCallTracker(),
+            new TvShowDataProviderCallTracker());
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.DiscoverAsync(
+                CreateCriteria(SearchContentType.Movie),
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellation.Token));
+
+        Assert.IsNotType<SearchProviderUnavailableException>(exception);
+    }
+
+    [Fact]
     public async Task DiscoverAsyncRejectsAllMediaType()
     {
         var service = CreateService(

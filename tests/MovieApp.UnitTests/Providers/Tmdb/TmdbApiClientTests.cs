@@ -162,8 +162,54 @@ public sealed class TmdbApiClientTests
             client.GetAsync<TestResponse>("movie/1", cts.Token));
     }
 
+    [Fact]
+    public async Task GetAsyncDoesNotRetryWhenRetryAfterExceedsRemainingBudget()
+    {
+        var handler = new MockHttpMessageHandler();
+        var throttled = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        throttled.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(60));
+        handler.EnqueueResponse(throttled);
+
+        var client = CreateClient(handler, new TmdbOptions { ApiKey = "test-api-key", RequestBudgetSeconds = 5 });
+
+        var exception = await Assert.ThrowsAsync<TmdbApiException>(() =>
+            client.GetAsync<TestResponse>("movie/1"));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, exception.StatusCode);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetAsyncTimesOutStalledAttemptAsTransientFailure()
+    {
+        var client = CreateClient(
+            new StallingHttpMessageHandler(),
+            new TmdbOptions { ApiKey = "test-api-key", RequestTimeoutSeconds = 1, RequestBudgetSeconds = 5 });
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var exception = await Assert.ThrowsAsync<TmdbApiException>(() =>
+            client.GetAsync<TestResponse>("movie/1"));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, exception.StatusCode);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(4), $"elapsed={stopwatch.Elapsed}");
+    }
+
+    [Fact]
+    public async Task GetAsyncPropagatesCallerCancellationDuringStalledAttempt()
+    {
+        var client = CreateClient(
+            new StallingHttpMessageHandler(),
+            new TmdbOptions { ApiKey = "test-api-key", RequestTimeoutSeconds = 10, RequestBudgetSeconds = 20 });
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.GetAsync<TestResponse>("movie/1", cts.Token));
+
+        Assert.IsNotType<TmdbApiException>(exception);
+    }
+
     private static TmdbApiClient CreateClient(
-        MockHttpMessageHandler handler,
+        HttpMessageHandler handler,
         TmdbOptions? options = null)
     {
         var httpClient = new HttpClient(handler)
@@ -180,5 +226,16 @@ public sealed class TmdbApiClientTests
     private sealed class TestResponse
     {
         public int Id { get; set; }
+    }
+
+    private sealed class StallingHttpMessageHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
     }
 }

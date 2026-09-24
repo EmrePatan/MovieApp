@@ -49,7 +49,7 @@ public sealed class OnTvThisWeekService(
                 criteria.Page,
                 cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             OnTvThisWeekLogMessages.LogProviderFailed(logger, criteria.Page, exception);
             throw new SearchProviderUnavailableException();

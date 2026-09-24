@@ -48,7 +48,7 @@ public sealed class WorldCinemaService(
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             throw new SearchProviderUnavailableException();
         }

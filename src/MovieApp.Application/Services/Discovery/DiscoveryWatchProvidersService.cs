@@ -47,7 +47,7 @@ public sealed class DiscoveryWatchProvidersService(
                 normalizedRegion,
                 cancellationToken);
         }
-        catch (Exception)
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
             throw new SearchProviderUnavailableException();
         }

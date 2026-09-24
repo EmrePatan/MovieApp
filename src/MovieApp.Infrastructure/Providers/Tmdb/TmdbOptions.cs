@@ -13,6 +13,17 @@ public sealed class TmdbOptions
     /// </summary>
     public string CanonicalLanguage { get; set; } = "en-US";
 
+    /// <summary>
+    /// Upper bound for a single TMDB HTTP attempt (connect, TLS, response).
+    /// </summary>
+    public int RequestTimeoutSeconds { get; set; } = 10;
+
+    /// <summary>
+    /// Upper bound for one logical TMDB call including retries and backoff. Must stay well below
+    /// the mobile client's 30s request timeout so callers receive a 503 instead of a dropped request.
+    /// </summary>
+    public int RequestBudgetSeconds { get; set; } = 20;
+
     public bool IsConfigured() =>
         !string.IsNullOrWhiteSpace(ReadAccessToken) || !string.IsNullOrWhiteSpace(ApiKey);
 
