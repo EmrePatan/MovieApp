@@ -49,6 +49,22 @@
     "tv-season-1": {
       "http_req_duration": ["p(95)<3500"],
       "abortOnFail": false
+    },
+    "discover": {
+      "http_req_duration": ["p(95)<4000"],
+      "abortOnFail": false
+    },
+    "explore-preview": {
+      "http_req_duration": ["p(95)<4000"],
+      "abortOnFail": false
+    },
+    "personalized": {
+      "http_req_duration": ["p(95)<5000"],
+      "abortOnFail": false
+    },
+    "recommendations-home": {
+      "http_req_duration": ["p(95)<5000"],
+      "abortOnFail": false
     }
   },
   "applicationScoped": {

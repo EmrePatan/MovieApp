@@ -16,7 +16,14 @@ const TRACKED_GROUPS = [
 ];
 
 /** k6 `name` tag — finer-grained than `group` (e.g. TV show detail vs season-1). */
-const TRACKED_REQUEST_NAMES = ['tv-detail', 'tv-season-1'];
+const TRACKED_REQUEST_NAMES = [
+  'tv-detail',
+  'tv-season-1',
+  'discover',
+  'explore-preview',
+  'personalized',
+  'recommendations-home',
+];
 
 const LATENCY_STATS = ['med', 'p(90)', 'p(95)', 'p(99)', 'max'];
 

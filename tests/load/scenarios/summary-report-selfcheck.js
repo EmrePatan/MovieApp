@@ -22,6 +22,18 @@ export default function summaryReportSelfCheck() {
       },
       'http_reqs{name:tv-detail}': { values: { count: 12, rate: 1.2 } },
       'http_reqs{name:tv-season-1}': { values: { count: 3, rate: 0.3 } },
+      'http_req_duration{name:discover}': {
+        values: { med: 400, 'p(95)': 1200, max: 2000 },
+      },
+      'http_req_duration{name:explore-preview}': {
+        values: { med: 900, 'p(95)': 8100, max: 9000 },
+      },
+      'http_req_duration{name:personalized}': {
+        values: { med: 500, 'p(95)': 2000, max: 3000 },
+      },
+      'http_req_duration{name:recommendations-home}': {
+        values: { med: 800, 'p(95)': 11600, max: 12000 },
+      },
       http_req_duration: { values: { med: 220, 'p(95)': 850, max: 1500 } },
       http_outcome_2xx_success: { values: { count: 90 } },
       http_outcome_transport_timeout: { values: { count: 5 } },
@@ -61,5 +73,16 @@ export default function summaryReportSelfCheck() {
     'tv-detail request name latency': (r) => r.requestNames['tv-detail']?.latency?.['p(95)'] === 900,
     'tv-season-1 request name latency': (r) => r.requestNames['tv-season-1']?.latency?.['p(95)'] === 4200,
     'tracked request names list': () => TRACKED_REQUEST_NAMES.includes('tv-season-1'),
+    'discover request name latency': (r) => r.requestNames.discover?.latency?.['p(95)'] === 1200,
+    'explore-preview request name latency': (r) =>
+      r.requestNames['explore-preview']?.latency?.['p(95)'] === 8100,
+    'personalized request name latency': (r) =>
+      r.requestNames.personalized?.latency?.['p(95)'] === 2000,
+    'recommendations-home request name latency': (r) =>
+      r.requestNames['recommendations-home']?.latency?.['p(95)'] === 11600,
+    'all smoke diagnostic request names tracked': () =>
+      ['discover', 'explore-preview', 'personalized', 'recommendations-home'].every((name) =>
+        TRACKED_REQUEST_NAMES.includes(name),
+      ),
   });
 }
