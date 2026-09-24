@@ -9,7 +9,6 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 internal sealed class UserRecommendationContextLoader(
     ApplicationDbContext dbContext,
-    IDbContextFactory<ApplicationDbContext>? dbContextFactory,
     ILogger logger)
 {
     private const int MaxCastPeople = 20;
@@ -57,7 +56,6 @@ internal sealed class UserRecommendationContextLoader(
 
         var interactions = await UserRecommendationContextInteractionLoader.LoadAsync(
             dbContext,
-            dbContextFactory,
             userId,
             metrics,
             cancellationToken);
@@ -117,12 +115,8 @@ internal sealed class UserRecommendationContextLoader(
             interactions.WatchlistRows,
             interactions.CatalogFollowRows);
 
-        var watchedEpisodeTvShowIds = interactions.WatchedEpisodeRows.Select(row => row.TvShowId).ToList();
-        var fullyWatchedTvStopwatch = Stopwatch.StartNew();
-        excludedTvShowIds.UnionWith(
-            await GetFullyWatchedTvShowIdsAsync(watchedEpisodeTvShowIds, metrics, cancellationToken));
-        fullyWatchedTvStopwatch.Stop();
-        dbTotalMs += fullyWatchedTvStopwatch.ElapsedMilliseconds;
+        // Started shows are surfaced by Continue Watching; recommending them again mirrors watched movies.
+        excludedTvShowIds.UnionWith(interactions.WatchedEpisodeRows.Select(row => row.TvShowId));
 
         var tvTitleLookupStopwatch = Stopwatch.StartNew();
         var tvShowTitleLookup = await LoadTvShowTitleLookupAsync(
@@ -171,7 +165,7 @@ internal sealed class UserRecommendationContextLoader(
             dbTotalMs,
             probeMs,
             interactions,
-            fullyWatchedTvStopwatch.ElapsedMilliseconds,
+            0,
             tvTitleLookupStopwatch.ElapsedMilliseconds,
             searchMatchMoviesMs,
             searchMatchTvMs,
@@ -723,40 +717,6 @@ internal sealed class UserRecommendationContextLoader(
 
         return source.Where(tvShow => distinctQueries
             .Any(term => EF.Functions.ILike(tvShow.Title, "%" + term + "%")));
-    }
-
-    private async Task<IReadOnlyList<Guid>> GetFullyWatchedTvShowIdsAsync(
-        List<Guid> watchedEpisodeTvShowIds,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken)
-    {
-        if (watchedEpisodeTvShowIds.Count == 0)
-        {
-            return [];
-        }
-
-        var watchedCounts = watchedEpisodeTvShowIds
-            .GroupBy(tvShowId => tvShowId)
-            .Select(group => new { TvShowId = group.Key, WatchedCount = group.Count() })
-            .ToList();
-
-        var tvShowIds = watchedCounts.Select(item => item.TvShowId).ToList();
-        metrics.RecordRoundTrip();
-        var totalEpisodeCounts = await dbContext.Episodes
-            .AsNoTracking()
-            .Where(episode => tvShowIds.Contains(episode.Season.TvShowId))
-            .GroupBy(episode => episode.Season.TvShowId)
-            .Select(group => new { TvShowId = group.Key, TotalCount = group.Count() })
-            .ToListAsync(cancellationToken);
-
-        var totals = totalEpisodeCounts.ToDictionary(item => item.TvShowId, item => item.TotalCount);
-
-        return watchedCounts
-            .Where(item => totals.TryGetValue(item.TvShowId, out var totalCount) &&
-                           totalCount > 0 &&
-                           item.WatchedCount >= totalCount)
-            .Select(item => item.TvShowId)
-            .ToList();
     }
 
     private async Task<List<UserBehaviorSignal>> BuildMovieSignalsAsync(

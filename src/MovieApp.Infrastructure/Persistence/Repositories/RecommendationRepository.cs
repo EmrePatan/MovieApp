@@ -12,7 +12,6 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class RecommendationRepository(
     ApplicationDbContext dbContext,
-    IDbContextFactory<ApplicationDbContext>? dbContextFactory = null,
     ILogger<RecommendationRepository>? repositoryLogger = null) : IRecommendationRepository
 {
     private const int MaxCastPeople = 20;
@@ -130,7 +129,7 @@ public sealed class RecommendationRepository(
         Guid userId,
         int minimumInteractionsForEnrichment = 0,
         CancellationToken cancellationToken = default) =>
-        new UserRecommendationContextLoader(dbContext, dbContextFactory, _repositoryLogger).LoadAsync(
+        new UserRecommendationContextLoader(dbContext, _repositoryLogger).LoadAsync(
             userId,
             minimumInteractionsForEnrichment,
             cancellationToken);

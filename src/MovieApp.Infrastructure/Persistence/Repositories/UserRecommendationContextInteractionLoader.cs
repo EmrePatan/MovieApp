@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 
@@ -24,70 +24,12 @@ internal static class UserRecommendationContextInteractionLoader
         string ExecutionMode,
         int DbRoundTrips);
 
-    internal static async Task<UserInteractionSnapshot> LoadAsync(
+    internal static Task<UserInteractionSnapshot> LoadAsync(
         ApplicationDbContext dbContext,
-        IDbContextFactory<ApplicationDbContext>? dbContextFactory,
         Guid userId,
         RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken)
-    {
-        if (dbContextFactory is not null)
-        {
-            return await LoadInParallelAsync(dbContextFactory, userId, metrics, cancellationToken);
-        }
-
-        return await LoadSequentiallyAsync(dbContext, userId, metrics, cancellationToken);
-    }
-
-    private static async Task<UserInteractionSnapshot> LoadInParallelAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken)
-    {
-        var ratingsTask = LoadRatingsAsync(dbContextFactory, userId, metrics, cancellationToken);
-        var favoritesTask = LoadFavoritesAsync(dbContextFactory, userId, metrics, cancellationToken);
-        var watchedMoviesTask = LoadWatchedMoviesAsync(dbContextFactory, userId, metrics, cancellationToken);
-        var watchlistTask = LoadWatchlistAsync(dbContextFactory, userId, metrics, cancellationToken);
-        var watchedEpisodesTask = LoadWatchedEpisodesAsync(dbContextFactory, userId, metrics, cancellationToken);
-        var catalogFollowsTask = LoadCatalogFollowsAsync(dbContextFactory, userId, metrics, cancellationToken);
-        var searchHistoryTask = LoadSearchHistoryAsync(dbContextFactory, userId, metrics, cancellationToken);
-
-        await Task.WhenAll(
-            ratingsTask,
-            favoritesTask,
-            watchedMoviesTask,
-            watchlistTask,
-            watchedEpisodesTask,
-            catalogFollowsTask,
-            searchHistoryTask);
-
-        var (ratingRows, ratingsMs) = await ratingsTask;
-        var (favoriteRows, favoritesMs) = await favoritesTask;
-        var (watchedMovieRows, watchedMoviesMs) = await watchedMoviesTask;
-        var (watchlistRows, watchlistMs) = await watchlistTask;
-        var (watchedEpisodeRows, watchedEpisodesMs) = await watchedEpisodesTask;
-        var (catalogFollowRows, catalogFollowsMs) = await catalogFollowsTask;
-        var (recentQueries, searchHistoryMs) = await searchHistoryTask;
-
-        return new UserInteractionSnapshot(
-            ratingRows,
-            favoriteRows,
-            watchedMovieRows,
-            watchlistRows,
-            watchedEpisodeRows,
-            catalogFollowRows,
-            recentQueries,
-            ratingsMs,
-            favoritesMs,
-            watchedMoviesMs,
-            watchlistMs,
-            watchedEpisodesMs,
-            catalogFollowsMs,
-            searchHistoryMs,
-            "parallel-scoped",
-            metrics.DbRoundTrips);
-    }
+        CancellationToken cancellationToken) =>
+        LoadSequentiallyAsync(dbContext, userId, metrics, cancellationToken);
 
     private static async Task<UserInteractionSnapshot> LoadSequentiallyAsync(
         ApplicationDbContext dbContext,
@@ -136,83 +78,6 @@ internal static class UserRecommendationContextInteractionLoader
         stopwatch.Stop();
         return (result, stopwatch.ElapsedMilliseconds);
     }
-
-    private static Task<(List<UserRecommendationContextModels.RatingRow> Rows, long ElapsedMs)> LoadRatingsAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadRatingsAsync(context, userId, metrics, cancellationToken);
-        });
-
-    private static Task<(List<UserRecommendationContextModels.TimestampedContentRow> Rows, long ElapsedMs)> LoadFavoritesAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadFavoritesAsync(context, userId, metrics, cancellationToken);
-        });
-
-    private static Task<(List<UserRecommendationContextModels.WatchedMovieRow> Rows, long ElapsedMs)> LoadWatchedMoviesAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadWatchedMoviesAsync(context, userId, metrics, cancellationToken);
-        });
-
-    private static Task<(List<UserRecommendationContextModels.TimestampedContentRow> Rows, long ElapsedMs)> LoadWatchlistAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadWatchlistAsync(context, userId, metrics, cancellationToken);
-        });
-
-    private static Task<(List<UserRecommendationContextModels.WatchedEpisodeRow> Rows, long ElapsedMs)> LoadWatchedEpisodesAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadWatchedEpisodesAsync(context, userId, metrics, cancellationToken);
-        });
-
-    private static Task<(List<UserRecommendationContextModels.CatalogFollowRow> Rows, long ElapsedMs)> LoadCatalogFollowsAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadCatalogFollowsAsync(context, userId, metrics, cancellationToken);
-        });
-
-    private static Task<(List<string> Rows, long ElapsedMs)> LoadSearchHistoryAsync(
-        IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        Guid userId,
-        RecommendationQueryMetrics metrics,
-        CancellationToken cancellationToken) =>
-        TimedLoadAsync(async () =>
-        {
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await LoadSearchHistoryAsync(context, userId, metrics, cancellationToken);
-        });
 
     private static async Task<List<UserRecommendationContextModels.RatingRow>> LoadRatingsAsync(
         ApplicationDbContext dbContext,
