@@ -68,9 +68,22 @@ export function searchProfile() {
   return 'autocomplete-only';
 }
 
+function resolveDataDirRoot() {
+  const raw = __ENV.LOAD_TEST_DATA_DIR;
+  if (!raw || raw.trim() === '') {
+    return null;
+  }
+  const root = raw.replace(/\\/g, '/').replace(/\/$/, '');
+  const isGrafanaCloud = (__ENV.LOAD_TEST_EXECUTION_MODE || '').toLowerCase() === 'grafana-cloud';
+  if (isGrafanaCloud && /^[A-Za-z]:\//.test(root)) {
+    return null;
+  }
+  return root;
+}
+
 export const dataPath = (fileName) => {
-  if (__ENV.LOAD_TEST_DATA_DIR) {
-    const root = __ENV.LOAD_TEST_DATA_DIR.replace(/\\/g, '/').replace(/\/$/, '');
+  const root = resolveDataDirRoot();
+  if (root) {
     return `${root}/${fileName}`;
   }
   // Relative to tests/load/lib/ when scenarios import lib modules.

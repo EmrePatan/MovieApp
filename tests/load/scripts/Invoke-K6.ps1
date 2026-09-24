@@ -95,6 +95,7 @@ if ($env:LOAD_TEST_SEARCH_PROFILE) {
 }
 
 $executionModeEnv = if ($ExecutionMode -eq 'Cloud') { 'grafana-cloud' } else { 'local' }
+$pathEnv = Get-LoadTestK6PathEnvValues -ExecutionMode $ExecutionMode -LoadRoot $loadRoot
 
 $envMap = @{
     LOAD_TEST_BASE_URL                 = $BaseUrl.TrimEnd("/")
@@ -104,8 +105,8 @@ $envMap = @{
     LOAD_TEST_ENVIRONMENT              = $Environment
     LOAD_TEST_BACKEND_SHA              = $backendSha
     LOAD_TEST_TOOL_SHA                 = $backendSha
-    LOAD_TEST_DATA_DIR                 = (Join-Path $loadRoot "data").Replace('\', '/')
-    LOAD_TEST_THRESHOLDS_FILE          = (Join-Path $loadRoot "config\thresholds.json").Replace('\', '/')
+    LOAD_TEST_DATA_DIR                 = $pathEnv.LOAD_TEST_DATA_DIR
+    LOAD_TEST_THRESHOLDS_FILE          = $pathEnv.LOAD_TEST_THRESHOLDS_FILE
     LOAD_TEST_EXECUTION_MODE           = $executionModeEnv
     LOAD_TEST_CLOUD_LOAD_ZONE          = $CloudLoadZone
     LOAD_TEST_INCLUDE_EXTERNAL_RATINGS = $env:LOAD_TEST_INCLUDE_EXTERNAL_RATINGS

@@ -49,6 +49,28 @@ Assert-True 'payload strips to bearer only' ($payload -match 'eyJ\.test')
 $preflight = Format-LoadTestCloudPreflight -ExecutionMode Cloud -StageVus 150 -IdentityCount 100 -ReuseRatio 1.5 -VuHours 36 -Duration '00:17:00' -LoadZone 'amazon:de:frankfurt' -SearchProfileHint 'autocomplete-only' -IsProduction $true
 Assert-True 'preflight mentions reuse' ($preflight -match '1.5:1')
 
+$loadRootSample = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$cloudPaths = Get-LoadTestK6PathEnvValues -ExecutionMode Cloud -LoadRoot $loadRootSample
+Assert-Equal 'cloud data dir archive-relative' '../data' $cloudPaths.LOAD_TEST_DATA_DIR
+Assert-Equal 'cloud thresholds archive-relative' '../config/thresholds.json' $cloudPaths.LOAD_TEST_THRESHOLDS_FILE
+Assert-True 'cloud data dir not windows absolute' (-not ($cloudPaths.LOAD_TEST_DATA_DIR -match '^[A-Za-z]:'))
+Assert-Equal 'cloud hot content path' '../data/hot-content.json' ($cloudPaths.LOAD_TEST_DATA_DIR + '/hot-content.json')
+
+$localPaths = Get-LoadTestK6PathEnvValues -ExecutionMode Local -LoadRoot $loadRootSample
+Assert-True 'local data dir is host absolute' ($localPaths.LOAD_TEST_DATA_DIR -match '^[A-Za-z]:/')
+Assert-True 'local data dir ends with data' ($localPaths.LOAD_TEST_DATA_DIR -match '/data$')
+Assert-True 'local thresholds is host absolute' ($localPaths.LOAD_TEST_THRESHOLDS_FILE -match '^[A-Za-z]:/')
+
+$cloudEnvArgs = Build-LoadTestK6EnvArgs -EnvVars @{
+    LOAD_TEST_DATA_DIR        = $cloudPaths.LOAD_TEST_DATA_DIR
+    LOAD_TEST_THRESHOLDS_FILE = $cloudPaths.LOAD_TEST_THRESHOLDS_FILE
+    LOAD_TEST_EXECUTION_MODE  = 'grafana-cloud'
+    LOAD_TEST_BASE_URL        = 'https://example.com'
+}
+$cloudArgsJoined = $cloudEnvArgs -join ' '
+Assert-True 'cloud k6 env omits windows absolute data path' (-not ($cloudArgsJoined -match 'LOAD_TEST_DATA_DIR=[A-Za-z]:'))
+Assert-True 'cloud k6 env uses archive data dir' ($cloudArgsJoined -match 'LOAD_TEST_DATA_DIR=\.\./data')
+
 if ($failures -gt 0) {
     Write-Host ($failures.ToString() + ' assertion(s) failed.')
     exit 1

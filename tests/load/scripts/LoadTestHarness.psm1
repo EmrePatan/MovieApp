@@ -175,6 +175,26 @@ Or set K6_CLOUD_TOKEN for your stack (see tests/load/docs/grafana-cloud-k6.md).
     }
 }
 
+function Get-LoadTestK6PathEnvValues {
+    param(
+        [ValidateSet('Local', 'Cloud')]
+        [string]$ExecutionMode,
+        [string]$LoadRoot
+    )
+
+    if ($ExecutionMode -eq 'Cloud') {
+        return @{
+            LOAD_TEST_DATA_DIR        = '../data'
+            LOAD_TEST_THRESHOLDS_FILE = '../config/thresholds.json'
+        }
+    }
+
+    return @{
+        LOAD_TEST_DATA_DIR        = (Join-Path $LoadRoot 'data').Replace('\', '/')
+        LOAD_TEST_THRESHOLDS_FILE = (Join-Path $LoadRoot 'config\thresholds.json').Replace('\', '/')
+    }
+}
+
 function Build-LoadTestK6EnvArgs {
     param([hashtable]$EnvVars)
 
@@ -233,6 +253,7 @@ Export-ModuleMember -Function @(
     'Read-LoadTestIdentityCount',
     'Export-LoadTestIdentitiesPayload',
     'Assert-LoadTestCloudAuth',
+    'Get-LoadTestK6PathEnvValues',
     'Build-LoadTestK6EnvArgs',
     'Format-LoadTestCloudPreflight'
 )
