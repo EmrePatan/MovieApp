@@ -33,3 +33,13 @@ A full #60 campaign can exceed token lifetime:
 Round-robin: `identity = pool[(vu-1) % N]`.
 
 Do **not** add login/password traffic to measured scenarios.
+
+## Provisioning (production)
+
+There is **no** bulk admin or seed utility in the MovieApp repo. The supported path on current code is:
+
+1. `POST /api/auth/register` + `POST /api/auth/verify-email` (or login after verify) **outside k6**, throttled per `Authentication:RateLimit`.
+2. Store `AuthResponse.AccessToken` and `ExpiresAt` in gitignored `data/tokens.json`.
+3. Before each stage run `scripts/Test-LoadTokens.ps1`.
+
+See [`OPERATOR-INPUTS.md`](OPERATOR-INPUTS.md) for full comparison of options and identity counts.

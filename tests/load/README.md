@@ -26,6 +26,8 @@ Repeatable [k6](https://k6.io/) tooling to measure **realistic concurrent user b
 - **Connection pool** — default Npgsql pool per Render instance; high VU × fan-out increases concurrent DB usage.
 - **Load generator** — single-machine k6 can saturate CPU/sockets before the API; use multiple generators or distributed k6 for high stages.
 
+Production operator checklist: [`docs/OPERATOR-INPUTS.md`](docs/OPERATOR-INPUTS.md) (identities, SQL for catalog IDs, 5 VU smoke commands).
+
 ## Prerequisites
 
 - [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/) **or** Docker (`grafana/k6:latest`)

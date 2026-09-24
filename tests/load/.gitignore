@@ -6,6 +6,7 @@ reports/*
 data/tokens.json
 data/tokens.local.json
 data/*-local.json
+data/*.production.json
 .env
 .env.local
 
