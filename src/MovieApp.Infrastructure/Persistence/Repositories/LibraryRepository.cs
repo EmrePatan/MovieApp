@@ -42,7 +42,8 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var totalCount = await query.CountAsync(cancellationToken);
 
         var rows = await query
-            .OrderByDescending(item => item.LastWatchedAt)
+            .OrderByDescending(item => item.RegularWatchedEpisodes < item.RegularTotalEpisodes)
+            .ThenByDescending(item => item.LastWatchedAt)
             .ThenBy(item => item.TvShow.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

@@ -141,6 +141,42 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task WatchingOrdersPartiallyWatchedShowsBeforeCaughtUpOnes()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var partialShowId = await SeedTvShowAsync();
+        await _client.GetAsync($"/api/tvshows/{partialShowId}/seasons/1");
+        var partialEpisode = await SeedEpisodeAsync(partialShowId, 1, 1);
+        await SendAuthorizedPostAsync($"/api/watch-history/episodes/{partialEpisode}", token);
+
+        var caughtUpShowId = await SeedSecondTvShowWithAllEpisodesAsync();
+        await MarkTvShowWatchedAsync(caughtUpShowId, token);
+        await SetTvShowStatusAsync(caughtUpShowId, TvShowStatus.ReturningSeries);
+
+        try
+        {
+            var caughtUpEpisode = await SeedEpisodeAsync(caughtUpShowId, 1, 1);
+            await SendAuthorizedPostAsync($"/api/watch-history/episodes/{caughtUpEpisode}", token);
+
+            var watching = await GetLibraryAsync("/api/library?category=watching&mediaType=tv", token);
+
+            Assert.Equal(2, watching.Items.Count);
+            Assert.Equal(partialShowId, watching.Items[0].Id);
+            Assert.True(watching.Items[0].ProgressPercentage is > 0 and < 100m);
+            Assert.NotNull(watching.Items[0].NextEpisode);
+            Assert.Equal(caughtUpShowId, watching.Items[1].Id);
+            Assert.Equal(100m, watching.Items[1].ProgressPercentage);
+            Assert.Null(watching.Items[1].NextEpisode);
+        }
+        finally
+        {
+            await SetTvShowStatusAsync(caughtUpShowId, TvShowStatus.Ended);
+        }
+    }
+
+    [Fact]
     public async Task CaughtUpReturningSeriesStaysWatching()
     {
         await fixture.ResetAsync();
@@ -344,6 +380,27 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         Assert.NotNull(payload);
         Assert.NotEmpty(payload.Items);
         return payload.Items[0].Id;
+    }
+
+    private async Task<Guid> SeedSecondTvShowAsync()
+    {
+        var response = await _client.GetAsync("/api/tvshows/search?q=office");
+        var payload = await response.Content.ReadFromJsonAsync<TvShowSearchResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload.Items.Count >= 1, "Expected a second catalog TV show for ordering coverage.");
+        var breakingShowId = await SeedTvShowAsync();
+        var candidate = payload.Items.FirstOrDefault(item => item.Id != breakingShowId);
+        Assert.NotNull(candidate);
+        return candidate.Id;
+    }
+
+    private async Task<Guid> SeedSecondTvShowWithAllEpisodesAsync()
+    {
+        var tvShowId = await SeedSecondTvShowAsync();
+        await _client.GetAsync($"/api/tvshows/{tvShowId}/seasons/1");
+        await _client.GetAsync($"/api/tvshows/{tvShowId}/seasons/2");
+        await _client.GetAsync($"/api/tvshows/{tvShowId}/seasons/3");
+        return tvShowId;
     }
 
     private async Task<Guid> SeedTvShowWithAllEpisodesAsync()
