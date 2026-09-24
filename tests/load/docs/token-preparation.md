@@ -4,6 +4,8 @@
 
 Movie App issues JWT access tokens via `JwtOptions.AccessTokenMinutes` (default **60 minutes** in code). Production configuration may differ — confirm deployed settings before a multi-hour capacity campaign.
 
+For a single **50-VU capacity** stage (~17m) plus preflight/report margin and ~11m serial mint spread, use **`Test-LoadTokens.ps1 -MinMinutesUntilExpiry 30`** at stage start (not 75). See `docs/load-test-identity-provisioning.md` and `LoadTestIdentityProvisioner token-requirements`.
+
 A full #60 campaign can exceed token lifetime:
 
 | Phase | Typical duration |

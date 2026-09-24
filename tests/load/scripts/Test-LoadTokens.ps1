@@ -1,7 +1,7 @@
 param(
     [int]$SampleCount = 10,
     [switch]$FailOnAuthError,
-    [int]$MinMinutesUntilExpiry = 75,
+    [int]$MinMinutesUntilExpiry = 30,
     [string]$BaseUrl = $env:LOAD_TEST_BASE_URL,
     [string]$TokensFile = $env:LOAD_TEST_TOKENS_FILE
 )

@@ -5,6 +5,7 @@ reports/*
 # Secrets and operator-local datasets
 data/tokens.json
 data/tokens.local.json
+data/load60-identities.manifest.json
 data/*-local.json
 data/*.production.json
 .env

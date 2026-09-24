@@ -20,7 +20,7 @@ Baseline: `origin/master` load harness under `tests/load/**`.
 | Security stamp | `JwtSecurityStampValidator` | Token invalid after stamp change (password reset, etc.) |
 | Rate limits | `Authentication:RateLimit` | Per **client IP**: Register **5 / 10 min**, Login **5 / 1 min**, Verify **5 / 15 min** |
 
-There is **no** production admin API, seed CLI, or bulk test-user utility in the repository. Integration tests use `AuthIntegrationHelpers` with `CapturingEmailSender` — **not available in production**.
+Operator-local **LOAD60 provisioner** lives under `tests/load/tools/LoadTestIdentityProvisioner` (dry-run by default; see `docs/load-test-identity-provisioning.md`). There is **no** production HTTP admin API. Integration tests use `CapturingEmailSender` — **not available in production**.
 
 ### Recommended method (safest on current code)
 
@@ -56,7 +56,7 @@ Record `expiresAtUtc` from `AuthResponse.ExpiresAt` at issuance time.
 | k6 login/register in scenario | Measures auth/rate limits, not app capacity; pollutes metrics |
 | Social auth for synthetic users | Same; 10/min IP limit; real IdP coupling |
 | Raw SQL user insert | No supported ops playbook; must mirror `User` + password hash + `EmailVerifiedAtUtc`; audit/review burden |
-| Local JWT mint with signing key | Requires production **SigningKey** on operator machine; higher secret exposure than login |
+| Local JWT mint with signing key | **Not used** — signing key must not leave production |
 | Auth bypass / longer-lived JWT in app | **Forbidden** — no production code changes |
 
 **SQL insert** may be acceptable as a **one-time DBA procedure** under change control if API registration cannot meet 50–100 users in time — but it is **not** implemented or documented in app code; prefer API register+verify when possible.
@@ -88,7 +88,7 @@ Run (does **not** count toward load test):
 cd tests\load
 $env:LOAD_TEST_BASE_URL = "https://<production-api>"
 $env:LOAD_TEST_TOKENS_FILE = "$PWD\data\tokens.json"
-.\scripts\Test-LoadTokens.ps1 -SampleCount 10 -FailOnAuthError
+.\scripts\Test-LoadTokens.ps1 -SampleCount 50 -FailOnAuthError -MinMinutesUntilExpiry 30
 ```
 
 - Probes `GET /api/home?type=all&sectionSize=5` per sampled token.

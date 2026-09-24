@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "campaign": "load60",
+  "emailDomain": "loadtest.invalid",
+  "identities": [
+    {
+      "harnessId": "load60-001",
+      "userId": "00000000-0000-0000-0000-000000000001",
+      "email": "load60-001@loadtest.invalid",
+      "normalizedEmail": "load60-001@loadtest.invalid",
+      "createdAtUtc": "2026-01-01T00:00:00.0000000Z"
+    }
+  ]
+}
