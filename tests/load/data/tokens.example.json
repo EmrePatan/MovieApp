@@ -1,0 +1,9 @@
+{
+  "description": "DO NOT commit real tokens. Copy to tokens.json (gitignored) or set LOAD_TEST_TOKENS_FILE.",
+  "identities": [
+    {
+      "id": "load-test-user-001",
+      "bearerToken": "REPLACE_WITH_JWT"
+    }
+  ]
+}

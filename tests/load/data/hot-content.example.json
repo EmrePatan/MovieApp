@@ -1,0 +1,11 @@
+{
+  "description": "Small set of catalog IDs with warm caches (TMDB ingested, external-rating snapshots present). Copy to hot-content.json and fill from production/staging SQL.",
+  "movieIds": [
+    "00000000-0000-0000-0000-000000000001"
+  ],
+  "tvShowIds": [
+    "00000000-0000-0000-0000-000000000002"
+  ],
+  "externalRatingsWarmMovieIds": [],
+  "externalRatingsWarmTvShowIds": []
+}

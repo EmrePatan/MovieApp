@@ -1,0 +1,22 @@
+{
+  "smoke": {
+    "rampUp": "30s",
+    "hold": "1m",
+    "rampDown": "30s",
+    "description": "Local/operator validation — not capacity evidence."
+  },
+  "capacity": {
+    "rampUp": "3m",
+    "hold": "12m",
+    "rampDown": "2m",
+    "description": "Per-stage sustained hold long enough to expose pool pressure, latency drift, and memory growth."
+  },
+  "capacityStage1000": {
+    "rampUp": "5m",
+    "hold": "15m",
+    "rampDown": "3m",
+    "description": "Final 1,000-user stage — use only if prior stages remain healthy."
+  },
+  "stageTargets": [50, 100, 250, 500, 750, 1000],
+  "cooldownBetweenStagesMinutes": 10
+}

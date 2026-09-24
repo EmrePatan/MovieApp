@@ -1,0 +1,13 @@
+# Generated run output (do not commit)
+reports/*
+!reports/.gitkeep
+
+# Secrets and operator-local datasets
+data/tokens.json
+data/tokens.local.json
+data/*-local.json
+.env
+.env.local
+
+# k6 cloud / local scratch
+*.log

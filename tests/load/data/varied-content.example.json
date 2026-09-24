@@ -1,0 +1,5 @@
+{
+  "description": "Broader ID pool to reduce hot-key concentration. Requires IDs that already exist in PostgreSQL (no intentional TMDB cache misses).",
+  "movieIds": [],
+  "tvShowIds": []
+}

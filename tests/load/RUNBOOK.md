@@ -1,0 +1,172 @@
+# Movie Cave production capacity runbook (#60)
+
+**This runbook is for manual, gated production execution after review.** The implementation task does not run production stress tests automatically.
+
+## Capacity interpretation (after real runs)
+
+Classify each stage using evidence:
+
+| Class | Indicators |
+|-------|------------|
+| **HEALTHY** | Stable error/timeout rates, p95/p99 within thresholds, no pool exhaustion, no instance restarts, no real-user impact |
+| **DEGRADED** | Elevated latency or brief errors but system recovers; no data loss; operator may stop before next stage |
+| **UNHEALTHY** | Sustained 5xx/timeouts, connection pool/Postgres exhaustion, Redis failures, restarts, or customer impact — **stop** |
+
+The first **unhealthy** stage is valid capacity evidence. Do not force 1,000 VUs if an earlier stage fails criteria.
+
+---
+
+## Preparation
+
+1. **Verify deployed backend SHA** matches the intended baseline (`ApplicationSourceVersion` / Render deploy / `GET /health` payload `sourceVersion` if exposed).
+2. **Record** load-test tooling commit SHA (`git rev-parse HEAD` in MovieApp repo).
+3. **Confirm** no deployment, migration, or catalog sync job is in progress.
+4. **Prepare identities**
+   - Dedicated load-test accounts (not real users).
+   - Valid JWTs in local `data/tokens.json` (never commit).
+   - Target **≥50 identities** (100+ preferred for 1,000 VUs).
+5. **Prepare content pools**
+   - `data/hot-content.json` — small warm set.
+   - `data/varied-content.json` — broad IDs already in PostgreSQL.
+   - **External ratings:** populate `externalRatingsWarm*` only with IDs known to have PostgreSQL snapshots; set `LOAD_TEST_INCLUDE_EXTERNAL_RATINGS=true` only if needed at low weight.
+6. **Search terms** — `data/search-terms.json` (benign, varied).
+7. **Open dashboards** (see checklists below) and note **UTC start timestamp**.
+8. **Baseline** — capture 10–15 minutes idle metrics.
+9. **Smoke** — `Invoke-K6.ps1 -Preset smoke -StageTarget 5` against production URL; confirm 2xx on health + one authenticated home call.
+
+### Environment variables (operator)
+
+```
+LOAD_TEST_BASE_URL=https://<production-api>
+LOAD_TEST_ENVIRONMENT=production
+LOAD_TEST_TOKENS_FILE=<path>\tokens.json
+LOAD_TEST_CONTENT_DATASET=hot   # then repeat key stages with varied
+LOAD_TEST_INCLUDE_EXTERNAL_RATINGS=false
+```
+
+---
+
+## Staged execution (stop between stages)
+
+For each target **50, 100, 250, 500, 750, 1000**:
+
+1. Run user-concurrency:
+
+```powershell
+cd tests\load
+.\scripts\Invoke-K6.ps1 -Scenario user-concurrency -Preset capacity -StageTarget <N> -UseDocker
+```
+
+2. Optionally run request-capacity (read-only) on a **separate** window if investigating raw RPS:
+
+```powershell
+.\scripts\Invoke-K6.ps1 -Scenario request-capacity -Preset capacity -StageTarget <N> -UseDocker
+```
+
+3. **Inspect** k6 summary + `Summarize-Report.ps1` + all server dashboards.
+4. **Cooldown** ≥10 minutes (`config/presets.json` recommends 10).
+5. Proceed to next stage **only if** stage is HEALTHY or explicitly accepted as DEGRADED with documented risk.
+
+**Stage 1,000** — use `capacity` preset (15m hold via internal `capacityStage1000` when `LOAD_TEST_STAGE_TARGET=1000`).
+
+---
+
+## Abort / stop conditions
+
+Stop the stage and **do not increase VUs** when any of the following persist:
+
+- HTTP failure rate **>5%** or sharp sustained increase
+- Timeout rate climbing with load
+- p99 **>15s** sustained (see `thresholds.json` abortSignals)
+- Render **CPU pegged**, memory near limit, or **instance restart/crash**
+- PostgreSQL **active connections** near `max_connections` or pool acquisition timeouts in logs
+- **Blocking/lock** storms or multi-second slow queries attributable to test window
+- Redis/Valkey **errors**, timeouts, or dangerous memory pressure/evictions
+- Unexpected **TMDB/MDBList/email** traffic spikes in provider logs
+- k6 **dropped_iterations** or generator CPU **>85%** sustained (client bottleneck)
+- Support tickets / real-user latency complaints
+
+---
+
+## Render monitoring checklist
+
+During each stage window, correlate **UTC timestamps** with:
+
+- [ ] Instance CPU (%)
+- [ ] Instance memory (%)
+- [ ] HTTP request rate and 5xx rate (if available)
+- [ ] P95/P99 latency (if available)
+- [ ] Instance restarts / deploy events
+- [ ] Outbound network (spikes may indicate external provider calls — investigate)
+
+---
+
+## PostgreSQL monitoring checklist
+
+- [ ] Active connections vs max
+- [ ] Connection wait / pool timeout errors in app logs
+- [ ] Long-running queries (>1s) during hold period
+- [ ] Lock waits / blocking sessions
+- [ ] CPU and IOPS (provider metrics)
+- [ ] Slow query log samples tied to test start/end
+
+---
+
+## Redis / Valkey monitoring checklist
+
+- [ ] Memory usage and eviction counters (if policy allows eviction)
+- [ ] Connected clients
+- [ ] Command latency / error rate
+- [ ] Cache hit patterns (optional — compare hot vs varied datasets)
+
+---
+
+## Hangfire / ASP.NET monitoring checklist
+
+- [ ] Serilog request duration — rising tail latencies by route
+- [ ] 5xx, timeouts, `OperationCanceledException`
+- [ ] Npgsql / connection pool exceptions
+- [ ] Hangfire queue depth growth (release checks, external ratings refresh — should not spike from read-only user test)
+- [ ] JWT/auth failures (401 spikes → token prep issue, not capacity)
+
+---
+
+## Load-generator checklist
+
+- [ ] k6 `dropped_iterations` ≈ 0
+- [ ] `vus_max` matches target
+- [ ] Generator CPU/RAM headroom
+- [ ] For 500+ VUs: plan **multiple generators** or distributed k6 if single host saturates
+
+---
+
+## Post-run artifacts
+
+Record for each stage:
+
+- Report JSON path under `tests/load/reports/`
+- Backend SHA, tooling SHA, dataset, identity count
+- k6 p50/p90/p95/p99, RPS, failure/timeout rates
+- Endpoint group breakdown (from k6 stdout or report `root_group`)
+- Threshold pass/fail
+- Operator notes from Render/Postgres/Redis
+
+---
+
+## Cold-cache experiments
+
+Do **not** flush production Redis/Postgres to simulate cold cache. Document cold-cache experiments for **non-production** environments only (new empty Redis, fresh deploy, controlled catalog import).
+
+---
+
+## TV bulk watch benchmark
+
+`scenarios/benchmark-tv-bulk-watch.js` — **staging only**, requires:
+
+```
+LOAD_TEST_ALLOW_BULK_WATCH=true
+LOAD_TEST_BULK_TV_SHOW_ID=<guid>
+LOAD_TEST_BULK_EPISODE_IDS=["<ep-guid>",...]
+```
+
+Never include in production user-concurrency mix.

@@ -1,0 +1,54 @@
+{
+  "description": "Test-health thresholds — not product SLAs. Tune per environment after baseline runs.",
+  "global": {
+    "http_req_failed": ["rate<0.02"],
+    "http_req_duration": ["p(95)<3000", "p(99)<8000"],
+    "checks": ["rate>0.95"]
+  },
+  "groups": {
+    "home": {
+      "http_req_duration": ["p(95)<4000"]
+    },
+    "personalized": {
+      "http_req_duration": ["p(95)<5000"]
+    },
+    "movie-detail": {
+      "http_req_duration": ["p(95)<3500"]
+    },
+    "tv-detail": {
+      "http_req_duration": ["p(95)<3500"]
+    },
+    "detail-status": {
+      "http_req_duration": ["p(95)<2500"]
+    },
+    "library": {
+      "http_req_duration": ["p(95)<5000"]
+    },
+    "insights": {
+      "http_req_duration": ["p(95)<8000"]
+    },
+    "search": {
+      "http_req_duration": ["p(95)<4000"]
+    },
+    "discover": {
+      "http_req_duration": ["p(95)<4000"]
+    },
+    "external-ratings-warm": {
+      "http_req_duration": ["p(95)<3000"]
+    },
+    "saturation-health": {
+      "http_req_duration": ["p(95)<2000"]
+    },
+    "saturation-discovery": {
+      "http_req_duration": ["p(95)<3000"]
+    },
+    "saturation-catalog": {
+      "http_req_duration": ["p(95)<3000"]
+    }
+  },
+  "abortSignals": {
+    "http_req_failed_rate": 0.05,
+    "http_req_duration_p99_ms": 15000,
+    "notes": "Operator should stop the stage manually when these are sustained; k6 thresholds mark the run failed but do not auto-stop production."
+  }
+}
