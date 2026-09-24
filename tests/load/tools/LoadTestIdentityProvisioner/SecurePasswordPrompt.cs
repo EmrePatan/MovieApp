@@ -8,7 +8,7 @@ internal static class SecurePasswordPrompt
         var secure = ReadSecureLine();
         try
         {
-            var plain = secure.ToPlainText();
+            var plain = SecureStringUtilities.ToPlainString(secure);
             if (string.IsNullOrWhiteSpace(plain))
             {
                 throw new InvalidOperationException("Password cannot be empty.");
@@ -53,16 +53,4 @@ internal static class SecurePasswordPrompt
         return secure;
     }
 
-    private static string ToPlainText(this System.Security.SecureString secure)
-    {
-        var bstr = System.Runtime.InteropServices.Marshal.SecureStringToBSTR(secure);
-        try
-        {
-            return System.Runtime.InteropServices.Marshal.PtrToStringBSTR(bstr) ?? string.Empty;
-        }
-        finally
-        {
-            System.Runtime.InteropServices.Marshal.ZeroFreeBSTR(bstr);
-        }
-    }
 }

@@ -23,6 +23,10 @@ Operator-local tooling only. **No production HTTP admin endpoint.** No schema mi
 
 Run `token-requirements` on the provisioner for the current calculated value.
 
+## Connection strings
+
+`LOAD_TEST_PG_CONNECTION` accepts **Npgsql key/value** strings or **`postgresql://` / `postgres://` URIs** (Render external DB). URIs default port **5432** when omitted and use **SSL Require**. Values are never logged.
+
 ## Provision (dry-run default)
 
 ```powershell
@@ -39,15 +43,29 @@ Write (after approval):
 
 Prompts once for campaign password (SecureString; not stored).
 
+## Verify campaign password (read-only, no HTTP login)
+
+Before minting JWTs, confirm the password matches what was used at provision time:
+
+```powershell
+$env:LOAD_TEST_PG_CONNECTION = "<from secret store>"
+.\scripts\Invoke-LoadTestIdentityProvisioner.ps1 -Command verify-password -SampleSize 3
+```
+
+Exit code **2** + `CAMPAIGN PASSWORD MISMATCH` when `passwordMatch=false`.
+
 ## Mint tokens (out-of-band login)
+
+Only after **verify-password** succeeds:
 
 ```powershell
 $env:LOAD_TEST_BASE_URL = "https://movieapp-fpkg.onrender.com"
 .\scripts\Mint-LoadTestTokens.ps1
 ```
 
-- **13s** delay between logins (under 5/min/IP).
-- Stops on **429**.
+- **One preflight login** on `load60-001`; stops on **401/403/429** before batch.
+- **15s** delay between subsequent logins (production limit: **5/min/IP including failures**).
+- After **5 failed** logins in a minute, wait **60s** before retrying HTTP login.
 - Atomic write to `data/tokens.json` (UTF-8 no BOM).
 - Fails if pool incomplete (no partial `tokens.json`).
 

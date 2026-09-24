@@ -13,9 +13,18 @@ public sealed class LoadTestStageTokenRequirementsTests
     }
 
     [Fact]
-    public void MintSpreadForFiftyIdentitiesUsesThirteenSecondThrottle()
+    public void MintSpreadForFiftyIdentitiesUsesFifteenSecondThrottle()
     {
         var spread = LoadTestStageTokenRequirements.MintSpreadMinutes(50);
-        Assert.Equal(11, spread);
+        Assert.Equal(13, spread);
+    }
+
+    [Fact]
+    public void HundredIdentityMintLeavesEnoughLifetimeForCapacityStage()
+    {
+        var remaining = LoadTestStageTokenRequirements.OldestTokenRemainingMinutesAfterFullMint(100);
+        var required = LoadTestStageTokenRequirements.CapacityStageDurationMinutes
+            + LoadTestStageTokenRequirements.PreflightAndReportMarginMinutes;
+        Assert.True(remaining >= required + 5);
     }
 }

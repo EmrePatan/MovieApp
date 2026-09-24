@@ -1,7 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provision", "cleanup", "token-requirements")]
+    [ValidateSet("provision", "cleanup", "verify-password", "token-requirements")]
     [string]$Command,
+
+    [int]$SampleSize = 3,
 
     [string]$ConnectionString = $env:LOAD_TEST_PG_CONNECTION,
     [int]$Count = 50,
@@ -20,7 +22,17 @@ if ($ConnectionString) {
     $argsList += @("--connection", $ConnectionString)
 }
 
-$argsList += @("--count", "$Count", "--email-domain", $EmailDomain)
+switch ($Command) {
+    "verify-password" {
+        $argsList += @("--sample", "$SampleSize")
+    }
+    "token-requirements" {
+        $argsList += @("--count", "$Count")
+    }
+    default {
+        $argsList += @("--count", "$Count", "--email-domain", $EmailDomain)
+    }
+}
 
 if ($ManifestPath) {
     $argsList += @("--manifest", $ManifestPath)

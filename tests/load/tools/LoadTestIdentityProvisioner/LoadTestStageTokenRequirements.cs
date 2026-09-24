@@ -11,7 +11,7 @@ public static class LoadTestStageTokenRequirements
     public const int PreflightAndReportMarginMinutes = 5;
 
     /// <summary>Conservative delay between serial logins (5/min/IP production limit).</summary>
-    public const int LoginThrottleSeconds = 13;
+    public const int LoginThrottleSeconds = AuthLoginRateLimitPolicy.RecommendedLoginIntervalSeconds;
 
     public const int DefaultJwtLifetimeMinutes = 60;
 
@@ -37,11 +37,21 @@ public static class LoadTestStageTokenRequirements
         int jwtLifetimeMinutes = DefaultJwtLifetimeMinutes)
     {
         var mintSpread = MintSpreadMinutes(identityCount);
-        var requiredSpan = CapacityStageDurationMinutes + PreflightAndReportMarginMinutes + mintSpread;
-        var buffer = 3;
-        var fromLifetime = jwtLifetimeMinutes - requiredSpan - buffer;
-        var floor = 30;
-        return Math.Max(floor, fromLifetime > 0 ? Math.Min(fromLifetime, jwtLifetimeMinutes) : floor);
+        var requiredAtStageStart = CapacityStageDurationMinutes + PreflightAndReportMarginMinutes;
+        var buffer = 5;
+        var fromLifetime = jwtLifetimeMinutes - mintSpread - requiredAtStageStart - buffer;
+        var floor = identityCount <= 50 ? 30 : 25;
+        return Math.Max(floor, fromLifetime);
+    }
+
+    /// <summary>
+    /// Minutes remaining on the first-minted JWT when the last identity is minted (serial login).
+    /// </summary>
+    public static int OldestTokenRemainingMinutesAfterFullMint(
+        int identityCount,
+        int jwtLifetimeMinutes = DefaultJwtLifetimeMinutes)
+    {
+        return jwtLifetimeMinutes - MintSpreadMinutes(identityCount);
     }
 
     public static string ExplainRecommendation(int identityCount = DefaultLoad60PoolSize)

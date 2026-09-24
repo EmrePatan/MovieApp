@@ -19,13 +19,15 @@ internal static class ProvisionerCli
             return 0;
         }
 
-        var connection = map.GetValueOrDefault("connection")
+        var connectionRaw = map.GetValueOrDefault("connection")
             ?? Environment.GetEnvironmentVariable("LOAD_TEST_PG_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connection))
+        if (string.IsNullOrWhiteSpace(connectionRaw))
         {
             throw new InvalidOperationException(
                 "PostgreSQL connection is required via --connection or LOAD_TEST_PG_CONNECTION (never commit this value).");
         }
+
+        var connection = PostgreSqlConnectionStringNormalizer.Normalize(connectionRaw);
 
         var manifestPath = map.GetValueOrDefault("manifest")
             ?? Environment.GetEnvironmentVariable("LOAD_TEST_LOAD60_MANIFEST")
@@ -35,8 +37,46 @@ internal static class ProvisionerCli
         {
             "provision" => await RunProvisionAsync(map, connection, manifestPath),
             "cleanup" => await RunCleanupAsync(map, connection, manifestPath),
+            "verify-password" => await RunVerifyPasswordAsync(map, connection, manifestPath),
             _ => throw new InvalidOperationException($"Unknown command '{command}'."),
         };
+    }
+
+    private static async Task<int> RunVerifyPasswordAsync(Dictionary<string, string> map, string connection, string manifestPath)
+    {
+        var sampleSize = int.Parse(map.GetValueOrDefault("sample") ?? "3", System.Globalization.CultureInfo.InvariantCulture);
+        Console.WriteLine($"Read-only password verify (sample {sampleSize}, no HTTP login).");
+
+        var result = await VerifyPasswordService.RunAsync(new VerifyPasswordOptions
+        {
+            ConnectionString = connection,
+            ManifestPath = manifestPath,
+            SampleSize = sampleSize,
+        });
+
+        foreach (var sample in result.Samples)
+        {
+            Console.WriteLine(
+                $"{sample.HarnessId}: active={sample.IsActive.ToString().ToLowerInvariant()} " +
+                $"verified={sample.IsEmailVerified.ToString().ToLowerInvariant()} " +
+                $"passwordMatch={sample.PasswordMatch.ToString().ToLowerInvariant()} " +
+                $"userFound={sample.UserFound.ToString().ToLowerInvariant()}");
+        }
+
+        if (result.AnyMismatch)
+        {
+            Console.Error.WriteLine("CAMPAIGN PASSWORD MISMATCH");
+            return 2;
+        }
+
+        if (!result.AllMatch)
+        {
+            Console.Error.WriteLine("VERIFY FAILED — check active/verified/userFound flags above.");
+            return 1;
+        }
+
+        Console.WriteLine("All sampled identities match campaign password.");
+        return 0;
     }
 
     private static async Task<int> RunProvisionAsync(Dictionary<string, string> map, string connection, string manifestPath)
@@ -171,6 +211,7 @@ internal static class ProvisionerCli
             Commands:
               provision   Plan or create dedicated LOAD60 users (default: dry run)
               cleanup     Plan or delete manifest users (default: dry run)
+              verify-password  Read-only DB password verify (no HTTP login)
               token-requirements  Print JWT preflight window guidance
 
             Common options:
