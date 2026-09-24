@@ -191,7 +191,7 @@ function runSearch(seed) {
 }
 
 function runLibrary(token) {
-  const categories = ['favorites', 'watchlist', 'watched', 'watching'];
+  const categories = ['watching', 'watched', 'liked', 'watchlist'];
   const category = categories[Math.floor(Math.random() * categories.length)];
   apiGet(`/api/library?category=${category}&mediaType=all&page=1&pageSize=20`, { group: 'library', token });
   thinkLibraryBrowse();
