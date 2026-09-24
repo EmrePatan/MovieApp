@@ -345,7 +345,7 @@ public sealed class InsightsRepository(
             .FirstAsync(cancellationToken);
     }
 
-    private async Task<IReadOnlyList<(int Score, int Count)>> GetRatingScoreCountsAsync(
+    private static async Task<IReadOnlyList<(int Score, int Count)>> GetRatingScoreCountsAsync(
         ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
@@ -573,7 +573,7 @@ public sealed class InsightsRepository(
         return (raw, metrics);
     }
 
-    private async Task<V3SummaryRow> GetV3SummaryAsync(
+    private static async Task<V3SummaryRow> GetV3SummaryAsync(
         ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
@@ -604,7 +604,7 @@ public sealed class InsightsRepository(
             .FirstAsync(cancellationToken);
     }
 
-    private async Task<IReadOnlyList<InsightsV3DnaProjections.MovieWatchRow>> GetMovieWatchProjectionRowsAsync(
+    private static async Task<IReadOnlyList<InsightsV3DnaProjections.MovieWatchRow>> GetMovieWatchProjectionRowsAsync(
         ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
@@ -626,7 +626,7 @@ public sealed class InsightsRepository(
             .ToListAsync(cancellationToken);
     }
 
-    private async Task<IReadOnlyList<InsightsV3DnaProjections.EpisodeWatchRow>> GetEpisodeWatchProjectionRowsAsync(
+    private static async Task<IReadOnlyList<InsightsV3DnaProjections.EpisodeWatchRow>> GetEpisodeWatchProjectionRowsAsync(
         ApplicationDbContext context,
         Guid userId,
         CancellationToken cancellationToken)
