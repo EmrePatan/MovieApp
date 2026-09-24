@@ -7,11 +7,13 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Images;
+using MovieApp.Application.Services.ExternalRatings;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Contracts.Credits;
 using MovieApp.Contracts.Images;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Videos;
+using MovieApp.Contracts.ExternalRatings;
 using MovieApp.Contracts.WatchProviders;
 
 namespace MovieApp.Api.Controllers;
@@ -26,6 +28,7 @@ public sealed class MoviesController(
     IGetMovieWatchProvidersService getMovieWatchProvidersService,
     IGetMovieVideosService getMovieVideosService,
     IGetMovieImagesService getMovieImagesService,
+    IGetMovieExternalRatingsService getMovieExternalRatingsService,
     IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
 {
     [HttpGet("search")]
@@ -172,6 +175,27 @@ public sealed class MoviesController(
                 Request.Headers.AcceptLanguage.ToString());
             var images = await getMovieImagesService.GetImagesAsync(id, resolvedLanguage, cancellationToken);
             return Ok(ImagesContractMapper.ToResponse(images));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Movie not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/external-ratings")]
+    [ProducesResponseType(typeof(ExternalRatingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExternalRatingsResponse>> GetExternalRatings(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var ratings = await getMovieExternalRatingsService.GetAsync(id, cancellationToken);
+            return Ok(ExternalRatingsContractMapper.ToResponse(ratings));
         }
         catch (NotFoundException exception)
         {

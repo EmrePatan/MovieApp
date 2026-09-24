@@ -8,11 +8,13 @@ using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Services.Images;
+using MovieApp.Application.Services.ExternalRatings;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Contracts.Credits;
 using MovieApp.Contracts.Images;
 using MovieApp.Contracts.TvShows;
 using MovieApp.Contracts.Videos;
+using MovieApp.Contracts.ExternalRatings;
 using MovieApp.Contracts.WatchProviders;
 
 namespace MovieApp.Api.Controllers;
@@ -29,6 +31,7 @@ public sealed class TvShowsController(
     IGetTvShowWatchProvidersService getTvShowWatchProvidersService,
     IGetTvShowVideosService getTvShowVideosService,
     IGetTvShowImagesService getTvShowImagesService,
+    IGetTvShowExternalRatingsService getTvShowExternalRatingsService,
     IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
 {
     [HttpGet("search")]
@@ -175,6 +178,27 @@ public sealed class TvShowsController(
                 Request.Headers.AcceptLanguage.ToString());
             var images = await getTvShowImagesService.GetImagesAsync(id, resolvedLanguage, cancellationToken);
             return Ok(ImagesContractMapper.ToResponse(images));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("{id:guid}/external-ratings")]
+    [ProducesResponseType(typeof(ExternalRatingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExternalRatingsResponse>> GetExternalRatings(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var ratings = await getTvShowExternalRatingsService.GetAsync(id, cancellationToken);
+            return Ok(ExternalRatingsContractMapper.ToResponse(ratings));
         }
         catch (NotFoundException exception)
         {

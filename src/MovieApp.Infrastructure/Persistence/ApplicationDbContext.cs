@@ -82,6 +82,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ProductMetricDaily> ProductMetricDaily => Set<ProductMetricDaily>();
 
+    public DbSet<ExternalRatingSnapshot> ExternalRatingSnapshots => Set<ExternalRatingSnapshot>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

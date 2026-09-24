@@ -36,6 +36,7 @@ using MovieApp.Application.Services.TvUpcomingEpisodes;
 using MovieApp.Application.Services.ProductMetrics;
 using MovieApp.Application.Services.Insights;
 using MovieApp.Application.Services.Localization;
+using MovieApp.Application.Services.ExternalRatings;
 
 namespace MovieApp.Application;
 
@@ -179,6 +180,11 @@ public static class DependencyInjection
         services.AddScoped<INotificationInboxCleanupService, NotificationInboxCleanupService>();
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
         services.AddScoped<ILibraryService, LibraryService>();
+
+        services.AddScoped<ExternalRatingsAccessService>();
+        services.AddScoped<IGetMovieExternalRatingsService, GetMovieExternalRatingsService>();
+        services.AddScoped<IGetTvShowExternalRatingsService, GetTvShowExternalRatingsService>();
+        services.AddScoped<IExternalRatingsRefreshService, ExternalRatingsRefreshService>();
 
         return services;
     }

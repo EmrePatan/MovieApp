@@ -18,6 +18,7 @@ using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.PushNotifications;
 using MovieApp.Infrastructure.Providers;
+using MovieApp.Infrastructure.Providers.MdbList;
 using MovieApp.Infrastructure.AiRecommendations;
 using MovieApp.Infrastructure.Providers.AzureTranslator;
 using MovieApp.Infrastructure.RateLimiting;
@@ -139,6 +140,8 @@ public static class DependencyInjection
         services.AddTrendingWeekDataProviders(configuration);
 
         services.AddDetailProviders(configuration);
+
+        services.AddExternalRatingsProviders(configuration);
 
 
 
@@ -267,6 +270,8 @@ public static class DependencyInjection
         services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 
         services.AddScoped<ISearchProviderRefreshRepository, SearchProviderRefreshRepository>();
+
+        services.AddScoped<IExternalRatingSnapshotRepository, ExternalRatingSnapshotRepository>();
 
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 
