@@ -47,9 +47,34 @@ export const requestTimeout = () => {
 export const includeExternalRatings = () =>
   (__ENV.LOAD_TEST_INCLUDE_EXTERNAL_RATINGS || 'false').toLowerCase() === 'true';
 
+/**
+ * Search in main user-concurrency capacity runs:
+ * - off: no search traffic (default for stage >= 250 VUs)
+ * - autocomplete-only: no unified/movie/tv search (not IP-rate-limited)
+ * - realistic: autocomplete + rare unified search (single-IP distortion risk)
+ *
+ * Override with LOAD_TEST_SEARCH_PROFILE. High-VU capacity measurement must use off or autocomplete-only.
+ */
+export function searchProfile() {
+  const explicit = (__ENV.LOAD_TEST_SEARCH_PROFILE || '').toLowerCase();
+  if (explicit === 'off' || explicit === 'autocomplete-only' || explicit === 'realistic') {
+    return explicit;
+  }
+
+  const stage = stageTarget();
+  if (stage !== null && stage >= 250) {
+    return 'off';
+  }
+  return 'autocomplete-only';
+}
+
 export const dataPath = (fileName) => {
-  const root = __ENV.LOAD_TEST_DATA_DIR || `${__ENV.PWD || '.'}/tests/load/data`;
-  return `${root}/${fileName}`;
+  if (__ENV.LOAD_TEST_DATA_DIR) {
+    const root = __ENV.LOAD_TEST_DATA_DIR.replace(/\\/g, '/').replace(/\/$/, '');
+    return `${root}/${fileName}`;
+  }
+  // Relative to tests/load/lib/ when scenarios import lib modules.
+  return `../data/${fileName}`;
 };
 
 function readJsonFile(path) {

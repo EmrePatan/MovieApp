@@ -1,6 +1,8 @@
 {
-  "description": "Test-health thresholds — not product SLAs. Tune per environment after baseline runs.",
+  "description": "Test-health thresholds — not product SLAs. Primary gates use semantic_success / unexpected_status, not raw http_req_failed alone.",
   "global": {
+    "unexpected_status": ["rate<0.02"],
+    "semantic_success": ["rate>0.98"],
     "http_req_failed": ["rate<0.02"],
     "http_req_duration": ["p(95)<3000", "p(99)<8000"],
     "checks": ["rate>0.95"]
@@ -36,9 +38,6 @@
     "external-ratings-warm": {
       "http_req_duration": ["p(95)<3000"]
     },
-    "saturation-health": {
-      "http_req_duration": ["p(95)<2000"]
-    },
     "saturation-discovery": {
       "http_req_duration": ["p(95)<3000"]
     },
@@ -46,9 +45,15 @@
       "http_req_duration": ["p(95)<3000"]
     }
   },
+  "applicationScoped": {
+    "http_req_duration{workload_scope:application}": ["p(95)<3000", "p(99)<8000"],
+    "http_reqs{workload_scope:application}": ["count>0"]
+  },
   "abortSignals": {
-    "http_req_failed_rate": 0.05,
+    "unexpected_status_rate": 0.05,
     "http_req_duration_p99_ms": 15000,
-    "notes": "Operator should stop the stage manually when these are sustained; k6 thresholds mark the run failed but do not auto-stop production."
+    "latency_multiplier_vs_baseline": 2.5,
+    "latency_multiplier_vs_previous_healthy_stage": 2.0,
+    "notes": "Hard limits are emergency backstops. Stop on sustained baseline-relative regression even if p99<15s."
   }
 }

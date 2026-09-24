@@ -1,5 +1,7 @@
 export function loadThresholds() {
-  const path = __ENV.LOAD_TEST_THRESHOLDS_FILE || `${__ENV.PWD || '.'}/tests/load/config/thresholds.json`;
+  const path = __ENV.LOAD_TEST_THRESHOLDS_FILE
+    ? __ENV.LOAD_TEST_THRESHOLDS_FILE.replace(/\\/g, '/')
+    : '../config/thresholds.json';
   const parsed = JSON.parse(open(path));
   const thresholds = { ...parsed.global };
 
@@ -8,6 +10,8 @@ export function loadThresholds() {
       thresholds[`${metric}{group:${group}}`] = expr;
     }
   }
+
+  Object.assign(thresholds, parsed.applicationScoped || {});
 
   return thresholds;
 }

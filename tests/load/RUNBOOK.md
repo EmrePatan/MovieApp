@@ -4,15 +4,17 @@
 
 ## Capacity interpretation (after real runs)
 
-Classify each stage using evidence:
+Classify each stage using **absolute thresholds**, **baseline-relative regression**, and **server-side evidence**. These are not product SLAs.
 
 | Class | Indicators |
 |-------|------------|
-| **HEALTHY** | Stable error/timeout rates, p95/p99 within thresholds, no pool exhaustion, no instance restarts, no real-user impact |
-| **DEGRADED** | Elevated latency or brief errors but system recovers; no data loss; operator may stop before next stage |
-| **UNHEALTHY** | Sustained 5xx/timeouts, connection pool/Postgres exhaustion, Redis failures, restarts, or customer impact — **stop** |
+| **HEALTHY** | `unexpected_status` stable and low; `semantic_success` high; latency vs **5 VU baseline** and vs **previous healthy stage** within ~1.5×; no pool/resource exhaustion; no real-user impact |
+| **DEGRADED** | Material latency increase (e.g. **≥2×** baseline p95 on critical groups) or brief `unexpected_status` spikes that recover; operator may stop before next stage |
+| **UNHEALTHY** | Sustained `unexpected_status` **>5%**, timeouts, 5xx, **≥2.5×** baseline p99 on key groups, connection/Redis failure, restarts, or customer impact — **stop** |
 
 The first **unhealthy** stage is valid capacity evidence. Do not force 1,000 VUs if an earlier stage fails criteria.
+
+**Do not continue** only because hard emergency caps (e.g. p99 &lt; 15s) have not been breached — sustained **multiplier** growth vs baseline/previous stage is sufficient to stop.
 
 ---
 
@@ -24,15 +26,17 @@ The first **unhealthy** stage is valid capacity evidence. Do not force 1,000 VUs
 4. **Prepare identities**
    - Dedicated load-test accounts (not real users).
    - Valid JWTs in local `data/tokens.json` (never commit).
-   - Target **≥50 identities** (100+ preferred for 1,000 VUs).
+   - Target **≥50 identities** (minimum); **100+** for 1,000 VUs (see `docs/token-preparation.md` for JWT lifetime).
 5. **Prepare content pools**
    - `data/hot-content.json` — small warm set.
    - `data/varied-content.json` — broad IDs already in PostgreSQL.
    - **External ratings:** populate `externalRatingsWarm*` only with IDs known to have PostgreSQL snapshots; set `LOAD_TEST_INCLUDE_EXTERNAL_RATINGS=true` only if needed at low weight.
 6. **Search terms** — `data/search-terms.json` (benign, varied).
 7. **Open dashboards** (see checklists below) and note **UTC start timestamp**.
-8. **Baseline** — capture 10–15 minutes idle metrics.
-9. **Smoke** — `Invoke-K6.ps1 -Preset smoke -StageTarget 5` against production URL; confirm 2xx on health + one authenticated home call.
+8. **Idle baseline** — capture 10–15 minutes of server idle metrics (no load).
+9. **Preflight** — `Invoke-K6.ps1 -Scenario preflight-health` (control-plane only; not counted in app RPS).
+10. **Measured baseline (5 VU)** — run user-concurrency smoke and **archive the report JSON** as `baseline-5vu.json`. Record per-group p50/p95/p99, `unexpected_status` rate, application-scoped RPS (`workload_scope=application`), and timeouts.
+11. **Smoke** — confirm authenticated home returns 2xx with a spot-check token (outside k6 if preferred).
 
 ### Environment variables (operator)
 
@@ -42,7 +46,20 @@ LOAD_TEST_ENVIRONMENT=production
 LOAD_TEST_TOKENS_FILE=<path>\tokens.json
 LOAD_TEST_CONTENT_DATASET=hot   # then repeat key stages with varied
 LOAD_TEST_INCLUDE_EXTERNAL_RATINGS=false
+LOAD_TEST_SEARCH_PROFILE=autocomplete-only   # default below 250 VUs; off at >=250 (see README)
 ```
+
+### Baseline-relative comparison (each stage after 5 VU baseline)
+
+Compare the stage report against **baseline-5vu.json** and the **previous healthy stage** report:
+
+| Signal | Stop / investigate when |
+|--------|-------------------------|
+| `unexpected_status` rate | Sustained **>2×** baseline or **>5%** absolute |
+| p95 / p99 (home, detail-status, personalized) | Sustained **≥2×** baseline or **≥2×** previous healthy stage |
+| Application RPS | Flat or falling while VUs increase (saturation) |
+| `rate_limited` | Rising in **user-concurrency** — likely search/IP distortion; set `LOAD_TEST_SEARCH_PROFILE=off` |
+| Server connections / CPU | Trending to limits while latency multiplies |
 
 ---
 
@@ -57,15 +74,17 @@ cd tests\load
 .\scripts\Invoke-K6.ps1 -Scenario user-concurrency -Preset capacity -StageTarget <N> -UseDocker
 ```
 
-2. Optionally run request-capacity (read-only) on a **separate** window if investigating raw RPS:
+2. Optionally run request-capacity (read-only **application** GETs only — no `/health`) on a separate window:
 
 ```powershell
 .\scripts\Invoke-K6.ps1 -Scenario request-capacity -Preset capacity -StageTarget <N> -UseDocker
 ```
 
-3. **Inspect** k6 summary + `Summarize-Report.ps1` + all server dashboards.
-4. **Cooldown** ≥10 minutes (`config/presets.json` recommends 10).
-5. Proceed to next stage **only if** stage is HEALTHY or explicitly accepted as DEGRADED with documented risk.
+3. Search rate limits (optional, **low VU**, separate window): `search-rate-limit` scenario — interpret `rate_limited` separately from capacity.
+
+4. **Inspect** k6 summary (`semantic_success`, `unexpected_status`, `rate_limited`) + `Summarize-Report.ps1` + server dashboards.
+5. **Cooldown** ≥10 minutes (`config/presets.json` recommends 10).
+6. Proceed to next stage **only if** stage is HEALTHY or explicitly accepted as DEGRADED with documented risk.
 
 **Stage 1,000** — use `capacity` preset (15m hold via internal `capacityStage1000` when `LOAD_TEST_STAGE_TARGET=1000`).
 
@@ -75,7 +94,8 @@ cd tests\load
 
 Stop the stage and **do not increase VUs** when any of the following persist:
 
-- HTTP failure rate **>5%** or sharp sustained increase
+- `unexpected_status` rate **>5%** or sharp sustained increase (not benign state-absent 404 on ratings/me)
+- `rate_limited` dominant in user-concurrency (fix search profile / topology, not backend capacity)
 - Timeout rate climbing with load
 - p99 **>15s** sustained (see `thresholds.json` abortSignals)
 - Render **CPU pegged**, memory near limit, or **instance restart/crash**

@@ -7,12 +7,14 @@ import {
   environmentLabel,
   backendCommitSha,
   loadTestCommitSha,
+  searchProfile,
 } from '../lib/config.js';
 import { loadThresholds } from '../lib/thresholds.js';
 import { handleSummaryFactory } from '../lib/summary.js';
 import { identityForVu, contentPoolStats } from '../lib/content.js';
 import { runUserJourney } from '../lib/journey.js';
 import { thinkBetweenIterations } from '../lib/thinktime.js';
+import '../lib/metrics.js';
 
 const presets = JSON.parse(open('../config/presets.json'));
 
@@ -47,6 +49,7 @@ export function handleSummary(data) {
     testType: 'user-concurrency',
     stageTargetVus: stageTarget(),
     contentPool: contentPoolStats(),
+    searchProfile: searchProfile(),
     backendCommitSha: backendCommitSha(),
     loadTestCommitSha: loadTestCommitSha(),
   })(data);

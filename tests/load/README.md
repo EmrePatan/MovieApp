@@ -56,7 +56,9 @@ Validate tooling only (no real API required for parse smoke):
 | File | Purpose |
 |------|---------|
 | `scenarios/user-concurrency.js` | Realistic users with think time; weighted journeys |
-| `scenarios/request-capacity.js` | Read-only saturation (health + discovery + catalog GETs) |
+| `scenarios/request-capacity.js` | Read-only **application** saturation (discovery + catalog GETs; **no health**) |
+| `scenarios/preflight-health.js` | Control-plane liveness/readiness (excluded from app RPS) |
+| `scenarios/search-rate-limit.js` | Separate per-IP search / 429 probe (not main capacity) |
 | `scenarios/benchmark-tv-bulk-watch.js` | **Staging only** — TV bulk episode mutation worst case |
 
 ## Traffic model — session weights (each iteration)
@@ -66,13 +68,29 @@ Validate tooling only (no real API required for parse smoke):
 | `home_feed` | 32% | `GET /api/home`, `GET /api/home/personalized`, sometimes `GET /api/recommendations/home` |
 | `detail_open` | 28% | `GET /api/movies|tvshows/{id}` + status fan-out |
 | `discover_browse` | 14% | `GET /api/discovery/trending|popular|explore-preview` |
-| `search` | 6% | Mostly `GET /api/search/autocomplete`; rare unified `GET /api/search` |
+| `search` | 6% | Autocomplete only by default; **off** at ≥250 VUs (see search profile) |
 | `library` | 6% | `GET /api/library?...` |
 | `insights` | 3% | `GET /api/insights/v3` |
 | `reviews_surface` | 5% | `GET /api/reviews/movies/{id}` |
 | `home_split` | 6% | `GET /api/home/browse` + `GET /api/home/personalized` |
 
-Detail fan-out (authorized) uses: favorites status, watchlist membership, ratings/me, watch-history/me (movies), follow, optional credits/reviews/ratings summary.
+Detail fan-out (authorized) uses: favorites status, watchlist membership, ratings/me (404 = no rating), watch-history/me (movies), follow, optional credits/reviews/ratings summary. See `docs/expected-status.md`.
+
+### HTTP semantics & metrics
+
+- `semantic_success` — endpoint-aware success (includes legitimate state-absent **404** on ratings/me).
+- `unexpected_status` — real failures (401, wrong 404, 5xx, timeouts).
+- `rate_limited` — **429** on search endpoints (isolated from backend saturation).
+
+### Search profile (`LOAD_TEST_SEARCH_PROFILE`)
+
+| Profile | When | Behavior |
+|---------|------|----------|
+| `autocomplete-only` | Default for stages &lt; 250 VUs | No unified/movie/TV search (avoids per-IP limits) |
+| `off` | Default for stages ≥ 250 VUs | Search session → discover instead |
+| `realistic` | Multi-IP generators only | Autocomplete + some unified search (`RATE_LIMIT_AWARE`) |
+
+Use `scenarios/search-rate-limit.js` to measure search limits deliberately.
 
 ## Think-time model
 
@@ -99,7 +117,7 @@ Configure `data/hot-content.json` and `data/varied-content.json` (from examples)
 
 ## Auth / identities
 
-- Pre-generated bearer tokens in `data/tokens.json` or `LOAD_TEST_TOKEN_001`… env vars.
+- Pre-generated bearer tokens in `data/tokens.json` or `LOAD_TEST_TOKEN_001`… env vars. See `docs/token-preparation.md` for JWT lifetime vs multi-hour campaigns.
 - VUs round-robin across the pool: `identity = identities[(vu-1) % N]`.
 - **Recommendation:** at least **50–100** dedicated load-test users for 1,000 VUs (≈10–20 VUs per identity) to avoid unrealistic personalization cache contention. More identities are better if preparation cost is acceptable.
 

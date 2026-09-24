@@ -6,7 +6,8 @@ import {
   pickWarmExternalMovieId,
   pickWarmExternalTvId,
 } from './content.js';
-import { includeExternalRatings } from './config.js';
+import { includeExternalRatings, searchProfile } from './config.js';
+import { Expectation } from './http.js';
 import {
   thinkScrollFeed,
   thinkDetailPage,
@@ -65,7 +66,11 @@ export function runUserJourney({ vu, iter, token }) {
       runDiscover(seed);
       break;
     case 'search':
-      runSearch(seed);
+      if (searchProfile() === 'off') {
+        runDiscover(seed);
+      } else {
+        runSearch(seed);
+      }
       break;
     case 'library':
       runLibrary(token);
@@ -134,7 +139,11 @@ function runMovieDetailStatus(movieId, token, seed) {
     token,
     name: 'watchlist-membership-movie',
   });
-  apiGet(`/api/ratings/movies/${movieId}/me`, { group: 'ratings-me', token });
+  apiGet(`/api/ratings/movies/${movieId}/me`, {
+    group: 'ratings-me',
+    token,
+    expectation: Expectation.USER_STATE_ABSENT_404,
+  });
   apiGet(`/api/watch-history/movies/${movieId}/me`, { group: 'detail-status', token });
   apiGet(`/api/movies/${movieId}/follow`, { group: 'detail-status', token, name: 'movie-follow' });
 
@@ -156,7 +165,11 @@ function runTvDetailStatus(tvId, token, seed) {
     token,
     name: 'watchlist-membership-tv',
   });
-  apiGet(`/api/ratings/tvshows/${tvId}/me`, { group: 'ratings-me', token });
+  apiGet(`/api/ratings/tvshows/${tvId}/me`, {
+    group: 'ratings-me',
+    token,
+    expectation: Expectation.USER_STATE_ABSENT_404,
+  });
   apiGet(`/api/tvshows/${tvId}/follow`, { group: 'detail-status', token, name: 'tv-follow' });
 
   if (Math.random() < 0.25) {
@@ -180,13 +193,32 @@ function runDiscover(seed) {
 }
 
 function runSearch(seed) {
+  const profile = searchProfile();
   const term = pickSearchTerm(seed);
   thinkSearchTyping();
-  if (Math.random() < 0.65) {
-    apiGet(`/api/search/autocomplete?q=${encodeURIComponent(term)}`, { group: 'search', name: 'autocomplete' });
+
+  if (profile === 'autocomplete-only') {
+    apiGet(`/api/search/autocomplete?q=${encodeURIComponent(term)}`, {
+      group: 'search',
+      name: 'autocomplete',
+      expectation: Expectation.API_SUCCESS,
+    });
+    return;
+  }
+
+  // realistic — use only with multiple load-generator IPs or low VU counts
+  if (Math.random() < 0.85) {
+    apiGet(`/api/search/autocomplete?q=${encodeURIComponent(term)}`, {
+      group: 'search',
+      name: 'autocomplete',
+      expectation: Expectation.API_SUCCESS,
+    });
   } else {
-    // Unified search is IP rate-limited (Search:RateLimit). Keep low volume in user-concurrency runs.
-    apiGet(`/api/search?q=${encodeURIComponent(term)}&type=all&page=1&pageSize=20`, { group: 'search', name: 'unified-search' });
+    apiGet(`/api/search?q=${encodeURIComponent(term)}&type=all&page=1&pageSize=20`, {
+      group: 'search',
+      name: 'unified-search',
+      expectation: Expectation.RATE_LIMIT_AWARE,
+    });
   }
 }
 

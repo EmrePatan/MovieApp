@@ -29,6 +29,10 @@ export function handleSummaryFactory(extraMetadata = {}) {
         iteration_duration: data.metrics.iteration_duration?.values,
         dropped_iterations: data.metrics.dropped_iterations?.values,
         checks: data.metrics.checks?.values,
+        semantic_success: data.metrics.semantic_success?.values,
+        unexpected_status: data.metrics.unexpected_status?.values,
+        rate_limited: data.metrics.rate_limited?.values,
+        rate_limited_count: data.metrics.rate_limited_count?.values,
       },
       root_group: data.root_group,
     };
