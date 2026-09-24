@@ -31,6 +31,7 @@ public sealed class RecommendationService(
     private static readonly TimeSpan PersonalizedCacheTtl = TimeSpan.FromMinutes(5);
 
     private readonly RecommendationOptions _options = options.Value;
+    private readonly UserRecommendationCacheGeneration _cacheGeneration = new(cacheService);
 
     public async Task<PaginatedResult<RecommendationItem>> GetSimilarMoviesAsync(
         Guid movieId,
@@ -138,7 +139,14 @@ public sealed class RecommendationService(
         ValidateRecommendationCriteria(criteria);
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var cacheKey = RecommendationCacheKeys.User(userId, criteria.Type, criteria.Page, criteria.PageSize, contentLocale);
+        var generation = await _cacheGeneration.GetAsync(userId, cancellationToken);
+        var cacheKey = RecommendationCacheKeys.User(
+            userId,
+            criteria.Type,
+            criteria.Page,
+            criteria.PageSize,
+            contentLocale,
+            generation);
         var cached = await cacheService.GetAsync<RecommendationCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -181,8 +189,9 @@ public sealed class RecommendationService(
         var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var cacheKey = RecommendationCacheKeys.Home(userId, contentLocale);
         var cacheLookupStopwatch = Stopwatch.StartNew();
+        var generation = await _cacheGeneration.GetAsync(userId, cancellationToken);
+        var cacheKey = RecommendationCacheKeys.Home(userId, contentLocale, generation);
         var cached = await cacheService.GetAsync<RecommendationHomeCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
 

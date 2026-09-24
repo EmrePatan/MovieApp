@@ -37,4 +37,17 @@ public sealed class RecommendationCacheKeysTests
         Assert.Contains(userId.ToString(), key);
         Assert.Contains(RecommendationAlgorithmVersion.Personalized, key);
     }
+
+    [Fact]
+    public void PersonalizedKeysChangeWhenUserGenerationChanges()
+    {
+        var userId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+
+        Assert.NotEqual(
+            RecommendationCacheKeys.Home(userId, "tr-TR", generation: 0),
+            RecommendationCacheKeys.Home(userId, "tr-TR", generation: 1));
+        Assert.NotEqual(
+            RecommendationCacheKeys.User(userId, RecommendationContentType.All, 1, 20, "tr-TR", generation: 0),
+            RecommendationCacheKeys.User(userId, RecommendationContentType.All, 1, 20, "tr-TR", generation: 1));
+    }
 }

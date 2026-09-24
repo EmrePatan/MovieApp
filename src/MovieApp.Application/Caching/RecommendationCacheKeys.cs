@@ -25,15 +25,30 @@ public static class RecommendationCacheKeys
     public static string SimilarTv(Guid tvShowId, int page, int pageSize) =>
         $"{SimilarTvPrefix}{tvShowId}:page:{page}:size:{pageSize}:{RecommendationAlgorithmVersion.Similar}";
 
-    public static string User(Guid userId, RecommendationContentType type, int page, int pageSize, string contentLocale) =>
-        ContentLocaleCacheKeySegment.Append(User(userId, type, page, pageSize), contentLocale);
+    public const string GenerationPrefix = "recommendation-gen:";
 
-    public static string User(Guid userId, RecommendationContentType type, int page, int pageSize) =>
-        $"{UserPrefix}{userId}:{type}:{page}:{pageSize}:{RecommendationAlgorithmVersion.Personalized}";
+    public static string Generation(Guid userId) => $"{GenerationPrefix}{userId:N}";
 
-    public static string Home(Guid userId, string contentLocale) =>
-        ContentLocaleCacheKeySegment.Append(Home(userId), contentLocale);
+    public static string User(
+        Guid userId,
+        RecommendationContentType type,
+        int page,
+        int pageSize,
+        string contentLocale,
+        long generation) =>
+        ContentLocaleCacheKeySegment.Append(User(userId, type, page, pageSize, generation), contentLocale);
 
-    public static string Home(Guid userId) =>
-        $"{HomePrefix}{userId}:{RecommendationAlgorithmVersion.Personalized}";
+    public static string User(
+        Guid userId,
+        RecommendationContentType type,
+        int page,
+        int pageSize,
+        long generation = 0) =>
+        $"{UserPrefix}{userId}:{type}:{page}:{pageSize}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
+
+    public static string Home(Guid userId, string contentLocale, long generation) =>
+        ContentLocaleCacheKeySegment.Append(Home(userId, generation), contentLocale);
+
+    public static string Home(Guid userId, long generation = 0) =>
+        $"{HomePrefix}{userId}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
 }

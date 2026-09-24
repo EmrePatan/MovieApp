@@ -130,7 +130,8 @@ public sealed class InsightsSummaryServiceTests
         var insightsCache = new InsightsCache(cache);
         var invalidator = new UserAnalyticsCacheInvalidator(
             new ProfileStatisticsCache(cache),
-            insightsCache);
+            insightsCache,
+            cache);
         var service = CreateService(userId, repository, insightsCache);
 
         await service.GetSummaryAsync("Europe/Istanbul");

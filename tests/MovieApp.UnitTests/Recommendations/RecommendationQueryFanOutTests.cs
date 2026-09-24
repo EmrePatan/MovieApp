@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
@@ -105,14 +106,38 @@ public sealed class RecommendationQueryFanOutTests
         Assert.Equal(0, repository.GetMovieSimilarityProfileCount);
     }
 
+    [Fact]
+    public async Task WatchMutationInvalidationMakesCachedHomeRecommendationsRebuild()
+    {
+        var repository = new CountingRecommendationRepository();
+        var cache = new InMemoryCacheService();
+        var service = CreateService(repository, new CountingDiscoveryService(), cache);
+        var invalidator = new UserAnalyticsCacheInvalidator(
+            new ProfileStatisticsCache(cache),
+            new InsightsCache(cache),
+            cache);
+
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+        Assert.Equal(1, repository.GetUserContextCount);
+
+        await invalidator.InvalidateForUserAsync(CurrentUserId);
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+
+        Assert.Equal(2, repository.GetUserContextCount);
+    }
+
+    private static readonly Guid CurrentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     private static RecommendationService CreateService(
         IRecommendationRepository repository,
-        IDiscoveryService discoveryService) =>
+        IDiscoveryService discoveryService,
+        ICacheService? cacheService = null) =>
         new(
             repository,
             discoveryService,
-            new FakeCurrentUser(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")),
-            new PassthroughCacheService(),
+            new FakeCurrentUser(CurrentUserId),
+            cacheService ?? new PassthroughCacheService(),
             new MovieApp.UnitTests.Search.SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             Options.Create(new RecommendationOptions
             {
@@ -139,6 +164,27 @@ public sealed class RecommendationQueryFanOutTests
 
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class InMemoryCacheService : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = new();
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class =>
+            Task.FromResult(_entries.TryGetValue(key, out var value) ? (T?)value : null);
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class CountingDiscoveryService : IDiscoveryService
