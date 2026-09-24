@@ -117,7 +117,7 @@ cd tests\load
 
 ### Token rotation
 
-1. Re-mint / refresh `data/tokens.json` (`Mint-LoadTestTokens.ps1`, `Test-LoadTokens.ps1`).
+1. Incremental refresh `data/tokens.json` (`Mint-LoadTestTokens.ps1 -MinMinutesUntilExpiry 30`; use `-ForceFull` only when rotating every identity). Validate with `Test-LoadTokens.ps1`.
 2. Re-run `Export-LoadTestIdentitiesForGrafanaCloud.ps1`.
 3. **Grafana-secrets:** `Sync-LoadTestIdentitiesToGrafanaSecrets.ps1` (optionally `-PruneStaleManagedSecrets` after verifying part count unchanged or names rotated).
 4. **Legacy shards:** update **all** Grafana shard vars (or single var) from new export files.

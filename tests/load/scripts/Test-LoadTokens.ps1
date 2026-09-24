@@ -26,15 +26,9 @@ if ($identities.Count -eq 0) {
     throw "No identities in tokens file"
 }
 
+. (Join-Path $PSScriptRoot "LoadTestTokenMintLogic.ps1")
 function Get-JwtExpiryUtc([string]$jwt) {
-    $parts = $jwt.Split(".")
-    if ($parts.Count -lt 2) { return $null }
-    $body = $parts[1]
-    $pad = "=" * ((4 - ($body.Length % 4)) % 4)
-    $bytes = [Convert]::FromBase64String(($body + $pad).Replace("-", "+").Replace("_", "/"))
-    $json = [Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-    if ($null -eq $json.exp) { return $null }
-    return [DateTimeOffset]::FromUnixTimeSeconds([int64]$json.exp).UtcDateTime
+    return Get-LoadTestJwtExpiryUtc -Jwt $jwt
 }
 
 $sample = if ($SampleCount -ge $identities.Count) { $identities } else { $identities | Get-Random -Count $SampleCount }

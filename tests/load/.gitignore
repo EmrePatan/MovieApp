@@ -6,6 +6,7 @@ reports/*
 data/tokens.json
 data/tokens.local.json
 data/grafana-cloud-identities.payload.json
+data/grafana-cloud-identities-smoke.payload.json
 data/grafana-cloud-identities.manifest.json
 data/grafana-cloud-identities.shard-*.txt
 data/grafana-cloud-identities.secret-*.txt

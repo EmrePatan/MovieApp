@@ -60,14 +60,19 @@ Only after **verify-password** succeeds:
 
 ```powershell
 $env:LOAD_TEST_BASE_URL = "https://movieapp-fpkg.onrender.com"
-.\scripts\Mint-LoadTestTokens.ps1
+# Incremental refresh (default): reuse JWTs still valid for the next stage window
+.\scripts\Mint-LoadTestTokens.ps1 -MinMinutesUntilExpiry 30
+# Full rotation (same as legacy behavior)
+.\scripts\Mint-LoadTestTokens.ps1 -ForceFull
 ```
 
-- **One preflight login** on `load60-001`; stops on **401/403/429** before batch.
-- **15s** delay between subsequent logins (production limit: **5/min/IP including failures**).
+- **Incremental (default):** reads gitignored `data/tokens.json` when present; decodes JWT `exp` locally (no token logging); **preserves** identities whose token expires at or after `UtcNow + MinMinutesUntilExpiry` (default **30**, same as `Test-LoadTokens.ps1`); logs in **only** missing, malformed, expired, or soon-to-expire identities.
+- **`-ForceFull`:** re-authenticates every manifest identity (previous full-mint behavior).
+- **One preflight login** on the **first identity that requires refresh**; stops on **401/403/429** before batch; **no HTTP** when zero identities need refresh.
+- **15s** delay between subsequent logins (production limit: **5/min/IP including failures**). Default throttle unchanged.
 - After **5 failed** logins in a minute, wait **60s** before retrying HTTP login.
-- Atomic write to `data/tokens.json` (UTF-8 no BOM).
-- Fails if pool incomplete (no partial `tokens.json`).
+- Atomic write to `data/tokens.json` (UTF-8 no BOM). On any login failure, **existing `tokens.json` is left unchanged**.
+- Final file always contains the **full manifest pool** in **harnessId order**.
 
 ## Validate before k6
 
