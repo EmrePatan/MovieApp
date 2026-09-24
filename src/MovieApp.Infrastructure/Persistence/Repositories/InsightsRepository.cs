@@ -238,7 +238,7 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
             .Select(group => new RuntimeAggregateRow(
                 group.Sum(watchedMovie => watchedMovie.Movie!.RuntimeMinutes ?? 0),
                 group.Count()))
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleRowOrDefaultAsync(cancellationToken);
 
         return totals ?? new RuntimeAggregateRow(0, 0);
     }
@@ -254,7 +254,7 @@ public sealed class InsightsRepository(ApplicationDbContext dbContext) : IInsigh
             .Select(group => new RuntimeAggregateRow(
                 group.Sum(watchedEpisode => watchedEpisode.Episode!.RuntimeMinutes ?? 0),
                 group.Count()))
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleRowOrDefaultAsync(cancellationToken);
 
         return totals ?? new RuntimeAggregateRow(0, 0);
     }

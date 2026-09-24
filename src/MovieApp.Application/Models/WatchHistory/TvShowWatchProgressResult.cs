@@ -9,4 +9,5 @@ public sealed record TvShowWatchProgressResult(
     int RegularWatchedEpisodes,
     bool IsFullyWatched,
     NextEpisodeResult? NextEpisode,
-    IReadOnlyList<SeasonProgressSummaryResult> Seasons);
+    IReadOnlyList<SeasonProgressSummaryResult> Seasons,
+    bool IsCompleted);

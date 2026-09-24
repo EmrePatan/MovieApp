@@ -111,7 +111,7 @@ internal static class InsightsV3SqlQueries
                     (SELECT iso_week FROM best_episode_week) AS "BestEpisodeWeekNumber",
                     (SELECT watch_count FROM best_episode_week) AS "BestEpisodeWeekCount"
                 """)
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleRowOrDefaultAsync(cancellationToken);
 
         if (row is null)
         {
@@ -175,7 +175,7 @@ internal static class InsightsV3SqlQueries
                     (SELECT created_at FROM ranked_ratings WHERE row_number = 25) AS "TwentyFifthRatingAt",
                     (SELECT created_at FROM ranked_ratings WHERE row_number = 50) AS "FiftiethRatingAt"
                 """)
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleRowOrDefaultAsync(cancellationToken);
 
         return row ?? new MilestoneTimestampRow();
     }
@@ -187,6 +187,8 @@ internal static class InsightsV3SqlQueries
         public int WatchedEpisodes { get; init; }
 
         public DateTime? LastWatchedAtUtc { get; init; }
+
+        public bool IsConcluded { get; init; }
     }
 
     internal static async Task<IReadOnlyList<InsightsShowCompletionData>> GetShowCompletionsAsync(
@@ -211,18 +213,30 @@ internal static class InsightsV3SqlQueries
                 episode_totals AS (
                     SELECT
                         s."TvShowId" AS tv_show_id,
-                        COUNT(*)::integer AS total_episodes
-                    FROM episodes AS e
-                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                        SUM(
+                            CASE
+                                WHEN ingested.episode_count > 0 THEN ingested.episode_count
+                                ELSE GREATEST(COALESCE(s."EpisodeCount", 0), 0)
+                            END
+                        )::integer AS total_episodes
+                    FROM seasons AS s
+                    INNER JOIN watched_counts AS wc ON wc.tv_show_id = s."TvShowId"
+                    CROSS JOIN LATERAL (
+                        SELECT COUNT(*)::integer AS episode_count
+                        FROM episodes AS e
+                        WHERE e."SeasonId" = s."Id"
+                    ) AS ingested
                     WHERE s."SeasonNumber" >= 1
                     GROUP BY s."TvShowId"
                 )
                 SELECT
                     et.total_episodes AS "TotalEpisodes",
                     wc.watched_count AS "WatchedEpisodes",
-                    wc.last_watched_at AS "LastWatchedAtUtc"
+                    wc.last_watched_at AS "LastWatchedAtUtc",
+                    (t."Status" IN ('Ended', 'Canceled')) AS "IsConcluded"
                 FROM watched_counts AS wc
                 INNER JOIN episode_totals AS et ON et.tv_show_id = wc.tv_show_id
+                INNER JOIN tv_shows AS t ON t."Id" = wc.tv_show_id
                 """)
             .ToListAsync(cancellationToken);
 
@@ -230,7 +244,8 @@ internal static class InsightsV3SqlQueries
             .Select(row => new InsightsShowCompletionData(
                 row.TotalEpisodes,
                 row.WatchedEpisodes,
-                row.LastWatchedAtUtc))
+                row.LastWatchedAtUtc,
+                row.IsConcluded))
             .ToList();
     }
 
@@ -302,7 +317,7 @@ internal static class InsightsV3SqlQueries
                         WHERE we."UserId" = {userId} AND e."RuntimeMinutes" > 0
                     ), 0) AS "EpisodeKnownCount"
                 """)
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleRowOrDefaultAsync(cancellationToken);
 
         return row ?? new V3RuntimeTotalsSqlRow();
     }
@@ -398,7 +413,7 @@ internal static class InsightsV3SqlQueries
                 ORDER BY candidate."SortDate" ASC, candidate.content_rank ASC
                 LIMIT 1
                 """)
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleRowOrDefaultAsync(cancellationToken);
 
         if (row is null)
         {

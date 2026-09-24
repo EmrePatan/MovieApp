@@ -6,9 +6,15 @@ using MovieApp.Contracts.Favorites;
 using MovieApp.Contracts.Library;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.TvShows;
+using MovieApp.Contracts.WatchHistory;
 using MovieApp.Contracts.Watchlists;
+using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
+using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.IntegrationTests.Auth;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MovieApp.IntegrationTests.Library;
 
@@ -117,6 +123,82 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         var watchedPayload = await watchedResponse.Content.ReadFromJsonAsync<LibraryListResponse>();
         Assert.NotNull(watchedPayload);
         Assert.Contains(watchedPayload.Items, item => item.Id == tvShowId && item.CollectionStatus == "watched");
+    }
+
+    [Fact]
+    public async Task EndedTvShowWithAllEpisodesWatchedReportsCompletedProgress()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        await MarkTvShowWatchedAsync(tvShowId, token);
+
+        var progress = await GetTvShowProgressAsync(tvShowId, token);
+
+        Assert.True(progress.IsFullyWatched);
+        Assert.True(progress.IsCompleted);
+    }
+
+    [Fact]
+    public async Task CaughtUpReturningSeriesStaysWatching()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        await MarkTvShowWatchedAsync(tvShowId, token);
+        await SetTvShowStatusAsync(tvShowId, TvShowStatus.ReturningSeries);
+
+        try
+        {
+            var watching = await GetLibraryAsync("/api/library?category=watching&mediaType=tv", token);
+            var item = Assert.Single(watching.Items, entry => entry.Id == tvShowId);
+            Assert.Equal("watching", item.CollectionStatus);
+            Assert.Equal(100m, item.ProgressPercentage);
+            Assert.Null(item.NextEpisode);
+
+            var watched = await GetLibraryAsync("/api/library?category=watched&mediaType=all", token);
+            Assert.DoesNotContain(watched.Items, entry => entry.Id == tvShowId);
+
+            var progress = await GetTvShowProgressAsync(tvShowId, token);
+            Assert.True(progress.IsFullyWatched);
+            Assert.False(progress.IsCompleted);
+        }
+        finally
+        {
+            await SetTvShowStatusAsync(tvShowId, TvShowStatus.Ended);
+        }
+    }
+
+    [Fact]
+    public async Task EndedTvShowWithUningestedSeasonIsNotCompletedYet()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        await MarkTvShowWatchedAsync(tvShowId, token);
+        var extraSeasonId = await AddSeasonSummaryWithoutEpisodesAsync(tvShowId, seasonNumber: 4, episodeCount: 5);
+
+        try
+        {
+            var watching = await GetLibraryAsync("/api/library?category=watching&mediaType=tv", token);
+            var item = Assert.Single(watching.Items, entry => entry.Id == tvShowId);
+            Assert.True(item.ProgressPercentage < 100m);
+
+            var watched = await GetLibraryAsync("/api/library?category=watched&mediaType=tv", token);
+            Assert.DoesNotContain(watched.Items, entry => entry.Id == tvShowId);
+
+            var progress = await GetTvShowProgressAsync(tvShowId, token);
+            Assert.Equal(12, progress.RegularTotalEpisodes);
+            Assert.False(progress.IsFullyWatched);
+            Assert.False(progress.IsCompleted);
+        }
+        finally
+        {
+            await RemoveSeasonAsync(extraSeasonId);
+        }
     }
 
     [Fact]
@@ -297,6 +379,68 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         var watchlist = await response.Content.ReadFromJsonAsync<WatchlistSummaryResponse>();
         Assert.NotNull(watchlist);
         return watchlist;
+    }
+
+    private async Task MarkTvShowWatchedAsync(Guid tvShowId, string token)
+    {
+        var response = await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/watch-state",
+            token,
+            new MovieApp.Contracts.WatchHistory.SetWatchStateRequest(true));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private async Task<LibraryListResponse> GetLibraryAsync(string url, string token)
+    {
+        var response = await SendAuthorizedGetAsync(url, token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<LibraryListResponse>();
+        Assert.NotNull(payload);
+        return payload;
+    }
+
+    private async Task<TvShowWatchProgressResponse> GetTvShowProgressAsync(Guid tvShowId, string token)
+    {
+        var response = await SendAuthorizedGetAsync($"/api/watch-history/tvshows/{tvShowId}", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<TvShowWatchProgressResponse>();
+        Assert.NotNull(payload);
+        return payload;
+    }
+
+    private async Task SetTvShowStatusAsync(Guid tvShowId, TvShowStatus status)
+    {
+        await using var scope = fixture.Factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.TvShows
+            .Where(tvShow => tvShow.Id == tvShowId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(tvShow => tvShow.Status, status));
+    }
+
+    private async Task<Guid> AddSeasonSummaryWithoutEpisodesAsync(Guid tvShowId, int seasonNumber, int episodeCount)
+    {
+        await using var scope = fixture.Factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var season = new Season
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = tvShowId,
+            SeasonNumber = seasonNumber,
+            EpisodeCount = episodeCount,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        dbContext.Seasons.Add(season);
+        await dbContext.SaveChangesAsync();
+        return season.Id;
+    }
+
+    private async Task RemoveSeasonAsync(Guid seasonId)
+    {
+        await using var scope = fixture.Factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Seasons.Where(season => season.Id == seasonId).ExecuteDeleteAsync();
     }
 
     private Task<HttpResponseMessage> SendAuthorizedGetAsync(string url, string token)

@@ -59,12 +59,31 @@ public sealed class EfQueryQualityIntegrationTests
         _ = await repository.GetByIdAsync(tvShowId);
     }
 
+    [Fact]
+    public async Task InsightsStatisticsAndLibraryPathsDoNotEmitFirstWithoutOrderByWarnings()
+    {
+        await using var context = CreateStrictQueryContext();
+        var userId = await SeedUserAsync(context, $"ef-insights-{Guid.NewGuid():N}");
+
+        var insightsRepository = new InsightsRepository(context);
+        _ = await insightsRepository.GetSummaryRawDataAsync(userId);
+        _ = await insightsRepository.GetAnalyticsRawDataAsync(userId, DateTime.UtcNow.AddDays(-30));
+        _ = await insightsRepository.GetV3RawDataAsync(userId, TimeZoneInfo.Utc, DateTime.UtcNow.Year);
+
+        _ = await new UserStatisticsRepository(context).GetStatisticsAsync(userId);
+
+        var libraryRepository = new LibraryRepository(context);
+        _ = await libraryRepository.GetWatchingAsync(userId, SearchContentType.All, 1, 24);
+        _ = await libraryRepository.GetWatchedAsync(userId, SearchContentType.All, 1, 24);
+    }
+
     private static ApplicationDbContext CreateStrictQueryContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(IntegrationTestDatabase.GetConnectionString())
             .ConfigureWarnings(warnings => warnings
                 .Throw(CoreEventId.RowLimitingOperationWithoutOrderByWarning)
+                .Throw(CoreEventId.FirstWithoutOrderByAndFilterWarning)
                 .Throw(RelationalEventId.MultipleCollectionIncludeWarning))
             .Options;
 
@@ -109,6 +128,27 @@ public sealed class EfQueryQualityIntegrationTests
         });
 
         await context.SaveChangesAsync();
+    }
+
+    private static async Task<Guid> SeedUserAsync(ApplicationDbContext context, string userName)
+    {
+        var utcNow = DateTime.UtcNow;
+        var userId = Guid.NewGuid();
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Email = $"{userName}@example.com",
+            NormalizedEmail = $"{userName}@example.com".ToUpperInvariant(),
+            UserName = userName,
+            DisplayName = userName,
+            PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid(),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+
+        await context.SaveChangesAsync();
+        return userId;
     }
 
     private static async Task<(Guid MovieId, Guid UserId)> SeedRecommendationCatalogAsync(ApplicationDbContext context)

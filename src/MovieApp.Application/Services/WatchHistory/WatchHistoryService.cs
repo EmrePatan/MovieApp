@@ -186,7 +186,8 @@ public sealed class WatchHistoryService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
         var existenceStopwatch = Stopwatch.StartNew();
-        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken)
+            ?? throw new NotFoundException("The requested TV show was not found.");
         existenceStopwatch.Stop();
 
         var progressStopwatch = Stopwatch.StartNew();
@@ -216,8 +217,11 @@ public sealed class WatchHistoryService(
         var regularSeasons = seasons.Where(season => season.SeasonNumber >= 1).ToList();
         var regularTotalEpisodes = regularSeasons.Sum(season => season.TotalEpisodes);
         var regularWatchedEpisodes = regularSeasons.Sum(season => season.WatchedEpisodes);
-        var isFullyWatched = regularTotalEpisodes > 0 &&
-                             regularWatchedEpisodes >= regularTotalEpisodes;
+        var isFullyWatched = TvShowCompletionPolicy.IsCaughtUp(regularTotalEpisodes, regularWatchedEpisodes);
+        var isCompleted = TvShowCompletionPolicy.IsCompleted(
+            TvShowCompletionPolicy.IsConcluded(tvShow.Status),
+            regularTotalEpisodes,
+            regularWatchedEpisodes);
         var nextEpisode = await episodeRepository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId, cancellationToken);
         progressStopwatch.Stop();
         totalStopwatch.Stop();
@@ -239,7 +243,8 @@ public sealed class WatchHistoryService(
             regularWatchedEpisodes,
             isFullyWatched,
             WatchHistoryMapper.ToNextEpisodeResult(nextEpisode),
-            seasons);
+            seasons,
+            isCompleted);
     }
 
     public async Task<IReadOnlyList<ContinueWatchingItemResult>> GetContinueWatchingAsync(

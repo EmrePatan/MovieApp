@@ -95,53 +95,16 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
 
     private async Task<int> CountCompletedShowsAsync(Guid userId, CancellationToken cancellationToken)
     {
-        return await dbContext.TvShows
-            .AsNoTracking()
-            .Where(tvShow => dbContext.WatchedEpisodes.Any(
-                watchedEpisode => watchedEpisode.UserId == userId &&
-                                  watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
-            .Select(tvShow => new
-            {
-                TotalEpisodes = tvShow.Seasons
-                    .Where(season => season.SeasonNumber >= 1)
-                    .SelectMany(season => season.Episodes)
-                    .Count(),
-                WatchedEpisodes = dbContext.WatchedEpisodes.Count(
-                    watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                      watchedEpisode.Episode.Season.SeasonNumber >= 1),
-            })
-            .CountAsync(
-                show => show.TotalEpisodes > 0 && show.WatchedEpisodes >= show.TotalEpisodes,
-                cancellationToken);
+        return await TvShowCompletionQueries.StartedShows(dbContext, userId)
+            .Where(TvShowCompletionQueries.IsCompleted)
+            .CountAsync(cancellationToken);
     }
 
     private async Task<DateTime?> GetFirstCompletedShowAtAsync(Guid userId, CancellationToken cancellationToken)
     {
-        return await dbContext.TvShows
-            .AsNoTracking()
-            .Where(tvShow => dbContext.WatchedEpisodes.Any(
-                watchedEpisode => watchedEpisode.UserId == userId &&
-                                  watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
-            .Select(tvShow => new
-            {
-                TotalEpisodes = tvShow.Seasons
-                    .Where(season => season.SeasonNumber >= 1)
-                    .SelectMany(season => season.Episodes)
-                    .Count(),
-                WatchedEpisodes = dbContext.WatchedEpisodes.Count(
-                    watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                      watchedEpisode.Episode.Season.SeasonNumber >= 1),
-                LastWatchedAt = dbContext.WatchedEpisodes
-                    .Where(watchedEpisode => watchedEpisode.UserId == userId &&
-                                             watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                             watchedEpisode.Episode.Season.SeasonNumber >= 1)
-                    .Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt),
-            })
-            .Where(show => show.TotalEpisodes > 0 &&
-                           show.WatchedEpisodes >= show.TotalEpisodes &&
-                           show.LastWatchedAt != null)
+        return await TvShowCompletionQueries.StartedShows(dbContext, userId)
+            .Where(TvShowCompletionQueries.IsCompleted)
+            .Where(show => show.LastWatchedAt != null)
             .OrderBy(show => show.LastWatchedAt)
             .Select(show => show.LastWatchedAt)
             .FirstOrDefaultAsync(cancellationToken);

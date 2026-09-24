@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.WatchHistory;
+using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -39,20 +40,23 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
-        var rows = await dbContext.Episodes
+        var rows = await dbContext.Seasons
             .AsNoTracking()
-            .Where(episode => episode.Season.TvShowId == tvShowId)
-            .GroupBy(episode => episode.Season.SeasonNumber)
-            .Select(group => new
+            .Where(season => season.TvShowId == tvShowId)
+            .Select(season => new
             {
-                SeasonNumber = group.Key,
-                EpisodeCount = group.Count(),
+                season.SeasonNumber,
+                IngestedEpisodeCount = season.Episodes.Count(),
+                SummaryEpisodeCount = season.EpisodeCount,
             })
             .OrderBy(row => row.SeasonNumber)
             .ToListAsync(cancellationToken);
 
         return rows
-            .Select(row => new SeasonEpisodeCountResult(row.SeasonNumber, row.EpisodeCount))
+            .Select(row => new SeasonEpisodeCountResult(
+                row.SeasonNumber,
+                TvShowCompletionPolicy.ResolveSeasonEpisodeTotal(row.IngestedEpisodeCount, row.SummaryEpisodeCount)))
+            .Where(row => row.EpisodeCount > 0)
             .ToList();
     }
 

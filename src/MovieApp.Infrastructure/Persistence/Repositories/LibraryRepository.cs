@@ -25,92 +25,46 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             return ([], 0);
         }
 
-        var showsWithUnwatchedEpisodes = dbContext.Episodes
-            .AsNoTracking()
-            .Where(episode => episode.Season.SeasonNumber >= 1)
-            .Where(episode => !dbContext.WatchedEpisodes.Any(watchedEpisode =>
-                watchedEpisode.UserId == userId &&
-                watchedEpisode.EpisodeId == episode.Id))
-            .Select(episode => episode.Season.TvShowId)
-            .Distinct();
-
-        var watchedShows = dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId)
-            .Where(watchedEpisode => watchedEpisode.Episode.Season.SeasonNumber >= 1)
-            .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-            .Select(group => new
-            {
-                TvShowId = group.Key,
-                LastWatchedAt = group.Max(watchedEpisode => watchedEpisode.WatchedAt)
-            });
-
-        var query = watchedShows
-            .Where(show => showsWithUnwatchedEpisodes.Contains(show.TvShowId))
+        var query = TvShowCompletionQueries.StartedShows(dbContext, userId)
+            .Where(TvShowCompletionQueries.IsInProgress)
             .Join(
                 dbContext.TvShows.AsNoTracking(),
                 show => show.TvShowId,
                 tvShow => tvShow.Id,
-                (show, tvShow) => new { show.LastWatchedAt, TvShow = tvShow });
+                (show, tvShow) => new
+                {
+                    show.LastWatchedAt,
+                    show.RegularTotalEpisodes,
+                    show.RegularWatchedEpisodes,
+                    TvShow = tvShow
+                });
 
         var totalCount = await query.CountAsync(cancellationToken);
 
         var rows = await query
             .OrderByDescending(item => item.LastWatchedAt)
+            .ThenBy(item => item.TvShow.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        var items = new List<LibraryItemResult>();
+        var nextEpisodesByShowId = await GetNextUnwatchedEpisodesAsync(
+            userId,
+            rows.Select(row => row.TvShow.Id).ToList(),
+            cancellationToken);
 
-        foreach (var row in rows)
-        {
-            var regularTotalEpisodes = await dbContext.Episodes
-                .AsNoTracking()
-                .CountAsync(
-                    episode => episode.Season.TvShowId == row.TvShow.Id &&
-                               episode.Season.SeasonNumber >= 1,
-                    cancellationToken);
-
-            var regularWatchedEpisodes = await dbContext.WatchedEpisodes
-                .AsNoTracking()
-                .CountAsync(
-                    watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == row.TvShow.Id &&
-                                      watchedEpisode.Episode.Season.SeasonNumber >= 1,
-                    cancellationToken);
-
-            var nextEpisode = await dbContext.Episodes
-                .AsNoTracking()
-                .Include(episode => episode.Season)
-                .Where(episode =>
-                    episode.Season.TvShowId == row.TvShow.Id &&
-                    episode.Season.SeasonNumber >= 1)
-                .Where(episode => !dbContext.WatchedEpisodes.Any(
-                    watchedEpisode =>
-                        watchedEpisode.UserId == userId &&
-                        watchedEpisode.EpisodeId == episode.Id))
-                .OrderBy(episode => episode.Season.SeasonNumber)
-                .ThenBy(episode => episode.EpisodeNumber)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            items.Add(MapTvShow(
+        var items = rows
+            .Select(row => MapTvShow(
                 row.TvShow,
                 CollectionStatusWatching,
                 addedAt: null,
                 watchedAt: null,
                 lastActivityAt: row.LastWatchedAt,
                 progressPercentage: WatchHistoryMapper.CalculateProgressPercentage(
-                    regularWatchedEpisodes,
-                    regularTotalEpisodes),
-                nextEpisode: nextEpisode is null
-                    ? null
-                    : new LibraryNextEpisodeResult(
-                        nextEpisode.Id,
-                        nextEpisode.Season.SeasonNumber,
-                        nextEpisode.EpisodeNumber,
-                        nextEpisode.Name)));
-        }
+                    row.RegularWatchedEpisodes,
+                    row.RegularTotalEpisodes),
+                nextEpisode: nextEpisodesByShowId.GetValueOrDefault(row.TvShow.Id)))
+            .ToList();
 
         return (items, totalCount);
     }
@@ -154,6 +108,8 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var merged = movieRows
             .Concat(tvRows)
             .OrderByDescending(row => row.LastActivityAt)
+            .ThenBy(row => row.Type, StringComparer.Ordinal)
+            .ThenBy(row => row.Id)
             .ToList();
 
         var totalCount = merged.Count;
@@ -184,6 +140,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             .Include(favorite => favorite.Movie)
             .Include(favorite => favorite.TvShow)
             .OrderByDescending(favorite => favorite.CreatedAt)
+            .ThenBy(favorite => favorite.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -243,7 +200,9 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 group.Key.Id,
                 AddedAt = group.Max(item => item.CreatedAt)
             })
-            .OrderByDescending(item => item.AddedAt);
+            .OrderByDescending(item => item.AddedAt)
+            .ThenBy(item => item.Type)
+            .ThenBy(item => item.Id);
 
         var totalCount = await dedupedQuery.CountAsync(cancellationToken);
 
@@ -322,6 +281,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var watchedMovies = await query
             .Include(watchedMovie => watchedMovie.Movie)
             .OrderByDescending(watchedMovie => watchedMovie.WatchedAt)
+            .ThenBy(watchedMovie => watchedMovie.MovieId)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -351,6 +311,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         var pageRows = rows
             .OrderByDescending(row => row.LastActivityAt)
+            .ThenBy(row => row.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(MapUnionRow)
@@ -363,31 +324,14 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var rows = await dbContext.TvShows
-            .AsNoTracking()
-            .Where(tvShow => dbContext.WatchedEpisodes.Any(
-                watchedEpisode => watchedEpisode.UserId == userId &&
-                                  watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
-            .Select(tvShow => new
-            {
-                TvShow = tvShow,
-                TotalEpisodes = tvShow.Seasons
-                    .Where(season => season.SeasonNumber >= 1)
-                    .SelectMany(season => season.Episodes)
-                    .Count(),
-                WatchedEpisodes = dbContext.WatchedEpisodes.Count(
-                    watchedEpisode => watchedEpisode.UserId == userId &&
-                                      watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                      watchedEpisode.Episode.Season.SeasonNumber >= 1),
-                LastWatchedAt = dbContext.WatchedEpisodes
-                    .Where(watchedEpisode => watchedEpisode.UserId == userId &&
-                                             watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                                             watchedEpisode.Episode.Season.SeasonNumber >= 1)
-                    .Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt)
-            })
-            .Where(show => show.TotalEpisodes > 0 &&
-                           show.WatchedEpisodes >= show.TotalEpisodes &&
-                           show.LastWatchedAt != null)
+        var rows = await TvShowCompletionQueries.StartedShows(dbContext, userId)
+            .Where(TvShowCompletionQueries.IsCompleted)
+            .Where(show => show.LastWatchedAt != null)
+            .Join(
+                dbContext.TvShows.AsNoTracking(),
+                show => show.TvShowId,
+                tvShow => tvShow.Id,
+                (show, tvShow) => new { show.LastWatchedAt, TvShow = tvShow })
             .ToListAsync(cancellationToken);
 
         return rows
@@ -404,6 +348,48 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 row.LastWatchedAt,
                 row.LastWatchedAt!.Value))
             .ToList();
+    }
+
+    private async Task<Dictionary<Guid, LibraryNextEpisodeResult>> GetNextUnwatchedEpisodesAsync(
+        Guid userId,
+        List<Guid> tvShowIds,
+        CancellationToken cancellationToken)
+    {
+        if (tvShowIds.Count == 0)
+        {
+            return [];
+        }
+
+        var nextEpisodes = await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode =>
+                tvShowIds.Contains(episode.Season.TvShowId) &&
+                episode.Season.SeasonNumber >= 1)
+            .Where(episode => !dbContext.WatchedEpisodes.Any(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                watchedEpisode.EpisodeId == episode.Id))
+            .GroupBy(episode => episode.Season.TvShowId)
+            .Select(group => group
+                .OrderBy(episode => episode.Season.SeasonNumber)
+                .ThenBy(episode => episode.EpisodeNumber)
+                .Select(episode => new
+                {
+                    episode.Season.TvShowId,
+                    episode.Id,
+                    episode.Season.SeasonNumber,
+                    episode.EpisodeNumber,
+                    episode.Name
+                })
+                .First())
+            .ToListAsync(cancellationToken);
+
+        return nextEpisodes.ToDictionary(
+            episode => episode.TvShowId,
+            episode => new LibraryNextEpisodeResult(
+                episode.Id,
+                episode.SeasonNumber,
+                episode.EpisodeNumber,
+                episode.Name));
     }
 
     private static IQueryable<Domain.Entities.Favorite> ApplyFavoriteMediaTypeFilter(

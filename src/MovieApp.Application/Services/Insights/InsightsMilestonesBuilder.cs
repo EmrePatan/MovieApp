@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Insights;
+using MovieApp.Application.Services.WatchHistory;
 
 namespace MovieApp.Application.Services.Insights;
 
@@ -39,8 +40,7 @@ public static class InsightsMilestonesBuilder
     }
 
     public static int CountCompletedShows(InsightsAnalyticsRawData raw) =>
-        raw.ShowCompletions.Count(show =>
-            show.TotalEpisodes > 0 && show.WatchedEpisodes >= show.TotalEpisodes);
+        raw.ShowCompletions.Count(IsCompleted);
 
     public static DateTime? GetFirstCompletedShowAt(InsightsAnalyticsRawData raw) =>
         GetCompletedShows(raw)
@@ -68,8 +68,8 @@ public static class InsightsMilestonesBuilder
     }
 
     private static IEnumerable<InsightsShowCompletionData> GetCompletedShows(InsightsAnalyticsRawData raw) =>
-        raw.ShowCompletions.Where(show =>
-            show.TotalEpisodes > 0 &&
-            show.WatchedEpisodes >= show.TotalEpisodes &&
-            show.LastWatchedAtUtc is not null);
+        raw.ShowCompletions.Where(show => IsCompleted(show) && show.LastWatchedAtUtc is not null);
+
+    private static bool IsCompleted(InsightsShowCompletionData show) =>
+        TvShowCompletionPolicy.IsCompleted(show.IsConcluded, show.TotalEpisodes, show.WatchedEpisodes);
 }

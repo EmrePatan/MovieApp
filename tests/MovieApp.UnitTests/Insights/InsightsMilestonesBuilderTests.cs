@@ -23,9 +23,9 @@ public sealed class InsightsMilestonesBuilderTests
         var raw = CreateRaw(
             showCompletions:
             [
-                new InsightsShowCompletionData(10, 10, completedAt),
-                new InsightsShowCompletionData(5, 5, completedAt.AddDays(1)),
-                new InsightsShowCompletionData(8, 8, completedAt.AddDays(2)),
+                new InsightsShowCompletionData(10, 10, completedAt, IsConcluded: true),
+                new InsightsShowCompletionData(5, 5, completedAt.AddDays(1), IsConcluded: true),
+                new InsightsShowCompletionData(8, 8, completedAt.AddDays(2), IsConcluded: true),
             ]);
 
         var milestones = InsightsMilestonesBuilder.Build(raw);
@@ -34,6 +34,20 @@ public sealed class InsightsMilestonesBuilderTests
         Assert.Equal(completedAt, milestones.Single(item => item.Id == "first-show-completed").AchievedAt);
         Assert.True(milestones.Single(item => item.Id == "shows-completed-3").Achieved);
         Assert.Equal(completedAt.AddDays(2), milestones.Single(item => item.Id == "shows-completed-3").AchievedAt);
+    }
+
+    [Fact]
+    public void BuildDoesNotCountCaughtUpReturningShowsAsCompleted()
+    {
+        var caughtUpAt = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        var raw = CreateRaw(
+            showCompletions:
+            [
+                new InsightsShowCompletionData(10, 10, caughtUpAt, IsConcluded: false),
+            ]);
+
+        Assert.Equal(0, InsightsMilestonesBuilder.CountCompletedShows(raw));
+        Assert.False(InsightsMilestonesBuilder.Build(raw).Single(item => item.Id == "first-show-completed").Achieved);
     }
 
     [Fact]

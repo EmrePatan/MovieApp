@@ -90,7 +90,8 @@ public static class WatchHistoryContractMapper
                     season.TotalEpisodes,
                     season.WatchedEpisodes,
                     season.ProgressPercentage))
-                .ToList());
+                .ToList(),
+            result.IsCompleted);
 
     public static SeasonWatchProgressResponse ToSeasonWatchProgressResponse(SeasonWatchProgressResult result) =>
         new(
