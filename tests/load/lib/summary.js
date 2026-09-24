@@ -1,4 +1,5 @@
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.4/index.js';
+import { buildEnhancedReport } from './summaryReport.js';
 
 export function buildRunMetadata(extra = {}) {
   return {
@@ -11,31 +12,15 @@ export function buildRunMetadata(extra = {}) {
     preset: __ENV.LOAD_TEST_PRESET || 'smoke',
     stageTargetVus: __ENV.LOAD_TEST_STAGE_TARGET || __ENV.LOAD_TEST_VUS || '',
     contentDataset: __ENV.LOAD_TEST_CONTENT_DATASET || 'hot',
+    reportSchemaVersion: 2,
     ...extra,
   };
 }
 
 export function handleSummaryFactory(extraMetadata = {}) {
   return function handleSummary(data) {
-    const report = {
-      metadata: buildRunMetadata(extraMetadata),
-      metrics: {
-        http_reqs: data.metrics.http_reqs?.values,
-        http_req_failed: data.metrics.http_req_failed?.values,
-        http_req_duration: data.metrics.http_req_duration?.values,
-        vus: data.metrics.vus?.values,
-        vus_max: data.metrics.vus_max?.values,
-        iterations: data.metrics.iterations?.values,
-        iteration_duration: data.metrics.iteration_duration?.values,
-        dropped_iterations: data.metrics.dropped_iterations?.values,
-        checks: data.metrics.checks?.values,
-        semantic_success: data.metrics.semantic_success?.values,
-        unexpected_status: data.metrics.unexpected_status?.values,
-        rate_limited: data.metrics.rate_limited?.values,
-        rate_limited_count: data.metrics.rate_limited_count?.values,
-      },
-      root_group: data.root_group,
-    };
+    const metadata = buildRunMetadata(extraMetadata);
+    const report = buildEnhancedReport(data, metadata);
 
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const scenario = __ENV.LOAD_TEST_SCENARIO || 'run';

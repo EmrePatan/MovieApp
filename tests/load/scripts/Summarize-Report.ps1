@@ -9,7 +9,7 @@ $json = Get-Content $ReportPath -Raw | ConvertFrom-Json
 $meta = $json.metadata
 $dur = $json.metrics.http_req_duration
 $failed = $json.metrics.http_req_failed
-$reqs = $json.metrics.http_reqs
+$reqs = if ($json.application -and $json.application.http_reqs) { $json.application.http_reqs } else { $json.metrics.http_reqs }
 
 Write-Host ""
 Write-Host "=== Movie Cave load test summary ==="
@@ -40,10 +40,31 @@ if ($json.metrics.rate_limited) {
     Write-Host "Rate limited (429): $([math]::Round($rl.rate * 100, 2))% (count: $rlCount)"
 }
 if ($dur) {
-    Write-Host "Latency p50:     $($dur.med) ms"
+    $p50 = if ($dur.p50) { $dur.p50 } else { $dur.med }
+    Write-Host "Latency p50:     $p50 ms"
     Write-Host "Latency p90:     $($dur.'p(90)') ms"
     Write-Host "Latency p95:     $($dur.'p(95)') ms"
     Write-Host "Latency p99:     $($dur.'p(99)') ms"
     Write-Host "Latency max:     $($dur.max) ms"
+}
+if ($json.outcomes) {
+    Write-Host ""
+    Write-Host "Outcome counts:"
+    foreach ($name in @('success2xx','stateAbsent404','unexpected4xx','status401','status403','status429','status5xx','transportTimeout')) {
+        if ($json.outcomes.$name) {
+            Write-Host "  $name : $($json.outcomes.$name.count)"
+        }
+    }
+}
+if ($json.iterations) {
+    if ($json.iterations.completed) {
+        Write-Host "Iterations (completed): $($json.iterations.completed.count)"
+    }
+    if ($json.iterations.interrupted) {
+        Write-Host "Iterations (interrupted): $($json.iterations.interrupted.count)"
+    }
+    if ($json.iterations.dropped) {
+        Write-Host "Iterations (dropped): $($json.iterations.dropped.count)"
+    }
 }
 Write-Host ""

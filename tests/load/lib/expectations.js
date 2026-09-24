@@ -35,8 +35,11 @@ export function classifyResponse(status, expectation) {
   if (status >= 500) {
     return { semanticSuccess: false, outcome: 'server_error', rateLimited: false, unexpected: true };
   }
-  if (status === 401 || status === 403) {
-    return { semanticSuccess: false, outcome: 'auth_failure', rateLimited: false, unexpected: true };
+  if (status === 401) {
+    return { semanticSuccess: false, outcome: 'auth_401', rateLimited: false, unexpected: true };
+  }
+  if (status === 403) {
+    return { semanticSuccess: false, outcome: 'auth_403', rateLimited: false, unexpected: true };
   }
   if (status === 429) {
     if (expectation === Expectation.RATE_LIMIT_AWARE) {
