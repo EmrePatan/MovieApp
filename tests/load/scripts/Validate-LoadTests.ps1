@@ -112,4 +112,10 @@ if ($RunK6ParseSmoke) {
     }
 }
 
+Write-Host "Running LoadTestHarness unit assertions..."
+& (Join-Path $loadRoot "scripts\LoadTestHarness.Tests.ps1")
+if ($LASTEXITCODE -ne 0) {
+    throw "LoadTestHarness.Tests.ps1 failed."
+}
+
 Write-Host "Validation finished."

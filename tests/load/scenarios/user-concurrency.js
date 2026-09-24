@@ -8,17 +8,19 @@ import {
   backendCommitSha,
   loadTestCommitSha,
   searchProfile,
+  includeExternalRatings,
 } from '../lib/config.js';
 import { loadThresholds } from '../lib/thresholds.js';
 import { handleSummaryFactory } from '../lib/summary.js';
 import { identityForVu, contentPoolStats } from '../lib/content.js';
 import { runUserJourney } from '../lib/journey.js';
 import { thinkBetweenIterations } from '../lib/thinktime.js';
+import { applyCloudOptions } from '../lib/cloudOptions.js';
 import '../lib/metrics.js';
 
 const presets = JSON.parse(open('../config/presets.json'));
 
-export const options = {
+const optionsBase = {
   scenarios: {
     movie_cave_users: {
       executor: 'ramping-vus',
@@ -36,6 +38,8 @@ export const options = {
   },
 };
 
+export const options = applyCloudOptions(optionsBase);
+
 export default function userConcurrency() {
   const vu = currentVu();
   const iter = currentIteration();
@@ -44,13 +48,35 @@ export default function userConcurrency() {
   thinkBetweenIterations();
 }
 
+function executionModeLabel() {
+  const mode = (__ENV.LOAD_TEST_EXECUTION_MODE || 'local').toLowerCase();
+  return mode === 'grafana-cloud' ? 'grafana-cloud' : 'local';
+}
+
+function identityReuseRatio(stageVus, identityCount) {
+  if (!identityCount || identityCount < 1) {
+    return null;
+  }
+  if (!stageVus || stageVus < 1) {
+    return null;
+  }
+  return stageVus / identityCount;
+}
+
 export function handleSummary(data) {
+  const stage = stageTarget();
+  const pool = contentPoolStats();
   return handleSummaryFactory({
     testType: 'user-concurrency',
-    stageTargetVus: stageTarget(),
-    contentPool: contentPoolStats(),
+    stageTargetVus: stage,
+    contentPool: pool,
     searchProfile: searchProfile(),
+    includeExternalRatings: includeExternalRatings(),
     backendCommitSha: backendCommitSha(),
     loadTestCommitSha: loadTestCommitSha(),
+    executionMode: executionModeLabel(),
+    identityCount: pool.identityCount,
+    identityReuseRatio: identityReuseRatio(stage, pool.identityCount),
+    cloudLoadZone: __ENV.LOAD_TEST_CLOUD_LOAD_ZONE || null,
   })(data);
 }

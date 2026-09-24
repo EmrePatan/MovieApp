@@ -17,6 +17,6 @@
     "rampDown": "3m",
     "description": "Final 1,000-user stage — use only if prior stages remain healthy."
   },
-  "stageTargets": [50, 100, 250, 500, 750, 1000],
+  "stageTargets": [50, 100, 150, 250, 500, 750, 1000],
   "cooldownBetweenStagesMinutes": 10
 }

@@ -27,4 +27,11 @@ public sealed class LoadTestStageTokenRequirementsTests
             + LoadTestStageTokenRequirements.PreflightAndReportMarginMinutes;
         Assert.True(remaining >= required + 5);
     }
+
+    [Fact]
+    public void IdentityReuseRatio_Documents150And250StagesWithHundredIdentities()
+    {
+        Assert.Equal(1.5, LoadTestStageTokenRequirements.IdentityReuseRatio(150, 100), 3);
+        Assert.Equal(2.5, LoadTestStageTokenRequirements.IdentityReuseRatio(250, 100), 3);
+    }
 }

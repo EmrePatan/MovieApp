@@ -2,7 +2,23 @@ import { SharedArray } from 'k6/data';
 import { dataPath } from './config.js';
 import { parseJsonOpen } from './jsonText.js';
 
+function loadFromIdentitiesJsonEnv() {
+  const raw = __ENV.LOAD_TEST_IDENTITIES_JSON;
+  if (!raw || raw.trim() === '') {
+    return null;
+  }
+  const parsed = JSON.parse(raw);
+  const source = Array.isArray(parsed) ? parsed : parsed.identities || [];
+  const list = source.filter((i) => i?.bearerToken && i.bearerToken !== 'REPLACE_WITH_JWT');
+  return list.length > 0 ? list : null;
+}
+
 export const identityPool = new SharedArray('identities', function loadIdentities() {
+  const fromEnvJson = loadFromIdentitiesJsonEnv();
+  if (fromEnvJson) {
+    return fromEnvJson;
+  }
+
   const file = __ENV.LOAD_TEST_TOKENS_FILE;
   if (file) {
     const parsed = parseJsonOpen(file);

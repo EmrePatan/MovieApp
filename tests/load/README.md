@@ -28,6 +28,14 @@ Repeatable [k6](https://k6.io/) tooling to measure **realistic concurrent user b
 
 Production operator checklist: [`docs/OPERATOR-INPUTS.md`](docs/OPERATOR-INPUTS.md) (identities, SQL for catalog IDs, 5 VU smoke commands).
 
+## Grafana Cloud k6 (optional)
+
+Secondary execution mode for the **same** scenarios (no forked workload). See [`docs/grafana-cloud-k6.md`](docs/grafana-cloud-k6.md).
+
+```powershell
+.\scripts\Invoke-K6.ps1 -ExecutionMode Cloud -CloudValidateOnly -Scenario user-concurrency -Preset smoke -StageTarget 5 -BaseUrl https://movieapp-fpkg.onrender.com -ConfirmProductionCloudRun
+```
+
 ## Prerequisites
 
 - [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/) **or** Docker (`grafana/k6:latest`)

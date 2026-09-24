@@ -54,6 +54,17 @@ public static class LoadTestStageTokenRequirements
         return jwtLifetimeMinutes - MintSpreadMinutes(identityCount);
     }
 
+    /// <summary>VUs per identity when reusing a fixed pool (e.g. 150 VU / 100 identities = 1.5).</summary>
+    public static double IdentityReuseRatio(int stageVus, int identityCount)
+    {
+        if (identityCount < 1)
+        {
+            return double.PositiveInfinity;
+        }
+
+        return (double)stageVus / identityCount;
+    }
+
     public static string ExplainRecommendation(int identityCount = DefaultLoad60PoolSize)
     {
         var minMinutes = RecommendedMinMinutesUntilStageStart(identityCount);
