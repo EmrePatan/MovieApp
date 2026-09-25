@@ -28,11 +28,16 @@ internal sealed class NullMovieDataProvider : IMovieDataProvider
 
 internal sealed class StubMovieDataProvider(MovieProviderDetails? details) : IMovieDataProvider
 {
+    public int GetMovieCallCount { get; private set; }
+
     public Task<MovieProviderDetails?> GetMovieAsync(
         string externalId,
         bool includeKeywords = false,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(details);
+        CancellationToken cancellationToken = default)
+    {
+        GetMovieCallCount++;
+        return Task.FromResult(details);
+    }
 
     public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
         DiscoverProviderCriteria criteria,

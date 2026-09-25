@@ -59,6 +59,7 @@ public static class DependencyInjection
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();
+        services.AddScoped<ITvShowExternalIdLookup, TvShowExternalIdLookup>();
         services.AddScoped<IGetTvShowByTmdbIdService, GetTvShowByTmdbIdService>();
         services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();
         services.AddScoped<ITvShowCatalogSyncStateService, TvShowCatalogSyncStateService>();
@@ -160,6 +161,7 @@ public static class DependencyInjection
         services.AddScoped<IPickSomethingService, PickSomethingService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
         services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
+        services.AddSingleton<ICatalogKeywordReadPathScheduler, BackgroundCatalogKeywordReadPathScheduler>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
         services.AddScoped<ICatalogKeywordBackfillService, CatalogKeywordBackfillService>();
         services.AddScoped<ICatalogProviderUpsertService, CatalogProviderUpsertService>();

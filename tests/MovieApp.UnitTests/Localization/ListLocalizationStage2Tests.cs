@@ -146,6 +146,41 @@ public sealed class ListLocalizationStage2Tests
     }
 
     [Fact]
+    public async Task SummaryOverlay_LoadsListTitlesConcurrentlyAndPreservesOrder()
+    {
+        var cache = new DelayingCacheService();
+        await cache.SetAsync(
+            DetailLocalizationCacheKeys.Movie(101, ContentLocaleResolver.TurkishTurkey),
+            new DetailLocalizationCacheEntry<MovieDetailLocalizationData>
+            {
+                Data = new MovieDetailLocalizationData("Bir", null, null)
+            });
+        await cache.SetAsync(
+            DetailLocalizationCacheKeys.Movie(202, ContentLocaleResolver.TurkishTurkey),
+            new DetailLocalizationCacheEntry<MovieDetailLocalizationData>
+            {
+                Data = new MovieDetailLocalizationData("İki", null, null)
+            });
+
+        var service = CreateSummaryOverlayService(cache);
+        var canonical = new PaginatedResult<SearchItem>(
+            [
+                CreateMovieItem(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "One", 101),
+                CreateMovieItem(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Two", 202)
+            ],
+            1,
+            20,
+            2,
+            1);
+
+        var result = await service.ApplyToSearchItemsAsync(canonical, ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Bir", result.Items[0].Title);
+        Assert.Equal("İki", result.Items[1].Title);
+        Assert.True(cache.MaxInFlight >= 2);
+    }
+
+    [Fact]
     public async Task SummaryOverlay_KeepsCanonical_WhenTurkishCacheMisses()
     {
         var service = CreateSummaryOverlayService(new InMemoryCacheService());
@@ -229,6 +264,21 @@ public sealed class ListLocalizationStage2Tests
     private static SummaryLocalizationOverlayService CreateSummaryOverlayService(ICacheService cache) =>
         new(cache, new StubMovieRepository(), new StubTvShowRepository());
 
+    private static SearchItem CreateMovieItem(Guid id, string title, int tmdbId) =>
+        new(
+            id,
+            "movie",
+            title,
+            null,
+            "overview",
+            null,
+            null,
+            null,
+            8m,
+            10,
+            2020,
+            tmdbId);
+
     private static PaginatedResult<SearchItem> CreateSearchPage(string title, string overview) =>
         new(
             [
@@ -250,6 +300,36 @@ public sealed class ListLocalizationStage2Tests
             20,
             1,
             1);
+
+    private sealed class DelayingCacheService : InMemoryCacheService
+    {
+        private int _inFlight;
+
+        public int MaxInFlight { get; private set; }
+
+        public override async Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            var current = Interlocked.Increment(ref _inFlight);
+            lock (this)
+            {
+                if (current > MaxInFlight)
+                {
+                    MaxInFlight = current;
+                }
+            }
+
+            try
+            {
+                await Task.Delay(40, cancellationToken);
+                return await base.GetAsync<T>(key, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _inFlight);
+            }
+        }
+    }
 
     private sealed class CountingCacheService : InMemoryCacheService
     {

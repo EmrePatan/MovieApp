@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
@@ -54,6 +55,34 @@ public sealed class TvShowSeasonSummaryHydratorTests
     }
 
     [Fact]
+    public async Task EnsureSeasonSummariesAsyncSchedulesKeywordsWhenUnsyncedAndSeasonsExist()
+    {
+        var tvShow = CreateTvShowWithoutSeasons();
+        tvShow.Seasons.Add(new Season
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = TvShowId,
+            SeasonNumber = 1,
+            EpisodeCount = 8,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        var scheduler = new RecordingKeywordScheduler();
+        var provider = new FakeTvShowDataProvider();
+        var hydrator = new TvShowSeasonSummaryHydrator(
+            new FakeTvShowRepository(tvShow),
+            provider,
+            new FakeExternalIdResolver(),
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(),
+            scheduler);
+
+        await hydrator.EnsureSeasonSummariesAsync(TvShowId);
+
+        Assert.Equal(0, provider.GetTvShowCalls);
+        Assert.Equal([TvShowId], scheduler.TvShowIds);
+    }
+
+    [Fact]
     public async Task EnsureSeasonSummariesAsyncThrowsWhenTvShowMissing()
     {
         var hydrator = CreateHydrator(new FakeTvShowRepository(null), new FakeTvShowDataProvider());
@@ -70,7 +99,7 @@ public sealed class TvShowSeasonSummaryHydratorTests
             provider,
             new FakeExternalIdResolver(),
             CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(tvShowRepository: repository),
-            CatalogProviderUpsertTestDoubles.CreateNoOpKeywordIngestionService());
+            new NoOpCatalogKeywordReadPathScheduler());
 
     private static TvShow CreateTvShowWithoutSeasons() =>
         new()
@@ -82,6 +111,17 @@ public sealed class TvShowSeasonSummaryHydratorTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
+
+    private sealed class RecordingKeywordScheduler : ICatalogKeywordReadPathScheduler
+    {
+        public List<Guid> TvShowIds { get; } = [];
+
+        public void ScheduleMovie(Guid movieId)
+        {
+        }
+
+        public void ScheduleTvShow(Guid tvShowId) => TvShowIds.Add(tvShowId);
+    }
 
     private sealed class FakeExternalIdResolver : ITvShowExternalIdResolver
     {

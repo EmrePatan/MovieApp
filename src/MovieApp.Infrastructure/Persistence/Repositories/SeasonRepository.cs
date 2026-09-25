@@ -236,10 +236,12 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         season.PosterPath = details.PosterPath;
         season.UpdatedAt = utcNow;
 
+        var episodeDetails = DeduplicateEpisodeDetails(details.Episodes);
         var episodesByNumber = BuildEpisodeIndex(season);
-        foreach (var episodeDetails in DeduplicateEpisodeDetails(details.Episodes))
+        await LoadMissingEpisodesAsync(season, episodeDetails, episodesByNumber, cancellationToken);
+        foreach (var episodeDetail in episodeDetails)
         {
-            await UpsertEpisodeAsync(season, episodeDetails, utcNow, episodesByNumber, cancellationToken);
+            UpsertLoadedEpisode(season, episodeDetail, utcNow, episodesByNumber);
         }
 
         return season;
@@ -257,27 +259,49 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         return episodesByNumber;
     }
 
-    private async Task UpsertEpisodeAsync(
+    private async Task LoadMissingEpisodesAsync(
         Season season,
-        EpisodeProviderDetails details,
-        DateTime utcNow,
+        IReadOnlyList<EpisodeProviderDetails> episodeDetails,
         Dictionary<int, Episode> episodesByNumber,
         CancellationToken cancellationToken)
     {
-        if (episodesByNumber.TryGetValue(details.EpisodeNumber, out var episode))
+        if (dbContext.Entry(season).State == EntityState.Added)
         {
-            ApplyEpisodeDetails(episode, details, utcNow);
             return;
         }
 
-        episode = await dbContext.Episodes
-            .FirstOrDefaultAsync(
-                existingEpisode =>
-                    existingEpisode.SeasonId == season.Id &&
-                    existingEpisode.EpisodeNumber == details.EpisodeNumber,
-                cancellationToken);
+        var missingNumbers = episodeDetails
+            .Select(episode => episode.EpisodeNumber)
+            .Where(episodeNumber => !episodesByNumber.ContainsKey(episodeNumber))
+            .Distinct()
+            .ToList();
 
-        if (episode is null)
+        if (missingNumbers.Count == 0)
+        {
+            return;
+        }
+
+        var existingEpisodes = await dbContext.Episodes
+            .Where(episode => episode.SeasonId == season.Id && missingNumbers.Contains(episode.EpisodeNumber))
+            .ToListAsync(cancellationToken);
+
+        foreach (var episode in existingEpisodes)
+        {
+            episodesByNumber[episode.EpisodeNumber] = episode;
+            if (!season.Episodes.Any(item => item.Id == episode.Id))
+            {
+                season.Episodes.Add(episode);
+            }
+        }
+    }
+
+    private void UpsertLoadedEpisode(
+        Season season,
+        EpisodeProviderDetails details,
+        DateTime utcNow,
+        Dictionary<int, Episode> episodesByNumber)
+    {
+        if (!episodesByNumber.TryGetValue(details.EpisodeNumber, out var episode))
         {
             episode = new Episode
             {
@@ -289,13 +313,9 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
 
             season.Episodes.Add(episode);
             dbContext.Episodes.Add(episode);
-        }
-        else if (!season.Episodes.Any(item => item.Id == episode.Id))
-        {
-            season.Episodes.Add(episode);
+            episodesByNumber[details.EpisodeNumber] = episode;
         }
 
-        episodesByNumber[details.EpisodeNumber] = episode;
         ApplyEpisodeDetails(episode, details, utcNow);
     }
 

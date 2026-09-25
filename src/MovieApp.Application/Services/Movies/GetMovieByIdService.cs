@@ -19,12 +19,13 @@ public sealed class GetMovieByIdService(
     IMovieRepository movieRepository,
     IMovieRegionalReleaseRepository movieRegionalReleaseRepository,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
-    ICatalogKeywordIngestionService catalogKeywordIngestionService,
+    ICatalogKeywordReadPathScheduler catalogKeywordReadPathScheduler,
     IMovieDataProvider movieDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan CollectionProbeTtl = TimeSpan.FromHours(24);
 
     public Task<MovieDetailsResult> GetByIdAsync(
         Guid id,
@@ -66,10 +67,10 @@ public sealed class GetMovieByIdService(
     {
         movie = await TryEnrichMissingCollectionAsync(movie, cancellationToken);
 
-        await catalogKeywordIngestionService.TryEnrichMovieKeywordsAsync(
-            movie.Id,
-            refreshKeywords: false,
-            cancellationToken: cancellationToken);
+        if (movie.KeywordsSyncedAtUtc is null)
+        {
+            catalogKeywordReadPathScheduler.ScheduleMovie(movie.Id);
+        }
 
         var details = MovieMapper.ToDetailsResult(movie);
         var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
@@ -100,13 +101,29 @@ public sealed class GetMovieByIdService(
             return movie;
         }
 
+        var probeKey = MovieDetailsCacheKeys.CollectionProbe(movie.Id);
+        if (await cacheService.GetAsync<MovieCollectionProbeCacheEntry>(probeKey, cancellationToken) is not null)
+        {
+            return movie;
+        }
+
         var providerDetails = await movieDataProvider.GetMovieAsync(
             tmdbId.ToString(CultureInfo.InvariantCulture),
             includeKeywords: false,
             cancellationToken);
 
-        if (providerDetails?.TmdbCollectionId is null)
+        if (providerDetails is null)
         {
+            return movie;
+        }
+
+        if (providerDetails.TmdbCollectionId is null)
+        {
+            await cacheService.SetAsync(
+                probeKey,
+                new MovieCollectionProbeCacheEntry(),
+                CollectionProbeTtl,
+                cancellationToken);
             return movie;
         }
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Common;
@@ -11,8 +12,10 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class SearchRepository(
     ApplicationDbContext dbContext,
-    IOptions<TopRatedOptions> topRatedOptions) : ISearchRepository
+    IOptions<TopRatedOptions> topRatedOptions,
+    IMemoryCache? memoryCache = null) : ISearchRepository
 {
+    private static readonly TimeSpan CatalogMeanCacheTtl = TimeSpan.FromMinutes(10);
     public async Task<PaginatedResult<SearchItem>> SearchAsync(
         SearchCriteria criteria,
         CancellationToken cancellationToken = default)
@@ -189,6 +192,21 @@ public sealed class SearchRepository(
     public async Task<decimal> GetCatalogMeanVoteAverageAsync(
         SearchContentType type,
         CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"search:catalog-mean:{(int)type}";
+        if (memoryCache?.TryGetValue(cacheKey, out decimal cachedMean) == true)
+        {
+            return cachedMean;
+        }
+
+        var mean = await ComputeCatalogMeanVoteAverageAsync(type, cancellationToken);
+        memoryCache?.Set(cacheKey, mean, CatalogMeanCacheTtl);
+        return mean;
+    }
+
+    private async Task<decimal> ComputeCatalogMeanVoteAverageAsync(
+        SearchContentType type,
+        CancellationToken cancellationToken)
     {
         var movieAverages = dbContext.Movies
             .AsNoTracking()

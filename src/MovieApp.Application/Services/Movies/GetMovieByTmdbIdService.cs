@@ -11,7 +11,6 @@ public sealed class GetMovieByTmdbIdService(
     IMovieRepository movieRepository,
     IMovieDataProvider movieDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
-    ICatalogKeywordIngestionService catalogKeywordIngestionService,
     IGetMovieByIdService getMovieByIdService) : IGetMovieByTmdbIdService
 {
     public async Task<MovieDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default)
@@ -38,13 +37,6 @@ public sealed class GetMovieByTmdbIdService(
                 providerDetails,
                 enrichKeywords: true,
                 cancellationToken);
-        }
-        else
-        {
-            await catalogKeywordIngestionService.TryEnrichMovieKeywordsAsync(
-                movie.Id,
-                refreshKeywords: false,
-                cancellationToken: cancellationToken);
         }
 
         return await getMovieByIdService.GetByIdAsync(movie.Id, movie, cancellationToken);

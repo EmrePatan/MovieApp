@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -25,7 +26,8 @@ public sealed class SearchService(
     ISearchRefreshLockService refreshLockService,
     ISearchRefreshCompletionSignal refreshCompletionSignal,
     IOptions<SearchOptions> searchOptions,
-    ILogger<SearchService> logger) : ISearchService
+    ILogger<SearchService> logger,
+    IServiceScopeFactory? searchHistoryScopeFactory = null) : ISearchService
 {
     private static readonly TimeSpan MinimumRefreshWait = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RefreshWaitSafetyMargin = TimeSpan.FromSeconds(2);
@@ -345,12 +347,39 @@ public sealed class SearchService(
 
         var normalizedQuery = QueryNormalizer.Normalize(criteria.Query);
         var displayQuery = QueryNormalizer.CollapseWhitespace(criteria.Query);
+        var userId = currentUser.UserId.Value;
+        var searchedAtUtc = DateTime.UtcNow;
 
-        await searchHistoryRepository.RecordSearchAsync(
-            currentUser.UserId.Value,
-            displayQuery,
-            normalizedQuery,
-            DateTime.UtcNow,
-            cancellationToken);
+        if (searchHistoryScopeFactory is null)
+        {
+            await searchHistoryRepository.RecordSearchAsync(
+                userId,
+                displayQuery,
+                normalizedQuery,
+                searchedAtUtc,
+                cancellationToken);
+            return;
+        }
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    using var scope = searchHistoryScopeFactory.CreateScope();
+                    var repository = scope.ServiceProvider.GetRequiredService<ISearchHistoryRepository>();
+                    await repository.RecordSearchAsync(
+                        userId,
+                        displayQuery,
+                        normalizedQuery,
+                        searchedAtUtc,
+                        CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    SearchServiceLogMessages.LogSearchHistoryFailed(logger, userId, exception);
+                }
+            },
+            CancellationToken.None);
     }
 }

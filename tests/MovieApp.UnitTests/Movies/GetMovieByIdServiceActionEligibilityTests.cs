@@ -3,9 +3,9 @@ using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
-using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Keywords;
 
 namespace MovieApp.UnitTests.Movies;
 
@@ -82,7 +82,7 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
             new FakeMovieRepository(movie),
             new FakeMovieRegionalReleaseRepository(regionalRelease),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
-            new NoOpCatalogKeywordIngestionService(),
+            new NoOpCatalogKeywordReadPathScheduler(),
             new NullMovieDataProvider(),
             new NoOpCatalogProviderUpsertService(),
             new NoOpCacheService());
@@ -150,12 +150,4 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
             Task.CompletedTask;
     }
 
-    private sealed class NoOpCatalogKeywordIngestionService : ICatalogKeywordIngestionService
-    {
-        public Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-    }
 }

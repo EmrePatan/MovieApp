@@ -31,6 +31,21 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<TvShowExternalIds?> GetExternalIdsByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var identity = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShow.Id == id)
+            .Select(tvShow => new { tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return identity is null
+            ? null
+            : new TvShowExternalIds(identity.TmdbId, identity.TvdbId, identity.ImdbId);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, TvShow>> GetByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default)
