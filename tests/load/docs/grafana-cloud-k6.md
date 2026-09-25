@@ -45,7 +45,7 @@ When you run `Export-LoadTestIdentitiesForGrafanaCloud.ps1`:
 - **Target URL** (`LOAD_TEST_BASE_URL`) — production API hostname.
 - **No** `LOAD_TEST_TOKENS_FILE` in cloud mode (prevents JWTs being embedded in the archive).
 
-Harness load order in `lib/identities.js` / `user-concurrency.js` `setup()`:
+Harness load order in `lib/identities.js` / `user-concurrency.js` `setup()` (Grafana secrets: `secrets.get()` in `setup()`, identities returned to VUs via setup data — not module state):
 
 1. **`LOAD_TEST_IDENTITIES_TRANSPORT=grafana-secrets`** — async `secrets.get` per manifest name (Cloud full pool; **not** `SharedArray` env load)
 2. `LOAD_TEST_IDENTITIES_JSON` (if set — **takes precedence** over shards; use for 5-VU smoke only when intentionally small)

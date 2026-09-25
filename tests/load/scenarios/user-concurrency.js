@@ -13,8 +13,13 @@ import {
 import { loadThresholds } from '../lib/thresholds.js';
 import { handleSummaryFactory } from '../lib/summary.js';
 import { identityForVu, contentPoolStats } from '../lib/content.js';
-import { isGrafanaSecretsTransport, loadIdentitiesFromGrafanaSecrets } from '../lib/identitiesGrafanaSecrets.js';
-import { setRuntimeIdentityPool } from '../lib/identitiesRuntime.js';
+import {
+  applyGrafanaSecretsSetupToRuntime,
+  buildGrafanaSecretsSetupResult,
+  formatGrafanaSecretsRuntimeProof,
+  isGrafanaSecretsTransport,
+  loadIdentitiesFromGrafanaSecrets,
+} from '../lib/identitiesGrafanaSecrets.js';
 import { runUserJourney } from '../lib/journey.js';
 import { thinkBetweenIterations } from '../lib/thinktime.js';
 import { applyCloudOptions } from '../lib/cloudOptions.js';
@@ -48,14 +53,14 @@ export async function setup() {
   }
 
   const identities = await loadIdentitiesFromGrafanaSecrets();
-  setRuntimeIdentityPool(identities);
-  return {
-    identityTransport: 'grafana-secrets',
-    identityCount: identities.length,
-  };
+  const setupResult = buildGrafanaSecretsSetupResult(identities);
+  console.log(formatGrafanaSecretsRuntimeProof(setupResult));
+  return setupResult;
 }
 
-export default function userConcurrency() {
+export default function userConcurrency(setupData) {
+  applyGrafanaSecretsSetupToRuntime(setupData);
+
   const vu = currentVu();
   const iter = currentIteration();
   const identity = identityForVu(vu);
