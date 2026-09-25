@@ -62,14 +62,16 @@ dotnet ef migrations list \
 
 ### Automatic migration at startup
 
-**Not enabled.** The API does not call `Database.Migrate()` or `MigrateAsync()` at startup.
+**Development only.** When `ASPNETCORE_ENVIRONMENT=Development`, the API applies pending EF Core migrations during startup (`Database.MigrateAsync`) before it accepts traffic. A freshly updated local checkout can then sign in without a manual `dotnet ef database update` after an auth/session migration such as `AddRefreshTokens` (`refresh_tokens`).
 
-Migrations run:
+**Production, Staging, and Testing do not auto-migrate.** Production migrations stay a controlled deploy step. Auto-migrate at startup is unsafe with multiple instances and complicates rollbacks.
 
-- In integration tests (per-fixture `MigrateAsync()` against isolated test DB)
+Migrations also run:
+
+- In integration tests (per-fixture `MigrateAsync()` against an isolated test DB)
 - Manually via `dotnet ef database update` during deployment
 
-**Recommendation:** Keep migrations **outside** API startup for production. Apply once per release via CI/CD or operator workflow before or immediately after deploying a new API version. Auto-migrate at startup is unsafe with multiple instances and complicates rollbacks.
+**Recommendation:** Keep migrations **outside** API startup for production. Apply once per release via CI/CD or operator workflow before or immediately after deploying a new API version.
 
 ### Initialize an empty production database
 
@@ -111,11 +113,11 @@ EF Core is configured with Npgsql `EnableRetryOnFailure` (3 retries) for transie
 | Secrets | User Secrets + local `.env` (gitignored) | Platform secret manager only |
 | TMDB | User Secrets (`MovieProviders:Tmdb:ReadAccessToken`) | Env var at deploy time |
 | Data volume | `movieapp-postgres-data`, `movieapp-redis-data` | Provider-managed — separate from dev |
-| Migrations | Applied manually or by integration tests | Controlled deploy step only |
+| Migrations | Applied automatically when the API starts in Development | Controlled deploy step only. Not applied at API startup |
 
 **Rule:** Development and production databases must remain physically and logically separate. Do not pg_dump dev → prod.
 
-Local workflow (`dotnet run`, User Secrets, TMDB token) is unchanged by this runbook.
+Local workflow (`dotnet run`, User Secrets, TMDB token) applies pending EF Core migrations on Development startup. Production schema updates remain a separate deploy step.
 
 ---
 

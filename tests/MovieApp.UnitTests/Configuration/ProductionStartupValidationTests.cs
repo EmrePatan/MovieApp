@@ -219,9 +219,51 @@ public sealed class ProductionStartupValidationTests
     }
 
     [Fact]
-    public void JwtValidatorAllowsDevelopmentWithMissingSigningKey()
+    public void JwtValidatorFailsDevelopmentWithMissingSigningKey()
     {
         var validator = new JwtOptionsValidator(new FakeHostEnvironment("Development"));
+
+        var result = validator.Validate(
+            JwtOptions.SectionName,
+            new JwtOptions { SigningKey = string.Empty });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("Authentication:Jwt:SigningKey", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("Development", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void JwtValidatorSucceedsDevelopmentWithLocalSigningKey()
+    {
+        var validator = new JwtOptionsValidator(new FakeHostEnvironment("Development"));
+
+        var result = validator.Validate(
+            JwtOptions.SectionName,
+            new JwtOptions
+            {
+                SigningKey = "YOUR_LOCAL_DEVELOPMENT_SIGNING_KEY_AT_LEAST_32_CHARS"
+            });
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void JwtValidatorFailsDevelopmentWithShortSigningKey()
+    {
+        var validator = new JwtOptionsValidator(new FakeHostEnvironment("Development"));
+
+        var result = validator.Validate(
+            JwtOptions.SectionName,
+            new JwtOptions { SigningKey = "1234567890123456789012345678901" });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("32 characters", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void JwtValidatorAllowsTestingWithMissingSigningKey()
+    {
+        var validator = new JwtOptionsValidator(new FakeHostEnvironment("Testing"));
 
         var result = validator.Validate(
             JwtOptions.SectionName,

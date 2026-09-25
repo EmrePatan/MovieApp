@@ -261,6 +261,8 @@ Endpoints:
 - `GET /health/ready` - infrastructure readiness checks (PostgreSQL, Redis when configured)
 - `GET /swagger` - Swagger UI (Development environment)
 
+Development startup applies pending EF Core migrations to the local database. Set `Authentication:Jwt:SigningKey` (user secrets or `Authentication__Jwt__SigningKey`) before `dotnet run`; an empty signing key stops startup with a configuration error. Production and Staging do not migrate on startup.
+
 ## Movie Catalog API
 
 ### Search movies
@@ -432,7 +434,7 @@ Movie and TV catalog endpoints remain publicly accessible. Favorites and watchli
 }
 ```
 
-`SigningKey` must be provided via user secrets or environment variables. Never commit signing keys to source control.
+`SigningKey` must be provided via user secrets or environment variables. Never commit signing keys to source control. In Development the API refuses to start when `Authentication:Jwt:SigningKey` is missing or shorter than 32 characters, so login does not fail later with HTTP 500 while creating an access token.
 
 ### Local secret configuration
 

@@ -28,11 +28,13 @@ internal static class MovieDataProviderServiceCollectionExtensions
         services.AddSingleton<MovieDataProviderCallTracker>();
         services.AddSingleton<FakeTmdbMovieChangesProvider>();
         services.AddScoped<FakeTmdbMovieChangesProviderAdapter>();
-        services.AddScoped<TmdbMovieChangesProvider>();
         services.AddScoped<FakeMovieDataProvider>();
 
         if (IsTmdbProvider(movieProviders.Provider))
         {
+            // Register only when TMDB is selected. Development validates the container on build,
+            // and this type depends on TmdbApiClient, which is not registered for the Fake provider.
+            services.AddScoped<TmdbMovieChangesProvider>();
             services.AddOptions<TmdbOptions>()
                 .Bind(configuration.GetSection($"{MovieProvidersOptions.SectionName}:Tmdb"))
                 .Validate(

@@ -385,6 +385,12 @@ public static class DependencyInjection
 
 
 
+        services.AddSingleton<IDevelopmentDatabaseMigrator, EfCoreDevelopmentDatabaseMigrator>();
+
+        services.AddHostedService<DevelopmentDatabaseMigrationHostedService>();
+
+
+
         return services;
 
     }

@@ -20,11 +20,13 @@ internal static class TvShowDataProviderServiceCollectionExtensions
         services.AddSingleton<TvShowDataProviderCallTracker>();
         services.AddSingleton<FakeTmdbTvChangesProvider>();
         services.AddScoped<FakeTmdbTvChangesProviderAdapter>();
-        services.AddScoped<TmdbTvChangesProvider>();
         services.AddScoped<FakeTvShowDataProvider>();
 
         if (IsTmdbProvider(movieProviders.Provider))
         {
+            // Register only when TMDB is selected. Development validates the container on build,
+            // and this type depends on TmdbApiClient, which is not registered for the Fake provider.
+            services.AddScoped<TmdbTvChangesProvider>();
             services.AddScoped<TmdbTvShowDataProvider>();
             services.AddScoped<ITvShowExternalIdResolver, TmdbTvExternalIdResolver>();
         }

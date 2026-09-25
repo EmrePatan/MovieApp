@@ -128,7 +128,7 @@ Empty Redis config **prevents production startup**. Cache loss is non-destructiv
 
 ## Database migrations
 
-**Not applied at API startup.** Multiple instances must not race `Database.Migrate()` at boot.
+**Production and Staging are not migrated at API startup.** Multiple instances must not race `Database.Migrate()` at boot. Development applies pending migrations on startup so a local database stays aligned with the checkout; Testing does not.
 
 ### Apply to production
 
