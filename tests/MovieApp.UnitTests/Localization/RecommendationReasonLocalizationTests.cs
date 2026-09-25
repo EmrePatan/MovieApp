@@ -27,6 +27,16 @@ public sealed class RecommendationReasonLocalizationTests
     }
 
     [Fact]
+    public void Localize_UsesLocalizedTurkishGenreName_ForBecauseYouLiked()
+    {
+        var localized = RecommendationReasonLocalization.Localize(
+            "Because you liked Science Fiction",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Bilim Kurgu türünü sevdiğin için", localized);
+    }
+
+    [Fact]
     public void Localize_ReturnsEnglish_ForEnglishLocale()
     {
         var localized = RecommendationReasonLocalization.Localize(

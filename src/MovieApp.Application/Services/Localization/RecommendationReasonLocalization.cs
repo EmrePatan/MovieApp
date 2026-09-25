@@ -59,20 +59,25 @@ public static class RecommendationReasonLocalization
             "Popular right now" => LocalizePopularNow(normalizedLocale),
             "Popular in your favorite genres" => LocalizePopularGenres(normalizedLocale),
             "Top rated" => LocalizeTopRated(normalizedLocale),
+            "Based on your favorites" => LocalizeBasedOnFavorites(normalizedLocale),
             _ => englishReason,
         };
     }
 
-    private static string FormatBecauseYouLiked(string genre, string locale) => locale switch
+    private static string FormatBecauseYouLiked(string genre, string locale)
     {
-        ContentLocaleResolver.TurkishTurkey => $"{genre} türünü sevdiğin için",
-        ContentLocaleResolver.SpanishSpain => $"Porque te gusta {genre}",
-        ContentLocaleResolver.GermanGermany => $"Weil dir {genre} gefällt",
-        ContentLocaleResolver.FrenchFrance => $"Parce que vous aimez {genre}",
-        ContentLocaleResolver.ItalianItaly => $"Perché ti piace {genre}",
-        ContentLocaleResolver.PortugueseBrazil => $"Porque você gosta de {genre}",
-        _ => $"Because you liked {genre}",
-    };
+        var displayGenre = GenreLocalization.Localize(genre.Trim(), locale);
+        return locale switch
+        {
+            ContentLocaleResolver.TurkishTurkey => $"{displayGenre} türünü sevdiğin için",
+            ContentLocaleResolver.SpanishSpain => $"Porque te gusta {displayGenre}",
+            ContentLocaleResolver.GermanGermany => $"Weil dir {displayGenre} gefällt",
+            ContentLocaleResolver.FrenchFrance => $"Parce que vous aimez {displayGenre}",
+            ContentLocaleResolver.ItalianItaly => $"Perché ti piace {displayGenre}",
+            ContentLocaleResolver.PortugueseBrazil => $"Porque você gosta de {displayGenre}",
+            _ => $"Because you liked {displayGenre}",
+        };
+    }
 
     private static string FormatBecauseYouRated(string title, string locale) => locale switch
     {
@@ -160,6 +165,17 @@ public static class RecommendationReasonLocalization
         ContentLocaleResolver.ItalianItaly => "Popolare nei tuoi generi preferiti",
         ContentLocaleResolver.PortugueseBrazil => "Popular nos seus gêneros favoritos",
         _ => "Popular in your favorite genres",
+    };
+
+    private static string LocalizeBasedOnFavorites(string locale) => locale switch
+    {
+        ContentLocaleResolver.TurkishTurkey => "Favorilerine göre",
+        ContentLocaleResolver.SpanishSpain => "Según tus favoritos",
+        ContentLocaleResolver.GermanGermany => "Basierend auf deinen Favoriten",
+        ContentLocaleResolver.FrenchFrance => "Selon vos favoris",
+        ContentLocaleResolver.ItalianItaly => "In base ai tuoi preferiti",
+        ContentLocaleResolver.PortugueseBrazil => "Com base nos seus favoritos",
+        _ => "Based on your favorites",
     };
 
     private static string LocalizeTopRated(string locale) => locale switch

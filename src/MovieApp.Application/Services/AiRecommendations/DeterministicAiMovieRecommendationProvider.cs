@@ -6,6 +6,7 @@ using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
 
@@ -68,7 +69,9 @@ public sealed class DeterministicAiMovieRecommendationProvider(
                 item.Title,
                 item.Year,
                 null,
-                RecommendationReasonBuilder.BuildColdStartPopularReason()))
+                LocalizeReason(
+                    RecommendationReasonBuilder.BuildColdStartPopularReason(),
+                    request.ResponseLanguage)))
             .Take(request.SuggestionCount)
             .ToList();
     }
@@ -118,7 +121,9 @@ public sealed class DeterministicAiMovieRecommendationProvider(
                 item.Candidate.Title,
                 item.Candidate.Year,
                 null,
-                item.Reason ?? RecommendationReasonBuilder.BuildColdStartPopularReason()))
+                LocalizeReason(
+                    item.Reason ?? RecommendationReasonBuilder.BuildColdStartPopularReason(),
+                    request.ResponseLanguage)))
             .Take(request.SuggestionCount)
             .ToList();
     }
@@ -135,6 +140,9 @@ public sealed class DeterministicAiMovieRecommendationProvider(
             mediaType,
             tmdbId,
             reason);
+
+    private static string LocalizeReason(string englishReason, string responseLanguage) =>
+        RecommendationReasonLocalization.Localize(englishReason, responseLanguage);
 
     private static HashSet<Guid> MergeExclusions(IReadOnlySet<Guid> baseSet, HashSet<Guid> sessionIds)
     {
