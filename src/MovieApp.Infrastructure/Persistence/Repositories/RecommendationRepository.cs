@@ -276,47 +276,112 @@ public sealed class RecommendationRepository(
         RecommendationQueryMetrics metrics,
         CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-        var query = BuildMovieCandidateQuery(preferredGenreIds, excludedMovieIds);
+        var totalStopwatch = Stopwatch.StartNew();
+
+        var idSelectionStopwatch = Stopwatch.StartNew();
         metrics.RecordRoundTrip();
-        var rows = await query
+        var movieIds = await BuildMovieCandidateQuery(preferredGenreIds, excludedMovieIds)
             .OrderByDescending(movie => movie.VoteCount)
             .ThenByDescending(movie => movie.VoteAverage)
             .Take(maxCandidates)
-            .AsSplitQuery()
-            .Select(movie => new PersonalizedCandidateQueryRow(
-                new RecommendationCandidateProjection
-                {
-                    Id = movie.Id,
-                    Type = "movie",
-                    Title = movie.Title,
-                    OriginalTitle = movie.OriginalTitle,
-                    Overview = movie.Overview,
-                    PosterUrl = movie.PosterPath,
-                    BackdropUrl = movie.BackdropPath,
-                    ReleaseDate = movie.ReleaseDate,
-                    VoteAverage = movie.VoteAverage,
-                    VoteCount = movie.VoteCount,
-                    Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null,
-                    GenreIds = movie.MovieGenres.Select(genre => genre.GenreId).ToList(),
-                    GenreNames = movie.MovieGenres.Select(genre => genre.Genre.Name).ToList(),
-                    PersonIds = movie.MoviePeople
-                        .Where(person => person.CreditType == CreditType.Cast)
-                        .OrderBy(person => person.PersonId)
-                        .Select(person => person.PersonId)
-                        .Take(MaxCastPeople)
-                        .ToList(),
-                    TmdbCollectionId = movie.TmdbCollectionId
-                },
-                movie.MovieKeywords.Select(keyword => keyword.KeywordId).ToList()))
+            .Select(movie => movie.Id)
             .ToListAsync(cancellationToken);
-        stopwatch.Stop();
+        idSelectionStopwatch.Stop();
+
+        if (movieIds.Count == 0)
+        {
+            totalStopwatch.Stop();
+            LogMovieCandidateFetchSummary(
+                totalStopwatch.ElapsedMilliseconds,
+                idSelectionStopwatch.ElapsedMilliseconds,
+                0,
+                0,
+                metrics.DbRoundTrips,
+                0,
+                0);
+            return new ConsolidatedCandidateLoadResult([], idSelectionStopwatch.ElapsedMilliseconds);
+        }
+
+        var hydrationStopwatch = Stopwatch.StartNew();
+        metrics.RecordRoundTrip();
+        var projections = await LoadPersonalizedMovieProjectionsAsync(movieIds, cancellationToken);
+        hydrationStopwatch.Stop();
+
+        var keywordStopwatch = Stopwatch.StartNew();
+        metrics.RecordRoundTrip();
+        var keywordIdsByMovieId = await LoadMovieKeywordIdsByCatalogIdsAsync(movieIds, cancellationToken);
+        keywordStopwatch.Stop();
+
+        var projectionById = projections.ToDictionary(projection => projection.Id);
+        var candidates = movieIds
+            .Where(movieId => projectionById.ContainsKey(movieId))
+            .Select(movieId => RecommendationProjectionMapper.ToPersonalizedCandidateProfile(
+                projectionById[movieId],
+                keywordIdsByMovieId.GetValueOrDefault(movieId)))
+            .ToList();
+
+        totalStopwatch.Stop();
+
+        LogMovieCandidateFetchSummary(
+            totalStopwatch.ElapsedMilliseconds,
+            idSelectionStopwatch.ElapsedMilliseconds,
+            hydrationStopwatch.ElapsedMilliseconds,
+            keywordStopwatch.ElapsedMilliseconds,
+            metrics.DbRoundTrips,
+            movieIds.Count,
+            candidates.Count);
 
         return new ConsolidatedCandidateLoadResult(
-            rows.Select(row => RecommendationProjectionMapper.ToPersonalizedCandidateProfile(
-                row.Projection,
-                row.KeywordIds)).ToList(),
-            stopwatch.ElapsedMilliseconds);
+            candidates,
+            totalStopwatch.ElapsedMilliseconds);
+    }
+
+    private async Task<List<RecommendationCandidateProjection>> LoadPersonalizedMovieProjectionsAsync(
+        List<Guid> movieIds,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Movies
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Where(movie => movieIds.Contains(movie.Id))
+            .Select(movie => new RecommendationCandidateProjection
+            {
+                Id = movie.Id,
+                Type = "movie",
+                Title = movie.Title,
+                OriginalTitle = movie.OriginalTitle,
+                Overview = movie.Overview,
+                PosterUrl = movie.PosterPath,
+                BackdropUrl = movie.BackdropPath,
+                ReleaseDate = movie.ReleaseDate,
+                VoteAverage = movie.VoteAverage,
+                VoteCount = movie.VoteCount,
+                Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null,
+                GenreIds = movie.MovieGenres.Select(genre => genre.GenreId).ToList(),
+                GenreNames = movie.MovieGenres.Select(genre => genre.Genre.Name).ToList(),
+                TmdbCollectionId = movie.TmdbCollectionId
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    private void LogMovieCandidateFetchSummary(
+        long totalMs,
+        long idSelectionMs,
+        long hydrationMs,
+        long keywordMs,
+        int dbRoundTrips,
+        int candidateIdCount,
+        int resultCount)
+    {
+        RecommendationRepositoryLogMessages.LogMovieCandidateFetch(
+            _repositoryLogger,
+            totalMs,
+            idSelectionMs,
+            hydrationMs,
+            keywordMs,
+            dbRoundTrips,
+            candidateIdCount,
+            resultCount);
     }
 
     private async Task<ConsolidatedCandidateLoadResult> LoadConsolidatedTvCandidatesAsync(
