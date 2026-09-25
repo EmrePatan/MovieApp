@@ -21,4 +21,10 @@ internal static partial class DevelopmentDatabaseMigrationLogMessages
         Level = LogLevel.Error,
         Message = "Development database migration failed. Login cannot issue refresh-token sessions until pending EF Core migrations are applied.")]
     internal static partial void LogMigrationFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 5213,
+        Level = LogLevel.Information,
+        Message = "Applied pending EF Core migrations in Development.")]
+    internal static partial void LogMigrationsApplied(ILogger logger);
 }

@@ -248,6 +248,19 @@ public sealed class ProductionStartupValidationTests
     }
 
     [Fact]
+    public void JwtValidatorFailsDevelopmentWithShortSigningKey()
+    {
+        var validator = new JwtOptionsValidator(new FakeHostEnvironment("Development"));
+
+        var result = validator.Validate(
+            JwtOptions.SectionName,
+            new JwtOptions { SigningKey = "1234567890123456789012345678901" });
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("32 characters", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void JwtValidatorAllowsTestingWithMissingSigningKey()
     {
         var validator = new JwtOptionsValidator(new FakeHostEnvironment("Testing"));

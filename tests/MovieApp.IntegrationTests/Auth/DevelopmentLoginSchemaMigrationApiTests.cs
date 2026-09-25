@@ -40,6 +40,11 @@ public sealed class DevelopmentLoginSchemaMigrationApiTests
             factory = CreateFactory(connectionString, "Development", includeSocialVerifiers: true);
             var client = factory.CreateClient();
 
+            var readyResponse = await client.GetAsync("/health/ready");
+            var readyBody = await readyResponse.Content.ReadAsStringAsync();
+            Assert.Contains("database-migrations", readyBody, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Database schema is current.", readyBody, StringComparison.Ordinal);
+
             await using var migrated = CreateContext(connectionString);
             var pending = await migrated.Database.GetPendingMigrationsAsync();
             Assert.DoesNotContain(

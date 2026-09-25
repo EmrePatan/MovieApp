@@ -19,14 +19,19 @@ public sealed class JwtOptionsValidator(IHostEnvironment hostEnvironment) : IVal
             return ValidateOptionsResult.Success;
         }
 
-        if (hostEnvironment.IsDevelopment() && !options.IsConfigured())
+        if (hostEnvironment.IsDevelopment() && !HasDevelopmentSigningKey(options.SigningKey))
         {
             return ValidateOptionsResult.Fail(
-                "Development requires Authentication:Jwt:SigningKey. " +
-                "Set it with user secrets or the Authentication__Jwt__SigningKey environment variable (at least 32 characters). " +
-                "See .env.example. The API will not start while the signing key is empty.");
+                "Development requires Authentication:Jwt:SigningKey of at least 32 characters. " +
+                "Set it with user secrets or the Authentication__Jwt__SigningKey environment variable. " +
+                "See .env.example. The API will not start while the signing key is missing or too short, " +
+                "because login cannot create access tokens.");
         }
 
         return ValidateOptionsResult.Success;
     }
+
+    private static bool HasDevelopmentSigningKey(string signingKey) =>
+        !string.IsNullOrWhiteSpace(signingKey) &&
+        signingKey.Length >= JwtSigningKeyProductionRules.MinimumKeyLength;
 }

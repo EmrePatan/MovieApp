@@ -28,6 +28,7 @@ public sealed class EfCoreDevelopmentDatabaseMigrator(
             }
 
             await dbContext.Database.MigrateAsync(cancellationToken);
+            DevelopmentDatabaseMigrationLogMessages.LogMigrationsApplied(logger);
         }
         catch (Exception exception)
         {
