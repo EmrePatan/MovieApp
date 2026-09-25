@@ -73,8 +73,9 @@ cd tests\load
 
 **Grafana service account (sync only, never commit):**
 
-- Set in gitignored `.env`: `GRAFANA_URL` (stack root, e.g. `https://your-stack.grafana.net`) and `GRAFANA_SA_TOKEN`.
-- Token needs **Secrets Management** permissions on the stack (`secret.securevalues:create`, `get`, `update`, and `delete` if pruning).
+- Set in gitignored `.env`: `GRAFANA_URL` (stack root, e.g. `https://your-stack.grafana.net`), **`GRAFANA_STACK_ID`** (numeric **Grafana instance / stack ID** from Cloud portal → stack → **Details**), and `GRAFANA_SA_TOKEN`.
+- API namespace is **`stacks-<GRAFANA_STACK_ID>`** (not `default` on Grafana Cloud). Optional override: `GRAFANA_SECRETS_NAMESPACE`.
+- Token needs **Secrets Management** permissions on the stack (`secret.securevalues:create`, `read`, `write`, and `delete` if pruning). UI roles such as **Secure Values Creator/Reader/Updater/Deleter** are sufficient when scoped to the stack.
 - Sync uses `decrypters: ["k6-cloud"]` so Cloud workers can read values during the test.
 
 **Cloud harness env (set by `Invoke-K6.ps1`, non-secret):**

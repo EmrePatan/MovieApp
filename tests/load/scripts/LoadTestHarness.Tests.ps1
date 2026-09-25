@@ -135,6 +135,12 @@ $mockRest = {
 
 $env:GRAFANA_URL = 'https://grafana.example.net'
 $env:GRAFANA_SA_TOKEN = 'unit-test-token'
+$env:GRAFANA_STACK_ID = '424242'
+Remove-Item Env:GRAFANA_SECRETS_NAMESPACE -ErrorAction SilentlyContinue
+Assert-Equal 'grafana secrets namespace from stack id' 'stacks-424242' (Resolve-LoadTestGrafanaSecretsNamespace)
+$apiUris = Get-LoadTestGrafanaSecureValuesApiUris -GrafanaBaseUrl 'https://grafana.example.net' -Namespace 'stacks-424242' -SecretName 'movie-cave-load-identities-001'
+Assert-True 'secure values resource path' ($apiUris.Resource -match '/namespaces/stacks-424242/securevalues/movie-cave-load-identities-001$')
+
 $dry = Invoke-LoadTestGrafanaSecretsSync -LoadRoot $syncRoot -DryRun -RestMethodInvoker $mockRest
 Assert-True 'dry run makes no http calls' ($httpCalls.Count -eq 0)
 Assert-True 'dry run returns secret names' ($dry.SecretNames.Count -eq $secretSplit.Parts.Count)
@@ -144,11 +150,22 @@ $postCalls = @($httpCalls | Where-Object { $_.Method -eq 'Post' })
 Assert-Equal 'sync post calls per secret part' $secretSplit.Parts.Count $postCalls.Count
 foreach ($call in $postCalls) {
     Assert-True 'sync body includes k6-cloud decrypter' ($call.Body.spec.decrypters -contains 'k6-cloud')
+    Assert-True 'sync post uses grafana cloud namespace' ($call.Uri -match '/namespaces/stacks-424242/securevalues$')
 }
+
+$fakeError = [System.Management.Automation.ErrorRecord]::new(
+    (New-Object System.Exception('403 Forbidden')),
+    'Invoke-RestMethod',
+    [System.Management.Automation.ErrorCategory]::InvalidOperation,
+    $null)
+$errorSummary = Format-LoadTestGrafanaSyncHttpError -Method 'Post' -RequestUri $apiUris.Collection -ErrorRecord $fakeError
+Assert-True 'http error summary includes method' ($errorSummary -match 'method=Post')
+Assert-True 'http error summary includes path' ($errorSummary -match 'path=/apis/secret')
 
 Remove-Item $syncRoot -Recurse -Force
 Remove-Item Env:GRAFANA_URL -ErrorAction SilentlyContinue
 Remove-Item Env:GRAFANA_SA_TOKEN -ErrorAction SilentlyContinue
+Remove-Item Env:GRAFANA_STACK_ID -ErrorAction SilentlyContinue
 
 $oversizeRoot = Join-Path $env:TEMP ("load-grafana-oversize-{0}" -f [Guid]::NewGuid())
 $oversizeData = Join-Path $oversizeRoot 'data'

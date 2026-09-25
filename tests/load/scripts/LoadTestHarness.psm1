@@ -363,6 +363,103 @@ function New-LoadTestGrafanaSecureValueRequestBody {
     }
 }
 
+function Resolve-LoadTestGrafanaSecretsNamespace {
+    if (-not [string]::IsNullOrWhiteSpace($env:GRAFANA_SECRETS_NAMESPACE)) {
+        return $env:GRAFANA_SECRETS_NAMESPACE.Trim()
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:GRAFANA_STACK_ID)) {
+        return 'stacks-' + $env:GRAFANA_STACK_ID.Trim()
+    }
+
+    throw @'
+Grafana Cloud Secrets sync requires GRAFANA_STACK_ID (numeric stack instance ID from Grafana Cloud → your stack → Details)
+or GRAFANA_SECRETS_NAMESPACE (e.g. stacks-123456). The API namespace is not "default" on Grafana Cloud.
+See tests/load/docs/grafana-cloud-k6.md.
+'@.Trim()
+}
+
+function Get-LoadTestGrafanaSecureValuesApiUris {
+    param(
+        [Parameter(Mandatory)][string]$GrafanaBaseUrl,
+        [Parameter(Mandatory)][string]$Namespace,
+        [string]$SecretName
+    )
+
+    $base = $GrafanaBaseUrl.TrimEnd('/')
+    $collection = '{0}/apis/secret.grafana.app/v1beta1/namespaces/{1}/securevalues' -f $base, $Namespace
+    $resource = if ([string]::IsNullOrWhiteSpace($SecretName)) {
+        $null
+    } else {
+        '{0}/{1}' -f $collection, $SecretName
+    }
+
+    return @{
+        Collection = $collection
+        Resource   = $resource
+    }
+}
+
+function Format-LoadTestGrafanaSyncHttpError {
+    param(
+        [Parameter(Mandatory)][string]$Method,
+        [Parameter(Mandatory)][string]$RequestUri,
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    $statusCode = $null
+    $statusDescription = $null
+    $detail = $null
+
+    if ($null -ne $ErrorRecord -and $null -ne $ErrorRecord.Exception) {
+        $response = $ErrorRecord.Exception.Response
+        if ($null -ne $response) {
+            try {
+                $statusCode = [int]$response.StatusCode
+            } catch {
+                # ignore
+            }
+
+            try {
+                $statusDescription = [string]$response.StatusDescription
+            } catch {
+                # ignore
+            }
+        }
+    }
+
+    if ($null -ne $ErrorRecord -and $ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+        $raw = $ErrorRecord.ErrorDetails.Message.Trim()
+        if ($raw.Length -gt 280) {
+            $raw = $raw.Substring(0, 280) + '...'
+        }
+
+        if ($raw -notmatch '(?i)(authorization|bearer\s|eyJ[A-Za-z0-9_-]{8,})') {
+            $detail = $raw -replace '\s+', ' '
+        }
+    }
+
+    $path = $RequestUri
+    try {
+        $path = ([Uri]$RequestUri).AbsolutePath
+    } catch {
+        # keep full uri without query if parse fails
+    }
+
+    $segments = @()
+    if ($Method) { $segments += "method=$Method" }
+    if ($null -ne $statusCode) { $segments += "status=$statusCode" }
+    if ($statusDescription) { $segments += "statusText=$statusDescription" }
+    if ($path) { $segments += "path=$path" }
+    if ($detail) { $segments += "message=$detail" }
+
+    if ($segments.Count -lt 1) {
+        return 'HTTP request failed (no response metadata).'
+    }
+
+    return ($segments -join '; ')
+}
+
 function Get-LoadTestStaleManagedGrafanaSecretNames {
     param(
         [string[]]$PreviousSecretNames,
@@ -457,7 +554,9 @@ function Invoke-LoadTestGrafanaSecretsSync {
         }
     }
 
-    Write-Host ("Grafana secrets sync plan: {0} part(s), identityCount={1}, dryRun={2}" -f $partsToUpload.Count, [int]$manifest.identityCount, $DryRun.IsPresent)
+    $namespace = Resolve-LoadTestGrafanaSecretsNamespace
+
+    Write-Host ("Grafana secrets sync plan: {0} part(s), identityCount={1}, namespace={2}, dryRun={3}" -f $partsToUpload.Count, [int]$manifest.identityCount, $namespace, $DryRun.IsPresent)
     foreach ($part in $partsToUpload) {
         Write-Host ("  - {0} ({1} UTF-8 bytes)" -f $part.SecretName, $part.ByteCount)
     }
@@ -495,37 +594,35 @@ function Invoke-LoadTestGrafanaSecretsSync {
 
     foreach ($part in $partsToUpload) {
         $body = New-LoadTestGrafanaSecureValueRequestBody -SecretName $part.SecretName -SecretValue $part.Value
-        $uri = '{0}/apis/secret.grafana.app/v1beta1/namespaces/default/securevalues/{1}' -f $baseUrl, $part.SecretName
+        $apiUris = Get-LoadTestGrafanaSecureValuesApiUris -GrafanaBaseUrl $baseUrl -Namespace $namespace -SecretName $part.SecretName
         $exists = $false
         try {
-            & $RestMethodInvoker -Method 'Get' -Uri $uri -Headers $headers -Body $null | Out-Null
+            & $RestMethodInvoker -Method 'Get' -Uri $apiUris.Resource -Headers $headers -Body $null | Out-Null
             $exists = $true
         } catch {
             $exists = $false
         }
 
         $method = if ($exists) { 'Put' } else { 'Post' }
-        $writeUri = if ($exists) {
-            $uri
-        } else {
-            '{0}/apis/secret.grafana.app/v1beta1/namespaces/default/securevalues' -f $baseUrl
-        }
+        $writeUri = if ($exists) { $apiUris.Resource } else { $apiUris.Collection }
 
         try {
             & $RestMethodInvoker -Method $method -Uri $writeUri -Headers $headers -Body $body | Out-Null
         } catch {
-            throw "Grafana secret sync failed for $($part.SecretName). Check GRAFANA_URL, GRAFANA_SA_TOKEN permissions (secret.securevalues:*), and stack Grafana version (Secrets Management API)."
+            $httpSummary = Format-LoadTestGrafanaSyncHttpError -Method $method -RequestUri $writeUri -ErrorRecord $_
+            throw "Grafana secret sync failed for $($part.SecretName). $httpSummary Check GRAFANA_URL, GRAFANA_STACK_ID/GRAFANA_SECRETS_NAMESPACE, and GRAFANA_SA_TOKEN permissions (secret.securevalues:create/write/read)."
         }
     }
 
     if ($PruneStaleManagedSecrets -and $staleNames.Count -gt 0) {
         foreach ($stale in $staleNames) {
-            $deleteUri = '{0}/apis/secret.grafana.app/v1beta1/namespaces/default/securevalues/{1}' -f $baseUrl, $stale
+            $deleteUris = Get-LoadTestGrafanaSecureValuesApiUris -GrafanaBaseUrl $baseUrl -Namespace $namespace -SecretName $stale
             try {
-                & $RestMethodInvoker -Method 'Delete' -Uri $deleteUri -Headers $headers -Body $null | Out-Null
+                & $RestMethodInvoker -Method 'Delete' -Uri $deleteUris.Resource -Headers $headers -Body $null | Out-Null
                 Write-Host "Deleted stale managed secret: $stale"
             } catch {
-                throw "Failed to delete stale managed secret: $stale"
+                $httpSummary = Format-LoadTestGrafanaSyncHttpError -Method 'Delete' -RequestUri $deleteUris.Resource -ErrorRecord $_
+                throw "Failed to delete stale managed secret: $stale. $httpSummary"
             }
         }
     }
@@ -710,6 +807,9 @@ Export-ModuleMember -Function @(
     'Get-LoadTestGrafanaSecretPartFileName',
     'Get-LoadTestUtf8ByteCount',
     'New-LoadTestGrafanaSecureValueRequestBody',
+    'Resolve-LoadTestGrafanaSecretsNamespace',
+    'Get-LoadTestGrafanaSecureValuesApiUris',
+    'Format-LoadTestGrafanaSyncHttpError',
     'Get-LoadTestStaleManagedGrafanaSecretNames',
     'Invoke-LoadTestGrafanaSecretsSync',
     'Get-LoadTestGrafanaSecretsSyncStatePath',
