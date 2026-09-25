@@ -14,6 +14,10 @@ public interface ISeasonRepository
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
+    Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
     Task<Season> UpsertFromProviderAsync(
         Guid tvShowId,
         SeasonProviderDetails details,

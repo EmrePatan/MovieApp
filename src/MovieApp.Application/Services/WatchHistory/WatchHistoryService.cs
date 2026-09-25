@@ -457,7 +457,11 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
-        await EnsureRegularSeasonEpisodesIngestedAsync(tvShowId, cancellationToken);
+
+        if (await seasonRepository.IsRegularEpisodeIngestionRequiredAsync(tvShowId, cancellationToken))
+        {
+            await EnsureRegularSeasonEpisodesIngestedAsync(tvShowId, cancellationToken);
+        }
 
         var episodeIds = await episodeRepository.GetEpisodeIdsForRegularSeasonsAsync(tvShowId, cancellationToken);
         if (episodeIds.Count == 0)

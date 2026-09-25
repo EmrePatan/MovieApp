@@ -273,6 +273,11 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+
+        public Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private sealed class FakeCatalogSyncStateRepository : ITvShowCatalogSyncStateRepository

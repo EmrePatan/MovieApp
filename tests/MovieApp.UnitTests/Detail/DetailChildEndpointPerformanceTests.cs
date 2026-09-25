@@ -233,6 +233,11 @@ public sealed class DetailChildEndpointPerformanceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+
+        public Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
     private sealed class FakeTvShowRepository(TvShow tvShow) : ITvShowRepository
@@ -300,6 +305,11 @@ public sealed class DetailChildEndpointPerformanceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+
+        public Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
     private sealed class DeferredEpisodeRepository : IEpisodeRepository

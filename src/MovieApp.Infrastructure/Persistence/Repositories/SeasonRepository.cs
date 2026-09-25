@@ -35,6 +35,27 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         return seasonNumbers.ToHashSet();
     }
 
+    public async Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        var regularSeasons = await dbContext.Seasons
+            .AsNoTracking()
+            .Where(season => season.TvShowId == tvShowId && season.SeasonNumber >= 1)
+            .Select(season => new { season.SeasonNumber, season.EpisodeCount })
+            .ToListAsync(cancellationToken);
+
+        if (regularSeasons.Count == 0)
+        {
+            return true;
+        }
+
+        var seasonsWithEpisodes = await GetRegularSeasonNumbersWithEpisodesAsync(tvShowId, cancellationToken);
+
+        return regularSeasons.Any(season =>
+            season.EpisodeCount != 0 && !seasonsWithEpisodes.Contains(season.SeasonNumber));
+    }
+
     public Task<Season> UpsertFromProviderAsync(
         Guid tvShowId,
         SeasonProviderDetails details,

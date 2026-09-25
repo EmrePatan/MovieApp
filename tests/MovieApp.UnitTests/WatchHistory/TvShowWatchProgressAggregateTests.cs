@@ -86,6 +86,25 @@ public sealed class TvShowWatchProgressAggregateTests
     }
 
     [Fact]
+    public async Task BulkUpdateTvShowWatchStateSkipsSeasonSummaryWhenCatalogComplete()
+    {
+        var summaryHydrator = new TrackingSeasonSummaryHydrator(CreateTvShowWithSeasons(
+        [
+            CreateSeason(1, episodeCount: 10),
+            CreateSeason(2, episodeCount: 10),
+        ]));
+        var service = CreateBulkWatchStateService(
+            summaryHydrator.TvShow,
+            new HydratedSeasonRepository([1, 2], summaryHydrator.TvShow.Seasons),
+            new TrackingGetSeasonService(),
+            summaryHydrator);
+
+        await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
+
+        Assert.Equal(0, summaryHydrator.EnsureSeasonSummariesCalls);
+    }
+
+    [Fact]
     public async Task BulkUpdateTvShowWatchStateSkipsAlreadyHydratedSeasons()
     {
         var getSeasonService = new TrackingGetSeasonService();
@@ -102,7 +121,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeMovieRepository(),
             new TrackingEpisodeRepository(),
             new FakeTvShowRepository(tvShow),
-            new HydratedSeasonRepository([1, 2]),
+            new HydratedSeasonRepository([1, 2], tvShow.Seasons),
             getSeasonService,
             new FakeSeasonSummaryHydrator(tvShow),
             new FakeCatalogSyncStateService(),
@@ -129,7 +148,7 @@ public sealed class TvShowWatchProgressAggregateTests
         ]);
         var service = CreateBulkWatchStateService(
             tvShow,
-            new HydratedSeasonRepository([1, 2, 3]),
+            new HydratedSeasonRepository([1, 2, 3], tvShow.Seasons),
             getSeasonService);
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
@@ -149,7 +168,7 @@ public sealed class TvShowWatchProgressAggregateTests
         ]);
         var service = CreateBulkWatchStateService(
             tvShow,
-            new HydratedSeasonRepository([1]),
+            new HydratedSeasonRepository([1], tvShow.Seasons),
             getSeasonService);
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
@@ -172,7 +191,7 @@ public sealed class TvShowWatchProgressAggregateTests
         ]);
         var service = CreateBulkWatchStateService(
             tvShow,
-            new HydratedSeasonRepository([1, 2, 3]),
+            new HydratedSeasonRepository([1, 2, 3], tvShow.Seasons),
             getSeasonService);
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
@@ -306,7 +325,8 @@ public sealed class TvShowWatchProgressAggregateTests
     private static WatchHistoryService CreateBulkWatchStateService(
         TvShow tvShow,
         ISeasonRepository seasonRepository,
-        TrackingGetSeasonService getSeasonService) =>
+        TrackingGetSeasonService getSeasonService,
+        ITvShowSeasonSummaryHydrator? seasonSummaryHydrator = null) =>
         new(
             new FakeCurrentUser(UserId),
             new FakeWatchedMovieRepository(),
@@ -316,7 +336,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new FakeTvShowRepository(tvShow),
             seasonRepository,
             getSeasonService,
-            new FakeSeasonSummaryHydrator(tvShow),
+            seasonSummaryHydrator ?? new FakeSeasonSummaryHydrator(tvShow),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
             NullLogger<WatchHistoryService>.Instance);
@@ -410,9 +430,16 @@ public sealed class TvShowWatchProgressAggregateTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
+
+        public Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
-    private sealed class HydratedSeasonRepository(IReadOnlyCollection<int> seasonNumbers) : ISeasonRepository
+    private sealed class HydratedSeasonRepository(
+        IReadOnlyCollection<int> seasonNumbers,
+        IEnumerable<Season>? regularSeasonMetadata = null) : ISeasonRepository
     {
         public Task<Season?> GetByTvShowIdAndSeasonNumberAsync(
             Guid tvShowId,
@@ -442,6 +469,21 @@ public sealed class TvShowWatchProgressAggregateTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<int>>(seasonNumbers.ToHashSet());
+
+        public Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default)
+        {
+            if (regularSeasonMetadata is not null && regularSeasonMetadata.Any())
+            {
+                var needs = regularSeasonMetadata
+                    .Where(season => season.SeasonNumber >= 1 && season.EpisodeCount != 0)
+                    .Any(season => !seasonNumbers.Contains(season.SeasonNumber));
+                return Task.FromResult(needs);
+            }
+
+            return Task.FromResult(seasonNumbers.Count == 0);
+        }
     }
 
     private class FakeWatchedEpisodeRepository(
@@ -840,6 +882,23 @@ public sealed class TvShowWatchProgressAggregateTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new TvShowSeasonSummaryHydrationResult(_tvShow, ProviderCatalogRefreshed: false));
+    }
+
+    private sealed class TrackingSeasonSummaryHydrator : ITvShowSeasonSummaryHydrator
+    {
+        public TrackingSeasonSummaryHydrator(TvShow tvShow) => TvShow = tvShow;
+
+        public TvShow TvShow { get; }
+
+        public int EnsureSeasonSummariesCalls { get; private set; }
+
+        public Task<TvShowSeasonSummaryHydrationResult> EnsureSeasonSummariesAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureSeasonSummariesCalls++;
+            return Task.FromResult(new TvShowSeasonSummaryHydrationResult(TvShow, ProviderCatalogRefreshed: false));
+        }
     }
 
     private sealed class FakeCatalogSyncStateService : ITvShowCatalogSyncStateService
