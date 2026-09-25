@@ -352,6 +352,88 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
     }
 
     [Fact]
+    public async Task GetFollowedUpcomingCatalogAsync_OrdersMoviesAndEpisodesGlobally()
+    {
+        await using var context = CreateContext();
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Mid Movie",
+            ReleaseDate = Today.AddDays(5),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.CatalogFollows.Add(CatalogFollow.CreateMovieFollow(UserId, movieId, utcNow));
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Soon Show",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(2), name: "Soon")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var (items, totalCount) = await repository.GetFollowedUpcomingCatalogAsync(UserId, 1, 10, Today, "TR");
+
+        Assert.Equal(2, totalCount);
+        Assert.Equal(["Soon Show", "Mid Movie"], items.Select(item => item.Title).ToList());
+        Assert.Equal(CatalogUpcomingKind.TvEpisode, items[0].UpcomingKind);
+        Assert.Equal(CatalogUpcomingKind.MovieRelease, items[1].UpcomingKind);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingCatalogAsync_ReturnsRequestedPageWithoutLoadingEarlierPages()
+    {
+        await using var context = CreateContext();
+        for (var index = 0; index < 5; index++)
+        {
+            await SeedTvShowWithEpisodesAsync(
+                context,
+                followUserId: UserId,
+                title: $"Show {index}",
+                episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(index + 1), name: $"E{index}")]);
+        }
+
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var (pageOne, totalCount) = await repository.GetFollowedUpcomingCatalogAsync(UserId, 1, 2, Today, "TR");
+        var (pageTwo, _) = await repository.GetFollowedUpcomingCatalogAsync(UserId, 2, 2, Today, "TR");
+        var (pagePastEnd, _) = await repository.GetFollowedUpcomingCatalogAsync(UserId, 4, 2, Today, "TR");
+
+        Assert.Equal(5, totalCount);
+        Assert.Equal(2, pageOne.Count);
+        Assert.Equal(["Show 0", "Show 1"], pageOne.Select(item => item.Title).ToList());
+        Assert.Equal(["Show 2", "Show 3"], pageTwo.Select(item => item.Title).ToList());
+        Assert.Empty(pagePastEnd);
+    }
+
+    [Fact]
+    public void FollowedUpcomingPaging_AppliesTakeInSqlPerSource()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Database=movieapp;Username=postgres;Password=postgres")
+            .Options;
+        using var context = new ApplicationDbContext(options);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var movieSql = repository
+            .FollowedMovieUpcomingRowsQuery(UserId, Today, "TR")
+            .OrderBy(row => row.ReleaseDate)
+            .ThenBy(row => row.UpcomingKind)
+            .ThenBy(row => row.ContentType)
+            .ThenBy(row => row.ContentId)
+            .ThenBy(row => row.EpisodeId)
+            .Take(3)
+            .ToQueryString();
+
+        var episodeSql = repository.FollowedTvNextEpisodeQuery(UserId, Today).ToQueryString();
+
+        Assert.Contains("LIMIT", movieSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ROW_NUMBER()", episodeSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("OFFSET", movieSql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetUpcomingCatalogAsync_PagePastTheEndDoesNotOverflowOrLoadRows()
     {
         await using var context = CreateContext();
