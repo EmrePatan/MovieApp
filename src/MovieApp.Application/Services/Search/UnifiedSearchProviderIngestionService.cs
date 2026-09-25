@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.Persistence;
@@ -16,7 +17,8 @@ public sealed class UnifiedSearchProviderIngestionService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IPersonRepository personRepository,
-    ILogger<UnifiedSearchProviderIngestionService> logger) : IUnifiedSearchProviderIngestionService
+    ILogger<UnifiedSearchProviderIngestionService> logger,
+    IServiceScopeFactory? scopeFactory = null) : IUnifiedSearchProviderIngestionService
 {
     public async Task<UnifiedSearchProviderIngestionResult> IngestAsync(
         SearchCriteria criteria,
@@ -170,26 +172,11 @@ public sealed class UnifiedSearchProviderIngestionService(
         var tvSummariesForIngest = tvIngestResult ?? tvSearchResult;
         var personSummariesForIngest = personIngestResult ?? personSearchResult;
 
-        if (movieSummariesForIngest is not null)
-        {
-            movieIds = await movieRepository.EnsureFromSummariesAsync(
-                movieSummariesForIngest.Results,
-                cancellationToken);
-        }
-
-        if (tvSummariesForIngest is not null)
-        {
-            tvIds = await tvShowRepository.EnsureFromSummariesAsync(
-                tvSummariesForIngest.Results,
-                cancellationToken);
-        }
-
-        if (personSummariesForIngest is not null)
-        {
-            personIds = await personRepository.EnsureFromSummariesAsync(
-                personSummariesForIngest.Results,
-                cancellationToken);
-        }
+        (movieIds, tvIds, personIds) = await EnsureCatalogIdsAsync(
+            movieSummariesForIngest?.Results,
+            tvSummariesForIngest?.Results,
+            personSummariesForIngest?.Results,
+            cancellationToken);
 
         var result = ProviderSearchMapper.MergeProviderResults(
             criteria,
@@ -299,17 +286,11 @@ public sealed class UnifiedSearchProviderIngestionService(
             catalogTargets,
             personIngestResult);
 
-        var movieIds = movieIngestSummaries.Count == 0
-            ? new Dictionary<int, Guid>()
-            : await movieRepository.EnsureFromSummariesAsync(movieIngestSummaries, cancellationToken);
-
-        var tvIds = tvIngestSummaries.Count == 0
-            ? new Dictionary<int, Guid>()
-            : await tvShowRepository.EnsureFromSummariesAsync(tvIngestSummaries, cancellationToken);
-
-        var personIds = personIngestSummaries.Count == 0
-            ? new Dictionary<int, Guid>()
-            : await personRepository.EnsureFromSummariesAsync(personIngestSummaries, cancellationToken);
+        var (movieIds, tvIds, personIds) = await EnsureCatalogIdsAsync(
+            movieIngestSummaries,
+            tvIngestSummaries,
+            personIngestSummaries,
+            cancellationToken);
 
         var suggestions = ProviderSearchMapper.MergeAutocompleteSuggestions(
             query,
@@ -327,6 +308,84 @@ public sealed class UnifiedSearchProviderIngestionService(
             suggestions.Count);
 
         return suggestions;
+    }
+
+    internal async Task<(
+        IReadOnlyDictionary<int, Guid> Movies,
+        IReadOnlyDictionary<int, Guid> TvShows,
+        IReadOnlyDictionary<int, Guid> People)> EnsureCatalogIdsAsync(
+        IReadOnlyList<MovieProviderSummary>? movies,
+        IReadOnlyList<TvShowProviderSummary>? tvShows,
+        IReadOnlyList<PersonProviderSummary>? people,
+        CancellationToken cancellationToken)
+    {
+        if (scopeFactory is null)
+        {
+            var movieIds = await EnsureMoviesInlineAsync(movies, cancellationToken);
+            var tvIds = await EnsureTvShowsInlineAsync(tvShows, cancellationToken);
+            var personIds = await EnsurePeopleInlineAsync(people, cancellationToken);
+            return (movieIds, tvIds, personIds);
+        }
+
+        var movieTask = EnsureMoviesInScopeAsync(movies, cancellationToken);
+        var tvTask = EnsureTvShowsInScopeAsync(tvShows, cancellationToken);
+        var personTask = EnsurePeopleInScopeAsync(people, cancellationToken);
+        await Task.WhenAll(movieTask, tvTask, personTask);
+        return (await movieTask, await tvTask, await personTask);
+    }
+
+    private Task<IReadOnlyDictionary<int, Guid>> EnsureMoviesInlineAsync(
+        IReadOnlyList<MovieProviderSummary>? summaries,
+        CancellationToken cancellationToken) =>
+        summaries is null
+            ? Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>())
+            : movieRepository.EnsureFromSummariesAsync(summaries, cancellationToken);
+
+    private Task<IReadOnlyDictionary<int, Guid>> EnsureTvShowsInlineAsync(
+        IReadOnlyList<TvShowProviderSummary>? summaries,
+        CancellationToken cancellationToken) =>
+        summaries is null
+            ? Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>())
+            : tvShowRepository.EnsureFromSummariesAsync(summaries, cancellationToken);
+
+    private Task<IReadOnlyDictionary<int, Guid>> EnsurePeopleInlineAsync(
+        IReadOnlyList<PersonProviderSummary>? summaries,
+        CancellationToken cancellationToken) =>
+        summaries is null
+            ? Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>())
+            : personRepository.EnsureFromSummariesAsync(summaries, cancellationToken);
+
+    private Task<IReadOnlyDictionary<int, Guid>> EnsureMoviesInScopeAsync(
+        IReadOnlyList<MovieProviderSummary>? summaries,
+        CancellationToken cancellationToken) =>
+        summaries is null || summaries.Count == 0
+            ? Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>())
+            : RunInScopeAsync(serviceProvider => serviceProvider
+                .GetRequiredService<IMovieRepository>()
+                .EnsureFromSummariesAsync(summaries, cancellationToken));
+
+    private Task<IReadOnlyDictionary<int, Guid>> EnsureTvShowsInScopeAsync(
+        IReadOnlyList<TvShowProviderSummary>? summaries,
+        CancellationToken cancellationToken) =>
+        summaries is null || summaries.Count == 0
+            ? Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>())
+            : RunInScopeAsync(serviceProvider => serviceProvider
+                .GetRequiredService<ITvShowRepository>()
+                .EnsureFromSummariesAsync(summaries, cancellationToken));
+
+    private Task<IReadOnlyDictionary<int, Guid>> EnsurePeopleInScopeAsync(
+        IReadOnlyList<PersonProviderSummary>? summaries,
+        CancellationToken cancellationToken) =>
+        summaries is null || summaries.Count == 0
+            ? Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>())
+            : RunInScopeAsync(serviceProvider => serviceProvider
+                .GetRequiredService<IPersonRepository>()
+                .EnsureFromSummariesAsync(summaries, cancellationToken));
+
+    private async Task<T> RunInScopeAsync<T>(Func<IServiceProvider, Task<T>> work)
+    {
+        using var scope = scopeFactory!.CreateScope();
+        return await work(scope.ServiceProvider);
     }
 
     private async Task<(MovieProviderSearchResult? Result, bool Succeeded)> SearchMoviesSafeAsync(

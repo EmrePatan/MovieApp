@@ -66,6 +66,24 @@ public sealed class DetailChildEndpointPerformanceTests
     }
 
     [Fact]
+    public async Task GetSeasonAsyncUsesExternalIdsInsteadOfTvShowGraph()
+    {
+        var repository = new ExternalIdOnlyTvShowRepository();
+        var service = new GetSeasonService(
+            repository,
+            new ReadySeasonRepository(),
+            new CountingTvShowDataProvider(),
+            new FakeExternalIdResolver(),
+            new NoOpCatalogSyncStateService(),
+            new InMemoryCacheService());
+
+        var season = await service.GetSeasonAsync(TvShowId, 1);
+
+        Assert.Equal(0, repository.GetByIdCallCount);
+        Assert.Equal(1, season.SeasonNumber);
+    }
+
+    [Fact]
     public async Task GetEpisodeAsyncReusesProviderSeasonWhenSeasonAndEpisodeAreHydratedInOneRequest()
     {
         var provider = new CountingTvShowDataProvider();
@@ -139,6 +157,82 @@ public sealed class DetailChildEndpointPerformanceTests
 
         public Task<CreditsResult> GetTvShowCreditsAsync(int tmdbId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new CreditsResult([], []));
+    }
+
+    private sealed class ExternalIdOnlyTvShowRepository : ITvShowRepository
+    {
+        public int GetByIdCallCount { get; private set; }
+
+        public Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            GetByIdCallCount++;
+            throw new InvalidOperationException("Season reads must not load the TV show graph.");
+        }
+
+        public Task<TvShowExternalIds?> GetExternalIdsByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvShowExternalIds?>(new TvShowExternalIds(900101, null, null));
+
+        public Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShow> UpsertFromProviderAsync(
+            TvShowProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class ReadySeasonRepository : ISeasonRepository
+    {
+        public Task<Season?> GetByTvShowIdAndSeasonNumberAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Season?>(new Season
+            {
+                Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                TvShowId = tvShowId,
+                SeasonNumber = seasonNumber,
+                Name = "Season 1",
+                EpisodeCount = 1,
+                Episodes =
+                [
+                    new Episode
+                    {
+                        Id = Guid.NewGuid(),
+                        EpisodeNumber = 1,
+                        Name = "Pilot",
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                ],
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+        public Task<Season> UpsertFromProviderAsync(
+            Guid tvShowId,
+            SeasonProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task UpsertSeasonsFromProviderAsync(
+            Guid tvShowId,
+            IReadOnlyList<SeasonProviderDetails> details,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<Season> UpsertSummaryFromProviderAsync(
+            Guid tvShowId,
+            SeasonProviderSummary summary,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlySet<int>> GetRegularSeasonNumbersWithEpisodesAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<int>>(new HashSet<int>());
     }
 
     private sealed class FakeTvShowRepository(TvShow tvShow) : ITvShowRepository

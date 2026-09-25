@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -25,7 +26,8 @@ public sealed class RecommendationService(
     ICacheService cacheService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     IOptions<RecommendationOptions> options,
-    ILogger<RecommendationService> logger) : IRecommendationService
+    ILogger<RecommendationService> logger,
+    IServiceScopeFactory? scopeFactory = null) : IRecommendationService
 {
     private static readonly TimeSpan SimilarCacheTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan PersonalizedCacheTtl = TimeSpan.FromMinutes(5);
@@ -399,23 +401,49 @@ public sealed class RecommendationService(
     {
         var sections = new List<RecommendationSection>();
         var sectionSize = _options.HomeSectionItemCount;
+        var criteria = new RecommendationCriteria(RecommendationContentType.All, 1, sectionSize);
 
         var personalizedStopwatch = Stopwatch.StartNew();
-        var recommended = await BuildPersonalizedRecommendationsAsync(
-            context,
-            new RecommendationCriteria(RecommendationContentType.All, 1, sectionSize),
-            cancellationToken,
-            emitPerfLogs: true);
-        personalizedStopwatch.Stop();
+        var becauseYouWatchedStopwatch = Stopwatch.StartNew();
+        PaginatedResult<RecommendationItem> recommended;
+        IReadOnlyList<RecommendationItem> becauseYouWatched;
+
+        if (scopeFactory is null)
+        {
+            recommended = await BuildPersonalizedRecommendationsAsync(
+                context,
+                criteria,
+                cancellationToken,
+                emitPerfLogs: true);
+            personalizedStopwatch.Stop();
+
+            becauseYouWatched = await BuildBecauseYouWatchedSectionAsync(context, sectionSize, cancellationToken);
+            becauseYouWatchedStopwatch.Stop();
+        }
+        else
+        {
+            var recommendedTask = RunIsolatedAsync(
+                (service, ct) => service.BuildPersonalizedRecommendationsAsync(
+                    context,
+                    criteria,
+                    ct,
+                    emitPerfLogs: true),
+                cancellationToken);
+            var becauseYouWatchedTask = RunIsolatedAsync(
+                (service, ct) => service.BuildBecauseYouWatchedSectionAsync(context, sectionSize, ct),
+                cancellationToken);
+
+            await Task.WhenAll(recommendedTask, becauseYouWatchedTask);
+            recommended = await recommendedTask;
+            becauseYouWatched = await becauseYouWatchedTask;
+            personalizedStopwatch.Stop();
+            becauseYouWatchedStopwatch.Stop();
+        }
 
         sections.Add(CreateSection(
             "recommended-for-you",
             "Recommended For You",
             recommended.Items));
-
-        var becauseYouWatchedStopwatch = Stopwatch.StartNew();
-        var becauseYouWatched = await BuildBecauseYouWatchedSectionAsync(context, sectionSize, cancellationToken);
-        becauseYouWatchedStopwatch.Stop();
 
         if (becauseYouWatched.Count > 0)
         {
@@ -423,6 +451,20 @@ public sealed class RecommendationService(
         }
 
         return (sections, personalizedStopwatch.ElapsedMilliseconds, becauseYouWatchedStopwatch.ElapsedMilliseconds);
+    }
+
+    private async Task<T> RunIsolatedAsync<T>(
+        Func<RecommendationService, CancellationToken, Task<T>> work,
+        CancellationToken cancellationToken)
+    {
+        using var scope = scopeFactory!.CreateScope();
+        if (scope.ServiceProvider.GetRequiredService<IRecommendationService>() is not RecommendationService service)
+        {
+            throw new InvalidOperationException(
+                "Home recommendation isolation requires RecommendationService.");
+        }
+
+        return await work(service, cancellationToken);
     }
 
     internal static List<UserBehaviorSignal> SelectBecauseYouWatchedSources(

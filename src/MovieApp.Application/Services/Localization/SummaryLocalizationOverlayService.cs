@@ -25,11 +25,8 @@ public sealed class SummaryLocalizationOverlayService(
             return canonical;
         }
 
-        var localizedItems = new List<SearchItem>(canonical.Items.Count);
-        foreach (var item in canonical.Items)
-        {
-            localizedItems.Add(await ApplyToSearchItemAsync(item, contentLocale, cancellationToken));
-        }
+        var localizedItems = await Task.WhenAll(
+            canonical.Items.Select(item => ApplyToSearchItemAsync(item, contentLocale, cancellationToken)));
 
         return canonical with { Items = localizedItems };
     }
@@ -44,24 +41,8 @@ public sealed class SummaryLocalizationOverlayService(
             return canonical;
         }
 
-        var localizedSuggestions = new List<SearchSuggestion>(canonical.Count);
-        foreach (var suggestion in canonical)
-        {
-            if (suggestion.TmdbId is not > 0)
-            {
-                localizedSuggestions.Add(suggestion);
-                continue;
-            }
-
-            var localizedTitle = await ResolveLocalizedTitleAsync(
-                suggestion.Type,
-                suggestion.TmdbId.Value,
-                suggestion.Title,
-                contentLocale,
-                cancellationToken);
-
-            localizedSuggestions.Add(suggestion with { Title = localizedTitle });
-        }
+        var localizedSuggestions = await Task.WhenAll(
+            canonical.Select(suggestion => LocalizeSuggestionAsync(suggestion, contentLocale, cancellationToken)));
 
         return localizedSuggestions;
     }
@@ -77,30 +58,12 @@ public sealed class SummaryLocalizationOverlayService(
         }
 
         var tmdbIdsByContentId = await ResolveTmdbIdsByContentIdsAsync(canonical.Items, cancellationToken);
-        var localizedItems = new List<RecommendationItem>(canonical.Items.Count);
-
-        foreach (var item in canonical.Items)
-        {
-            if (!tmdbIdsByContentId.TryGetValue(item.Id, out var tmdbId))
-            {
-                localizedItems.Add(item);
-                continue;
-            }
-
-            var localizedFields = await ResolveLocalizedFieldsAsync(
-                item.Type,
-                tmdbId,
-                item.Title,
-                item.Overview,
+        var localizedItems = await Task.WhenAll(
+            canonical.Items.Select(item => LocalizeRecommendationItemAsync(
+                item,
+                tmdbIdsByContentId,
                 contentLocale,
-                cancellationToken);
-
-            localizedItems.Add(item with
-            {
-                Title = localizedFields.Title,
-                Overview = localizedFields.Overview
-            });
-        }
+                cancellationToken)));
 
         return canonical with { Items = localizedItems };
     }
@@ -138,31 +101,13 @@ public sealed class SummaryLocalizationOverlayService(
         var localizedSections = new List<RecommendationSection>(canonical.Count);
         foreach (var section in canonical)
         {
-            var localizedItems = new List<RecommendationItem>(section.Items.Count);
             var tmdbIdsByContentId = await ResolveTmdbIdsByContentIdsAsync(section.Items, cancellationToken);
-
-            foreach (var item in section.Items)
-            {
-                if (!tmdbIdsByContentId.TryGetValue(item.Id, out var tmdbId))
-                {
-                    localizedItems.Add(item);
-                    continue;
-                }
-
-                var localizedFields = await ResolveLocalizedFieldsAsync(
-                    item.Type,
-                    tmdbId,
-                    item.Title,
-                    item.Overview,
+            var localizedItems = await Task.WhenAll(
+                section.Items.Select(item => LocalizeRecommendationItemAsync(
+                    item,
+                    tmdbIdsByContentId,
                     contentLocale,
-                    cancellationToken);
-
-                localizedItems.Add(item with
-                {
-                    Title = localizedFields.Title,
-                    Overview = localizedFields.Overview
-                });
-            }
+                    cancellationToken)));
 
             localizedSections.Add(section with { Items = localizedItems });
         }
@@ -192,39 +137,127 @@ public sealed class SummaryLocalizationOverlayService(
         var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
         var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
 
-        var localizedItems = new List<HomeItem>(items.Count);
-        foreach (var item in items)
+        return await Task.WhenAll(
+            items.Select(item => LocalizeHomeItemAsync(
+                item,
+                movieTmdbIds,
+                tvTmdbIds,
+                contentLocale,
+                cancellationToken)));
+    }
+
+    private async Task<SearchSuggestion> LocalizeSuggestionAsync(
+        SearchSuggestion suggestion,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (suggestion.TmdbId is not > 0)
         {
-            if (string.Equals(item.ContentType, "movie", StringComparison.OrdinalIgnoreCase) &&
-                movieTmdbIds.TryGetValue(item.Id, out var movieTmdbId))
-            {
-                var localizedTitle = await ResolveLocalizedTitleAsync(
-                    "movie",
-                    movieTmdbId,
-                    item.Title,
-                    contentLocale,
-                    cancellationToken);
-                localizedItems.Add(item with { Title = localizedTitle });
-                continue;
-            }
-
-            if (string.Equals(item.ContentType, "tv", StringComparison.OrdinalIgnoreCase) &&
-                tvTmdbIds.TryGetValue(item.Id, out var tvTmdbId))
-            {
-                var localizedTitle = await ResolveLocalizedTitleAsync(
-                    "tv",
-                    tvTmdbId,
-                    item.Title,
-                    contentLocale,
-                    cancellationToken);
-                localizedItems.Add(item with { Title = localizedTitle });
-                continue;
-            }
-
-            localizedItems.Add(item);
+            return suggestion;
         }
 
-        return localizedItems;
+        var localizedTitle = await ResolveLocalizedTitleAsync(
+            suggestion.Type,
+            suggestion.TmdbId.Value,
+            suggestion.Title,
+            contentLocale,
+            cancellationToken);
+
+        return suggestion with { Title = localizedTitle };
+    }
+
+    private async Task<RecommendationItem> LocalizeRecommendationItemAsync(
+        RecommendationItem item,
+        IReadOnlyDictionary<Guid, int> tmdbIdsByContentId,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (!tmdbIdsByContentId.TryGetValue(item.Id, out var tmdbId))
+        {
+            return item;
+        }
+
+        var localizedFields = await ResolveLocalizedFieldsAsync(
+            item.Type,
+            tmdbId,
+            item.Title,
+            item.Overview,
+            contentLocale,
+            cancellationToken);
+
+        return item with
+        {
+            Title = localizedFields.Title,
+            Overview = localizedFields.Overview
+        };
+    }
+
+    private async Task<HomeItem> LocalizeHomeItemAsync(
+        HomeItem item,
+        IReadOnlyDictionary<Guid, int> movieTmdbIds,
+        IReadOnlyDictionary<Guid, int> tvTmdbIds,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(item.ContentType, "movie", StringComparison.OrdinalIgnoreCase) &&
+            movieTmdbIds.TryGetValue(item.Id, out var movieTmdbId))
+        {
+            var localizedTitle = await ResolveLocalizedTitleAsync(
+                "movie",
+                movieTmdbId,
+                item.Title,
+                contentLocale,
+                cancellationToken);
+            return item with { Title = localizedTitle };
+        }
+
+        if (string.Equals(item.ContentType, "tv", StringComparison.OrdinalIgnoreCase) &&
+            tvTmdbIds.TryGetValue(item.Id, out var tvTmdbId))
+        {
+            var localizedTitle = await ResolveLocalizedTitleAsync(
+                "tv",
+                tvTmdbId,
+                item.Title,
+                contentLocale,
+                cancellationToken);
+            return item with { Title = localizedTitle };
+        }
+
+        return item;
+    }
+
+    private async Task<CatalogUpcomingItemResult> LocalizeUpcomingItemAsync(
+        CatalogUpcomingItemResult item,
+        IReadOnlyDictionary<Guid, int> movieTmdbIds,
+        IReadOnlyDictionary<Guid, int> tvTmdbIds,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (item.ContentType == Domain.Enums.CatalogContentType.Movie &&
+            movieTmdbIds.TryGetValue(item.ContentId, out var movieTmdbId))
+        {
+            var localizedTitle = await ResolveLocalizedTitleAsync(
+                "movie",
+                movieTmdbId,
+                item.Title,
+                contentLocale,
+                cancellationToken);
+            return item with { Title = localizedTitle };
+        }
+
+        if (item.ContentType == Domain.Enums.CatalogContentType.Tv &&
+            tvTmdbIds.TryGetValue(item.ContentId, out var tvTmdbId))
+        {
+            var localizedTitle = await ResolveLocalizedTitleAsync(
+                "tv",
+                tvTmdbId,
+                item.Title,
+                contentLocale,
+                cancellationToken);
+            return item with { Title = localizedTitle };
+        }
+
+        return item;
     }
 
     private async Task<SearchItem> ApplyToSearchItemAsync(
@@ -377,38 +410,12 @@ public sealed class SummaryLocalizationOverlayService(
         var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
         var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
 
-        var localizedItems = new List<CatalogUpcomingItemResult>(canonical.Count);
-        foreach (var item in canonical)
-        {
-            if (item.ContentType == Domain.Enums.CatalogContentType.Movie &&
-                movieTmdbIds.TryGetValue(item.ContentId, out var movieTmdbId))
-            {
-                var localizedTitle = await ResolveLocalizedTitleAsync(
-                    "movie",
-                    movieTmdbId,
-                    item.Title,
-                    contentLocale,
-                    cancellationToken);
-                localizedItems.Add(item with { Title = localizedTitle });
-                continue;
-            }
-
-            if (item.ContentType == Domain.Enums.CatalogContentType.Tv &&
-                tvTmdbIds.TryGetValue(item.ContentId, out var tvTmdbId))
-            {
-                var localizedTitle = await ResolveLocalizedTitleAsync(
-                    "tv",
-                    tvTmdbId,
-                    item.Title,
-                    contentLocale,
-                    cancellationToken);
-                localizedItems.Add(item with { Title = localizedTitle });
-                continue;
-            }
-
-            localizedItems.Add(item);
-        }
-
-        return localizedItems;
+        return await Task.WhenAll(
+            canonical.Select(item => LocalizeUpcomingItemAsync(
+                item,
+                movieTmdbIds,
+                tvTmdbIds,
+                contentLocale,
+                cancellationToken)));
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -56,6 +57,21 @@ public sealed class RecommendationQueryFanOutTests
 
         Assert.Equal(3, sections.Count);
         Assert.Equal(3, discovery.CallCount);
+    }
+
+    [Fact]
+    public async Task PersonalizedHomeSectionsOverlapWhenIsolatedScopesAreConfigured()
+    {
+        var gate = new ParallelSectionGate();
+        var repository = new CountingRecommendationRepository { SectionGate = gate };
+        var service = CreateService(
+            repository,
+            new CountingDiscoveryService(),
+            scopeFactory: new RecommendationScopeFactory(repository));
+
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+
+        Assert.True(gate.MaxInFlight >= 2);
     }
 
     [Fact]
@@ -132,7 +148,8 @@ public sealed class RecommendationQueryFanOutTests
     private static RecommendationService CreateService(
         IRecommendationRepository repository,
         IDiscoveryService discoveryService,
-        ICacheService? cacheService = null) =>
+        ICacheService? cacheService = null,
+        IServiceScopeFactory? scopeFactory = null) =>
         new(
             repository,
             discoveryService,
@@ -145,7 +162,8 @@ public sealed class RecommendationQueryFanOutTests
                 HomeSectionItemCount = 10,
                 MaximumCandidates = 500
             }),
-            NullLogger<RecommendationService>.Instance);
+            NullLogger<RecommendationService>.Instance,
+            scopeFactory);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -334,6 +352,8 @@ public sealed class RecommendationQueryFanOutTests
 
         public int WatchedSignalCount { get; set; } = 1;
 
+        public ParallelSectionGate? SectionGate { get; init; }
+
         public int GetUserContextCount { get; private set; }
 
         public int GetMovieProfilesBatchCount { get; private set; }
@@ -402,13 +422,13 @@ public sealed class RecommendationQueryFanOutTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<SimilaritySourceProfile?>(null);
 
-        public Task<IReadOnlyDictionary<Guid, SimilaritySourceProfile>> GetMovieSimilarityProfilesAsync(
+        public async Task<IReadOnlyDictionary<Guid, SimilaritySourceProfile>> GetMovieSimilarityProfilesAsync(
             IReadOnlyList<Guid> movieIds,
             CancellationToken cancellationToken = default)
         {
             GetMovieProfilesBatchCount++;
-            return Task.FromResult<IReadOnlyDictionary<Guid, SimilaritySourceProfile>>(
-                movieIds.ToDictionary(id => id, CreateSourceProfile));
+            await EnterSectionGateAsync();
+            return movieIds.ToDictionary(id => id, CreateSourceProfile);
         }
 
         public Task<IReadOnlyDictionary<Guid, SimilaritySourceProfile>> GetTvShowSimilarityProfilesAsync(
@@ -478,14 +498,16 @@ public sealed class RecommendationQueryFanOutTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<SimilarityCandidateProfile>>([]);
 
-        public Task<IReadOnlyList<PersonalizedCandidateProfile>> GetPersonalizedCandidatesAsync(
+        public async Task<IReadOnlyList<PersonalizedCandidateProfile>> GetPersonalizedCandidatesAsync(
             RecommendationContentType type,
             IReadOnlyList<Guid> preferredGenreIds,
             IReadOnlySet<Guid> excludedMovieIds,
             IReadOnlySet<Guid> excludedTvShowIds,
             int maxCandidates,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<PersonalizedCandidateProfile>>(
+            CancellationToken cancellationToken = default)
+        {
+            await EnterSectionGateAsync();
+            return
             [
                 new PersonalizedCandidateProfile(
                     CandidateId,
@@ -503,7 +525,16 @@ public sealed class RecommendationQueryFanOutTests
                     new Dictionary<Guid, string> { [GenreId] = "Action" },
                     [],
                     null)
-            ]);
+            ];
+        }
+
+        private async Task EnterSectionGateAsync()
+        {
+            if (SectionGate is not null)
+            {
+                await SectionGate.EnterAsync();
+            }
+        }
 
         private static SimilaritySourceProfile CreateSourceProfile(Guid movieId) =>
             new(
@@ -532,5 +563,44 @@ public sealed class RecommendationQueryFanOutTests
                 [GenreId],
                 new Dictionary<Guid, string> { [GenreId] = "Action" },
                 []);
+    }
+
+    private sealed class ParallelSectionGate
+    {
+        private int _inFlight;
+
+        public int MaxInFlight { get; private set; }
+
+        public async Task EnterAsync()
+        {
+            var current = Interlocked.Increment(ref _inFlight);
+            lock (this)
+            {
+                if (current > MaxInFlight)
+                {
+                    MaxInFlight = current;
+                }
+            }
+
+            try
+            {
+                await Task.Delay(40);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _inFlight);
+            }
+        }
+    }
+
+    private sealed class RecommendationScopeFactory(IRecommendationRepository repository) : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IRecommendationService>(
+                CreateService(repository, new CountingDiscoveryService()));
+            return services.BuildServiceProvider().CreateScope();
+        }
     }
 }

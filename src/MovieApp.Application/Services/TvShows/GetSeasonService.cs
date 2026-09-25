@@ -37,8 +37,8 @@ public sealed class GetSeasonService(
             return cachedEntry.Result;
         }
 
-        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken);
-        if (tvShow is null)
+        var identity = await tvShowRepository.GetExternalIdsByIdAsync(tvShowId, cancellationToken);
+        if (identity is null)
         {
             throw new NotFoundException($"TV show with id '{tvShowId}' was not found.");
         }
@@ -47,7 +47,7 @@ public sealed class GetSeasonService(
         var providerCatalogRefreshed = false;
         if (season is null || season.Episodes.Count == 0)
         {
-            var externalId = externalIdResolver.Resolve(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
+            var externalId = externalIdResolver.Resolve(identity.TmdbId, identity.TvdbId, identity.ImdbId);
             if (externalId is null)
             {
                 throw new NotFoundException(

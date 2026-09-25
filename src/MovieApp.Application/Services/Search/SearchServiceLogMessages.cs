@@ -34,4 +34,13 @@ internal static partial class SearchServiceLogMessages
         string? query,
         SearchContentType contentType,
         int page);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Warning,
+        Message = "Search history write failed for user {UserId}.")]
+    internal static partial void LogSearchHistoryFailed(
+        ILogger logger,
+        Guid userId,
+        Exception exception);
 }

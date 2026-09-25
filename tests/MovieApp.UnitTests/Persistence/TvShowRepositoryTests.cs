@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
@@ -46,6 +47,25 @@ public sealed class TvShowRepositoryTests
         await repository.UpsertFromProviderAsync(details);
 
         Assert.Equal(3, await context.TvShowGenres.CountAsync());
+    }
+
+    [Fact]
+    public async Task GetExternalIdsByIdAsyncReturnsProviderIds()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"tvshow-repository-external-ids-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new TvShowRepository(context);
+        var created = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
+
+        var identity = await repository.GetExternalIdsByIdAsync(created.Id);
+
+        Assert.NotNull(identity);
+        Assert.Equal(900101, identity.TmdbId);
+        Assert.Equal(900102, identity.TvdbId);
+        Assert.Equal("tt9003747", identity.ImdbId);
     }
 
     [Fact]

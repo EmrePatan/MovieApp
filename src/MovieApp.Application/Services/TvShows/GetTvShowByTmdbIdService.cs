@@ -11,7 +11,6 @@ public sealed class GetTvShowByTmdbIdService(
     ITvShowRepository tvShowRepository,
     ITvShowDataProvider tvShowDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
-    ICatalogKeywordIngestionService catalogKeywordIngestionService,
     IGetTvShowByIdService getTvShowByIdService) : IGetTvShowByTmdbIdService
 {
     public async Task<TvShowDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default)
@@ -38,13 +37,6 @@ public sealed class GetTvShowByTmdbIdService(
                 providerDetails,
                 enrichKeywords: true,
                 cancellationToken);
-        }
-        else
-        {
-            await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
-                tvShow.Id,
-                refreshKeywords: false,
-                cancellationToken: cancellationToken);
         }
 
         return await getTvShowByIdService.GetByIdAsync(tvShow.Id, cancellationToken);

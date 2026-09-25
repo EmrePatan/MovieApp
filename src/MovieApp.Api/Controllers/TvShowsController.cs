@@ -32,7 +32,8 @@ public sealed class TvShowsController(
     IGetTvShowVideosService getTvShowVideosService,
     IGetTvShowImagesService getTvShowImagesService,
     IGetTvShowExternalRatingsService getTvShowExternalRatingsService,
-    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
+    IDetailLocalizationOverlayService detailLocalizationOverlayService,
+    ITvShowExternalIdLookup tvShowExternalIdLookup) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.TvSearch)]
@@ -250,13 +251,18 @@ public sealed class TvShowsController(
     {
         try
         {
-            var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
+            var identity = await tvShowExternalIdLookup.GetAsync(id, cancellationToken);
+            if (identity is null)
+            {
+                throw new NotFoundException($"TV show with id '{id}' was not found.");
+            }
+
             var season = await getSeasonService.GetSeasonAsync(id, seasonNumber, cancellationToken);
-            if (tvShow.TmdbId is > 0)
+            if (identity.TmdbId is > 0)
             {
                 season = await detailLocalizationOverlayService.ApplySeasonOverlayAsync(
                     season,
-                    tvShow.TmdbId.Value,
+                    identity.TmdbId.Value,
                     Request.ResolveContentLocale(),
                     cancellationToken);
             }
@@ -291,18 +297,23 @@ public sealed class TvShowsController(
     {
         try
         {
-            var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
+            var identity = await tvShowExternalIdLookup.GetAsync(id, cancellationToken);
+            if (identity is null)
+            {
+                throw new NotFoundException($"TV show with id '{id}' was not found.");
+            }
+
             var episode = await getEpisodeService.GetEpisodeAsync(
                 id,
                 seasonNumber,
                 episodeNumber,
                 cancellationToken);
 
-            if (tvShow.TmdbId is > 0)
+            if (identity.TmdbId is > 0)
             {
                 episode = await detailLocalizationOverlayService.ApplyEpisodeOverlayAsync(
                     episode,
-                    tvShow.TmdbId.Value,
+                    identity.TmdbId.Value,
                     Request.ResolveContentLocale(),
                     cancellationToken);
             }
