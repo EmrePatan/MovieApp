@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Observability;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -22,7 +24,11 @@ public sealed class WatchHistoryController(IWatchHistoryService watchHistoryServ
     {
         try
         {
+            var serviceStopwatch = Stopwatch.StartNew();
             var result = await watchHistoryService.MarkMovieWatchedAsync(movieId, cancellationToken);
+            serviceStopwatch.Stop();
+            HttpContext.Items[WatchHistoryMutationPerfContext.ServiceMsKey] = serviceStopwatch.ElapsedMilliseconds;
+
             var response = WatchHistoryContractMapper.ToWatchMovieResponse(movieId, result);
 
             return result.Created
@@ -341,10 +347,13 @@ public sealed class WatchHistoryController(IWatchHistoryService watchHistoryServ
     {
         try
         {
+            var serviceStopwatch = Stopwatch.StartNew();
             var result = await watchHistoryService.BulkUpdateTvShowWatchStateAsync(
                 tvShowId,
                 request.Watched,
                 cancellationToken);
+            serviceStopwatch.Stop();
+            HttpContext.Items[WatchHistoryMutationPerfContext.ServiceMsKey] = serviceStopwatch.ElapsedMilliseconds;
 
             return Ok(WatchHistoryContractMapper.ToBulkUpdateEpisodeWatchStateResponse(result));
         }

@@ -15,12 +15,25 @@ internal sealed partial class WatchHistoryMutationHttpTimingMiddleware(
             return;
         }
 
+        context.Items[WatchHistoryMutationPerfContext.PipelineStartTicksKey] = Stopwatch.GetTimestamp();
+
         var stopwatch = Stopwatch.StartNew();
         await next(context);
         stopwatch.Stop();
 
         var correlationId = CorrelationIdAccessor.Get(context) ?? context.TraceIdentifier;
         var catalogId = TryGetCatalogIdFromPath(context.Request.Path);
+
+        var httpTotalMs = stopwatch.ElapsedMilliseconds;
+        var preServiceMs = context.Items.TryGetValue(WatchHistoryMutationPerfContext.PreServiceMsKey, out var preServiceObj) &&
+                           preServiceObj is long measuredPreServiceMs
+            ? measuredPreServiceMs
+            : 0L;
+        var actionTotalMs = context.Items.TryGetValue("WatchHistory.ActionTotalMs", out var actionTotalObj) &&
+                            actionTotalObj is long measuredActionTotalMs
+            ? measuredActionTotalMs
+            : 0L;
+        var httpTailMs = Math.Max(0, httpTotalMs - preServiceMs - actionTotalMs);
 
         LogWatchHistoryMutationHttp(
             logger,
@@ -29,7 +42,10 @@ internal sealed partial class WatchHistoryMutationHttpTimingMiddleware(
             context.Response.StatusCode,
             correlationId,
             catalogId,
-            stopwatch.ElapsedMilliseconds);
+            httpTotalMs,
+            preServiceMs,
+            actionTotalMs,
+            httpTailMs);
     }
 
     private static bool IsWatchHistoryMutation(HttpRequest request) =>
@@ -60,7 +76,7 @@ internal sealed partial class WatchHistoryMutationHttpTimingMiddleware(
     [LoggerMessage(
         EventId = 7101,
         Level = LogLevel.Information,
-        Message = "WatchHistoryPerf MutationHttp Method={Method} Path={Path} StatusCode={StatusCode} CorrelationId={CorrelationId} CatalogId={CatalogId} HttpTotalMs={HttpTotalMs}")]
+        Message = "WatchHistoryPerf MutationHttp Method={Method} Path={Path} StatusCode={StatusCode} CorrelationId={CorrelationId} CatalogId={CatalogId} HttpTotalMs={HttpTotalMs} PreServiceMs={PreServiceMs} ActionTotalMs={ActionTotalMs} HttpTailMs={HttpTailMs}")]
     private static partial void LogWatchHistoryMutationHttp(
         ILogger logger,
         string method,
@@ -68,5 +84,8 @@ internal sealed partial class WatchHistoryMutationHttpTimingMiddleware(
         int statusCode,
         string correlationId,
         string? catalogId,
-        long httpTotalMs);
+        long httpTotalMs,
+        long preServiceMs,
+        long actionTotalMs,
+        long httpTailMs);
 }

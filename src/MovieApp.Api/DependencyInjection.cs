@@ -1,4 +1,5 @@
 using MovieApp.Api.Authentication;
+using MovieApp.Api.Observability;
 using MovieApp.Api.Cors;
 using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
@@ -18,7 +19,8 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
         services.AddApiExceptionHandling();
-        services.AddControllers();
+        services.AddScoped<WatchHistoryMutationPipelineFilter>();
+        services.AddControllers(options => options.Filters.Add<WatchHistoryMutationPipelineFilter>());
         services.AddEndpointsApiExplorer();
         services.AddSwaggerWithBearerAuth();
         services.AddJwtAuthentication(configuration);

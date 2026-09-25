@@ -9,6 +9,7 @@ using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Domain.Enums;
+using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.UnitTests.Caching;
@@ -24,16 +25,21 @@ public sealed class TvShowWatchProgressAggregateTests
     [Fact]
     public async Task GetTvShowWatchProgressAsyncReturnsSeasonBreakdown()
     {
+        var tvShow = CreateTvShow();
+        var episodeRepository = new FakeEpisodeRepository(
+            episodeCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13, [0] = 2 });
+        var seasonRepository = new FakeSeasonRepository();
+        var tvShowRepository = new FakeTvShowRepository(tvShow);
         var service = new WatchHistoryService(
             new FakeCurrentUser(UserId),
             new FakeWatchedMovieRepository(),
             new FakeWatchedEpisodeRepository(
                 watchedCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 12 }),
             new FakeMovieRepository(),
-            new FakeEpisodeRepository(
-                episodeCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13, [0] = 2 }),
-            new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(),
+            episodeRepository,
+            new ComposingTvWatchStatePreparationRepository(tvShowRepository, seasonRepository, episodeRepository),
+            tvShowRepository,
+            seasonRepository,
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
@@ -58,6 +64,30 @@ public sealed class TvShowWatchProgressAggregateTests
     }
 
     [Fact]
+    public async Task BulkUpdateTvShowWatchStateThrowsNotFoundWhenTvShowMissing()
+    {
+        var missingTvShowRepository = new MissingTvShowRepository();
+        var seasonRepository = new FakeSeasonRepository();
+        var episodeRepository = new TrackingEpisodeRepository();
+        var service = new WatchHistoryService(
+            new FakeCurrentUser(UserId),
+            new FakeWatchedMovieRepository(),
+            new TrackingWatchedEpisodeRepository(),
+            new FakeMovieRepository(),
+            episodeRepository,
+            new ComposingTvWatchStatePreparationRepository(missingTvShowRepository, seasonRepository, episodeRepository),
+            missingTvShowRepository,
+            seasonRepository,
+            new TrackingGetSeasonService(),
+            new FakeSeasonSummaryHydrator(),
+            new FakeCatalogSyncStateService(),
+            new FakeUserAnalyticsCacheInvalidator(),
+            NullLogger<WatchHistoryService>.Instance);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true));
+    }
+
+    [Fact]
     public async Task BulkUpdateTvShowWatchStateIngestsRegularSeasonsBeforeBulkMark()
     {
         var getSeasonService = new TrackingGetSeasonService();
@@ -67,19 +97,7 @@ public sealed class TvShowWatchProgressAggregateTests
             new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
             new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
         ];
-        var service = new WatchHistoryService(
-            new FakeCurrentUser(UserId),
-            new FakeWatchedMovieRepository(),
-            new TrackingWatchedEpisodeRepository(),
-            new FakeMovieRepository(),
-            new TrackingEpisodeRepository(),
-            new FakeTvShowRepository(tvShow),
-            new FakeSeasonRepository(),
-            getSeasonService,
-            new FakeSeasonSummaryHydrator(tvShow),
-            new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator(),
-            NullLogger<WatchHistoryService>.Instance);
+        var service = CreateBulkWatchStateService(tvShow, new FakeSeasonRepository(), getSeasonService);
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
 
@@ -115,19 +133,10 @@ public sealed class TvShowWatchProgressAggregateTests
             new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 1, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
             new Season { Id = Guid.NewGuid(), TvShowId = TvShowId, SeasonNumber = 2, EpisodeCount = 10, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
         ];
-        var service = new WatchHistoryService(
-            new FakeCurrentUser(UserId),
-            new FakeWatchedMovieRepository(),
-            new TrackingWatchedEpisodeRepository(),
-            new FakeMovieRepository(),
-            new TrackingEpisodeRepository(),
-            new FakeTvShowRepository(tvShow),
+        var service = CreateBulkWatchStateService(
+            tvShow,
             new HydratedSeasonRepository([1, 2], tvShow.Seasons),
-            getSeasonService,
-            new FakeSeasonSummaryHydrator(tvShow),
-            new FakeCatalogSyncStateService(),
-            new FakeUserAnalyticsCacheInvalidator(),
-            NullLogger<WatchHistoryService>.Instance);
+            getSeasonService);
 
         await service.BulkUpdateTvShowWatchStateAsync(TvShowId, watched: true);
 
@@ -222,14 +231,18 @@ public sealed class TvShowWatchProgressAggregateTests
     {
         var episodeRepository = new TrackingEpisodeRepository();
         var watchedEpisodeRepository = new TrackingWatchedEpisodeRepository();
+        var tvShow = CreateTvShow();
+        var seasonRepository = new FakeSeasonRepository();
+        var tvShowRepository = new FakeTvShowRepository(tvShow);
         var service = new WatchHistoryService(
             new FakeCurrentUser(UserId),
             new FakeWatchedMovieRepository(),
             watchedEpisodeRepository,
             new FakeMovieRepository(),
             episodeRepository,
-            new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(),
+            new ComposingTvWatchStatePreparationRepository(tvShowRepository, seasonRepository, episodeRepository),
+            tvShowRepository,
+            seasonRepository,
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
@@ -246,16 +259,21 @@ public sealed class TvShowWatchProgressAggregateTests
     [Fact]
     public async Task GetTvShowWatchProgressAsyncMarksFullyWatchedWhenOnlyRegularSeasonsComplete()
     {
+        var tvShow = CreateTvShow();
+        var episodeRepository = new FakeEpisodeRepository(
+            episodeCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13, [0] = 2 });
+        var seasonRepository = new FakeSeasonRepository();
+        var tvShowRepository = new FakeTvShowRepository(tvShow);
         var service = new WatchHistoryService(
             new FakeCurrentUser(UserId),
             new FakeWatchedMovieRepository(),
             new FakeWatchedEpisodeRepository(
                 watchedCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13 }),
             new FakeMovieRepository(),
-            new FakeEpisodeRepository(
-                episodeCountsBySeason: new Dictionary<int, int> { [1] = 8, [2] = 13, [0] = 2 }),
-            new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(),
+            episodeRepository,
+            new ComposingTvWatchStatePreparationRepository(tvShowRepository, seasonRepository, episodeRepository),
+            tvShowRepository,
+            seasonRepository,
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
@@ -274,14 +292,18 @@ public sealed class TvShowWatchProgressAggregateTests
     {
         var episodeRepository = new CountingEpisodeRepository();
         var watchedEpisodeRepository = new CountingWatchedEpisodeRepository();
+        var tvShow = CreateTvShow();
+        var seasonRepository = new FakeSeasonRepository();
+        var tvShowRepository = new FakeTvShowRepository(tvShow);
         var service = new WatchHistoryService(
             new FakeCurrentUser(UserId),
             new FakeWatchedMovieRepository(),
             watchedEpisodeRepository,
             new FakeMovieRepository(),
             episodeRepository,
-            new FakeTvShowRepository(CreateTvShow()),
-            new FakeSeasonRepository(),
+            new ComposingTvWatchStatePreparationRepository(tvShowRepository, seasonRepository, episodeRepository),
+            tvShowRepository,
+            seasonRepository,
             new FakeGetSeasonService(),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
@@ -327,20 +349,25 @@ public sealed class TvShowWatchProgressAggregateTests
         TvShow tvShow,
         ISeasonRepository seasonRepository,
         TrackingGetSeasonService getSeasonService,
-        ITvShowSeasonSummaryHydrator? seasonSummaryHydrator = null) =>
-        new(
+        ITvShowSeasonSummaryHydrator? seasonSummaryHydrator = null)
+    {
+        var episodeRepository = new TrackingEpisodeRepository();
+        var tvShowRepository = new FakeTvShowRepository(tvShow);
+        return new WatchHistoryService(
             new FakeCurrentUser(UserId),
             new FakeWatchedMovieRepository(),
             new TrackingWatchedEpisodeRepository(),
             new FakeMovieRepository(),
-            new TrackingEpisodeRepository(),
-            new FakeTvShowRepository(tvShow),
+            episodeRepository,
+            new ComposingTvWatchStatePreparationRepository(tvShowRepository, seasonRepository, episodeRepository),
+            tvShowRepository,
             seasonRepository,
             getSeasonService,
             seasonSummaryHydrator ?? new FakeSeasonSummaryHydrator(tvShow),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
             NullLogger<WatchHistoryService>.Instance);
+    }
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -389,9 +416,20 @@ public sealed class TvShowWatchProgressAggregateTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeTvShowRepository(TvShow tvShow) : ITvShowRepository
+    private sealed class MissingTvShowRepository : FakeTvShowRepository
     {
-        public Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        public MissingTvShowRepository()
+            : base(CreateTvShow())
+        {
+        }
+
+        public override Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvShow?>(null);
+    }
+
+    private class FakeTvShowRepository(TvShow tvShow) : ITvShowRepository
+    {
+        public virtual Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<TvShow?>(tvShow);
 
         public Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>

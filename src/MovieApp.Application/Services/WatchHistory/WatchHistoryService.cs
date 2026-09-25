@@ -24,6 +24,7 @@ public sealed class WatchHistoryService(
     IWatchedEpisodeRepository watchedEpisodeRepository,
     IMovieRepository movieRepository,
     IEpisodeRepository episodeRepository,
+    ITvWatchStatePreparationRepository tvWatchStatePreparationRepository,
     ITvShowRepository tvShowRepository,
     ISeasonRepository seasonRepository,
     IGetSeasonService getSeasonService,
@@ -479,27 +480,40 @@ public sealed class WatchHistoryService(
         var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var ensureTvShowStopwatch = Stopwatch.StartNew();
-        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
-        ensureTvShowStopwatch.Stop();
+        var preparationRoundTrips = 0;
+        var preparationMs = 0L;
+        var preparationStopwatch = Stopwatch.StartNew();
+        var preparation = await tvWatchStatePreparationRepository.PrepareAsync(tvShowId, cancellationToken);
+        preparationStopwatch.Stop();
+        preparationMs += preparationStopwatch.ElapsedMilliseconds;
+        preparationRoundTrips++;
 
-        var ingestionCheckStopwatch = Stopwatch.StartNew();
-        var ingestionCheck = await seasonRepository.CheckRegularEpisodeIngestionRequiredAsync(tvShowId, cancellationToken);
-        ingestionCheckStopwatch.Stop();
+        if (!preparation.TvShowExists)
+        {
+            throw new NotFoundException("The requested TV show was not found.");
+        }
 
         var ensureIngestedMs = 0L;
-        if (ingestionCheck.IsRequired)
+        if (preparation.IngestionRequired)
         {
             var ensureIngestedStopwatch = Stopwatch.StartNew();
             await EnsureRegularSeasonEpisodesIngestedAsync(tvShowId, cancellationToken);
             ensureIngestedStopwatch.Stop();
             ensureIngestedMs = ensureIngestedStopwatch.ElapsedMilliseconds;
+
+            preparationStopwatch.Restart();
+            preparation = await tvWatchStatePreparationRepository.PrepareAsync(tvShowId, cancellationToken);
+            preparationStopwatch.Stop();
+            preparationMs += preparationStopwatch.ElapsedMilliseconds;
+            preparationRoundTrips++;
+
+            if (!preparation.TvShowExists)
+            {
+                throw new NotFoundException("The requested TV show was not found.");
+            }
         }
 
-        var episodeIdsStopwatch = Stopwatch.StartNew();
-        var episodeIds = await episodeRepository.GetEpisodeIdsForRegularSeasonsAsync(tvShowId, cancellationToken);
-        episodeIdsStopwatch.Stop();
-
+        var episodeIds = preparation.EpisodeIds;
         if (episodeIds.Count == 0)
         {
             totalStopwatch.Stop();
@@ -507,11 +521,10 @@ public sealed class WatchHistoryService(
                 tvShowId,
                 watched,
                 totalStopwatch.ElapsedMilliseconds,
-                ensureTvShowStopwatch.ElapsedMilliseconds,
-                ingestionCheckStopwatch.ElapsedMilliseconds,
-                ingestionCheck,
+                preparationMs,
+                preparationRoundTrips,
+                preparation,
                 ensureIngestedMs,
-                episodeIdsStopwatch.ElapsedMilliseconds,
                 episodeCount: 0,
                 bulkWriteMs: 0,
                 affectedCount: 0,
@@ -536,11 +549,10 @@ public sealed class WatchHistoryService(
             tvShowId,
             watched,
             totalStopwatch.ElapsedMilliseconds,
-            ensureTvShowStopwatch.ElapsedMilliseconds,
-            ingestionCheckStopwatch.ElapsedMilliseconds,
-            ingestionCheck,
+            preparationMs,
+            preparationRoundTrips,
+            preparation,
             ensureIngestedMs,
-            episodeIdsStopwatch.ElapsedMilliseconds,
             episodeIds.Count,
             bulkWriteStopwatch.ElapsedMilliseconds,
             affectedCount,
@@ -553,19 +565,18 @@ public sealed class WatchHistoryService(
         Guid tvShowId,
         bool watched,
         long totalMs,
-        long ensureTvShowExistsMs,
-        long ingestionRequiredCheckMs,
-        RegularEpisodeIngestionCheckResult ingestionCheck,
+        long preparationMs,
+        int preparationRoundTrips,
+        TvWatchStatePreparation preparation,
         long ensureIngestedMs,
-        long episodeIdsLoadMs,
         int episodeCount,
         long bulkWriteMs,
         int affectedCount,
         long analyticsDispatchMs)
     {
-        var missingSeasonNumbers = ingestionCheck.MissingSeasonNumbers.Count == 0
+        var missingSeasonNumbers = preparation.MissingSeasonNumbers.Count == 0
             ? "-"
-            : string.Join(',', ingestionCheck.MissingSeasonNumbers.Take(12));
+            : string.Join(',', preparation.MissingSeasonNumbers.Take(12));
 
         WatchHistoryPerfLogMessages.LogTvWatchState(
             logger,
@@ -573,17 +584,14 @@ public sealed class WatchHistoryService(
             correlationId: null,
             watched,
             totalMs,
-            ensureTvShowExistsMs,
-            ingestionRequiredCheckMs,
-            ingestionCheck.CatalogMetadataQueryMs,
-            ingestionCheck.SeasonsWithEpisodesQueryMs,
-            ingestionCheck.IsRequired,
-            ingestionCheck.RegularSeasonCount,
-            ingestionCheck.SeasonsWithEpisodeRowsCount,
-            ingestionCheck.SeasonsMissingEpisodesCount,
+            preparationMs,
+            preparationRoundTrips,
+            preparation.IngestionRequired,
+            preparation.RegularSeasonCount,
+            preparation.SeasonsWithEpisodeRowsCount,
+            preparation.MissingSeasonNumbers.Count,
             missingSeasonNumbers,
             ensureIngestedMs,
-            episodeIdsLoadMs,
             episodeCount,
             bulkWriteMs,
             affectedCount,

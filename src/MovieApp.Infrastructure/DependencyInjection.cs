@@ -201,6 +201,7 @@ public static class DependencyInjection
         services.AddScoped<ISeasonRepository, SeasonRepository>();
 
         services.AddScoped<IEpisodeRepository, EpisodeRepository>();
+        services.AddScoped<ITvWatchStatePreparationRepository, TvWatchStatePreparationRepository>();
 
         services.AddScoped<IUserRepository, UserRepository>();
 
