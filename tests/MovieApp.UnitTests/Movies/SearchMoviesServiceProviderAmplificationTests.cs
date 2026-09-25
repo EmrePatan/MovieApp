@@ -16,6 +16,27 @@ namespace MovieApp.UnitTests.Movies;
 public sealed class SearchMoviesServiceProviderAmplificationTests
 {
     [Fact]
+    public async Task SearchAsyncRequestsKeywordsInBoundedDetailFetch()
+    {
+        var provider = new CountingMovieDataProvider(CreateSummaries(2));
+        var service = new SearchMoviesService(
+            provider,
+            CatalogProviderUpsertTestDoubles.CreateRepositoryBackedUpsertService(new NoOpMovieRepository()),
+            new SearchServiceTestsHelper.FakeCacheService(null),
+            Options.Create(new SearchOptions
+            {
+                MaxProviderDetailFetchesPerContentType = 20,
+                MaxConcurrentProviderHttpRequests = 4
+            }),
+            NullLogger<SearchMoviesService>.Instance);
+
+        await service.SearchAsync(new MovieSearchRequest("batman", 1, 20));
+
+        Assert.Equal(2, provider.DetailIncludeKeywordsCallCount);
+        Assert.Equal(0, provider.DetailWithoutKeywordsCallCount);
+    }
+
+    [Fact]
     public async Task SearchAsyncCapsProviderDetailRequestsToConfiguredMaximum()
     {
         var provider = new CountingMovieDataProvider(CreateSummaries(100));
@@ -58,6 +79,10 @@ public sealed class SearchMoviesServiceProviderAmplificationTests
 
         public int DetailCallCount { get; private set; }
 
+        public int DetailIncludeKeywordsCallCount { get; private set; }
+
+        public int DetailWithoutKeywordsCallCount { get; private set; }
+
         public int TotalProviderHttpCalls => SearchCallCount + DetailCallCount;
 
         public Task<MovieProviderSearchResult> SearchMoviesAsync(
@@ -86,6 +111,15 @@ public sealed class SearchMoviesServiceProviderAmplificationTests
             CancellationToken cancellationToken = default)
         {
             DetailCallCount++;
+            if (includeKeywords)
+            {
+                DetailIncludeKeywordsCallCount++;
+            }
+            else
+            {
+                DetailWithoutKeywordsCallCount++;
+            }
+
             var summary = summaries.Single(item => string.Equals(item.ExternalId, externalId, StringComparison.Ordinal));
             return Task.FromResult<MovieProviderDetails?>(new MovieProviderDetails(
                 summary.ExternalId,

@@ -15,7 +15,7 @@ namespace MovieApp.UnitTests.Keywords;
 public sealed class SummaryIngestionKeywordRegressionTests
 {
     [Fact]
-    public async Task SearchMoviesServicePerformsZeroKeywordProviderCalls()
+    public async Task SearchMoviesServicePerformsZeroSeparateKeywordProviderCallsWhenKeywordsArePrefetched()
     {
         var keywordProvider = new TrackingKeywordsProvider();
         var service = new SearchMoviesService(
@@ -80,7 +80,8 @@ public sealed class SummaryIngestionKeywordRegressionTests
                 null,
                 0,
                 0,
-                []));
+                [],
+                Keywords: includeKeywords ? [] : null));
     }
 
     private sealed class NoOpMovieRepository : IMovieRepository

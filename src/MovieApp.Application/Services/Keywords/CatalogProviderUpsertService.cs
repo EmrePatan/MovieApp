@@ -48,13 +48,15 @@ public sealed class CatalogProviderUpsertService(
             return movies;
         }
 
-        foreach (var movie in movies)
+        for (var index = 0; index < movies.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var prefetchedKeywords = index < details.Count ? details[index].Keywords : null;
             await keywordIngestionService.TryEnrichMovieKeywordsAsync(
-                movie.Id,
+                movies[index].Id,
                 refreshKeywords: true,
-                cancellationToken: cancellationToken);
+                prefetchedKeywords,
+                cancellationToken);
         }
 
         return movies;
@@ -91,13 +93,15 @@ public sealed class CatalogProviderUpsertService(
             return tvShows;
         }
 
-        foreach (var tvShow in tvShows)
+        for (var index = 0; index < tvShows.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var prefetchedKeywords = index < details.Count ? details[index].Keywords : null;
             await keywordIngestionService.TryEnrichTvShowKeywordsAsync(
-                tvShow.Id,
+                tvShows[index].Id,
                 refreshKeywords: true,
-                cancellationToken: cancellationToken);
+                prefetchedKeywords,
+                cancellationToken);
         }
 
         return tvShows;

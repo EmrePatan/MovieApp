@@ -71,7 +71,8 @@ public sealed class SearchTvShowsService(
             {
                 detailSlots[index] = await tvShowDataProvider.GetTvShowAsync(
                     summary.ExternalId,
-                    cancellationToken: ingestCancellationToken);
+                    includeKeywords: true,
+                    ingestCancellationToken);
             },
             cancellationToken);
 

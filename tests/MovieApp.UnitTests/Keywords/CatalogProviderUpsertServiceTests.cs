@@ -25,6 +25,31 @@ public sealed class CatalogProviderUpsertServiceTests
     }
 
     [Fact]
+    public async Task UpsertMoviesFromProviderBatchAsyncPassesPrefetchedKeywordsWhenEnriching()
+    {
+        var movieRepository = new BatchMovieRepository();
+        var keywordIngestion = new PrefetchTrackingKeywordIngestionService();
+        var service = new CatalogProviderUpsertService(
+            movieRepository,
+            new FakeTvShowRepository(),
+            keywordIngestion,
+            new NoOpMovieCatalogDetailsCacheInvalidator());
+
+        var details = new[]
+        {
+            CreateMovieDetails() with { Keywords = [new ProviderKeywordSummary(1, "space")] },
+            CreateMovieDetails() with { TmdbId = 2, ExternalId = "tmdb-2", Keywords = [] }
+        };
+
+        await service.UpsertMoviesFromProviderBatchAsync(details, enrichKeywords: true);
+
+        Assert.Equal(2, keywordIngestion.MovieCalls);
+        Assert.Equal("space", keywordIngestion.LastMoviePrefetchedKeywords![0].Name);
+        Assert.NotNull(keywordIngestion.SecondMoviePrefetchedKeywords);
+        Assert.Empty(keywordIngestion.SecondMoviePrefetchedKeywords!);
+    }
+
+    [Fact]
     public async Task UpsertMovieFromProviderAsyncEnrichesKeywordsWhenRequested()
     {
         var movieRepository = new FakeMovieRepository();
@@ -57,6 +82,66 @@ public sealed class CatalogProviderUpsertServiceTests
             0,
             0,
             []);
+
+    private sealed class BatchMovieRepository : IMovieRepository
+    {
+        public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Movie?>(null);
+
+        public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Movie?>(null);
+
+        public Task<Movie> UpsertFromProviderAsync(MovieProviderDetails details, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Movie>> UpsertFromProviderBatchAsync(
+            IReadOnlyList<MovieProviderDetails> details,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Movie>>(
+                details
+                    .Select(detail => new Movie
+                    {
+                        Id = Guid.NewGuid(),
+                        TmdbId = detail.TmdbId,
+                        Title = detail.Title
+                    })
+                    .ToList());
+    }
+
+    private sealed class PrefetchTrackingKeywordIngestionService : ICatalogKeywordIngestionService
+    {
+        public int MovieCalls { get; private set; }
+
+        public IReadOnlyList<ProviderKeywordSummary>? LastMoviePrefetchedKeywords { get; private set; }
+
+        public IReadOnlyList<ProviderKeywordSummary>? SecondMoviePrefetchedKeywords { get; private set; }
+
+        public Task TryEnrichMovieKeywordsAsync(
+            Guid movieId,
+            bool refreshKeywords,
+            IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null,
+            CancellationToken cancellationToken = default)
+        {
+            MovieCalls++;
+            if (MovieCalls == 1)
+            {
+                LastMoviePrefetchedKeywords = prefetchedKeywords;
+            }
+            else
+            {
+                SecondMoviePrefetchedKeywords = prefetchedKeywords;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task TryEnrichTvShowKeywordsAsync(
+            Guid tvShowId,
+            bool refreshKeywords,
+            IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
 
     private sealed class FakeMovieRepository : IMovieRepository
     {

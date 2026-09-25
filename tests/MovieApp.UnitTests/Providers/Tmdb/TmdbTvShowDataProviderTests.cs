@@ -97,6 +97,37 @@ public sealed class TmdbTvShowDataProviderTests
     }
 
     [Fact]
+    public async Task GetTvShowAsync_WithIncludeKeywords_UsesSingleAppendRequestAndMapsKeywords()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "id": 1399,
+                  "name": "Game of Thrones",
+                  "external_ids": { "imdb_id": "tt0944947" },
+                  "keywords": {
+                    "results": [
+                      { "id": 9715, "name": "dragon" }
+                    ]
+                  }
+                }
+                """)
+        });
+
+        var provider = CreateProvider(handler);
+        var result = await provider.GetTvShowAsync("tmdb-1399", includeKeywords: true);
+
+        Assert.NotNull(result);
+        Assert.Single(result!.Keywords!);
+        Assert.Equal("dragon", result.Keywords![0].Name);
+        Assert.Single(handler.Requests);
+        Assert.Contains("append_to_response=external_ids,keywords", handler.Requests[0].RequestUri?.Query);
+    }
+
+    [Fact]
     public async Task GetTvShowAsyncMapsDetailsResponse()
     {
         var handler = new MockHttpMessageHandler();

@@ -70,7 +70,8 @@ public sealed class SearchMoviesService(
             {
                 detailSlots[index] = await movieDataProvider.GetMovieAsync(
                     summary.ExternalId,
-                    cancellationToken: ingestCancellationToken);
+                    includeKeywords: true,
+                    ingestCancellationToken);
             },
             cancellationToken);
 

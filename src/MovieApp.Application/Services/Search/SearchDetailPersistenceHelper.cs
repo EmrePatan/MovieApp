@@ -27,6 +27,7 @@ internal static class SearchDetailPersistenceHelper
         {
             var movies = await catalogProviderUpsertService.UpsertMoviesFromProviderBatchAsync(
                 details,
+                enrichKeywords: true,
                 cancellationToken: cancellationToken);
             return movies.Select(MovieMapper.ToSearchResult).ToList();
         }
@@ -53,6 +54,7 @@ internal static class SearchDetailPersistenceHelper
 
         var tvShows = await catalogProviderUpsertService.UpsertTvShowsFromProviderBatchAsync(
             details,
+            enrichKeywords: true,
             cancellationToken: cancellationToken);
         return tvShows.Select(TvShowMapper.ToSearchResult).ToList();
     }
@@ -76,6 +78,7 @@ internal static class SearchDetailPersistenceHelper
             {
                 var movie = await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
                     detail,
+                    enrichKeywords: true,
                     cancellationToken: cancellationToken);
                 results.Add(MovieMapper.ToSearchResult(movie));
             }
