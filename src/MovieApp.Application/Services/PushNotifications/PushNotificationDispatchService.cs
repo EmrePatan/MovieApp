@@ -87,6 +87,7 @@ public sealed class PushNotificationDispatchService(
             }
 
             var resultsByDeliveryId = sendResults.ToDictionary(result => result.DeliveryId);
+            var deliveriesById = claimedDeliveries.ToDictionary(delivery => delivery.Id);
 
             foreach (var message in messages)
             {
@@ -96,7 +97,11 @@ public sealed class PushNotificationDispatchService(
                         $"Expo push send response missing delivery {message.DeliveryId}.");
                 }
 
-                var delivery = claimedDeliveries.Single(candidate => candidate.Id == message.DeliveryId);
+                if (!deliveriesById.TryGetValue(message.DeliveryId, out var delivery))
+                {
+                    throw new InvalidOperationException(
+                        $"Claimed push delivery {message.DeliveryId} was not found.");
+                }
                 ApplySendResult(delivery, result, settings.MaxAttempts, utcNow);
 
                 if (result.IsSuccess)

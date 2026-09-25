@@ -87,37 +87,10 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             return await GetWatchedTvShowsAsync(userId, page, pageSize, cancellationToken);
         }
 
-        var movieRows = await dbContext.WatchedMovies
-            .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId)
-            .Select(watchedMovie => new WatchedUnionRow(
-                watchedMovie.MovieId,
-                "movie",
-                watchedMovie.Movie.Title,
-                watchedMovie.Movie.OriginalTitle,
-                watchedMovie.Movie.PosterPath,
-                watchedMovie.Movie.BackdropPath,
-                watchedMovie.Movie.ReleaseDate,
-                null,
-                watchedMovie.Movie.VoteAverage,
-                watchedMovie.WatchedAt,
-                watchedMovie.WatchedAt))
+        var merged = WatchedUnionRows(userId);
+        var totalCount = await merged.CountAsync(cancellationToken);
+        var pageRows = await PageWatchedRows(merged, page, pageSize, includeTypeTieBreak: true)
             .ToListAsync(cancellationToken);
-
-        var tvRows = await GetCompletedTvUnionRowsAsync(userId, cancellationToken);
-
-        var merged = movieRows
-            .Concat(tvRows)
-            .OrderByDescending(row => row.LastActivityAt)
-            .ThenBy(row => row.Type, StringComparer.Ordinal)
-            .ThenBy(row => row.Id)
-            .ToList();
-
-        var totalCount = merged.Count;
-        var pageRows = merged
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
 
         return (pageRows.Select(MapUnionRow).ToList(), totalCount);
     }
@@ -307,48 +280,89 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var rows = await GetCompletedTvUnionRowsAsync(userId, cancellationToken);
-        var totalCount = rows.Count;
+        var rows = CompletedTvShowRows(userId);
+        var totalCount = await rows.CountAsync(cancellationToken);
+        var pageRows = await PageWatchedRows(rows, page, pageSize, includeTypeTieBreak: false)
+            .ToListAsync(cancellationToken);
 
-        var pageRows = rows
-            .OrderByDescending(row => row.LastActivityAt)
-            .ThenBy(row => row.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(MapUnionRow)
-            .ToList();
-
-        return (pageRows, totalCount);
+        return (pageRows.Select(MapUnionRow).ToList(), totalCount);
     }
 
-    private async Task<List<WatchedUnionRow>> GetCompletedTvUnionRowsAsync(
-        Guid userId,
-        CancellationToken cancellationToken)
-    {
-        var rows = await TvShowCompletionQueries.StartedShows(dbContext, userId)
+    internal IQueryable<WatchedUnionRow> WatchedUnionRows(Guid userId) =>
+        WatchedMovieRows(userId).Concat(CompletedTvShowRows(userId));
+
+    internal IQueryable<WatchedUnionRow> CompletedTvShowRows(Guid userId) =>
+        CompletedTvShows(userId)
+            .Select(row => new WatchedUnionRow
+            {
+                Id = row.TvShow.Id,
+                Type = "tv",
+                Title = row.TvShow.Title,
+                OriginalTitle = row.TvShow.OriginalTitle,
+                PosterUrl = row.TvShow.PosterPath,
+                BackdropUrl = row.TvShow.BackdropPath,
+                ReleaseDate = null,
+                FirstAirDate = row.TvShow.FirstAirDate,
+                VoteAverage = row.TvShow.VoteAverage,
+                WatchedAt = row.LastWatchedAt,
+                LastActivityAt = row.LastWatchedAt!.Value
+            });
+
+    private IQueryable<WatchedUnionRow> WatchedMovieRows(Guid userId) =>
+        dbContext.WatchedMovies
+            .AsNoTracking()
+            .Where(watchedMovie => watchedMovie.UserId == userId)
+            .Select(watchedMovie => new WatchedUnionRow
+            {
+                Id = watchedMovie.MovieId,
+                Type = "movie",
+                Title = watchedMovie.Movie.Title,
+                OriginalTitle = watchedMovie.Movie.OriginalTitle,
+                PosterUrl = watchedMovie.Movie.PosterPath,
+                BackdropUrl = watchedMovie.Movie.BackdropPath,
+                ReleaseDate = watchedMovie.Movie.ReleaseDate,
+                FirstAirDate = null,
+                VoteAverage = watchedMovie.Movie.VoteAverage,
+                WatchedAt = watchedMovie.WatchedAt,
+                LastActivityAt = watchedMovie.WatchedAt
+            });
+
+    private IQueryable<CompletedTvJoin> CompletedTvShows(Guid userId) =>
+        TvShowCompletionQueries.StartedShows(dbContext, userId)
             .Where(TvShowCompletionQueries.IsCompleted)
             .Where(show => show.LastWatchedAt != null)
             .Join(
                 dbContext.TvShows.AsNoTracking(),
                 show => show.TvShowId,
                 tvShow => tvShow.Id,
-                (show, tvShow) => new { show.LastWatchedAt, TvShow = tvShow })
-            .ToListAsync(cancellationToken);
+                (show, tvShow) => new CompletedTvJoin
+                {
+                    LastWatchedAt = show.LastWatchedAt,
+                    TvShow = tvShow
+                });
 
-        return rows
-            .Select(row => new WatchedUnionRow(
-                row.TvShow.Id,
-                "tv",
-                row.TvShow.Title,
-                row.TvShow.OriginalTitle,
-                row.TvShow.PosterPath,
-                row.TvShow.BackdropPath,
-                null,
-                row.TvShow.FirstAirDate,
-                row.TvShow.VoteAverage,
-                row.LastWatchedAt,
-                row.LastWatchedAt!.Value))
-            .ToList();
+    private static IQueryable<WatchedUnionRow> PageWatchedRows(
+        IQueryable<WatchedUnionRow> rows,
+        int page,
+        int pageSize,
+        bool includeTypeTieBreak)
+    {
+        IOrderedQueryable<WatchedUnionRow> ordered = includeTypeTieBreak
+            ? rows
+                .OrderByDescending(row => row.LastActivityAt)
+                .ThenBy(row => row.Type)
+                .ThenBy(row => row.Id)
+            : rows
+                .OrderByDescending(row => row.LastActivityAt)
+                .ThenBy(row => row.Id);
+
+        return ordered.Skip(GetPageSkip(page, pageSize)).Take(pageSize);
+    }
+
+    private static int GetPageSkip(int page, int pageSize)
+    {
+        var skip = (long)(page - 1) * pageSize;
+        return skip > int.MaxValue ? int.MaxValue : (int)skip;
     }
 
     private async Task<Dictionary<Guid, LibraryNextEpisodeResult>> GetNextUnwatchedEpisodesAsync(
@@ -484,16 +498,35 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             nextEpisode,
             collectionStatus);
 
-    private sealed record WatchedUnionRow(
-        Guid Id,
-        string Type,
-        string Title,
-        string? OriginalTitle,
-        string? PosterUrl,
-        string? BackdropUrl,
-        DateOnly? ReleaseDate,
-        DateOnly? FirstAirDate,
-        decimal VoteAverage,
-        DateTime? WatchedAt,
-        DateTime LastActivityAt);
+    internal sealed class WatchedUnionRow
+    {
+        public Guid Id { get; init; }
+
+        public string Type { get; init; } = string.Empty;
+
+        public string Title { get; init; } = string.Empty;
+
+        public string? OriginalTitle { get; init; }
+
+        public string? PosterUrl { get; init; }
+
+        public string? BackdropUrl { get; init; }
+
+        public DateOnly? ReleaseDate { get; init; }
+
+        public DateOnly? FirstAirDate { get; init; }
+
+        public decimal VoteAverage { get; init; }
+
+        public DateTime? WatchedAt { get; init; }
+
+        public DateTime LastActivityAt { get; init; }
+    }
+
+    private sealed class CompletedTvJoin
+    {
+        public DateTime? LastWatchedAt { get; init; }
+
+        public Domain.Entities.TvShow TvShow { get; init; } = null!;
+    }
 }

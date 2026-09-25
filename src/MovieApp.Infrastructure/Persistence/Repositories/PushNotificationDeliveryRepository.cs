@@ -51,8 +51,9 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
             .Select(pair => (pair.UserReleaseNotificationId, pair.PushDeviceId))
             .ToHashSet();
 
-        var pendingStatus = PushNotificationDeliveryStatus.Pending.ToString();
-        var created = 0;
+        var pendingIds = new List<Guid>();
+        var pendingNotificationIds = new List<Guid>();
+        var pendingDeviceIds = new List<Guid>();
 
         foreach (var notification in notifications)
         {
@@ -63,39 +64,39 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
 
             foreach (var deviceId in deviceIds)
             {
-                if (existingPairSet.Contains((notification.Id, deviceId)))
+                if (!existingPairSet.Add((notification.Id, deviceId)))
                 {
                     continue;
                 }
 
-                var deliveryId = Guid.NewGuid();
-                created += await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                    $"""
-                     INSERT INTO push_notification_deliveries (
-                         "Id",
-                         "UserReleaseNotificationId",
-                         "PushDeviceId",
-                         "Status",
-                         "AttemptCount",
-                         "CreatedAtUtc",
-                         "UpdatedAtUtc")
-                     VALUES (
-                         {deliveryId},
-                         {notification.Id},
-                         {deviceId},
-                         {pendingStatus},
-                         0,
-                         {utcNow},
-                         {utcNow})
-                     ON CONFLICT ("UserReleaseNotificationId", "PushDeviceId") DO NOTHING
-                     """,
-                    cancellationToken);
-
-                existingPairSet.Add((notification.Id, deviceId));
+                pendingIds.Add(Guid.NewGuid());
+                pendingNotificationIds.Add(notification.Id);
+                pendingDeviceIds.Add(deviceId);
             }
         }
 
-        return created;
+        if (pendingIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var pendingStatus = PushNotificationDeliveryStatus.Pending.ToString();
+        return await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+             INSERT INTO push_notification_deliveries (
+                 "Id",
+                 "UserReleaseNotificationId",
+                 "PushDeviceId",
+                 "Status",
+                 "AttemptCount",
+                 "CreatedAtUtc",
+                 "UpdatedAtUtc")
+             SELECT rows.id, rows.notification_id, rows.device_id, {pendingStatus}, 0, {utcNow}, {utcNow}
+             FROM unnest({pendingIds.ToArray()}::uuid[], {pendingNotificationIds.ToArray()}::uuid[], {pendingDeviceIds.ToArray()}::uuid[])
+                 AS rows(id, notification_id, device_id)
+             ON CONFLICT ("UserReleaseNotificationId", "PushDeviceId") DO NOTHING
+             """,
+            cancellationToken);
     }
 
     public Task<IReadOnlyList<PushNotificationDelivery>> ClaimDueDeliveriesAsync(
@@ -189,7 +190,6 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
 
         var notifications = await dbContext.UserReleaseNotifications
             .Where(notification => userReleaseNotificationIds.Contains(notification.Id))
-            .Include(notification => notification.NotificationEvents)
             .ToListAsync(cancellationToken);
 
         if (notifications.Count == 0)
