@@ -55,14 +55,18 @@ internal static partial class WatchHistoryPerfLogMessages
     [LoggerMessage(
         EventId = 8206,
         Level = LogLevel.Information,
-        Message = "WatchHistoryPerf TvWatchStateIngestion TvShowId={TvShowId} TotalMs={TotalMs} SeasonSummaryMs={SeasonSummaryMs} SeasonLookupMs={SeasonLookupMs} ProviderSeasonFetchMs={ProviderSeasonFetchMs} ProviderSeasonFetchCount={ProviderSeasonFetchCount} SeasonsNeedingHydration={SeasonsNeedingHydration} SeasonsHydrated={SeasonsHydrated}")]
+        Message = "WatchHistoryPerf TvWatchStateIngestion TvShowId={TvShowId} TotalMs={TotalMs} SeasonSummaryMs={SeasonSummaryMs} SeasonLookupMs={SeasonLookupMs} ProviderSeasonFetchWallMs={ProviderSeasonFetchWallMs} ProviderSeasonFetchAccumulatedMs={ProviderSeasonFetchAccumulatedMs} MaxSeasonProviderFetchMs={MaxSeasonProviderFetchMs} PersistenceMs={PersistenceMs} SaveChangesCount={SaveChangesCount} ProviderSeasonFetchCount={ProviderSeasonFetchCount} SeasonsNeedingHydration={SeasonsNeedingHydration} SeasonsHydrated={SeasonsHydrated}")]
     public static partial void LogTvWatchStateIngestion(
         ILogger logger,
         Guid tvShowId,
         long totalMs,
         long seasonSummaryMs,
         long seasonLookupMs,
-        long providerSeasonFetchMs,
+        long providerSeasonFetchWallMs,
+        long providerSeasonFetchAccumulatedMs,
+        long maxSeasonProviderFetchMs,
+        long persistenceMs,
+        int saveChangesCount,
         int providerSeasonFetchCount,
         int seasonsNeedingHydration,
         int seasonsHydrated);

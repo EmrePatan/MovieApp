@@ -28,6 +28,7 @@ public sealed class WatchHistoryService(
     ITvShowRepository tvShowRepository,
     ISeasonRepository seasonRepository,
     IGetSeasonService getSeasonService,
+    IRegularSeasonEpisodeIngestionService regularSeasonEpisodeIngestionService,
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     ITvShowCatalogSyncStateService catalogSyncStateService,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
@@ -629,15 +630,11 @@ public sealed class WatchHistoryService(
             .ToList();
         seasonLookupStopwatch.Stop();
 
-        var providerFetchStopwatch = Stopwatch.StartNew();
-        var seasonsHydrated = 0;
-        foreach (var seasonNumber in seasonsNeedingHydration)
-        {
-            await getSeasonService.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
-            seasonsHydrated++;
-        }
+        var ingestionResult = await regularSeasonEpisodeIngestionService.IngestMissingSeasonsAsync(
+            tvShowId,
+            seasonsNeedingHydration,
+            cancellationToken);
 
-        providerFetchStopwatch.Stop();
         totalStopwatch.Stop();
         WatchHistoryPerfLogMessages.LogTvShowHydration(
             logger,
@@ -646,17 +643,21 @@ public sealed class WatchHistoryService(
             summaryStopwatch.ElapsedMilliseconds,
             seasonLookupStopwatch.ElapsedMilliseconds,
             seasonsNeedingHydration.Count,
-            seasonsHydrated);
+            ingestionResult.SeasonsPersisted);
         WatchHistoryPerfLogMessages.LogTvWatchStateIngestion(
             logger,
             tvShowId,
             totalStopwatch.ElapsedMilliseconds,
             summaryStopwatch.ElapsedMilliseconds,
             seasonLookupStopwatch.ElapsedMilliseconds,
-            providerFetchStopwatch.ElapsedMilliseconds,
-            seasonsHydrated,
+            ingestionResult.ProviderSeasonFetchWallMs,
+            ingestionResult.ProviderSeasonFetchAccumulatedMs,
+            ingestionResult.MaxSeasonProviderFetchMs,
+            ingestionResult.PersistenceMs,
+            ingestionResult.SaveChangesCount,
+            ingestionResult.SeasonsPersisted,
             seasonsNeedingHydration.Count,
-            seasonsHydrated);
+            ingestionResult.SeasonsPersisted);
     }
 
     private Task InvalidateProfileStatisticsAsync(Guid userId, CancellationToken cancellationToken) =>

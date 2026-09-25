@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IGetTvShowVideosService, GetTvShowVideosService>();
         services.AddScoped<IGetTvShowImagesService, GetTvShowImagesService>();
         services.AddScoped<IGetSeasonService, GetSeasonService>();
+        services.AddScoped<IRegularSeasonEpisodeIngestionService, RegularSeasonEpisodeIngestionService>();
         services.AddScoped<IGetEpisodeService, GetEpisodeService>();
 
         services.AddScoped<IRegisterUserService, RegisterUserService>();

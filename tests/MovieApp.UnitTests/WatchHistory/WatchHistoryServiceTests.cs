@@ -69,6 +69,7 @@ public sealed class WatchHistoryServiceTests
             tvShowRepository,
             seasonRepository,
             new FakeGetSeasonService(),
+            new GetSeasonDelegatingRegularSeasonEpisodeIngestionService(new FakeGetSeasonService()),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
@@ -157,6 +158,7 @@ public sealed class WatchHistoryServiceTests
             tvShowRepository,
             seasonRepository,
             new FakeGetSeasonService(),
+            new GetSeasonDelegatingRegularSeasonEpisodeIngestionService(new FakeGetSeasonService()),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
@@ -234,6 +236,7 @@ public sealed class WatchHistoryServiceTests
             tvShowRepository,
             seasonRepository,
             new FakeGetSeasonService(),
+            new GetSeasonDelegatingRegularSeasonEpisodeIngestionService(new FakeGetSeasonService()),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
@@ -287,6 +290,7 @@ public sealed class WatchHistoryServiceTests
             tvShowRepository,
             seasonRepository,
             new FakeGetSeasonService(),
+            new GetSeasonDelegatingRegularSeasonEpisodeIngestionService(new FakeGetSeasonService()),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
@@ -338,6 +342,7 @@ public sealed class WatchHistoryServiceTests
             tvShowRepository,
             seasonRepository,
             new FakeGetSeasonService(),
+            new GetSeasonDelegatingRegularSeasonEpisodeIngestionService(new FakeGetSeasonService()),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
@@ -478,6 +483,7 @@ public sealed class WatchHistoryServiceTests
             nextSeasonEpisode ?? CreateEpisode(EpisodeId1, 1, 1, "Pilot"));
         var tvShowRepository = new FakeTvShowRepository(CreateTvShow());
         var seasonRepository = new FakeSeasonRepository(season ?? CreateSeason());
+        var getSeasonService = new FakeGetSeasonService();
 
         return new WatchHistoryService(
             currentUser ?? new FakeCurrentUser(UserId),
@@ -488,7 +494,8 @@ public sealed class WatchHistoryServiceTests
             new ComposingTvWatchStatePreparationRepository(tvShowRepository, seasonRepository, episodeRepository),
             tvShowRepository,
             seasonRepository,
-            new FakeGetSeasonService(),
+            getSeasonService,
+            new GetSeasonDelegatingRegularSeasonEpisodeIngestionService(getSeasonService),
             new FakeSeasonSummaryHydrator(),
             new FakeCatalogSyncStateService(),
             new FakeUserAnalyticsCacheInvalidator(),
