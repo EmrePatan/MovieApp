@@ -33,6 +33,23 @@ public sealed class SearchPaginationValidatorTests
         Assert.False(result.IsValid);
     }
 
+    [Fact]
+    public void ValidateAcceptsPageWhoseOffsetFitsInInt()
+    {
+        var result = SearchPaginationValidator.Validate(int.MaxValue, 1);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void ValidateRejectsPageWhoseOffsetOverflowsInt()
+    {
+        var result = SearchPaginationValidator.Validate(int.MaxValue, 2);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("too large", result.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

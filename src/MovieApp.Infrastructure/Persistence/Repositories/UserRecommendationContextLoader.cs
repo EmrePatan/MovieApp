@@ -486,7 +486,7 @@ internal sealed class UserRecommendationContextLoader(
             null,
             item.WatchedAt));
 
-    private static List<UserRecommendationContextModels.SignalSeed> CreateWatchedTvShowSeeds(
+    internal static List<UserRecommendationContextModels.SignalSeed> CreateWatchedTvShowSeeds(
         IReadOnlyList<UserRecommendationContextModels.WatchedEpisodeRow> watchedEpisodeRows,
         Dictionary<Guid, string> tvShowTitleLookup)
     {
@@ -497,6 +497,7 @@ internal sealed class UserRecommendationContextLoader(
 
         return watchedEpisodeRows
             .GroupBy(row => row.TvShowId)
+            .Where(group => tvShowTitleLookup.ContainsKey(group.Key))
             .Select(group => new UserRecommendationContextModels.SignalSeed(
                 group.Key,
                 "tv",
@@ -504,7 +505,6 @@ internal sealed class UserRecommendationContextLoader(
                 tvShowTitleLookup[group.Key],
                 null,
                 group.Max(row => row.WatchedAt)))
-            .Where(seed => tvShowTitleLookup.ContainsKey(seed.ContentId))
             .ToList();
     }
 

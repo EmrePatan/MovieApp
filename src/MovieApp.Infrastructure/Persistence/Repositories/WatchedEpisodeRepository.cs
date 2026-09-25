@@ -165,20 +165,28 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
             .Where(watchedEpisode => watchedEpisode.UserId == userId)
             .OrderByDescending(watchedEpisode => watchedEpisode.WatchedAt)
             .Take(take)
-            .Include(watchedEpisode => watchedEpisode.Episode)
-            .ThenInclude(episode => episode.Season)
-            .ThenInclude(season => season.TvShow)
+            .Select(watchedEpisode => new
+            {
+                watchedEpisode.EpisodeId,
+                watchedEpisode.Episode.Season.TvShowId,
+                watchedEpisode.Episode.SeasonId,
+                TvShowTitle = watchedEpisode.Episode.Season.TvShow.Title,
+                watchedEpisode.Episode.Season.SeasonNumber,
+                watchedEpisode.Episode.EpisodeNumber,
+                EpisodeTitle = watchedEpisode.Episode.Name,
+                watchedEpisode.WatchedAt
+            })
             .ToListAsync(cancellationToken);
 
         return items
             .Select(watchedEpisode => (
                 watchedEpisode.EpisodeId,
-                watchedEpisode.Episode.Season.TvShowId,
-                watchedEpisode.Episode.SeasonId,
-                watchedEpisode.Episode.Season.TvShow.Title,
-                watchedEpisode.Episode.Season.SeasonNumber,
-                watchedEpisode.Episode.EpisodeNumber,
-                watchedEpisode.Episode.Name,
+                watchedEpisode.TvShowId,
+                watchedEpisode.SeasonId,
+                watchedEpisode.TvShowTitle,
+                watchedEpisode.SeasonNumber,
+                watchedEpisode.EpisodeNumber,
+                watchedEpisode.EpisodeTitle,
                 watchedEpisode.WatchedAt))
             .ToList();
     }

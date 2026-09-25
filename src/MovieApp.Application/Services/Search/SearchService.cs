@@ -198,6 +198,10 @@ public sealed class SearchService(
         {
             ingestionResult = await providerIngestionService.IngestAsync(criteria, contentLocale, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception)
         {
             return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);

@@ -88,6 +88,9 @@ public sealed class ReleaseNotificationFanoutRepository(
         }
 
         var bucketKeySet = bucketKeys.ToHashSet();
+        var userIds = bucketKeys.Select(key => key.UserId).Distinct().ToList();
+        var notificationTypes = bucketKeys.Select(key => key.NotificationType).Distinct().ToList();
+        var aggregationWindowKeys = bucketKeys.Select(key => key.AggregationWindowKey).Distinct().ToList();
         var tvShowIds = bucketKeys
             .Where(key => key.TvShowId.HasValue)
             .Select(key => key.TvShowId!.Value)
@@ -104,8 +107,11 @@ public sealed class ReleaseNotificationFanoutRepository(
             .AsNoTracking()
             .Include(notification => notification.NotificationEvents)
             .Where(notification =>
-                (notification.TvShowId.HasValue && tvShowIds.Contains(notification.TvShowId.Value)) ||
-                (notification.MovieId.HasValue && movieIds.Contains(notification.MovieId.Value)))
+                userIds.Contains(notification.UserId) &&
+                notificationTypes.Contains(notification.NotificationType) &&
+                aggregationWindowKeys.Contains(notification.AggregationWindowKey) &&
+                ((notification.TvShowId.HasValue && tvShowIds.Contains(notification.TvShowId.Value)) ||
+                 (notification.MovieId.HasValue && movieIds.Contains(notification.MovieId.Value))))
             .ToListAsync(cancellationToken);
 
         return notifications

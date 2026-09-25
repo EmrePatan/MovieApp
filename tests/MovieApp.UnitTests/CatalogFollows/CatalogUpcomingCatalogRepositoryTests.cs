@@ -334,6 +334,40 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
         Assert.All(items, item => Assert.Equal(CatalogUpcomingKind.TvEpisode, item.UpcomingKind));
     }
 
+    [Fact]
+    public void FollowedTvNextEpisodeQueryIsTranslatedByNpgsql()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Database=movieapp;Username=postgres;Password=postgres")
+            .Options;
+        using var context = new ApplicationDbContext(options);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var sql = repository.FollowedTvNextEpisodeQuery(UserId, Today).ToQueryString();
+
+        Assert.Contains("episodes", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("catalog_follows", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ROW_NUMBER()", sql, StringComparison.Ordinal);
+        Assert.Contains("row <= 1", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetUpcomingCatalogAsync_PagePastTheEndDoesNotOverflowOrLoadRows()
+    {
+        await using var context = CreateContext();
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var (items, totalCount) = await repository.GetUpcomingCatalogAsync(
+            null,
+            page: int.MaxValue,
+            pageSize: 100,
+            Today,
+            "TR");
+
+        Assert.Empty(items);
+        Assert.Equal(0, totalCount);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
