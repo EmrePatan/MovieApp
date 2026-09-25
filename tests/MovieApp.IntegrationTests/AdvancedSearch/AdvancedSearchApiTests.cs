@@ -150,17 +150,15 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         var token = await RegisterAndGetTokenAsync("search-history");
         await SendAuthorizedGetAsync("/api/search?q=interstellar", token);
+        await WaitForSearchHistoryItemCountAsync(token, expectedCount: 1);
+
         await SendAuthorizedGetAsync("/api/search?q=interstellar", token);
+        var history = await WaitForSearchHistoryItemCountAsync(token, expectedCount: 1);
+
+        Assert.Equal("interstellar", history.Items[0].Query);
 
         await using var context = CreateContext();
         Assert.Equal(1, await context.SearchHistories.CountAsync());
-
-        var historyResponse = await SendAuthorizedGetAsync("/api/search/history?page=1&pageSize=20", token);
-        var history = await historyResponse.Content.ReadFromJsonAsync<SearchHistoryResponse>();
-
-        Assert.NotNull(history);
-        Assert.Single(history.Items);
-        Assert.Equal("interstellar", history.Items[0].Query);
     }
 
     [Fact]
@@ -237,6 +235,28 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return _client.SendAsync(request);
+    }
+
+    private async Task<SearchHistoryResponse> WaitForSearchHistoryItemCountAsync(
+        string token,
+        int expectedCount)
+    {
+        return await IntegrationTestPolling.UntilAsync(
+            async () =>
+            {
+                var response = await SendAuthorizedGetAsync("/api/search/history?page=1&pageSize=20", token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                return await response.Content.ReadFromJsonAsync<SearchHistoryResponse>();
+            },
+            payload =>
+                payload is not null &&
+                payload.Items.Count == expectedCount &&
+                payload.TotalCount == expectedCount,
+            TimeSpan.FromSeconds(10));
     }
 
     private static ApplicationDbContext CreateContext()
