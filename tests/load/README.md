@@ -1,6 +1,8 @@
 # Movie Cave load & capacity tests (#60)
 
-Repeatable [k6](https://k6.io/) tooling to measure **realistic concurrent user behavior** and a separate **read-only request-capacity** profile. This package does **not** prove production capacity until staged runs are executed and server-side metrics are analyzed.
+Repeatable [k6](https://k6.io/) tooling to measure **realistic concurrent user behavior** and a separate **read-only request-capacity** profile.
+
+**Release readiness (2026-09-25):** sustained **100-VU** production diagnostic **PASS** — [`docs/ISSUE-60-CAPACITY-OUTCOME.md`](docs/ISSUE-60-CAPACITY-OUTCOME.md). This models up to **100 simultaneously active looping virtual users**, not a cap on registered accounts. Stages **150+** and cache/resilience hardening are **post-release** track B; they do **not** block Friends & Family Beta solely for lack of execution.
 
 ## Architecture assumptions (from backend inspection)
 
@@ -160,7 +162,9 @@ Production **user-concurrency** scenario is **read-only**. Mutations are isolate
 
 ## Staged concurrency (manual gates)
 
-Run **separate** k6 executions per target VU: **50 → 100 → 250 → 500 → 750 → 1000**, with cooldown and inspection between stages. See [RUNBOOK.md](./RUNBOOK.md).
+**Done for launch baseline:** **100 VU** (`capacity`, `hot`) — report `reports/user-concurrency-capacity-100-2026-09-25T00-47-53Z.json`.
+
+**Post-release:** run separate k6 executions per target VU **150 → 250 → 500 → 750 → 1000** (optional **50** for regression), with cooldown and inspection between stages. See [RUNBOOK.md](./RUNBOOK.md) and [ISSUE-60-CAPACITY-OUTCOME.md](docs/ISSUE-60-CAPACITY-OUTCOME.md).
 
 ```powershell
 .\scripts\Invoke-K6.ps1 -Scenario user-concurrency -Preset capacity -StageTarget 50 -UseDocker

@@ -1,6 +1,6 @@
 # MovieApp — Product & Engineering Roadmap
 
-**Last updated:** 2026-09-16 (Social Authentication Phase 1)  
+**Last updated:** 2026-09-25 (#60 release capacity baseline)  
 **Backend baseline:** see latest `origin/master`  
 **Mobile baseline:** see latest `origin/master`
 
@@ -9,6 +9,7 @@
 | Document | Purpose |
 |---|---|
 | [PRODUCTION-LAUNCH-CHECKLIST.md](./PRODUCTION-LAUNCH-CHECKLIST.md) | Operational release gate — what must be verified to ship |
+| [tests/load/docs/ISSUE-60-CAPACITY-OUTCOME.md](../tests/load/docs/ISSUE-60-CAPACITY-OUTCOME.md) | #60 capacity baseline result and post-release scale track |
 | **This document** | Product/engineering sequencing and status — what exists, what is next, what is blocked |
 
 Neither document replaces code or tests.
@@ -1139,6 +1140,23 @@ Extend this list when new capabilities ship.
 - Store release requirement changes
 
 When implementation changes either document's truth, update the relevant document in the **same feature commit** whenever practical.
+
+---
+
+## DONE — #60 release-readiness capacity baseline (2026-09-25)
+
+Production **100-VU sustained** diagnostic (`user-concurrency`, `capacity`, `hot`, 100 identities, local k6 → production API): **PASS** — 0% failures, all thresholds met, Render 0.1 vCPU / 0.25 GB with headroom. Sufficient for **Friends & Family / initial low-traffic** release phase. Grafana run **8625084** recorded as **anomalous transient degradation**, not reproduced. Details: `tests/load/docs/ISSUE-60-CAPACITY-OUTCOME.md`.
+
+---
+
+## LATER / BACKLOG — Post-release capacity & resilience (ex-#60 track B)
+
+Not Friends & Family launch blockers:
+
+- Higher-VU staged production runs (**150 / 250 / 500 / 1000**)
+- Cache stampede resilience (single-flight, TTL jitter, etc.) on discovery/home/recommendations/insights read paths
+- Render sizing / cost vs concurrency curve
+- Deeper investigation if 8625084-class transient events recur (same-clock k6 + Render + `DiscoveryPerf`)
 
 ---
 

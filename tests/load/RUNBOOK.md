@@ -2,6 +2,19 @@
 
 **This runbook is for manual, gated production execution after review.** The implementation task does not run production stress tests automatically.
 
+## #60 status (2026-09-25)
+
+| Track | Status |
+|-------|--------|
+| **Release readiness (100-VU sustained baseline)** | **PASS / complete** — see [`docs/ISSUE-60-CAPACITY-OUTCOME.md`](docs/ISSUE-60-CAPACITY-OUTCOME.md) |
+| **Post-release scale (150+ VU, resilience, sizing)** | **Open** — not a Friends & Family Beta blocker |
+
+**Canonical report:** `tests/load/reports/user-concurrency-capacity-100-2026-09-25T00-47-53Z.json` (operator archive; gitignored).
+
+Grafana run **8625084** is documented as **anomalous transient degradation**, not the normal 100-VU baseline.
+
+---
+
 ## Capacity interpretation (after real runs)
 
 Classify each stage using **absolute thresholds**, **baseline-relative regression**, and **server-side evidence**. These are not product SLAs.
@@ -65,7 +78,11 @@ Compare the stage report against **baseline-5vu.json** and the **previous health
 
 ## Staged execution (stop between stages)
 
-For each target **50, 100, 250, 500, 750, 1000**:
+**Release baseline (complete):** sustained **100 VU** under `capacity` / `hot` passed on 2026-09-25 (local generator, production API). Friends & Family launch is **not** blocked pending 150+ stages.
+
+**Post-release ladder:** continue with **150 → 250 → 500 → 750 → 1000** when higher concurrency evidence is required. Optional **50 VU** remains useful for regression vs `baseline-5vu.json`.
+
+For each target stage:
 
 1. Run user-concurrency:
 
@@ -190,9 +207,13 @@ Use when Grafana Cloud project VU limits block the same stage (e.g. 100-VU Cloud
 
 **Gates (local + production):** `-ConfirmProductionCloudRun`, type `RUN` at prompt; `>= 250` VU also requires `-ConfirmHighScaleCloudRun`; `>= 500` requires `-ConfirmVeryHighScaleCloudRun`. Token preflight (`Test-LoadTokens.ps1`) runs automatically before k6 starts.
 
-## 100-VU diagnostic correlation run (single controlled stage)
+## 100-VU diagnostic correlation run (completed 2026-09-25)
 
-Use **one** capacity run at **100 VUs** (`hot` dataset, `user-concurrency`) after deploying instrumentation. Goal: determine whether **cache-miss waves** precede Render CPU saturation / k6 timeouts, or CPU saturation grows independently.
+**Outcome:** PASS — full write-up in [`docs/ISSUE-60-CAPACITY-OUTCOME.md`](docs/ISSUE-60-CAPACITY-OUTCOME.md). Cache-expiry collapse was **not** reproduced; discovery reloads during the hold stayed fast; Render retained CPU/memory headroom.
+
+**Repeat only** after material code/infra change or if transient degradation (e.g. 8625084-like) recurs.
+
+Original goal: determine whether **cache-miss waves** precede Render CPU saturation / k6 timeouts, or CPU saturation grows independently.
 
 **Before hold:** note **UTC start**; enable app log level **Debug** for `MovieApp.Application` (or equivalent) so `HomePerf`, `RecHomePerf`, and `InsightsPerf` HIT/MISS lines are retained alongside `DiscoveryPerf` (Information).
 
