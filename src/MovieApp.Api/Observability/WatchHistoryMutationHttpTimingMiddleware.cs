@@ -29,7 +29,7 @@ internal sealed partial class WatchHistoryMutationHttpTimingMiddleware(
                            preServiceObj is long measuredPreServiceMs
             ? measuredPreServiceMs
             : 0L;
-        var actionTotalMs = context.Items.TryGetValue("WatchHistory.ActionTotalMs", out var actionTotalObj) &&
+        var actionTotalMs = context.Items.TryGetValue(WatchHistoryMutationPerfContext.ActionTotalMsKey, out var actionTotalObj) &&
                             actionTotalObj is long measuredActionTotalMs
             ? measuredActionTotalMs
             : 0L;

@@ -629,6 +629,7 @@ public sealed class WatchHistoryService(
             .ToList();
         seasonLookupStopwatch.Stop();
 
+        var providerFetchStopwatch = Stopwatch.StartNew();
         var seasonsHydrated = 0;
         foreach (var seasonNumber in seasonsNeedingHydration)
         {
@@ -636,6 +637,7 @@ public sealed class WatchHistoryService(
             seasonsHydrated++;
         }
 
+        providerFetchStopwatch.Stop();
         totalStopwatch.Stop();
         WatchHistoryPerfLogMessages.LogTvShowHydration(
             logger,
@@ -643,6 +645,16 @@ public sealed class WatchHistoryService(
             totalStopwatch.ElapsedMilliseconds,
             summaryStopwatch.ElapsedMilliseconds,
             seasonLookupStopwatch.ElapsedMilliseconds,
+            seasonsNeedingHydration.Count,
+            seasonsHydrated);
+        WatchHistoryPerfLogMessages.LogTvWatchStateIngestion(
+            logger,
+            tvShowId,
+            totalStopwatch.ElapsedMilliseconds,
+            summaryStopwatch.ElapsedMilliseconds,
+            seasonLookupStopwatch.ElapsedMilliseconds,
+            providerFetchStopwatch.ElapsedMilliseconds,
+            seasonsHydrated,
             seasonsNeedingHydration.Count,
             seasonsHydrated);
     }

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace MovieApp.Api.Observability;
 
 internal sealed partial class WatchHistoryMutationPipelineFilter(ILogger<WatchHistoryMutationPipelineFilter> logger)
-    : IAsyncActionFilter, IAsyncResultFilter
+    : IAsyncActionFilter
 {
     private const string ActionStartTicksKey = "WatchHistory.ActionStartTicks";
 
@@ -28,23 +28,6 @@ internal sealed partial class WatchHistoryMutationPipelineFilter(ILogger<WatchHi
         }
 
         await next();
-    }
-
-    public Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next) =>
-        next();
-
-    public Task OnResultExecutedAsync(ResultExecutedContext context)
-    {
-        if (!IsWatchHistoryMutation(context.HttpContext.Request))
-        {
-            return Task.CompletedTask;
-        }
-
-        if (!context.HttpContext.Items.TryGetValue(ActionStartTicksKey, out var actionStartObj) ||
-            actionStartObj is not long actionStart)
-        {
-            return Task.CompletedTask;
-        }
 
         var actionEnd = Stopwatch.GetTimestamp();
         var actionTotalMs = ElapsedMilliseconds(actionStart, actionEnd);
@@ -58,9 +41,9 @@ internal sealed partial class WatchHistoryMutationPipelineFilter(ILogger<WatchHi
             : 0L;
         var postServiceMs = Math.Max(0, actionTotalMs - serviceMs);
 
-        var correlationId = CorrelationIdAccessor.Get(context.HttpContext) ?? context.HttpContext.TraceIdentifier;
+        context.HttpContext.Items[WatchHistoryMutationPerfContext.ActionTotalMsKey] = actionTotalMs;
 
-        context.HttpContext.Items["WatchHistory.ActionTotalMs"] = actionTotalMs;
+        var correlationId = CorrelationIdAccessor.Get(context.HttpContext) ?? context.HttpContext.TraceIdentifier;
 
         LogMutationPipeline(
             logger,
@@ -70,8 +53,6 @@ internal sealed partial class WatchHistoryMutationPipelineFilter(ILogger<WatchHi
             serviceMs,
             postServiceMs,
             actionTotalMs);
-
-        return Task.CompletedTask;
     }
 
     private static bool IsWatchHistoryMutation(HttpRequest request) =>

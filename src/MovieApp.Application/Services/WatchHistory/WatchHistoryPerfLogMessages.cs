@@ -53,6 +53,21 @@ internal static partial class WatchHistoryPerfLogMessages
         long analyticsDispatchMs);
 
     [LoggerMessage(
+        EventId = 8206,
+        Level = LogLevel.Information,
+        Message = "WatchHistoryPerf TvWatchStateIngestion TvShowId={TvShowId} TotalMs={TotalMs} SeasonSummaryMs={SeasonSummaryMs} SeasonLookupMs={SeasonLookupMs} ProviderSeasonFetchMs={ProviderSeasonFetchMs} ProviderSeasonFetchCount={ProviderSeasonFetchCount} SeasonsNeedingHydration={SeasonsNeedingHydration} SeasonsHydrated={SeasonsHydrated}")]
+    public static partial void LogTvWatchStateIngestion(
+        ILogger logger,
+        Guid tvShowId,
+        long totalMs,
+        long seasonSummaryMs,
+        long seasonLookupMs,
+        long providerSeasonFetchMs,
+        int providerSeasonFetchCount,
+        int seasonsNeedingHydration,
+        int seasonsHydrated);
+
+    [LoggerMessage(
         EventId = 8204,
         Level = LogLevel.Information,
         Message = "WatchHistoryPerf MovieWatchStatePerf MovieId={MovieId} CorrelationId={CorrelationId} TotalMs={TotalMs} EnsureMovieExistsMs={EnsureMovieExistsMs} UpsertMs={UpsertMs} Created={Created} AnalyticsDispatchMs={AnalyticsDispatchMs}")]

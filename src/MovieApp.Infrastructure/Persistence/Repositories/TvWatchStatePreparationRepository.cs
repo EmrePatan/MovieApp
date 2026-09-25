@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using Npgsql;
@@ -9,11 +8,6 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class TvWatchStatePreparationRepository(ApplicationDbContext dbContext) : ITvWatchStatePreparationRepository
 {
-    private static readonly JsonSerializerOptions SeasonJsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
-
     public async Task<TvWatchStatePreparation> PrepareAsync(
         Guid tvShowId,
         CancellationToken cancellationToken = default)
@@ -71,8 +65,9 @@ public sealed class TvWatchStatePreparationRepository(ApplicationDbContext dbCon
             ? Array.Empty<Guid>()
             : (Guid[])reader.GetValue(2);
 
-        var seasons = ParseRegularSeasons(seasonsJson);
-        var (ingestionRequired, missingSeasonNumbers, seasonsWithEpisodeRowsCount) = EvaluateIngestion(seasons);
+        var seasons = TvWatchStatePreparationParser.ParseRegularSeasons(seasonsJson);
+        var (ingestionRequired, missingSeasonNumbers, seasonsWithEpisodeRowsCount) =
+            TvWatchStatePreparationParser.EvaluateIngestion(seasons);
 
         return new TvWatchStatePreparation(
             TvShowExists: true,
@@ -81,42 +76,5 @@ public sealed class TvWatchStatePreparationRepository(ApplicationDbContext dbCon
             EpisodeIds: episodeIds,
             RegularSeasonCount: seasons.Count,
             SeasonsWithEpisodeRowsCount: seasonsWithEpisodeRowsCount);
-    }
-
-    private static List<RegularSeasonRow> ParseRegularSeasons(string seasonsJson)
-    {
-        if (string.IsNullOrWhiteSpace(seasonsJson) || seasonsJson == "[]")
-        {
-            return [];
-        }
-
-        return JsonSerializer.Deserialize<List<RegularSeasonRow>>(seasonsJson, SeasonJsonOptions) ?? [];
-    }
-
-    private static (bool IngestionRequired, IReadOnlyList<int> MissingSeasonNumbers, int SeasonsWithEpisodeRowsCount)
-        EvaluateIngestion(IReadOnlyList<RegularSeasonRow> seasons)
-    {
-        if (seasons.Count == 0)
-        {
-            return (true, [], 0);
-        }
-
-        var seasonsWithEpisodeRowsCount = seasons.Count(season => season.HasEpisodes);
-        var missingSeasonNumbers = seasons
-            .Where(season => season.EpisodeCount != 0 && !season.HasEpisodes)
-            .Select(season => season.SeasonNumber)
-            .OrderBy(seasonNumber => seasonNumber)
-            .ToList();
-
-        return (missingSeasonNumbers.Count > 0, missingSeasonNumbers, seasonsWithEpisodeRowsCount);
-    }
-
-    private sealed class RegularSeasonRow
-    {
-        public int SeasonNumber { get; set; }
-
-        public int? EpisodeCount { get; set; }
-
-        public bool HasEpisodes { get; set; }
     }
 }
