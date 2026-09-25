@@ -108,4 +108,24 @@ public sealed class NullAiRecommendationPerfContext : IAiRecommendationPerfConte
     public void SetResultCounts(int configuredSuggestionCount, int geminiSuggestionCount, int returnedCount)
     {
     }
+
+    public void RecordProviderSkipped(string providerName, AiProviderFailureCategory category)
+    {
+    }
+
+    public void RecordProviderAttempt(AiExternalLlmProviderAttempt attempt)
+    {
+    }
+
+    public void RecordLlmChainSuccess(string providerName, long chainMs, long winningProviderMs, int attemptCount)
+    {
+    }
+
+    public void RecordDeterministicFallback(long deterministicMs, long chainMs, int attemptCount)
+    {
+    }
+
+    public void RecordLlmChainBudgetExhausted()
+    {
+    }
 }

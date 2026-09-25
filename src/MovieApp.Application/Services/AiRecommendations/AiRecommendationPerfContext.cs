@@ -5,6 +5,8 @@ namespace MovieApp.Application.Services.AiRecommendations;
 
 public sealed class AiRecommendationPerfContext : IAiRecommendationPerfContext
 {
+    private readonly List<string> _providerFailureSummary = [];
+
     public AiRecommendationPerfMetrics Metrics { get; } = new();
 
     public void RecordQuotaReserveMs(long milliseconds) =>
@@ -128,4 +130,47 @@ public sealed class AiRecommendationPerfContext : IAiRecommendationPerfContext
         Metrics.GeminiSuggestionCount = geminiSuggestionCount;
         Metrics.ReturnedCount = returnedCount;
     }
+
+    public void RecordProviderSkipped(string providerName, AiProviderFailureCategory category)
+    {
+        Metrics.ProviderSkippedNotConfiguredCount++;
+        _providerFailureSummary.Add($"{providerName}:{category}");
+        Metrics.ProviderFailureSummary = string.Join(';', _providerFailureSummary);
+    }
+
+    public void RecordProviderAttempt(AiExternalLlmProviderAttempt attempt)
+    {
+        Metrics.ProviderAttemptCount++;
+        if (!attempt.Succeeded)
+        {
+            _providerFailureSummary.Add(
+                $"{attempt.ProviderName}:{attempt.FailureCategory}:{attempt.HttpStatusCode}");
+            Metrics.ProviderFailureSummary = string.Join(';', _providerFailureSummary);
+        }
+    }
+
+    public void RecordLlmChainSuccess(
+        string providerName,
+        long chainMs,
+        long winningProviderMs,
+        int attemptCount)
+    {
+        Metrics.SuccessfulProvider = providerName;
+        Metrics.LlmChainMs = chainMs;
+        Metrics.ProviderAttemptCount = attemptCount;
+        Metrics.GeminiTotalMs = winningProviderMs;
+        Metrics.GeminiHttpMs = winningProviderMs;
+    }
+
+    public void RecordDeterministicFallback(long deterministicMs, long chainMs, int attemptCount)
+    {
+        Metrics.DeterministicFallbackUsed = true;
+        Metrics.DeterministicMs = deterministicMs;
+        Metrics.LlmChainMs = chainMs;
+        Metrics.ProviderAttemptCount = attemptCount;
+        Metrics.SuccessfulProvider = "deterministic";
+    }
+
+    public void RecordLlmChainBudgetExhausted() =>
+        Metrics.LlmChainBudgetExhausted = true;
 }

@@ -291,7 +291,7 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
 
     private sealed class TestAiProvider(AiRecommendationsWebApplicationFactory factory) : IAiMovieRecommendationProvider
     {
-        public Task<AiProviderGenerationResult> GenerateAsync(
+        public Task<AiMovieRecommendationProviderOutcome> GenerateAsync(
             AiProviderRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -300,7 +300,10 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
                 throw new MovieApp.Application.Exceptions.AiRecommendationProviderException("Provider failed.");
             }
 
-            return Task.FromResult(factory.ProviderResult);
+            return Task.FromResult(new AiMovieRecommendationProviderOutcome(
+                factory.ProviderResult,
+                true,
+                "test"));
         }
     }
 

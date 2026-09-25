@@ -55,16 +55,17 @@ public sealed class AiMovieRecommendationService(
                 perfContext.RecordSessionLoadMs(sessionLoadStopwatch.ElapsedMilliseconds);
 
                 var providerRequest = new AiProviderRequest(
+                    userId,
                     message,
                     tasteProfile,
                     session,
                     settings.SuggestionCount,
                     responseLanguage);
 
-                AiProviderGenerationResult generation;
+                AiMovieRecommendationProviderOutcome generationOutcome;
                 try
                 {
-                    generation = await provider.GenerateAsync(providerRequest, cancellationToken);
+                    generationOutcome = await provider.GenerateAsync(providerRequest, cancellationToken);
                 }
                 catch (AiRecommendationProviderException)
                 {
@@ -74,6 +75,7 @@ public sealed class AiMovieRecommendationService(
                         "AI recommendation provider is temporarily unavailable.");
                 }
 
+                var generation = generationOutcome.Generation;
                 AiSessionConstraintMerger.Merge(session, generation.ConstraintUpdates);
 
                 var validation = await validator.ValidateAsync(
@@ -106,7 +108,7 @@ public sealed class AiMovieRecommendationService(
 
                 return new AiRecommendationServiceResult(
                     session.SessionId,
-                    IsAiGenerated: true,
+                    generationOutcome.IsAiGenerated,
                     validation.PartialResults,
                     settings.MaxReturnedCount,
                     validation.ValidatedCount,

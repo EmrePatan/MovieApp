@@ -81,4 +81,20 @@ public sealed class AiRecommendationPerfMetrics
     public int GeminiSuggestionCount { get; set; }
 
     public int ReturnedCount { get; set; }
+
+    public string SuccessfulProvider { get; set; } = string.Empty;
+
+    public int ProviderAttemptCount { get; set; }
+
+    public int ProviderSkippedNotConfiguredCount { get; set; }
+
+    public long LlmChainMs { get; set; }
+
+    public long DeterministicMs { get; set; }
+
+    public bool DeterministicFallbackUsed { get; set; }
+
+    public bool LlmChainBudgetExhausted { get; set; }
+
+    public string ProviderFailureSummary { get; set; } = string.Empty;
 }

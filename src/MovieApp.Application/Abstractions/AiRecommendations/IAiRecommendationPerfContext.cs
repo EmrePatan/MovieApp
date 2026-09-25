@@ -57,4 +57,14 @@ public interface IAiRecommendationPerfContext
     void SetOutcome(string outcome);
 
     void SetResultCounts(int configuredSuggestionCount, int geminiSuggestionCount, int returnedCount);
+
+    void RecordProviderSkipped(string providerName, AiProviderFailureCategory category);
+
+    void RecordProviderAttempt(AiExternalLlmProviderAttempt attempt);
+
+    void RecordLlmChainSuccess(string providerName, long chainMs, long winningProviderMs, int attemptCount);
+
+    void RecordDeterministicFallback(long deterministicMs, long chainMs, int attemptCount);
+
+    void RecordLlmChainBudgetExhausted();
 }

@@ -207,6 +207,44 @@ public sealed class AiMovieRecommendationServiceTests
     }
 
     [Fact]
+    public async Task GetRecommendationsAsyncSetsIsAiGeneratedFalseForDeterministicProvider()
+    {
+        var service = CreateService(
+            new FakeEntitlementService(),
+            new FakeQuotaService(),
+            new FakeProvider(isAiGenerated: false),
+            new FakeValidator(
+                new AiValidationResult(
+                    [
+                        new AiValidatedRecommendation(
+                            new ResolvedMovieIdentity(
+                                "movie",
+                                Guid.NewGuid(),
+                                1,
+                                "Arrival",
+                                2016,
+                                116,
+                                "Arrival",
+                                "Overview",
+                                null,
+                                null,
+                                new DateOnly(2016, 1, 1),
+                                8m,
+                                100,
+                                ["Science Fiction"]),
+                            "Popular")
+                    ],
+                    1,
+                    1,
+                    0,
+                    false)));
+
+        var result = await service.GetRecommendationsAsync(_userId, "mystery movie", null, "en-US");
+
+        Assert.False(result.IsAiGenerated);
+    }
+
+    [Fact]
     public async Task GetRecommendationsAsyncReturnsZeroValidatedWithoutSecondProviderCall()
     {
         var provider = new FakeProvider();
@@ -331,13 +369,13 @@ public sealed class AiMovieRecommendationServiceTests
             Task.CompletedTask;
     }
 
-    private sealed class FakeProvider(bool shouldFail = false) : IAiMovieRecommendationProvider
+    private sealed class FakeProvider(bool shouldFail = false, bool isAiGenerated = true) : IAiMovieRecommendationProvider
     {
         public int CallCount { get; private set; }
 
         public int LastSuggestionCount { get; private set; }
 
-        public Task<AiProviderGenerationResult> GenerateAsync(
+        public Task<AiMovieRecommendationProviderOutcome> GenerateAsync(
             AiProviderRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -348,9 +386,12 @@ public sealed class AiMovieRecommendationServiceTests
                 throw new AiRecommendationProviderException("Provider failed.");
             }
 
-            return Task.FromResult(new AiProviderGenerationResult(
-                [new AiProviderSuggestion("Arrival", 2016, "movie", 1, "Reason")],
-                null));
+            return Task.FromResult(new AiMovieRecommendationProviderOutcome(
+                new AiProviderGenerationResult(
+                    [new AiProviderSuggestion("Arrival", 2016, "movie", 1, "Reason")],
+                    null),
+                isAiGenerated,
+                "fake"));
         }
     }
 

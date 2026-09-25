@@ -20,6 +20,7 @@ public sealed record AiProviderGenerationResult(
     AiProviderConstraintUpdates? ConstraintUpdates);
 
 public sealed record AiProviderRequest(
+    Guid UserId,
     string UserMessage,
     AiTasteProfile TasteProfile,
     AiRecommendationSessionState Session,

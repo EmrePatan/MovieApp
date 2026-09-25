@@ -1,5 +1,6 @@
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.AiRecommendations;
+using MovieApp.Application.Services.AiRecommendations;
 using MovieApp.Infrastructure.AiRecommendations;
 
 namespace MovieApp.UnitTests.AiRecommendations;
@@ -81,6 +82,7 @@ public sealed class GeminiAiMovieRecommendationProviderTests
     public void BuildRequestBodyIncludesUserMessageAndSuggestionCount()
     {
         var request = new AiProviderRequest(
+            Guid.NewGuid(),
             "Something mysterious with a twist",
             new AiTasteProfile([], [], [], [], [], [], [], [], true),
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
@@ -98,7 +100,7 @@ public sealed class GeminiAiMovieRecommendationProviderTests
     [Fact]
     public void BuildSystemInstructionUsesTurkishForTrLocale()
     {
-        var instruction = GeminiPromptBuilder.BuildSystemInstruction("tr-TR");
+        var instruction = AiRecommendationPromptBuilder.BuildSystemInstruction("tr-TR");
 
         Assert.Contains("Turkish", instruction, StringComparison.Ordinal);
     }
@@ -106,7 +108,7 @@ public sealed class GeminiAiMovieRecommendationProviderTests
     [Fact]
     public void BuildSystemInstructionUsesEnglishForEnLocale()
     {
-        var instruction = GeminiPromptBuilder.BuildSystemInstruction("en-US");
+        var instruction = AiRecommendationPromptBuilder.BuildSystemInstruction("en-US");
 
         Assert.Contains("English", instruction, StringComparison.Ordinal);
     }

@@ -52,7 +52,34 @@ internal static partial class AiRecommendationPerfLogMessages
         int geminiSuggestionCount,
         int returnedCount);
 
-    internal static void LogRequest(ILogger logger, AiRecommendationPerfMetrics metrics) =>
+    [LoggerMessage(
+        EventId = 7202,
+        Level = LogLevel.Debug,
+        Message = "AiRecommendationProviderChain SuccessfulProvider={SuccessfulProvider} ProviderAttemptCount={ProviderAttemptCount} ProviderSkippedNotConfiguredCount={ProviderSkippedNotConfiguredCount} LlmChainMs={LlmChainMs} DeterministicFallbackUsed={DeterministicFallbackUsed} DeterministicMs={DeterministicMs} LlmChainBudgetExhausted={LlmChainBudgetExhausted} ProviderFailureSummary={ProviderFailureSummary}")]
+    public static partial void LogProviderChain(
+        ILogger logger,
+        string successfulProvider,
+        int providerAttemptCount,
+        int providerSkippedNotConfiguredCount,
+        long llmChainMs,
+        bool deterministicFallbackUsed,
+        long deterministicMs,
+        bool llmChainBudgetExhausted,
+        string providerFailureSummary);
+
+    internal static void LogRequest(ILogger logger, AiRecommendationPerfMetrics metrics)
+    {
+        LogProviderChain(
+            logger,
+            metrics.SuccessfulProvider,
+            metrics.ProviderAttemptCount,
+            metrics.ProviderSkippedNotConfiguredCount,
+            metrics.LlmChainMs,
+            metrics.DeterministicFallbackUsed,
+            metrics.DeterministicMs,
+            metrics.LlmChainBudgetExhausted,
+            metrics.ProviderFailureSummary);
+
         LogRequest(
             logger,
             metrics.Outcome,
@@ -95,4 +122,5 @@ internal static partial class AiRecommendationPerfLogMessages
             metrics.SuggestionCount,
             metrics.GeminiSuggestionCount,
             metrics.ReturnedCount);
+    }
 }
