@@ -22,7 +22,7 @@ public sealed class RegularSeasonEpisodeIngestionService(
     {
         if (seasonNumbers.Count == 0)
         {
-            return new RegularSeasonEpisodeIngestionResult(0, 0, 0, 0, 0, 0);
+            return new RegularSeasonEpisodeIngestionResult(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         var identity = await tvShowRepository.GetExternalIdsByIdAsync(tvShowId, cancellationToken);
@@ -55,7 +55,10 @@ public sealed class RegularSeasonEpisodeIngestionService(
         }
 
         var persistenceStopwatch = Stopwatch.StartNew();
-        await seasonRepository.UpsertSeasonsFromProviderAsync(tvShowId, providerDetails, cancellationToken);
+        var persistenceMetrics = await seasonRepository.UpsertSeasonsFromProviderAsync(
+            tvShowId,
+            providerDetails,
+            cancellationToken);
         persistenceStopwatch.Stop();
 
         await catalogSyncStateService.MarkRefreshedAsync(
@@ -70,7 +73,13 @@ public sealed class RegularSeasonEpisodeIngestionService(
             ProviderSeasonFetchAccumulatedMs: fetchMetrics.AccumulatedMs,
             MaxSeasonProviderFetchMs: fetchMetrics.MaxSeasonMs,
             PersistenceMs: persistenceStopwatch.ElapsedMilliseconds,
-            SaveChangesCount: 1);
+            SaveChangesCount: 1,
+            PersistenceExistingDataLoadMs: persistenceMetrics.ExistingDataLoadMs,
+            PersistenceMutationMs: persistenceMetrics.MutationPreparationMs,
+            PersistenceSaveChangesMs: persistenceMetrics.SaveChangesMs,
+            PersistenceIncomingEpisodeCount: persistenceMetrics.IncomingEpisodeCount,
+            PersistenceAddedEpisodeCount: persistenceMetrics.AddedEpisodeCount,
+            PersistenceUpdatedEpisodeCount: persistenceMetrics.UpdatedEpisodeCount);
     }
 
     private async Task<ProviderFetchMetrics> FetchProviderSeasonsAsync(

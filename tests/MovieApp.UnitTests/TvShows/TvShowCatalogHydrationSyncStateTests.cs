@@ -421,7 +421,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             return Task.FromResult(CreateSeasonWithEpisodes());
         }
 
-        public async Task UpsertSeasonsFromProviderAsync(
+        public async Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
@@ -430,6 +430,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             {
                 await UpsertFromProviderAsync(tvShowId, detail, cancellationToken);
             }
+
+            return SeasonBatchUpsertPersistenceMetrics.Empty;
         }
 
         public Task<Season> UpsertSummaryFromProviderAsync(

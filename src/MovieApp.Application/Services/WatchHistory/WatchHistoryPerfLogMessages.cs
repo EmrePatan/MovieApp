@@ -55,7 +55,7 @@ internal static partial class WatchHistoryPerfLogMessages
     [LoggerMessage(
         EventId = 8206,
         Level = LogLevel.Information,
-        Message = "WatchHistoryPerf TvWatchStateIngestion TvShowId={TvShowId} TotalMs={TotalMs} SeasonSummaryMs={SeasonSummaryMs} SeasonLookupMs={SeasonLookupMs} ProviderSeasonFetchWallMs={ProviderSeasonFetchWallMs} ProviderSeasonFetchAccumulatedMs={ProviderSeasonFetchAccumulatedMs} MaxSeasonProviderFetchMs={MaxSeasonProviderFetchMs} PersistenceMs={PersistenceMs} SaveChangesCount={SaveChangesCount} ProviderSeasonFetchCount={ProviderSeasonFetchCount} SeasonsNeedingHydration={SeasonsNeedingHydration} SeasonsHydrated={SeasonsHydrated}")]
+        Message = "WatchHistoryPerf TvWatchStateIngestion TvShowId={TvShowId} TotalMs={TotalMs} SeasonSummaryMs={SeasonSummaryMs} SeasonLookupMs={SeasonLookupMs} ProviderSeasonFetchWallMs={ProviderSeasonFetchWallMs} ProviderSeasonFetchAccumulatedMs={ProviderSeasonFetchAccumulatedMs} MaxSeasonProviderFetchMs={MaxSeasonProviderFetchMs} PersistenceMs={PersistenceMs} PersistenceExistingDataLoadMs={PersistenceExistingDataLoadMs} PersistenceMutationMs={PersistenceMutationMs} PersistenceSaveChangesMs={PersistenceSaveChangesMs} PersistenceIncomingEpisodeCount={PersistenceIncomingEpisodeCount} PersistenceAddedEpisodeCount={PersistenceAddedEpisodeCount} PersistenceUpdatedEpisodeCount={PersistenceUpdatedEpisodeCount} SaveChangesCount={SaveChangesCount} ProviderSeasonFetchCount={ProviderSeasonFetchCount} SeasonsNeedingHydration={SeasonsNeedingHydration} SeasonsHydrated={SeasonsHydrated}")]
     public static partial void LogTvWatchStateIngestion(
         ILogger logger,
         Guid tvShowId,
@@ -66,6 +66,12 @@ internal static partial class WatchHistoryPerfLogMessages
         long providerSeasonFetchAccumulatedMs,
         long maxSeasonProviderFetchMs,
         long persistenceMs,
+        long persistenceExistingDataLoadMs,
+        long persistenceMutationMs,
+        long persistenceSaveChangesMs,
+        int persistenceIncomingEpisodeCount,
+        int persistenceAddedEpisodeCount,
+        int persistenceUpdatedEpisodeCount,
         int saveChangesCount,
         int providerSeasonFetchCount,
         int seasonsNeedingHydration,

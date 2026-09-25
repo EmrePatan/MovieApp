@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Services.HotRelease;
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Persistence;
@@ -111,6 +112,38 @@ public sealed class SeasonRepositoryTests
 
         Assert.Equal(1, await context.Episodes.CountAsync(episode => episode.EpisodeNumber == 1));
         Assert.Equal("Pilot duplicate", await context.Episodes.Where(episode => episode.EpisodeNumber == 1).Select(episode => episode.Name).SingleAsync());
+    }
+
+    [Fact]
+    public async Task UpsertSeasonsFromProviderAsync_ReportsAddedEpisodeMetricsForColdBatch()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"season-repository-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var tvShowId = await SeedTvShowAsync(context);
+        var repository = new SeasonRepository(context);
+        var seasonOne = CreateSeasonDetails();
+        var seasonTwo = CreateSeasonDetails() with
+        {
+            SeasonNumber = 2,
+            TmdbId = 900202,
+            Name = "Season 2",
+            Episodes =
+            [
+                new EpisodeProviderDetails(
+                    "fake-tv-900101", 900401, null, "tt900401", 2, 1, "S2E1", "Overview",
+                    new DateOnly(2009, 3, 8), 48, "/fake/s2e1.jpg", 8.0m, 80)
+            ]
+        };
+
+        var metrics = await repository.UpsertSeasonsFromProviderAsync(tvShowId, [seasonOne, seasonTwo]);
+
+        Assert.Equal(2, metrics.SeasonCount);
+        Assert.Equal(3, metrics.IncomingEpisodeCount);
+        Assert.Equal(3, metrics.AddedEpisodeCount);
+        Assert.Equal(0, metrics.UpdatedEpisodeCount);
     }
 
     [Fact]

@@ -22,6 +22,12 @@ internal sealed class GetSeasonDelegatingRegularSeasonEpisodeIngestionService(IG
             ProviderSeasonFetchAccumulatedMs: 0,
             MaxSeasonProviderFetchMs: 0,
             PersistenceMs: 0,
-            SaveChangesCount: seasonNumbers.Count);
+            SaveChangesCount: seasonNumbers.Count,
+            PersistenceExistingDataLoadMs: 0,
+            PersistenceMutationMs: 0,
+            PersistenceSaveChangesMs: 0,
+            PersistenceIncomingEpisodeCount: 0,
+            PersistenceAddedEpisodeCount: 0,
+            PersistenceUpdatedEpisodeCount: 0);
     }
 }

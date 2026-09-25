@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Hangfire;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

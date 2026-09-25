@@ -514,14 +514,14 @@ public sealed class TvShowFollowBaselineServiceTests
 
         public int BatchUpsertCallCount { get; private set; }
 
-        public virtual Task UpsertSeasonsFromProviderAsync(
+        public virtual Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
         {
             BatchUpsertCallCount++;
             UpsertCallCount += details.Count;
-            return Task.CompletedTask;
+            return Task.FromResult(SeasonBatchUpsertPersistenceMetrics.Empty);
         }
 
         public Task<Season> UpsertSummaryFromProviderAsync(
@@ -560,7 +560,7 @@ public sealed class TvShowFollowBaselineServiceTests
 
         private int _activeOperations;
 
-        public override Task UpsertSeasonsFromProviderAsync(
+        public override Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
@@ -576,7 +576,7 @@ public sealed class TvShowFollowBaselineServiceTests
             {
                 TotalBatchUpsertCallCount++;
                 TotalSeasonsPersisted += details.Count;
-                return Task.CompletedTask;
+                return Task.FromResult(SeasonBatchUpsertPersistenceMetrics.Empty);
             }
             finally
             {

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using MovieApp.Api.Observability;
 
 namespace MovieApp.UnitTests.Observability;

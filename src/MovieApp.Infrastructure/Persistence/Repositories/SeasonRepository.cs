@@ -101,14 +101,14 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             },
             cancellationToken);
 
-    public Task UpsertSeasonsFromProviderAsync(
+    public Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
         Guid tvShowId,
         IReadOnlyList<SeasonProviderDetails> details,
         CancellationToken cancellationToken = default)
     {
         if (details.Count == 0)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(EmptyBatchUpsertMetrics());
         }
 
         var dedupedDetails = DeduplicateSeasonDetails(details);
@@ -117,42 +117,97 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             tvShowId,
             async ct =>
             {
+                var totalStopwatch = Stopwatch.StartNew();
+                var existingDataLoadMs = 0L;
+                var mutationPreparationMs = 0L;
+                var saveChangesMs = 0L;
+
+                var loadStopwatch = Stopwatch.StartNew();
                 var seasonNumbers = dedupedDetails
                     .Select(item => item.SeasonNumber)
                     .Distinct()
                     .ToList();
 
                 var existingSeasons = await dbContext.Seasons
-                    .Include(season => season.Episodes)
                     .Where(season => season.TvShowId == tvShowId && seasonNumbers.Contains(season.SeasonNumber))
                     .ToListAsync(ct);
 
+                await AttachAllEpisodesForSeasonsAsync(existingSeasons, ct);
+                loadStopwatch.Stop();
+                existingDataLoadMs = loadStopwatch.ElapsedMilliseconds;
+
                 var seasonsByNumber = existingSeasons.ToDictionary(season => season.SeasonNumber);
                 var utcNow = DateTime.UtcNow;
+                var incomingEpisodeCount = dedupedDetails.Sum(item => DeduplicateEpisodeDetails(item.Episodes).Count);
 
-                foreach (var seasonDetails in dedupedDetails)
+                var mutationStopwatch = Stopwatch.StartNew();
+                var autoDetectChanges = dbContext.ChangeTracker.AutoDetectChangesEnabled;
+                dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+                try
                 {
-                    if (!seasonsByNumber.TryGetValue(seasonDetails.SeasonNumber, out var season))
+                    foreach (var seasonDetails in dedupedDetails)
                     {
-                        season = new Season
+                        if (!seasonsByNumber.TryGetValue(seasonDetails.SeasonNumber, out var season))
                         {
-                            Id = Guid.NewGuid(),
-                            TvShowId = tvShowId,
-                            CreatedAt = utcNow
-                        };
+                            season = new Season
+                            {
+                                Id = Guid.NewGuid(),
+                                TvShowId = tvShowId,
+                                CreatedAt = utcNow
+                            };
 
-                        dbContext.Seasons.Add(season);
-                        seasonsByNumber[seasonDetails.SeasonNumber] = season;
+                            dbContext.Seasons.Add(season);
+                            seasonsByNumber[seasonDetails.SeasonNumber] = season;
+                        }
+
+                        seasonsByNumber[seasonDetails.SeasonNumber] =
+                            await ApplyProviderDetailsAsync(
+                                season,
+                                tvShowId,
+                                seasonDetails,
+                                utcNow,
+                                ct,
+                                resolveMissingEpisodesIndividually: false);
                     }
 
-                    seasonsByNumber[seasonDetails.SeasonNumber] =
-                        await ApplyProviderDetailsAsync(season, tvShowId, seasonDetails, utcNow, ct);
+                    dbContext.ChangeTracker.DetectChanges();
+                }
+                finally
+                {
+                    dbContext.ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
                 }
 
+                mutationStopwatch.Stop();
+                mutationPreparationMs = mutationStopwatch.ElapsedMilliseconds;
+
+                var (addedSeasonCount, updatedSeasonCount, addedEpisodeCount, updatedEpisodeCount) =
+                    CountPendingSeasonEpisodeChanges();
+
+                var saveStopwatch = Stopwatch.StartNew();
                 await dbContext.SaveChangesAsync(ct);
+                saveStopwatch.Stop();
+                saveChangesMs = saveStopwatch.ElapsedMilliseconds;
+
+                totalStopwatch.Stop();
+
+                return new SeasonBatchUpsertPersistenceMetrics(
+                    TotalMs: totalStopwatch.ElapsedMilliseconds,
+                    AdvisoryLockMs: 0,
+                    ExistingDataLoadMs: existingDataLoadMs,
+                    MutationPreparationMs: mutationPreparationMs,
+                    SaveChangesMs: saveChangesMs,
+                    SeasonCount: dedupedDetails.Count,
+                    IncomingEpisodeCount: incomingEpisodeCount,
+                    AddedEpisodeCount: addedEpisodeCount,
+                    UpdatedEpisodeCount: updatedEpisodeCount,
+                    AddedSeasonCount: addedSeasonCount,
+                    UpdatedSeasonCount: updatedSeasonCount);
             },
             cancellationToken);
     }
+
+    private static SeasonBatchUpsertPersistenceMetrics EmptyBatchUpsertMetrics() =>
+        new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     public async Task<Season> UpsertSummaryFromProviderAsync(
         Guid tvShowId,
@@ -262,7 +317,8 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         Guid tvShowId,
         SeasonProviderDetails details,
         DateTime utcNow,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool resolveMissingEpisodesIndividually = true)
     {
         if (season is null)
         {
@@ -288,7 +344,11 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
 
         var episodeDetails = DeduplicateEpisodeDetails(details.Episodes);
         var episodesByNumber = BuildEpisodeIndex(season);
-        await LoadMissingEpisodesAsync(season, episodeDetails, episodesByNumber, cancellationToken);
+        if (resolveMissingEpisodesIndividually)
+        {
+            await LoadMissingEpisodesAsync(season, episodeDetails, episodesByNumber, cancellationToken);
+        }
+
         foreach (var episodeDetail in episodeDetails)
         {
             UpsertLoadedEpisode(season, episodeDetail, utcNow, episodesByNumber);
@@ -401,4 +461,76 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             .GroupBy(item => item.EpisodeNumber)
             .Select(group => group.Last())
             .ToList();
+
+    private async Task AttachAllEpisodesForSeasonsAsync(
+        IReadOnlyList<Season> seasons,
+        CancellationToken cancellationToken)
+    {
+        var persistedSeasons = seasons
+            .Where(season => dbContext.Entry(season).State != EntityState.Added)
+            .ToList();
+
+        if (persistedSeasons.Count == 0)
+        {
+            return;
+        }
+
+        var seasonIds = persistedSeasons.Select(season => season.Id).ToList();
+        var episodes = await dbContext.Episodes
+            .Where(episode => seasonIds.Contains(episode.SeasonId))
+            .ToListAsync(cancellationToken);
+
+        var seasonsById = persistedSeasons.ToDictionary(season => season.Id);
+        foreach (var episode in episodes)
+        {
+            if (!seasonsById.TryGetValue(episode.SeasonId, out var season))
+            {
+                continue;
+            }
+
+            if (season.Episodes.Any(existing => existing.Id == episode.Id))
+            {
+                continue;
+            }
+
+            season.Episodes.Add(episode);
+        }
+    }
+
+    private (int AddedSeasonCount, int UpdatedSeasonCount, int AddedEpisodeCount, int UpdatedEpisodeCount)
+        CountPendingSeasonEpisodeChanges()
+    {
+        var addedSeasonCount = 0;
+        var updatedSeasonCount = 0;
+        var addedEpisodeCount = 0;
+        var updatedEpisodeCount = 0;
+
+        foreach (var entry in dbContext.ChangeTracker.Entries<Season>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    addedSeasonCount++;
+                    break;
+                case EntityState.Modified:
+                    updatedSeasonCount++;
+                    break;
+            }
+        }
+
+        foreach (var entry in dbContext.ChangeTracker.Entries<Episode>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    addedEpisodeCount++;
+                    break;
+                case EntityState.Modified:
+                    updatedEpisodeCount++;
+                    break;
+            }
+        }
+
+        return (addedSeasonCount, updatedSeasonCount, addedEpisodeCount, updatedEpisodeCount);
+    }
 }
