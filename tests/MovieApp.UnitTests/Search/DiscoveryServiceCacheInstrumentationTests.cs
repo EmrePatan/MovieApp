@@ -80,6 +80,7 @@ public sealed class DiscoveryServiceCacheInstrumentationTests
             repository,
             cache,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            new SearchTestDoubles.InMemorySearchRefreshLockService(),
             logger);
 
     private static List<SearchItem> CreateItems(int count)

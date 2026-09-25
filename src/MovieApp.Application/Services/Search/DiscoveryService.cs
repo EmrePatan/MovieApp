@@ -15,10 +15,14 @@ public sealed class DiscoveryService(
     ISearchRepository searchRepository,
     ICacheService cacheService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
+    ISearchRefreshLockService refreshLockService,
     ILogger<DiscoveryService> logger) : IDiscoveryService
 {
     private static readonly TimeSpan PopularCacheTtl = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan TrendingCacheTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan RefreshLockDuration = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CachePollInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly int MaxCachePollAttempts = 50;
 
     public Task<PaginatedResult<SearchItem>> GetPopularAsync(
         DiscoveryCriteria criteria,
@@ -104,7 +108,6 @@ public sealed class DiscoveryService(
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var totalLoadStopwatch = Stopwatch.StartNew();
         var cacheLookupStopwatch = Stopwatch.StartNew();
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
@@ -114,6 +117,69 @@ public sealed class DiscoveryService(
             return cachedEntry.Result;
         }
 
+        var lockKey = DiscoveryCacheLockKeys.Create(cacheKey);
+        var lockHandle = await refreshLockService.TryAcquireAsync(
+            lockKey,
+            RefreshLockDuration,
+            cancellationToken);
+
+        if (lockHandle is null)
+        {
+            var waited = await WaitForCachedDiscoveryAsync(cacheKey, cancellationToken);
+            if (waited is not null)
+            {
+                if (logger.IsEnabled(LogLevel.Debug))
+                {
+                    DiscoveryServiceLogMessages.LogCacheWaitFilled(logger, operation, cacheKey);
+                }
+
+                return waited.Result;
+            }
+        }
+
+        try
+        {
+            cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
+            if (cachedEntry is not null)
+            {
+                return cachedEntry.Result;
+            }
+
+            var stampedeRole = lockHandle is not null ? "Owner" : "FallbackLoad";
+            return await LoadAndCacheDiscoveryAsync(
+                operation,
+                cacheKey,
+                loadCanonical,
+                ttl,
+                contentLocale,
+                stampedeRole,
+                cacheLookupStopwatch.ElapsedMilliseconds,
+                cancellationToken);
+        }
+        finally
+        {
+            if (lockHandle is not null)
+            {
+                await refreshLockService.ReleaseAsync(
+                    lockHandle.LockKey,
+                    lockHandle.LockToken,
+                    lockHandle.Backend,
+                    cancellationToken);
+            }
+        }
+    }
+
+    private async Task<PaginatedResult<SearchItem>> LoadAndCacheDiscoveryAsync(
+        string operation,
+        string cacheKey,
+        Func<Task<PaginatedResult<SearchItem>>> loadCanonical,
+        TimeSpan ttl,
+        string contentLocale,
+        string stampedeRole,
+        long initialCacheLookupMs,
+        CancellationToken cancellationToken)
+    {
+        var totalLoadStopwatch = Stopwatch.StartNew();
         long canonicalLoadMs = 0;
         long overlayMs = 0;
         long cacheWriteMs = 0;
@@ -147,7 +213,8 @@ public sealed class DiscoveryService(
                 logger,
                 operation,
                 cacheKey,
-                cacheLookupStopwatch.ElapsedMilliseconds,
+                stampedeRole,
+                initialCacheLookupMs,
                 canonicalLoadMs,
                 overlayMs,
                 cacheWriteMs,
@@ -169,7 +236,7 @@ public sealed class DiscoveryService(
                 logger,
                 operation,
                 cacheKey,
-                cacheLookupStopwatch.ElapsedMilliseconds,
+                initialCacheLookupMs,
                 failurePhase,
                 totalLoadStopwatch.ElapsedMilliseconds);
 
@@ -177,10 +244,30 @@ public sealed class DiscoveryService(
         }
     }
 
+    private async Task<DiscoveryCacheEntry?> WaitForCachedDiscoveryAsync(
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < MaxCachePollAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(CachePollInterval, cancellationToken);
+
+            var cached = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
+            if (cached is not null)
+            {
+                return cached;
+            }
+        }
+
+        return null;
+    }
+
     private static void LogDiscoveryCacheLoadCompleted(
         ILogger logger,
         string operation,
         string cacheKey,
+        string stampedeRole,
         long cacheLookupMs,
         long canonicalLoadMs,
         long overlayMs,
@@ -197,6 +284,7 @@ public sealed class DiscoveryService(
             logger,
             operation,
             cacheKey,
+            stampedeRole,
             cacheLookupMs,
             canonicalLoadMs,
             overlayMs,
