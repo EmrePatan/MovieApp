@@ -164,7 +164,7 @@ public sealed class RegularSeasonEpisodeIngestionServiceTests
         public Task<TvShow> UpsertFromProviderAsync(
             TvShowProviderDetails details,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(tvShow);
+            Task.FromResult(tvShow ?? throw new NotSupportedException());
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<TvShowProviderSummary> summaries,
