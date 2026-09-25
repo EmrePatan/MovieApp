@@ -28,4 +28,44 @@ internal static partial class WatchHistoryPerfLogMessages
         long existenceCheckMs,
         long progressQueryMs,
         int dbRoundTrips);
+
+    [LoggerMessage(
+        EventId = 8203,
+        Level = LogLevel.Information,
+        Message = "WatchHistoryPerf TvWatchStatePerf TvShowId={TvShowId} CorrelationId={CorrelationId} Watched={Watched} TotalMs={TotalMs} EnsureTvShowExistsMs={EnsureTvShowExistsMs} IngestionRequiredCheckMs={IngestionRequiredCheckMs} IngestionCatalogMetadataQueryMs={IngestionCatalogMetadataQueryMs} IngestionSeasonsWithEpisodesQueryMs={IngestionSeasonsWithEpisodesQueryMs} IngestionRequired={IngestionRequired} RegularSeasonCount={RegularSeasonCount} SeasonsWithEpisodeRowsCount={SeasonsWithEpisodeRowsCount} SeasonsMissingEpisodesCount={SeasonsMissingEpisodesCount} MissingSeasonNumbers={MissingSeasonNumbers} EnsureIngestedMs={EnsureIngestedMs} EpisodeIdsLoadMs={EpisodeIdsLoadMs} EpisodeCount={EpisodeCount} BulkWriteMs={BulkWriteMs} AffectedCount={AffectedCount} AnalyticsDispatchMs={AnalyticsDispatchMs}")]
+    public static partial void LogTvWatchState(
+        ILogger logger,
+        Guid tvShowId,
+        string? correlationId,
+        bool watched,
+        long totalMs,
+        long ensureTvShowExistsMs,
+        long ingestionRequiredCheckMs,
+        long ingestionCatalogMetadataQueryMs,
+        long ingestionSeasonsWithEpisodesQueryMs,
+        bool ingestionRequired,
+        int regularSeasonCount,
+        int seasonsWithEpisodeRowsCount,
+        int seasonsMissingEpisodesCount,
+        string missingSeasonNumbers,
+        long ensureIngestedMs,
+        long episodeIdsLoadMs,
+        int episodeCount,
+        long bulkWriteMs,
+        int affectedCount,
+        long analyticsDispatchMs);
+
+    [LoggerMessage(
+        EventId = 8204,
+        Level = LogLevel.Information,
+        Message = "WatchHistoryPerf MovieWatchStatePerf MovieId={MovieId} CorrelationId={CorrelationId} TotalMs={TotalMs} EnsureMovieExistsMs={EnsureMovieExistsMs} UpsertMs={UpsertMs} Created={Created} AnalyticsDispatchMs={AnalyticsDispatchMs}")]
+    public static partial void LogMovieWatchState(
+        ILogger logger,
+        Guid movieId,
+        string? correlationId,
+        long totalMs,
+        long ensureMovieExistsMs,
+        long upsertMs,
+        bool created,
+        long analyticsDispatchMs);
 }

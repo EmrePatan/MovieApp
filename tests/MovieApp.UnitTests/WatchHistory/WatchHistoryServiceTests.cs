@@ -892,6 +892,12 @@ public sealed class WatchHistoryServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
+
+        public Task<RegularEpisodeIngestionCheckResult> CheckRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RegularEpisodeIngestionCheckResult(
+                true, 0, 0, 0, 0, 0, []));
     }
 
     private sealed class FakeSeasonSummaryHydrator : ITvShowSeasonSummaryHydrator

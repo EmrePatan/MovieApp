@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
@@ -18,7 +19,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         var (tvShowId, watchedEpisodeId, _) = await SeedTvShowWithEpisodesAsync(context, episodeCount: 3);
         await SeedWatchedEpisodeAsync(context, userId, watchedEpisodeId, DateTime.UtcNow.AddHours(-1));
 
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 10);
 
         Assert.Single(items);
@@ -32,7 +33,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         var userId = Guid.NewGuid();
         var (tvShowId, episodeIds) = await SeedFullyWatchedTvShowAsync(context, userId, episodeCount: 2);
 
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 10);
 
         Assert.DoesNotContain(items, item => item.TvShowId == tvShowId);
@@ -47,7 +48,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         await SeedWatchedEpisodeAsync(context, userId, episodeIds[0], DateTime.UtcNow.AddHours(-3));
         await SeedWatchedEpisodeAsync(context, userId, episodeIds[1], DateTime.UtcNow.AddHours(-1));
 
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 10);
 
         Assert.Single(items);
@@ -71,7 +72,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         await SeedWatchedEpisodeAsync(context, userId, olderEpisodeId, DateTime.UtcNow.AddDays(-2));
         await SeedWatchedEpisodeAsync(context, userId, newerEpisodeId, DateTime.UtcNow.AddHours(-1));
 
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 10);
 
         Assert.Equal(2, items.Count);
@@ -99,7 +100,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
                 DateTime.UtcNow.AddHours(-index));
         }
 
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 2);
 
         Assert.Equal(2, items.Count);
@@ -114,7 +115,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
 
         await SeedWatchedEpisodeAsync(context, userId, episodeId, DateTime.UtcNow);
 
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
         var query = context.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode => watchedEpisode.UserId == userId)
@@ -144,7 +145,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
             .SingleAsync(item => item.UserId == userId && item.EpisodeId == episodeIds[0]);
 
         var watchedAt = DateTime.UtcNow;
-        var affected = await new WatchedEpisodeRepository(context)
+        var affected = await new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance)
             .BulkMarkWatchedAsync(userId, [.. episodeIds, episodeIds[1]], watchedAt);
 
         Assert.Equal(3, affected);
@@ -171,7 +172,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         await SeedWatchedEpisodeAsync(context, userId, episodeIds[2], watchedAt);
         await SeedWatchedEpisodeAsync(context, otherUserId, episodeIds[0], watchedAt);
 
-        var removed = await new WatchedEpisodeRepository(context)
+        var removed = await new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance)
             .BulkUnmarkWatchedAsync(userId, [episodeIds[0], episodeIds[1], episodeIds[0]]);
 
         Assert.Equal(1, removed);
@@ -193,7 +194,7 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         var userId = Guid.NewGuid();
         await SeedUserAsync(context, userId);
         var (_, episodeIds) = await SeedTvShowEpisodeIdsAsync(context, episodeCount: 3347);
-        var repository = new WatchedEpisodeRepository(context);
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
 
         commandCount = 0;
         Assert.Equal(3347, await repository.BulkMarkWatchedAsync(userId, episodeIds, DateTime.UtcNow));

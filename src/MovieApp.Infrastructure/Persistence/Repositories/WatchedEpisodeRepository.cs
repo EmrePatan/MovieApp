@@ -1,11 +1,17 @@
+using System.Data;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.WatchHistory;
 using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : IWatchedEpisodeRepository
+public sealed class WatchedEpisodeRepository(
+    ApplicationDbContext dbContext,
+    ILogger<WatchedEpisodeRepository> logger) : IWatchedEpisodeRepository
 {
     public async Task<WatchedEpisode?> GetByUserAndEpisodeAsync(
         Guid userId,
@@ -314,17 +320,24 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
         var distinctIds = episodeIds.Distinct().ToArray();
         var newRowIds = distinctIds.Select(_ => Guid.NewGuid()).ToArray();
 
-        // ON CONFLICT DO UPDATE rejects touching the same row twice, so ids must be distinct.
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-             INSERT INTO watched_episodes ("Id", "UserId", "EpisodeId", "WatchedAt", "CreatedAt", "UpdatedAt")
-             SELECT rows.id, {userId}, rows.episode_id, {watchedAt}, {watchedAt}, {watchedAt}
-             FROM unnest({newRowIds}::uuid[], {distinctIds}::uuid[]) AS rows(id, episode_id)
-             ON CONFLICT ("UserId", "EpisodeId")
-             DO UPDATE SET
-                 "WatchedAt" = EXCLUDED."WatchedAt",
-                 "UpdatedAt" = EXCLUDED."UpdatedAt"
-             """,
+        await ExecuteBulkWriteWithPerfAsync(
+            "BulkMarkWatched",
+            distinctIds.Length,
+            async () =>
+            {
+                // ON CONFLICT DO UPDATE rejects touching the same row twice, so ids must be distinct.
+                await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                     INSERT INTO watched_episodes ("Id", "UserId", "EpisodeId", "WatchedAt", "CreatedAt", "UpdatedAt")
+                     SELECT rows.id, {userId}, rows.episode_id, {watchedAt}, {watchedAt}, {watchedAt}
+                     FROM unnest({newRowIds}::uuid[], {distinctIds}::uuid[]) AS rows(id, episode_id)
+                     ON CONFLICT ("UserId", "EpisodeId")
+                     DO UPDATE SET
+                         "WatchedAt" = EXCLUDED."WatchedAt",
+                         "UpdatedAt" = EXCLUDED."UpdatedAt"
+                     """,
+                    cancellationToken);
+            },
             cancellationToken);
 
         return distinctIds.Length;
@@ -341,11 +354,55 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
         }
 
         var distinctIds = episodeIds.Distinct().ToArray();
-        return await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-             DELETE FROM watched_episodes
-             WHERE "UserId" = {userId} AND "EpisodeId" = ANY({distinctIds}::uuid[])
-             """,
+        var affected = 0;
+        await ExecuteBulkWriteWithPerfAsync(
+            "BulkUnmarkWatched",
+            distinctIds.Length,
+            async () =>
+            {
+                affected = await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                     DELETE FROM watched_episodes
+                     WHERE "UserId" = {userId} AND "EpisodeId" = ANY({distinctIds}::uuid[])
+                     """,
+                    cancellationToken);
+            },
             cancellationToken);
+
+        return affected;
+    }
+
+    private async Task ExecuteBulkWriteWithPerfAsync(
+        string operation,
+        int episodeCount,
+        Func<Task> execute,
+        CancellationToken cancellationToken)
+    {
+        var totalStopwatch = Stopwatch.StartNew();
+        var connection = dbContext.Database.GetDbConnection();
+        var connectionWasOpen = connection.State == ConnectionState.Open;
+        var connectionOpenMs = 0L;
+
+        if (!connectionWasOpen)
+        {
+            var connectionStopwatch = Stopwatch.StartNew();
+            await dbContext.Database.OpenConnectionAsync(cancellationToken);
+            connectionStopwatch.Stop();
+            connectionOpenMs = connectionStopwatch.ElapsedMilliseconds;
+        }
+
+        var executeStopwatch = Stopwatch.StartNew();
+        await execute();
+        executeStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        WatchHistoryBulkWritePerfLogMessages.LogBulkWrite(
+            logger,
+            operation,
+            episodeCount,
+            connectionOpenMs,
+            executeStopwatch.ElapsedMilliseconds,
+            totalStopwatch.ElapsedMilliseconds,
+            connectionWasOpen);
     }
 }

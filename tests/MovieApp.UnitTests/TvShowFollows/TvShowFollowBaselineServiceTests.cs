@@ -539,6 +539,11 @@ public sealed class TvShowFollowBaselineServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task<RegularEpisodeIngestionCheckResult> CheckRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RegularEpisodeIngestionCheckResult(false, 0, 0, 0, 0, 0, []));
     }
 
     private sealed class ConcurrentFakeSeasonRepository : FakeSeasonRepository

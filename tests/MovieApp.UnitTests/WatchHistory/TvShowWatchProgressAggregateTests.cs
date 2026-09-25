@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using RegularEpisodeIngestionCheckResult = MovieApp.Application.Abstractions.Persistence.RegularEpisodeIngestionCheckResult;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.WatchHistory;
@@ -435,6 +436,18 @@ public sealed class TvShowWatchProgressAggregateTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
+
+        public Task<RegularEpisodeIngestionCheckResult> CheckRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RegularEpisodeIngestionCheckResult(
+                IsRequired: true,
+                CatalogMetadataQueryMs: 0,
+                SeasonsWithEpisodesQueryMs: 0,
+                RegularSeasonCount: 0,
+                SeasonsWithEpisodeRowsCount: 0,
+                SeasonsMissingEpisodesCount: 0,
+                MissingSeasonNumbers: []));
     }
 
     private sealed class HydratedSeasonRepository(
@@ -470,19 +483,42 @@ public sealed class TvShowWatchProgressAggregateTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlySet<int>>(seasonNumbers.ToHashSet());
 
-        public Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+        public async Task<bool> IsRegularEpisodeIngestionRequiredAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            (await CheckRegularEpisodeIngestionRequiredAsync(tvShowId, cancellationToken)).IsRequired;
+
+        public Task<RegularEpisodeIngestionCheckResult> CheckRegularEpisodeIngestionRequiredAsync(
             Guid tvShowId,
             CancellationToken cancellationToken = default)
         {
             if (regularSeasonMetadata is not null && regularSeasonMetadata.Any())
             {
-                var needs = regularSeasonMetadata
+                var missing = regularSeasonMetadata
                     .Where(season => season.SeasonNumber >= 1 && season.EpisodeCount != 0)
-                    .Any(season => !seasonNumbers.Contains(season.SeasonNumber));
-                return Task.FromResult(needs);
+                    .Where(season => !seasonNumbers.Contains(season.SeasonNumber))
+                    .Select(season => season.SeasonNumber)
+                    .OrderBy(seasonNumber => seasonNumber)
+                    .ToList();
+
+                return Task.FromResult(new RegularEpisodeIngestionCheckResult(
+                    missing.Count > 0,
+                    0,
+                    0,
+                    regularSeasonMetadata.Count(season => season.SeasonNumber >= 1),
+                    seasonNumbers.Count,
+                    missing.Count,
+                    missing));
             }
 
-            return Task.FromResult(seasonNumbers.Count == 0);
+            return Task.FromResult(new RegularEpisodeIngestionCheckResult(
+                seasonNumbers.Count == 0,
+                0,
+                0,
+                0,
+                seasonNumbers.Count,
+                0,
+                []));
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
@@ -37,23 +38,51 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
 
     public async Task<bool> IsRegularEpisodeIngestionRequiredAsync(
         Guid tvShowId,
+        CancellationToken cancellationToken = default) =>
+        (await CheckRegularEpisodeIngestionRequiredAsync(tvShowId, cancellationToken)).IsRequired;
+
+    public async Task<RegularEpisodeIngestionCheckResult> CheckRegularEpisodeIngestionRequiredAsync(
+        Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
+        var metadataStopwatch = Stopwatch.StartNew();
         var regularSeasons = await dbContext.Seasons
             .AsNoTracking()
             .Where(season => season.TvShowId == tvShowId && season.SeasonNumber >= 1)
             .Select(season => new { season.SeasonNumber, season.EpisodeCount })
             .ToListAsync(cancellationToken);
+        metadataStopwatch.Stop();
 
         if (regularSeasons.Count == 0)
         {
-            return true;
+            return new RegularEpisodeIngestionCheckResult(
+                IsRequired: true,
+                CatalogMetadataQueryMs: metadataStopwatch.ElapsedMilliseconds,
+                SeasonsWithEpisodesQueryMs: 0,
+                RegularSeasonCount: 0,
+                SeasonsWithEpisodeRowsCount: 0,
+                SeasonsMissingEpisodesCount: 0,
+                MissingSeasonNumbers: []);
         }
 
+        var episodesStopwatch = Stopwatch.StartNew();
         var seasonsWithEpisodes = await GetRegularSeasonNumbersWithEpisodesAsync(tvShowId, cancellationToken);
+        episodesStopwatch.Stop();
 
-        return regularSeasons.Any(season =>
-            season.EpisodeCount != 0 && !seasonsWithEpisodes.Contains(season.SeasonNumber));
+        var missingSeasonNumbers = regularSeasons
+            .Where(season => season.EpisodeCount != 0 && !seasonsWithEpisodes.Contains(season.SeasonNumber))
+            .Select(season => season.SeasonNumber)
+            .OrderBy(seasonNumber => seasonNumber)
+            .ToList();
+
+        return new RegularEpisodeIngestionCheckResult(
+            IsRequired: missingSeasonNumbers.Count > 0,
+            CatalogMetadataQueryMs: metadataStopwatch.ElapsedMilliseconds,
+            SeasonsWithEpisodesQueryMs: episodesStopwatch.ElapsedMilliseconds,
+            RegularSeasonCount: regularSeasons.Count,
+            SeasonsWithEpisodeRowsCount: seasonsWithEpisodes.Count,
+            SeasonsMissingEpisodesCount: missingSeasonNumbers.Count,
+            MissingSeasonNumbers: missingSeasonNumbers);
     }
 
     public Task<Season> UpsertFromProviderAsync(

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -11,7 +12,8 @@ public sealed class ContinueWatchingQueryTests
     {
         using var context = CreateContext();
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        var sql = new WatchedEpisodeRepository(context).GetContinueWatchingSql(userId, take: 10);
+        var sql = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance)
+            .GetContinueWatchingSql(userId, take: 10);
 
         Assert.Contains("LIMIT", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("watched_episodes", sql, StringComparison.OrdinalIgnoreCase);

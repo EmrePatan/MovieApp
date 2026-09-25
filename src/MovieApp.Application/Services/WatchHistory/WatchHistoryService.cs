@@ -37,13 +37,34 @@ public sealed class WatchHistoryService(
         Guid movieId,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
+
+        var ensureStopwatch = Stopwatch.StartNew();
         await EnsureMovieExistsAsync(movieId, cancellationToken);
+        ensureStopwatch.Stop();
 
         var utcNow = DateTime.UtcNow;
         var watchedMovie = WatchedMovie.Create(userId, movieId, utcNow);
+
+        var upsertStopwatch = Stopwatch.StartNew();
         var (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
+        upsertStopwatch.Stop();
+
+        var analyticsStopwatch = Stopwatch.StartNew();
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
+        analyticsStopwatch.Stop();
+
+        totalStopwatch.Stop();
+        WatchHistoryPerfLogMessages.LogMovieWatchState(
+            logger,
+            movieId,
+            correlationId: null,
+            totalStopwatch.ElapsedMilliseconds,
+            ensureStopwatch.ElapsedMilliseconds,
+            upsertStopwatch.ElapsedMilliseconds,
+            created,
+            analyticsStopwatch.ElapsedMilliseconds);
 
         return new WatchMutationResult(entity.WatchedAt, created);
     }
@@ -455,27 +476,118 @@ public sealed class WatchHistoryService(
         bool watched,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
 
-        if (await seasonRepository.IsRegularEpisodeIngestionRequiredAsync(tvShowId, cancellationToken))
+        var ensureTvShowStopwatch = Stopwatch.StartNew();
+        await EnsureTvShowExistsAsync(tvShowId, cancellationToken);
+        ensureTvShowStopwatch.Stop();
+
+        var ingestionCheckStopwatch = Stopwatch.StartNew();
+        var ingestionCheck = await seasonRepository.CheckRegularEpisodeIngestionRequiredAsync(tvShowId, cancellationToken);
+        ingestionCheckStopwatch.Stop();
+
+        var ensureIngestedMs = 0L;
+        if (ingestionCheck.IsRequired)
         {
+            var ensureIngestedStopwatch = Stopwatch.StartNew();
             await EnsureRegularSeasonEpisodesIngestedAsync(tvShowId, cancellationToken);
+            ensureIngestedStopwatch.Stop();
+            ensureIngestedMs = ensureIngestedStopwatch.ElapsedMilliseconds;
         }
 
+        var episodeIdsStopwatch = Stopwatch.StartNew();
         var episodeIds = await episodeRepository.GetEpisodeIdsForRegularSeasonsAsync(tvShowId, cancellationToken);
+        episodeIdsStopwatch.Stop();
+
         if (episodeIds.Count == 0)
         {
+            totalStopwatch.Stop();
+            LogTvWatchStatePerf(
+                tvShowId,
+                watched,
+                totalStopwatch.ElapsedMilliseconds,
+                ensureTvShowStopwatch.ElapsedMilliseconds,
+                ingestionCheckStopwatch.ElapsedMilliseconds,
+                ingestionCheck,
+                ensureIngestedMs,
+                episodeIdsStopwatch.ElapsedMilliseconds,
+                episodeCount: 0,
+                bulkWriteMs: 0,
+                affectedCount: 0,
+                analyticsDispatchMs: 0);
+
             return new BulkUpdateEpisodeWatchStateResult(0, null);
         }
 
         var utcNow = DateTime.UtcNow;
+        var bulkWriteStopwatch = Stopwatch.StartNew();
         var affectedCount = watched
             ? await watchedEpisodeRepository.BulkMarkWatchedAsync(userId, episodeIds, utcNow, cancellationToken)
             : await watchedEpisodeRepository.BulkUnmarkWatchedAsync(userId, episodeIds, cancellationToken);
+        bulkWriteStopwatch.Stop();
+
+        var analyticsStopwatch = Stopwatch.StartNew();
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
+        analyticsStopwatch.Stop();
+
+        totalStopwatch.Stop();
+        LogTvWatchStatePerf(
+            tvShowId,
+            watched,
+            totalStopwatch.ElapsedMilliseconds,
+            ensureTvShowStopwatch.ElapsedMilliseconds,
+            ingestionCheckStopwatch.ElapsedMilliseconds,
+            ingestionCheck,
+            ensureIngestedMs,
+            episodeIdsStopwatch.ElapsedMilliseconds,
+            episodeIds.Count,
+            bulkWriteStopwatch.ElapsedMilliseconds,
+            affectedCount,
+            analyticsStopwatch.ElapsedMilliseconds);
 
         return new BulkUpdateEpisodeWatchStateResult(affectedCount, watched ? utcNow : null);
+    }
+
+    private void LogTvWatchStatePerf(
+        Guid tvShowId,
+        bool watched,
+        long totalMs,
+        long ensureTvShowExistsMs,
+        long ingestionRequiredCheckMs,
+        RegularEpisodeIngestionCheckResult ingestionCheck,
+        long ensureIngestedMs,
+        long episodeIdsLoadMs,
+        int episodeCount,
+        long bulkWriteMs,
+        int affectedCount,
+        long analyticsDispatchMs)
+    {
+        var missingSeasonNumbers = ingestionCheck.MissingSeasonNumbers.Count == 0
+            ? "-"
+            : string.Join(',', ingestionCheck.MissingSeasonNumbers.Take(12));
+
+        WatchHistoryPerfLogMessages.LogTvWatchState(
+            logger,
+            tvShowId,
+            correlationId: null,
+            watched,
+            totalMs,
+            ensureTvShowExistsMs,
+            ingestionRequiredCheckMs,
+            ingestionCheck.CatalogMetadataQueryMs,
+            ingestionCheck.SeasonsWithEpisodesQueryMs,
+            ingestionCheck.IsRequired,
+            ingestionCheck.RegularSeasonCount,
+            ingestionCheck.SeasonsWithEpisodeRowsCount,
+            ingestionCheck.SeasonsMissingEpisodesCount,
+            missingSeasonNumbers,
+            ensureIngestedMs,
+            episodeIdsLoadMs,
+            episodeCount,
+            bulkWriteMs,
+            affectedCount,
+            analyticsDispatchMs);
     }
 
     private async Task EnsureRegularSeasonEpisodesIngestedAsync(
