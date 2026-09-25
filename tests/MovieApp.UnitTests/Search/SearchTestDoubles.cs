@@ -223,6 +223,8 @@ internal static class SearchTestDoubles
 
         public bool ThrowBeforeResult { get; set; }
 
+        public bool ThrowCanceled { get; set; }
+
         public bool ThrowOnAutocomplete { get; set; }
 
         public int ArtificialDelayMilliseconds { get; set; }
@@ -235,6 +237,11 @@ internal static class SearchTestDoubles
             if (ArtificialDelayMilliseconds > 0)
             {
                 await Task.Delay(ArtificialDelayMilliseconds, cancellationToken);
+            }
+
+            if (ThrowCanceled)
+            {
+                throw new OperationCanceledException(cancellationToken);
             }
 
             if (ThrowBeforeResult)

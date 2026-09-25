@@ -186,6 +186,50 @@ public sealed class SearchServiceProviderFailureTests
     }
 
     [Fact]
+    public async Task SearchAsyncPropagatesCallerCancellationInsteadOfFallingBackToCatalog()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var repository = new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 20);
+        var service = SearchServiceTestsHelper.CreateService(
+            repository,
+            new SearchServiceTestsHelper.FakeCacheService(null),
+            new SearchTestDoubles.FakeProviderIngestionService
+            {
+                ThrowCanceled = true
+            });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.SearchAsync(
+                CreateCriteria("inception"),
+                ContentLocaleResolver.EnglishUnitedStates,
+                cancellation.Token));
+
+        Assert.Equal(0, repository.SearchCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncFallsBackToCatalogWhenProviderCancelsOnItsOwnToken()
+    {
+        var repository = new SearchServiceTestsHelper.FakeSearchRepository([MovieItem], totalCount: 20);
+        var service = SearchServiceTestsHelper.CreateService(
+            repository,
+            new SearchServiceTestsHelper.FakeCacheService(null),
+            new SearchTestDoubles.FakeProviderIngestionService
+            {
+                ThrowCanceled = true
+            });
+
+        var result = await service.SearchAsync(
+            CreateCriteria("inception"),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(20, result.TotalCount);
+        Assert.Equal(1, repository.SearchCount);
+    }
+
+    [Fact]
     public async Task LockHolderPublishesSucceededOnSuccessfulRefresh()
     {
         var lockService = new SearchTestDoubles.InMemorySearchRefreshLockService();

@@ -132,6 +132,8 @@ public sealed class WatchHistoryService(
         return WatchHistoryMapper.ToWatchedEpisodesResult(items, page, pageSize, totalCount);
     }
 
+    internal const int MaxRecentHistoryDepth = 500;
+
     public async Task<PaginatedResult<RecentWatchHistoryItemResult>> GetRecentWatchHistoryAsync(
         int page,
         int pageSize,
@@ -139,11 +141,10 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         ValidatePagination(page, pageSize);
+        var fetchCount = GetRecentHistoryFetchCount(page, pageSize);
 
         var totalCount = await watchedMovieRepository.CountForUserAsync(userId, cancellationToken)
             + await watchedEpisodeRepository.CountForUserAsync(userId, cancellationToken);
-
-        var fetchCount = page * pageSize;
         var recentMovies = await watchedMovieRepository.GetRecentForUserAsync(userId, fetchCount, cancellationToken);
         var recentEpisodes = await watchedEpisodeRepository.GetRecentForUserAsync(userId, fetchCount, cancellationToken);
 
@@ -529,6 +530,18 @@ public sealed class WatchHistoryService(
         {
             throw new ValidationException(validationResult.ErrorMessage!);
         }
+    }
+
+    private static int GetRecentHistoryFetchCount(int page, int pageSize)
+    {
+        var fetchCount = (long)page * pageSize;
+        if (fetchCount > MaxRecentHistoryDepth)
+        {
+            throw new ValidationException(
+                $"Recent watch history can only page through the latest {MaxRecentHistoryDepth} items.");
+        }
+
+        return (int)fetchCount;
     }
 
     private async Task EnsureMovieExistsAsync(Guid movieId, CancellationToken cancellationToken)

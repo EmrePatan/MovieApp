@@ -335,6 +335,20 @@ public sealed class WatchHistoryServiceTests
     }
 
     [Fact]
+    public async Task GetRecentWatchHistoryAsyncRejectsPagesThatWouldLoadAnUnboundedWindow()
+    {
+        var service = CreateService(new FakeWatchedMovieRepository(), new FakeWatchedEpisodeRepository());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetRecentWatchHistoryAsync(page: 1_000_000, pageSize: 100));
+
+        Assert.Contains(
+            WatchHistoryService.MaxRecentHistoryDepth.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BulkUpdateEpisodeWatchStateAsyncMarksEpisodes()
     {
         var watchedEpisodeRepo = new FakeWatchedEpisodeRepository();

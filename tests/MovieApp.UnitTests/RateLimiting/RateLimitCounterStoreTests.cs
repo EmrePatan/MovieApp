@@ -24,6 +24,20 @@ public sealed class InMemoryRateLimitCounterStoreTests
         Assert.False(rejected.IsAcquired);
         Assert.NotNull(rejected.RetryAfter);
     }
+
+    [Fact]
+    public async Task TryAcquireAsyncDropsExpiredPartitionsInsteadOfGrowingWithoutBound()
+    {
+        var store = new InMemoryRateLimitCounterStore();
+
+        for (var index = 0; index < InMemoryRateLimitCounterStore.MaxTrackedPartitions + 500; index++)
+        {
+            var result = await store.TryAcquireAsync($"client-{index}", 5, TimeSpan.Zero);
+            Assert.True(result.IsAcquired);
+        }
+
+        Assert.True(store.TrackedPartitionCount <= InMemoryRateLimitCounterStore.MaxTrackedPartitions);
+    }
 }
 
 public sealed class CompositeRateLimitCounterStoreTests
