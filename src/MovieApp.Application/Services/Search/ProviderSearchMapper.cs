@@ -14,7 +14,7 @@ internal static class ProviderSearchMapper
             id,
             "movie",
             summary.Title,
-            null,
+            summary.OriginalTitle,
             summary.Overview,
             summary.PosterPath,
             null,
@@ -167,6 +167,7 @@ internal static class ProviderSearchMapper
             rankingItems.Add(ToRankingSearchItem(
                 "movie",
                 summary.Title,
+                summary.OriginalTitle,
                 summary.VoteAverage,
                 summary.VoteCount,
                 summary.TmdbId,
@@ -183,6 +184,7 @@ internal static class ProviderSearchMapper
             rankingItems.Add(ToRankingSearchItem(
                 "tv",
                 summary.Title,
+                summary.OriginalTitle,
                 summary.VoteAverage,
                 summary.VoteCount,
                 summary.TmdbId,
@@ -194,6 +196,7 @@ internal static class ProviderSearchMapper
             rankingItems.Add(ToRankingSearchItem(
                 "person",
                 summary.Name,
+                null,
                 summary.Popularity,
                 0,
                 summary.TmdbId,
@@ -392,6 +395,7 @@ internal static class ProviderSearchMapper
     private static SearchItem ToRankingSearchItem(
         string type,
         string title,
+        string? originalTitle,
         decimal voteAverage,
         int voteCount,
         int? tmdbId,
@@ -401,7 +405,7 @@ internal static class ProviderSearchMapper
             Guid.Empty,
             type,
             title,
-            null,
+            originalTitle,
             null,
             null,
             null,
@@ -427,8 +431,10 @@ internal static class ProviderSearchMapper
                 .ToList();
         }
 
+        var context = BuildRankingContext(items, normalizedQuery, preferCatalogContent);
+
         return items
-            .OrderBy(item => ComputeRelevanceRank(item.Title, normalizedQuery, item.Type, preferCatalogContent))
+            .OrderBy(item => ComputeRelevanceRank(item, normalizedQuery, context))
             .ThenByDescending(GetSearchRankingPopularity)
             .ThenByDescending(item => item.VoteCount)
             .ThenByDescending(item => item.VoteAverage)
@@ -438,29 +444,151 @@ internal static class ProviderSearchMapper
     private static decimal GetSearchRankingPopularity(SearchItem item) =>
         item.Popularity > 0 ? item.Popularity : item.VoteAverage;
 
-    private static int ComputeRelevanceRank(
-        string title,
+    private readonly record struct RankingContext(
+        bool PreferCatalogContent,
+        bool CatalogFranchiseSignal,
+        bool CatalogExactMatch,
+        int QueryTokenCount);
+
+    private static RankingContext BuildRankingContext(
+        IReadOnlyList<SearchItem> items,
         string normalizedQuery,
-        string type,
         bool preferCatalogContent)
     {
-        var normalizedTitle = QueryNormalizer.Normalize(title);
-        var rank = 2;
-
-        if (string.Equals(normalizedTitle, normalizedQuery, StringComparison.OrdinalIgnoreCase))
+        if (!preferCatalogContent)
         {
-            rank = 0;
-        }
-        else if (normalizedTitle.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
-        {
-            rank = 1;
+            return new RankingContext(false, false, false, CountQueryTokens(normalizedQuery));
         }
 
-        if (preferCatalogContent && type == "person")
+        var catalogFranchiseSignal = false;
+        var catalogExactMatch = false;
+
+        foreach (var item in items)
         {
-            rank = Math.Min(rank + 2, 2);
+            if (item.Type is not ("movie" or "tv"))
+            {
+                continue;
+            }
+
+            if (IsCatalogFranchiseMatch(item.Title, item.OriginalTitle, normalizedQuery))
+            {
+                catalogFranchiseSignal = true;
+            }
+
+            if (GetTextMatchTier(item.Title, item.OriginalTitle, normalizedQuery) == 0)
+            {
+                catalogExactMatch = true;
+            }
         }
 
-        return rank;
+        return new RankingContext(
+            preferCatalogContent,
+            catalogFranchiseSignal,
+            catalogExactMatch,
+            CountQueryTokens(normalizedQuery));
     }
+
+    private static int ComputeRelevanceRank(
+        SearchItem item,
+        string normalizedQuery,
+        RankingContext context)
+    {
+        var tier = GetTextMatchTier(item.Title, item.OriginalTitle, normalizedQuery);
+
+        if (!context.PreferCatalogContent || item.Type != "person")
+        {
+            return tier;
+        }
+
+        var exactPersonNameMatch = tier == 0;
+
+        if (exactPersonNameMatch)
+        {
+            if (context.CatalogFranchiseSignal)
+            {
+                return 2;
+            }
+
+            if (context.QueryTokenCount == 1 && context.CatalogExactMatch)
+            {
+                return 2;
+            }
+
+            return 0;
+        }
+
+        return Math.Min(tier + 1, 3);
+    }
+
+    private static int GetTextMatchTier(string title, string? alternateTitle, string normalizedQuery)
+    {
+        var bestTier = 3;
+
+        foreach (var normalizedTitle in EnumerateNormalizedNames(title, alternateTitle))
+        {
+            if (normalizedTitle == normalizedQuery)
+            {
+                bestTier = Math.Min(bestTier, 0);
+                continue;
+            }
+
+            if (normalizedTitle.StartsWith(normalizedQuery, StringComparison.Ordinal))
+            {
+                bestTier = Math.Min(bestTier, 1);
+                continue;
+            }
+
+            if (HasTokenMatch(normalizedTitle, normalizedQuery))
+            {
+                bestTier = Math.Min(bestTier, 2);
+            }
+        }
+
+        return bestTier;
+    }
+
+    private static bool IsCatalogFranchiseMatch(string title, string? alternateTitle, string normalizedQuery)
+    {
+        foreach (var normalizedTitle in EnumerateNormalizedNames(title, alternateTitle))
+        {
+            if (normalizedTitle == normalizedQuery)
+            {
+                return true;
+            }
+
+            if (normalizedTitle.StartsWith(normalizedQuery + " and ", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> EnumerateNormalizedNames(string title, string? alternateTitle)
+    {
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            yield return QueryNormalizer.Normalize(title);
+        }
+
+        if (!string.IsNullOrWhiteSpace(alternateTitle))
+        {
+            yield return QueryNormalizer.Normalize(alternateTitle);
+        }
+    }
+
+    private static bool HasTokenMatch(string normalizedTitle, string normalizedQuery)
+    {
+        var queryTokens = normalizedQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (queryTokens.Length == 0)
+        {
+            return false;
+        }
+
+        return queryTokens.All(token => normalizedTitle.Contains(token, StringComparison.Ordinal));
+    }
+
+    private static int CountQueryTokens(string normalizedQuery) =>
+        normalizedQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
 }
