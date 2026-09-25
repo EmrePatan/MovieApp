@@ -3,11 +3,13 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Api.Authentication;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Identity;
 using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Identity;
 
 namespace MovieApp.UnitTests.Authentication;
 
@@ -68,17 +70,66 @@ public sealed class JwtSecurityStampValidatorTests
         Assert.Contains("revoked", failure.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ValidateAsyncReusesCachedSecurityStampForTheSameUser()
+    {
+        var userId = Guid.NewGuid();
+        var securityStamp = Guid.NewGuid();
+        var repository = new CountingUserRepository(userId, securityStamp);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var stampCache = new SecurityStampCache();
+        var httpContext = CreateHttpContext(repository, CancellationToken.None, cache, stampCache);
+
+        await JwtSecurityStampValidator.ValidateAsync(CreateTokenValidatedContext(httpContext, userId, securityStamp));
+        await JwtSecurityStampValidator.ValidateAsync(CreateTokenValidatedContext(httpContext, userId, securityStamp));
+
+        Assert.Equal(1, repository.Calls);
+    }
+
+    [Fact]
+    public async Task ValidateAsyncReadsTheDatabaseAgainAfterTheStampCacheIsInvalidated()
+    {
+        var userId = Guid.NewGuid();
+        var securityStamp = Guid.NewGuid();
+        var repository = new CountingUserRepository(userId, securityStamp);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var stampCache = new SecurityStampCache();
+        var httpContext = CreateHttpContext(repository, CancellationToken.None, cache, stampCache);
+
+        await JwtSecurityStampValidator.ValidateAsync(CreateTokenValidatedContext(httpContext, userId, securityStamp));
+        SecurityStampCache.Invalidate(cache, userId);
+        repository.Stamp = Guid.NewGuid();
+
+        var context = CreateTokenValidatedContext(httpContext, userId, securityStamp);
+        await JwtSecurityStampValidator.ValidateAsync(context);
+
+        Assert.Equal(2, repository.Calls);
+        Assert.NotNull(context.Result?.Failure);
+    }
+
     private static DefaultHttpContext CreateHttpContext(
         IUserRepository repository,
-        CancellationToken requestAborted)
+        CancellationToken requestAborted,
+        IMemoryCache? memoryCache = null,
+        SecurityStampCache? stampCache = null)
     {
         var services = new ServiceCollection()
-            .AddSingleton(repository)
-            .BuildServiceProvider();
+            .AddSingleton(repository);
+        if (memoryCache is not null)
+        {
+            services.AddSingleton(memoryCache);
+        }
+
+        if (stampCache is not null)
+        {
+            services.AddSingleton(stampCache);
+        }
+
+        var provider = services.BuildServiceProvider();
 
         return new DefaultHttpContext
         {
-            RequestServices = services,
+            RequestServices = provider,
             RequestAborted = requestAborted,
         };
     }
@@ -118,6 +169,40 @@ public sealed class JwtSecurityStampValidatorTests
         {
             captureToken(cancellationToken);
             return Task.FromResult<Guid?>(id == userId ? securityStamp : null);
+        }
+
+        public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<User?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<User?> GetByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> ExistsByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<User> CreateAsync(User user, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task UpdateAsync(User user, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CountingUserRepository(Guid userId, Guid securityStamp) : IUserRepository
+    {
+        public int Calls { get; private set; }
+
+        public Guid Stamp { get; set; } = securityStamp;
+
+        public Task<Guid?> GetSecurityStampAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult<Guid?>(id == userId ? Stamp : null);
         }
 
         public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>

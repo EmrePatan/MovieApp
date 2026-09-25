@@ -147,22 +147,23 @@ public sealed class UserRecommendationContextPreflightIntegrationTests
         await using var context = CatalogPersistenceFixture.CreateContext();
         var userId = Guid.NewGuid();
         var utcNow = DateTime.UtcNow;
-        var movie = CreateMovie(tmdbId: NextTmdbId());
-        context.Movies.Add(movie);
+        var followedMovie = CreateMovie(tmdbId: NextTmdbId(), title: "Sample Movie");
+        var searchedMovie = CreateMovie(tmdbId: NextTmdbId(), title: "Inception Trail");
+        context.Movies.AddRange(followedMovie, searchedMovie);
         await SeedUserAsync(context, userId);
 
         context.Favorites.Add(new Favorite
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            MovieId = movie.Id,
+            MovieId = followedMovie.Id,
             CreatedAt = utcNow
         });
-        context.CatalogFollows.Add(CatalogFollow.CreateMovieFollow(userId, movie.Id, utcNow));
+        context.CatalogFollows.Add(CatalogFollow.CreateMovieFollow(userId, followedMovie.Id, utcNow));
         context.SearchHistories.Add(SearchHistory.Create(
             userId,
-            movie.Title,
-            movie.Title.ToLowerInvariant(),
+            searchedMovie.Title,
+            searchedMovie.Title.ToLowerInvariant(),
             utcNow));
         await context.SaveChangesAsync();
 
@@ -178,8 +179,10 @@ public sealed class UserRecommendationContextPreflightIntegrationTests
         Assert.Equal(1, probeCount);
         Assert.Contains(
             recommendationContext.Signals,
-            signal => signal.SignalType == UserBehaviorSignalTypes.Search);
-        Assert.Contains(movie.Id, recommendationContext.ExcludedMovieIds);
+            signal =>
+                signal.SignalType == UserBehaviorSignalTypes.Search &&
+                signal.ContentId == searchedMovie.Id);
+        Assert.Contains(followedMovie.Id, recommendationContext.ExcludedMovieIds);
     }
 
     [Fact]

@@ -37,6 +37,71 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task LibraryActionsRequiresAuthentication()
+    {
+        await fixture.ResetAsync();
+
+        var movieId = await SeedMovieAsync();
+        var response = await _client.GetAsync($"/api/library/actions?mediaType=movie&contentId={movieId}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LibraryActionsReturnsAggregatedMovieStatus()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var movieId = await SeedMovieAsync();
+        var watchlist = await CreateWatchlistAsync(token, "Actions");
+
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/watchlists/{watchlist.Id}/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
+
+        var response = await SendAuthorizedGetAsync(
+            $"/api/library/actions?mediaType=movie&contentId={movieId}",
+            token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<LibraryActionStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("movie", payload.MediaType);
+        Assert.Equal(movieId, payload.ContentId);
+        Assert.True(payload.IsFavorited);
+        Assert.True(payload.IsInWatchlist);
+        Assert.Contains(watchlist.Id, payload.WatchlistIds);
+        Assert.True(payload.IsWatched);
+        Assert.NotNull(payload.WatchedAt);
+    }
+
+    [Fact]
+    public async Task LibraryActionsReturnsEpisodeWatchedStateForTv()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        var episodeId = await SeedEpisodeAsync(tvShowId, 1, 1);
+        await SendAuthorizedPostAsync($"/api/watch-history/episodes/{episodeId}", token);
+
+        var response = await SendAuthorizedGetAsync(
+            $"/api/library/actions?mediaType=tv&contentId={tvShowId}&episodeId={episodeId}",
+            token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<LibraryActionStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("tv", payload.MediaType);
+        Assert.Equal(tvShowId, payload.ContentId);
+        Assert.True(payload.IsWatched);
+        Assert.NotNull(payload.WatchedAt);
+    }
+
+    [Fact]
     public async Task DefaultCategoryIsWatching()
     {
         await fixture.ResetAsync();

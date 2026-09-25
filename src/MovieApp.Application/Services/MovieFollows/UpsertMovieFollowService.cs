@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
@@ -19,7 +20,8 @@ public sealed class UpsertMovieFollowService(
     IMovieRepository movieRepository,
     IMovieRegionalReleaseRepository movieRegionalReleaseRepository,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
-    ICacheService cacheService) : IUpsertMovieFollowService
+    ICacheService cacheService,
+    IServiceScopeFactory? recommendationScopeFactory = null) : IUpsertMovieFollowService
 {
     private const int MaxCreateAttempts = 3;
 
@@ -31,18 +33,18 @@ public sealed class UpsertMovieFollowService(
         var utcNow = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(utcNow);
 
-        var movie = await movieRepository.GetByIdAsync(movieId, cancellationToken);
-        if (movie is null)
+        var releaseLookup = await movieRepository.GetReleaseDateLookupAsync(movieId, cancellationToken);
+        if (!releaseLookup.Exists)
         {
             throw new NotFoundException("The requested movie was not found.");
         }
 
         var region = WatchProviderRegionValidator.Normalize(releaseRegionOptions.Value.DefaultRegion);
         var regionalRelease = await movieRegionalReleaseRepository.GetByMovieIdAndRegionAsync(
-            movie.Id,
+            movieId,
             region,
             cancellationToken);
-        var followReleaseDate = MovieFollowReleaseDateResolver.Resolve(regionalRelease, movie.ReleaseDate);
+        var followReleaseDate = MovieFollowReleaseDateResolver.Resolve(regionalRelease, releaseLookup.ReleaseDate);
 
         CatalogFollowValidator.ValidateMovieFollowEligibility(followReleaseDate, today);
 
@@ -66,8 +68,11 @@ public sealed class UpsertMovieFollowService(
             var added = await catalogFollowRepository.TryAddAsync(follow, cancellationToken);
             if (added)
             {
-                await new UserRecommendationCacheGeneration(cacheService)
-                    .InvalidateForUserAsync(userId, cancellationToken);
+                await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+                    cacheService,
+                    recommendationScopeFactory,
+                    userId,
+                    cancellationToken);
                 return (MovieFollowMutationResult.Created, new MovieFollowStatusResult(true));
             }
         }

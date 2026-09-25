@@ -8,6 +8,22 @@ public interface IMovieRepository
 {
     Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var movie = await GetByIdAsync(id, cancellationToken);
+        return movie is not null;
+    }
+
+    async Task<MovieReleaseDateLookup> GetReleaseDateLookupAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var movie = await GetByIdAsync(id, cancellationToken);
+        return movie is null
+            ? default
+            : new MovieReleaseDateLookup(true, movie.ReleaseDate);
+    }
+
     async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default)

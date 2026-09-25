@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -66,6 +67,26 @@ public sealed class TvShowRepositoryTests
         Assert.Equal(900101, identity.TmdbId);
         Assert.Equal(900102, identity.TvdbId);
         Assert.Equal("tt9003747", identity.ImdbId);
+    }
+
+    [Fact]
+    public async Task GetStatusAsyncProjectsStatusWithoutRequiringTheShowGraph()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"tvshow-repository-status-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var repository = new TvShowRepository(context);
+        var created = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
+
+        var status = await repository.GetStatusAsync(created.Id);
+        var missing = await repository.GetStatusAsync(Guid.NewGuid());
+
+        Assert.Equal(TvShowStatus.Ended, status);
+        Assert.Null(missing);
+        Assert.True(await repository.ExistsAsync(created.Id));
+        Assert.False(await repository.ExistsAsync(Guid.NewGuid()));
     }
 
     [Fact]

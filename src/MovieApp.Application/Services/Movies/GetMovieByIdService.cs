@@ -9,6 +9,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Keywords;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.MovieFollows;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
@@ -22,7 +23,8 @@ public sealed class GetMovieByIdService(
     ICatalogKeywordReadPathScheduler catalogKeywordReadPathScheduler,
     IMovieDataProvider movieDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
-    ICacheService cacheService) : IGetMovieByIdService
+    ICacheService cacheService,
+    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan CollectionProbeTtl = TimeSpan.FromHours(24);
@@ -30,18 +32,38 @@ public sealed class GetMovieByIdService(
     public Task<MovieDetailsResult> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default) =>
-        GetByIdAsync(id, prefetchedMovie: null, cancellationToken);
+        GetByIdCoreAsync(id, prefetchedMovie: null, contentLocale: null, cancellationToken);
 
-    public async Task<MovieDetailsResult> GetByIdAsync(
+    public Task<MovieDetailsResult> GetByIdAsync(
         Guid id,
         Movie? prefetchedMovie,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GetByIdCoreAsync(id, prefetchedMovie, contentLocale: null, cancellationToken);
+
+    public Task<MovieDetailsResult> GetByIdAsync(
+        Guid id,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        GetByIdCoreAsync(id, prefetchedMovie: null, contentLocale, cancellationToken);
+
+    public Task<MovieDetailsResult> GetByIdAsync(
+        Guid id,
+        Movie? prefetchedMovie,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        GetByIdCoreAsync(id, prefetchedMovie, contentLocale, cancellationToken);
+
+    private async Task<MovieDetailsResult> GetByIdCoreAsync(
+        Guid id,
+        Movie? prefetchedMovie,
+        string? contentLocale,
+        CancellationToken cancellationToken)
     {
         var cacheKey = MovieDetailsCacheKeys.Create(id);
         var cachedEntry = await cacheService.GetAsync<MovieDetailsCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
-            return cachedEntry.Result;
+            return await ApplyOverlayAsync(cachedEntry.Result, contentLocale, cancellationToken);
         }
 
         var movie = prefetchedMovie ?? await movieRepository.GetByIdAsync(id, cancellationToken);
@@ -50,6 +72,7 @@ public sealed class GetMovieByIdService(
             throw new NotFoundException($"Movie with id '{id}' was not found.");
         }
 
+        var overlayTask = StartMovieOverlay(movie.TmdbId, contentLocale, cancellationToken);
         var result = await BuildDetailsAsync(movie, cancellationToken);
 
         await cacheService.SetAsync(
@@ -58,7 +81,41 @@ public sealed class GetMovieByIdService(
             DetailsCacheTtl,
             cancellationToken);
 
-        return result;
+        if (overlayTask is null)
+        {
+            return result;
+        }
+
+        return detailLocalizationOverlayService!.ApplyLoadedMovieOverlay(result, await overlayTask);
+    }
+
+    private Task<Models.Localization.MovieDetailLocalizationData?>? StartMovieOverlay(
+        int? tmdbId,
+        string? contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (detailLocalizationOverlayService is null || contentLocale is null)
+        {
+            return null;
+        }
+
+        return detailLocalizationOverlayService.LoadMovieOverlayAsync(tmdbId, contentLocale, cancellationToken);
+    }
+
+    private async Task<MovieDetailsResult> ApplyOverlayAsync(
+        MovieDetailsResult result,
+        string? contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (detailLocalizationOverlayService is null || contentLocale is null)
+        {
+            return result;
+        }
+
+        return await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
+            result,
+            contentLocale,
+            cancellationToken);
     }
 
     private async Task<MovieDetailsResult> BuildDetailsAsync(

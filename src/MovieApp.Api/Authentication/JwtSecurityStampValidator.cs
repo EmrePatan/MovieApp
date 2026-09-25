@@ -1,8 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Caching.Memory;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Identity;
+using MovieApp.Infrastructure.Identity;
 
 namespace MovieApp.Api.Authentication;
 
@@ -22,9 +24,17 @@ internal static class JwtSecurityStampValidator
         }
 
         var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
-        var currentSecurityStamp = await userRepository.GetSecurityStampAsync(
-            userId,
-            context.HttpContext.RequestAborted);
+        var memoryCache = context.HttpContext.RequestServices.GetService<IMemoryCache>();
+        var stampCache = context.HttpContext.RequestServices.GetService<SecurityStampCache>();
+        var currentSecurityStamp = memoryCache is not null && stampCache is not null
+            ? await stampCache.GetOrLoadAsync(
+                memoryCache,
+                userId,
+                token => userRepository.GetSecurityStampAsync(userId, token),
+                context.HttpContext.RequestAborted)
+            : await userRepository.GetSecurityStampAsync(
+                userId,
+                context.HttpContext.RequestAborted);
 
         if (currentSecurityStamp is null || currentSecurityStamp.Value != securityStamp)
         {

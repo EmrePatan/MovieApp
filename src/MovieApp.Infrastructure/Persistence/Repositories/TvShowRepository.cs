@@ -4,6 +4,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -18,6 +19,20 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
             .ThenInclude(tvShowGenre => tvShowGenre.Genre)
             .Include(tvShow => tvShow.Seasons)
             .FirstOrDefaultAsync(tvShow => tvShow.Id == id, cancellationToken);
+    }
+
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.TvShows.AsNoTracking().AnyAsync(tvShow => tvShow.Id == id, cancellationToken);
+
+    public async Task<TvShowStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var status = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShow.Id == id)
+            .Select(tvShow => (TvShowStatus?)tvShow.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return status;
     }
 
     public async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(

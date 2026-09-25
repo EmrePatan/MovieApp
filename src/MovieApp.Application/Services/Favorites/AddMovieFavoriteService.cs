@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Favorites;
@@ -12,7 +14,8 @@ public sealed class AddMovieFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
     IMovieRepository movieRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddMovieFavoriteService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    IServiceScopeFactory? analyticsScopeFactory = null) : IAddMovieFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
@@ -23,7 +26,7 @@ public sealed class AddMovieFavoriteService(
             return FavoriteMutationResult.AlreadyExists;
         }
 
-        if (await movieRepository.GetByIdAsync(movieId, cancellationToken) is null)
+        if (!await movieRepository.ExistsAsync(movieId, cancellationToken))
         {
             throw new NotFoundException("The requested movie was not found.");
         }
@@ -33,7 +36,11 @@ public sealed class AddMovieFavoriteService(
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
         if (added)
         {
-            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+            await BackgroundAnalyticsInvalidation.RunAsync(
+                analyticsCacheInvalidator,
+                analyticsScopeFactory,
+                userId,
+                cancellationToken);
             return FavoriteMutationResult.Created;
         }
 

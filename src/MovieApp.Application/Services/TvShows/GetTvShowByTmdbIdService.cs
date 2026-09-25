@@ -13,7 +13,19 @@ public sealed class GetTvShowByTmdbIdService(
     ICatalogProviderUpsertService catalogProviderUpsertService,
     IGetTvShowByIdService getTvShowByIdService) : IGetTvShowByTmdbIdService
 {
-    public async Task<TvShowDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default)
+    public Task<TvShowDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+        GetCoreAsync(tmdbId, contentLocale: null, cancellationToken);
+
+    public Task<TvShowDetailsResult> GetAsync(
+        int tmdbId,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        GetCoreAsync(tmdbId, contentLocale, cancellationToken);
+
+    private async Task<TvShowDetailsResult> GetCoreAsync(
+        int tmdbId,
+        string? contentLocale,
+        CancellationToken cancellationToken)
     {
         if (tmdbId <= 0)
         {
@@ -39,6 +51,8 @@ public sealed class GetTvShowByTmdbIdService(
                 cancellationToken);
         }
 
-        return await getTvShowByIdService.GetByIdAsync(tvShow.Id, cancellationToken);
+        return contentLocale is null
+            ? await getTvShowByIdService.GetByIdAsync(tvShow.Id, cancellationToken)
+            : await getTvShowByIdService.GetByIdAsync(tvShow.Id, contentLocale, cancellationToken);
     }
 }

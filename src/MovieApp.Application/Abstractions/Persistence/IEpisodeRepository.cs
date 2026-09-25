@@ -8,6 +8,12 @@ public interface IEpisodeRepository
 {
     Task<Episode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var episode = await GetByIdAsync(id, cancellationToken);
+        return episode is not null;
+    }
+
     Task<int> CountByTvShowIdAsync(Guid tvShowId, CancellationToken cancellationToken = default);
 
     Task<int> CountByTvShowIdAndSeasonNumberAsync(

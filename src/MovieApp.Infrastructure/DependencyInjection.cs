@@ -208,6 +208,8 @@ public static class DependencyInjection
 
         services.AddMemoryCache();
 
+        services.AddSingleton<SecurityStampCache>();
+
         services.AddHttpClient(nameof(AppleJwksProvider));
 
         services.AddSingleton<AppleJwksProvider>();
@@ -265,6 +267,7 @@ public static class DependencyInjection
         services.AddScoped<IWatchedEpisodeRepository, WatchedEpisodeRepository>();
 
         services.AddScoped<ILibraryRepository, LibraryRepository>();
+        services.AddScoped<ILibraryActionStatusRepository, LibraryActionStatusRepository>();
 
         services.AddScoped<ISearchRepository, SearchRepository>();
 

@@ -1,12 +1,25 @@
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Abstractions.Persistence;
 
 public interface ITvShowRepository
 {
     Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var tvShow = await GetByIdAsync(id, cancellationToken);
+        return tvShow is not null;
+    }
+
+    async Task<TvShowStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var tvShow = await GetByIdAsync(id, cancellationToken);
+        return tvShow?.Status;
+    }
 
     async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
         Guid id,

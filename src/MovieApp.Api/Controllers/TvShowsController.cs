@@ -74,9 +74,8 @@ public sealed class TvShowsController(
     {
         try
         {
-            var tvShow = await getTvShowByTmdbIdService.GetAsync(tmdbId, cancellationToken);
-            tvShow = await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
-                tvShow,
+            var tvShow = await getTvShowByTmdbIdService.GetAsync(
+                tmdbId,
                 Request.ResolveContentLocale(),
                 cancellationToken);
             return Ok(TvShowContractMapper.ToDetailsResponse(tvShow));
@@ -106,9 +105,8 @@ public sealed class TvShowsController(
     {
         try
         {
-            var tvShow = await getTvShowByIdService.GetByIdAsync(id, cancellationToken);
-            tvShow = await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
-                tvShow,
+            var tvShow = await getTvShowByIdService.GetByIdAsync(
+                id,
                 Request.ResolveContentLocale(),
                 cancellationToken);
             return Ok(TvShowContractMapper.ToDetailsResponse(tvShow));
@@ -257,15 +255,14 @@ public sealed class TvShowsController(
                 throw new NotFoundException($"TV show with id '{id}' was not found.");
             }
 
+            var contentLocale = Request.ResolveContentLocale();
+            var overlayTask = detailLocalizationOverlayService.LoadTvSeasonOverlayAsync(
+                identity.TmdbId,
+                seasonNumber,
+                contentLocale,
+                cancellationToken);
             var season = await getSeasonService.GetSeasonAsync(id, seasonNumber, cancellationToken);
-            if (identity.TmdbId is > 0)
-            {
-                season = await detailLocalizationOverlayService.ApplySeasonOverlayAsync(
-                    season,
-                    identity.TmdbId.Value,
-                    Request.ResolveContentLocale(),
-                    cancellationToken);
-            }
+            season = detailLocalizationOverlayService.ApplyLoadedSeasonOverlay(season, await overlayTask);
 
             return Ok(TvShowContractMapper.ToSeasonResponse(season));
         }
@@ -303,20 +300,18 @@ public sealed class TvShowsController(
                 throw new NotFoundException($"TV show with id '{id}' was not found.");
             }
 
+            var contentLocale = Request.ResolveContentLocale();
+            var overlayTask = detailLocalizationOverlayService.LoadTvSeasonOverlayAsync(
+                identity.TmdbId,
+                seasonNumber,
+                contentLocale,
+                cancellationToken);
             var episode = await getEpisodeService.GetEpisodeAsync(
                 id,
                 seasonNumber,
                 episodeNumber,
                 cancellationToken);
-
-            if (identity.TmdbId is > 0)
-            {
-                episode = await detailLocalizationOverlayService.ApplyEpisodeOverlayAsync(
-                    episode,
-                    identity.TmdbId.Value,
-                    Request.ResolveContentLocale(),
-                    cancellationToken);
-            }
+            episode = detailLocalizationOverlayService.ApplyLoadedEpisodeOverlay(episode, await overlayTask);
 
             return Ok(TvShowContractMapper.ToEpisodeResponse(episode));
         }

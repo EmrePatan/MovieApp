@@ -4,7 +4,6 @@ using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
-using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Images;
 using MovieApp.Application.Services.ExternalRatings;
@@ -28,8 +27,7 @@ public sealed class MoviesController(
     IGetMovieWatchProvidersService getMovieWatchProvidersService,
     IGetMovieVideosService getMovieVideosService,
     IGetMovieImagesService getMovieImagesService,
-    IGetMovieExternalRatingsService getMovieExternalRatingsService,
-    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ControllerBase
+    IGetMovieExternalRatingsService getMovieExternalRatingsService) : ControllerBase
 {
     [HttpGet("search")]
     [EnableRateLimiting(SearchRateLimitPolicies.MovieSearch)]
@@ -70,9 +68,8 @@ public sealed class MoviesController(
     {
         try
         {
-            var movie = await getMovieByTmdbIdService.GetAsync(tmdbId, cancellationToken);
-            movie = await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
-                movie,
+            var movie = await getMovieByTmdbIdService.GetAsync(
+                tmdbId,
                 Request.ResolveContentLocale(),
                 cancellationToken);
             return Ok(MovieContractMapper.ToDetailsResponse(movie));
@@ -102,9 +99,8 @@ public sealed class MoviesController(
     {
         try
         {
-            var movie = await getMovieByIdService.GetByIdAsync(id, cancellationToken);
-            movie = await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
-                movie,
+            var movie = await getMovieByIdService.GetByIdAsync(
+                id,
                 Request.ResolveContentLocale(),
                 cancellationToken);
             return Ok(MovieContractMapper.ToDetailsResponse(movie));

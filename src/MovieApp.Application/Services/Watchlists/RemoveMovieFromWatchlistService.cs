@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 
@@ -10,7 +12,8 @@ public sealed class RemoveMovieFromWatchlistService(
     ICurrentUser currentUser,
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IRemoveMovieFromWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    IServiceScopeFactory? analyticsScopeFactory = null) : IRemoveMovieFromWatchlistService
 {
     public async Task RemoveAsync(
         Guid watchlistId,
@@ -26,6 +29,10 @@ public sealed class RemoveMovieFromWatchlistService(
 
         await watchlistItemRepository.RemoveForMovieAsync(watchlistId, movieId, cancellationToken);
         await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+        await BackgroundAnalyticsInvalidation.RunAsync(
+            analyticsCacheInvalidator,
+            analyticsScopeFactory,
+            userId,
+            cancellationToken);
     }
 }

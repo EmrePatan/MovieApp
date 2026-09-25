@@ -61,6 +61,11 @@ public sealed class ExternalRatingsAccessService(
                 refreshJobEnqueuer.EnqueueRefresh(mediaType, tmdbId.Value);
                 return ToResult(snapshot!, payload!, isStale: true);
 
+            case ExternalRatingsCacheState.Expired
+                when snapshot is not null && payload is not null && !payload.IsNegative:
+                refreshJobEnqueuer.EnqueueRefresh(mediaType, tmdbId.Value);
+                return ToResult(snapshot, payload, isStale: true);
+
             case ExternalRatingsCacheState.Miss:
             case ExternalRatingsCacheState.Expired:
                 return await HandleMissOrExpiredAsync(

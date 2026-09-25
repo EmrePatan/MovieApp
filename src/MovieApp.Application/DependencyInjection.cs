@@ -183,6 +183,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationInboxCleanupService, NotificationInboxCleanupService>();
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
         services.AddScoped<ILibraryService, LibraryService>();
+        services.AddScoped<ILibraryActionStatusService, LibraryActionStatusService>();
 
         services.AddScoped<ExternalRatingsAccessService>();
         services.AddScoped<IGetMovieExternalRatingsService, GetMovieExternalRatingsService>();
