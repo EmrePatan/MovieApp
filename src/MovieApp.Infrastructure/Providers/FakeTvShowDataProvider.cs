@@ -11,12 +11,18 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
     public const int BreakingBadTmdbId = 900101;
     public const int BreakingBadTvdbId = 900102;
     public const string BreakingBadImdbId = "tt9003747";
+    public const string OfficeExternalId = "fake-tv-900501";
+    public const int OfficeTmdbId = 900501;
+    public const int OfficeTvdbId = 900502;
+    public const string OfficeImdbId = "tt9005501";
     public const string PagedCatalogQueryToken = "paged-catalog";
     public const int PagedCatalogTvShowCount = 25;
 
     private const string BreakingBadTitleToken = "breaking bad";
+    private const string OfficeTitleToken = "office";
 
     private static readonly TvShowProviderDetails BreakingBadDetails = CreateBreakingBadDetails();
+    private static readonly TvShowProviderDetails OfficeDetails = CreateOfficeDetails();
 
     private static readonly IReadOnlyList<TvShowProviderSummary> PagedCatalogSummaries =
         Enumerable.Range(1, PagedCatalogTvShowCount)
@@ -53,13 +59,17 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
             return Task.FromResult(CreatePagedResult(PagedCatalogSummaries, page, pageSize));
         }
 
-        if (!MatchesCatalogTitle(normalizedQuery, BreakingBadTitleToken))
+        if (MatchesCatalogTitle(normalizedQuery, BreakingBadTitleToken))
         {
-            return Task.FromResult(CreatePagedResult([], page, pageSize));
+            return Task.FromResult(CreatePagedResult([ToSummary(BreakingBadDetails)], page, pageSize));
         }
 
-        var summary = ToSummary(BreakingBadDetails);
-        return Task.FromResult(CreatePagedResult([summary], page, pageSize));
+        if (MatchesCatalogTitle(normalizedQuery, OfficeTitleToken))
+        {
+            return Task.FromResult(CreatePagedResult([ToSummary(OfficeDetails)], page, pageSize));
+        }
+
+        return Task.FromResult(CreatePagedResult([], page, pageSize));
     }
 
     public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
@@ -110,6 +120,11 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
             return Task.FromResult<TvShowProviderDetails?>(BreakingBadDetails);
         }
 
+        if (string.Equals(externalId, OfficeExternalId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<TvShowProviderDetails?>(OfficeDetails);
+        }
+
         if (TryParsePagedCatalogExternalId(externalId, out var index))
         {
             return Task.FromResult<TvShowProviderDetails?>(CreatePagedCatalogDetails(index));
@@ -130,6 +145,11 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
             return Task.FromResult<SeasonProviderDetails?>(null);
         }
 
+        if (string.Equals(externalTvShowId, OfficeExternalId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(CreateOfficeSeason(seasonNumber));
+        }
+
         if (!string.Equals(externalTvShowId, BreakingBadExternalId, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<SeasonProviderDetails?>(null);
@@ -144,7 +164,9 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
         int episodeNumber,
         CancellationToken cancellationToken = default)
     {
-        var season = CreateBreakingBadSeason(seasonNumber);
+        var season = string.Equals(externalTvShowId, OfficeExternalId, StringComparison.OrdinalIgnoreCase)
+            ? CreateOfficeSeason(seasonNumber)
+            : CreateBreakingBadSeason(seasonNumber);
         if (season is null)
         {
             return Task.FromResult<EpisodeProviderDetails?>(null);
@@ -153,6 +175,106 @@ public sealed class FakeTvShowDataProvider(TvShowDataProviderCallTracker callTra
         var episode = season.Episodes.FirstOrDefault(item => item.EpisodeNumber == episodeNumber);
         return Task.FromResult(episode);
     }
+
+    private static TvShowProviderDetails CreateOfficeDetails()
+    {
+        var seasons = new List<SeasonProviderSummary>
+        {
+            new(1, "Season 1", new DateOnly(2005, 3, 24), 1, "/fake/office-s1-poster.jpg"),
+            new(2, "Season 2", new DateOnly(2005, 9, 20), 1, "/fake/office-s2-poster.jpg"),
+            new(3, "Season 3", new DateOnly(2006, 9, 21), 1, "/fake/office-s3-poster.jpg")
+        };
+
+        return new TvShowProviderDetails(
+            ExternalId: OfficeExternalId,
+            TmdbId: OfficeTmdbId,
+            TvdbId: OfficeTvdbId,
+            ImdbId: OfficeImdbId,
+            Title: "The Office",
+            OriginalTitle: "The Office",
+            Overview: "A mockumentary about office employees at a paper company.",
+            FirstAirDate: new DateOnly(2005, 3, 24),
+            LastAirDate: new DateOnly(2006, 9, 21),
+            PosterPath: "/fake/office-poster.jpg",
+            BackdropPath: "/fake/office-backdrop.jpg",
+            OriginalLanguage: "en",
+            VoteAverage: 8.6m,
+            VoteCount: 4000,
+            Status: "Ended",
+            Genres: ["Comedy"],
+            Seasons: seasons);
+    }
+
+    private static SeasonProviderDetails? CreateOfficeSeason(int seasonNumber)
+    {
+        return seasonNumber switch
+        {
+            1 => new SeasonProviderDetails(
+                OfficeExternalId,
+                TmdbId: 900801,
+                TvdbId: null,
+                SeasonNumber: 1,
+                Name: "Season 1",
+                Overview: "The documentary crew arrives at the office.",
+                AirDate: new DateOnly(2005, 3, 24),
+                EpisodeCount: 1,
+                PosterPath: "/fake/office-s1-poster.jpg",
+                Episodes:
+                [
+                    CreateOfficeEpisode(1, 1, "Pilot", "A new boss starts at the branch.", new DateOnly(2005, 3, 24))
+                ]),
+            2 => new SeasonProviderDetails(
+                OfficeExternalId,
+                TmdbId: 900811,
+                TvdbId: null,
+                SeasonNumber: 2,
+                Name: "Season 2",
+                Overview: "The branch settles into a new routine.",
+                AirDate: new DateOnly(2005, 9, 20),
+                EpisodeCount: 1,
+                PosterPath: "/fake/office-s2-poster.jpg",
+                Episodes:
+                [
+                    CreateOfficeEpisode(2, 1, "The Dundies", "The office holds its awards night.", new DateOnly(2005, 9, 20))
+                ]),
+            3 => new SeasonProviderDetails(
+                OfficeExternalId,
+                TmdbId: 900821,
+                TvdbId: null,
+                SeasonNumber: 3,
+                Name: "Season 3",
+                Overview: "Two branches are forced to merge.",
+                AirDate: new DateOnly(2006, 9, 21),
+                EpisodeCount: 1,
+                PosterPath: "/fake/office-s3-poster.jpg",
+                Episodes:
+                [
+                    CreateOfficeEpisode(3, 1, "Gay Witch Hunt", "The merger begins.", new DateOnly(2006, 9, 21))
+                ]),
+            _ => null
+        };
+    }
+
+    private static EpisodeProviderDetails CreateOfficeEpisode(
+        int seasonNumber,
+        int episodeNumber,
+        string name,
+        string overview,
+        DateOnly airDate) =>
+        new(
+            OfficeExternalId,
+            TmdbId: 900700 + seasonNumber * 10 + episodeNumber,
+            TvdbId: null,
+            ImdbId: $"tt9007{seasonNumber:D2}{episodeNumber:D2}",
+            SeasonNumber: seasonNumber,
+            EpisodeNumber: episodeNumber,
+            Name: name,
+            Overview: overview,
+            AirDate: airDate,
+            RuntimeMinutes: 22,
+            StillPath: $"/fake/office-s{seasonNumber}e{episodeNumber}.jpg",
+            VoteAverage: 8.0m,
+            VoteCount: 500);
 
     private static TvShowProviderDetails CreateBreakingBadDetails()
     {
