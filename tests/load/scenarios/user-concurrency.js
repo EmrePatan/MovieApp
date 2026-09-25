@@ -12,6 +12,7 @@ import {
 } from '../lib/config.js';
 import { loadThresholds } from '../lib/thresholds.js';
 import { handleSummaryFactory } from '../lib/summary.js';
+import { identityPool } from '../lib/identities.js';
 import { identityForVu, contentPoolStats } from '../lib/content.js';
 import {
   applyGrafanaSecretsSetupToRuntime,
@@ -47,9 +48,21 @@ const optionsBase = {
 
 export const options = applyCloudOptions(optionsBase);
 
+export function formatLocalIdentityRuntimeProof(identityCount) {
+  return `LOAD_TEST_IDENTITY_PROOF transport=local identityCount=${identityCount}`;
+}
+
 export async function setup() {
   if (!isGrafanaSecretsTransport()) {
-    return { identityTransport: 'env', identityCount: null };
+    if (identityPool.length < 1) {
+      throw new Error(
+        'Local execution requires a non-empty identity pool. Set LOAD_TEST_TOKENS_FILE or provide data/tokens.json before starting k6.',
+      );
+    }
+
+    const identityCount = identityPool.length;
+    console.log(formatLocalIdentityRuntimeProof(identityCount));
+    return { identityTransport: 'local', identityCount };
   }
 
   const identities = await loadIdentitiesFromGrafanaSecrets();

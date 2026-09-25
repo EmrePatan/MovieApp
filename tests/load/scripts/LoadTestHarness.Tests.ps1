@@ -31,6 +31,37 @@ try {
 }
 Assert-True 'content dataset cold rejected' $contentDatasetRejected
 
+$localPrereqFailed = $false
+try {
+    Assert-LoadTestLocalRunPrerequisites -LoadRoot $env:TEMP -TokensFilePath (Join-Path $env:TEMP 'missing-tokens.json') -IdentityCount 0
+} catch {
+    $localPrereqFailed = $true
+}
+Assert-True 'local prerequisites fail without tokens' $localPrereqFailed
+
+$prodGateFailed = $false
+try {
+    Assert-LoadTestProductionRunGates -IsProduction $true -StageVus 150 -ModeLabel 'test' -SkipInteractiveRunPrompt
+} catch {
+    $prodGateFailed = $_.Exception.Message -match 'ConfirmProductionCloudRun'
+}
+Assert-True 'production gate requires confirmation switch' $prodGateFailed
+
+$highScaleFailed = $false
+try {
+    Assert-LoadTestProductionRunGates -IsProduction $false -StageVus 250 -ConfirmProductionCloudRun -ModeLabel 'test' -SkipInteractiveRunPrompt
+} catch {
+    $highScaleFailed = $_.Exception.Message -match 'ConfirmHighScaleCloudRun'
+}
+Assert-True '250 VU gate requires high scale switch' $highScaleFailed
+
+Clear-LoadTestCloudIdentityEnvVars
+Assert-True 'cloud identity env cleared' ([string]::IsNullOrWhiteSpace($env:LOAD_TEST_IDENTITIES_TRANSPORT))
+
+$localPreflight = Format-LoadTestCloudPreflight -ExecutionMode Local -StageVus 150 -IdentityCount 100 -ReuseRatio 1.5 -VuHours 36 -Duration '00:17:00' -LoadZone 'n/a' -SearchProfileHint 'autocomplete-only' -IsProduction $true -LocalTokenCount 100
+Assert-True 'local preflight mentions tokens transport' ($localPreflight -match 'Identity transport:.*local')
+Assert-True 'local preflight mentions load generator monitoring' ($localPreflight -match 'dropped_iterations')
+
 Assert-Equal 'reuse 150/100' 1.5 (Get-LoadTestIdentityReuseRatio -StageVus 150 -IdentityCount 100)
 Assert-Equal 'reuse 250/100' 2.5 (Get-LoadTestIdentityReuseRatio -StageVus 250 -IdentityCount 100)
 

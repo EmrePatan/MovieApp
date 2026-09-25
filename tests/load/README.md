@@ -42,6 +42,16 @@ Secondary execution mode for the **same** scenarios (no forked workload). See [`
 - Operator-prepared `data/tokens.json` (gitignored) and content ID pools
 - **Do not** commit JWTs, passwords, or API keys
 
+## Local vs Grafana Cloud execution
+
+| | **Local** (`-ExecutionMode Local`) | **Cloud** (`-ExecutionMode Cloud`) |
+|---|-----------------------------------|-------------------------------------|
+| k6 command | `k6 run` (native or Docker) | `k6 cloud run` |
+| Identities | `LOAD_TEST_TOKENS_FILE` / `data/tokens.json` | Grafana Secrets or org env shards |
+| Production gates | `-ConfirmProductionCloudRun` + `RUN` prompt; `>=250` / `>=500` scale switches | Same |
+
+See `RUNBOOK.md` for local high-VU production capacity and load-generator monitoring.
+
 ## Quick start (smoke — not production)
 
 ```powershell

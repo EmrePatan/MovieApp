@@ -157,9 +157,13 @@ $reportPath = Join-Path $loadRoot "reports\$Scenario-$Preset-$(if ($StageTarget 
 $envMap.LOAD_TEST_REPORT_PATH = $reportPath
 
 if ($ExecutionMode -eq 'Local') {
-    if (-not [string]::IsNullOrWhiteSpace($tokensFile)) {
-        $envMap.LOAD_TEST_TOKENS_FILE = $tokensFile.Replace('\', '/')
+    Clear-LoadTestCloudIdentityEnvVars
+    if ([string]::IsNullOrWhiteSpace($tokensFile)) {
+        $tokensFile = Join-Path $loadRoot 'data\tokens.json'
     }
+
+    Assert-LoadTestLocalRunPrerequisites -LoadRoot $loadRoot -TokensFilePath $tokensFile -IdentityCount $localTokenCount
+    $envMap.LOAD_TEST_TOKENS_FILE = $tokensFile.Replace('\', '/')
 } else {
     # Never bundle production JWTs into a cloud archive via -e or open(tokens.json).
     if ($localTokenCount -lt 1) {
@@ -200,7 +204,7 @@ Write-Host (Format-LoadTestCloudPreflight `
     -LoadZone $(if ($ExecutionMode -eq 'Cloud') { $CloudLoadZone } else { 'n/a' }) `
     -SearchProfileHint $searchProfileHint `
     -IsProduction $isProduction `
-    -LocalTokenCount $(if ($ExecutionMode -eq 'Cloud') { $localTokenCount } else { 0 }) `
+    -LocalTokenCount $localTokenCount `
     -CloudManifestIdentityCount $cloudManifestIdentityCount `
     -CloudManifestShardCount $(if ($cloudTransport -eq 'grafana-secrets') { $cloudManifestSecretPartCount } else { $cloudManifestShardCount }) `
     -CloudTransport $cloudTransport `
@@ -211,29 +215,18 @@ if ($ExecutionMode -eq 'Cloud') {
         Write-Warning "Approximate VU-hours ($vuHours) may consume significant Grafana Cloud quota. Verify your plan before running."
     }
 
-    if ($isProduction -and -not $ConfirmProductionCloudRun) {
-        throw "Production Grafana Cloud load requires -ConfirmProductionCloudRun. Cloud mode never defaults to production load."
-    }
-
-    if ($stageVus -ge 500 -and -not $ConfirmVeryHighScaleCloudRun) {
-        throw "Stage >= 500 VU requires -ConfirmVeryHighScaleCloudRun (explicit operator approval)."
-    }
-    elseif ($stageVus -ge 250 -and -not $ConfirmHighScaleCloudRun) {
-        throw "Stage >= 250 VU requires -ConfirmHighScaleCloudRun."
-    }
-
     if ($CloudValidateOnly) {
         Write-Host "Cloud validate-only: no VUs will run against production."
     }
-    elseif (-not $ConfirmProductionCloudRun -and $isProduction) {
-        throw "Missing production confirmation."
-    }
-    elseif ($isProduction -and -not $CloudValidateOnly) {
-        $typed = Read-Host "Type RUN to start Grafana Cloud execution against $BaseUrl"
-        if ($typed -ne 'RUN') {
-            throw 'Aborted by operator.'
-        }
-    }
+
+    Assert-LoadTestProductionRunGates `
+        -IsProduction $isProduction `
+        -StageVus $stageVus `
+        -ConfirmProductionCloudRun:$ConfirmProductionCloudRun `
+        -ConfirmHighScaleCloudRun:$ConfirmHighScaleCloudRun `
+        -ConfirmVeryHighScaleCloudRun:$ConfirmVeryHighScaleCloudRun `
+        -ModeLabel 'Grafana Cloud' `
+        -SkipInteractiveRunPrompt:($CloudValidateOnly.IsPresent)
 
     $k6Exe = Get-LoadTestK6Executable
     Assert-LoadTestCloudAuth -K6Exe $k6Exe
@@ -267,6 +260,19 @@ if ($ExecutionMode -eq 'Cloud') {
     }
     return
 }
+
+Assert-LoadTestProductionRunGates `
+    -IsProduction $isProduction `
+    -StageVus $stageVus `
+    -ConfirmProductionCloudRun:$ConfirmProductionCloudRun `
+    -ConfirmHighScaleCloudRun:$ConfirmHighScaleCloudRun `
+    -ConfirmVeryHighScaleCloudRun:$ConfirmVeryHighScaleCloudRun `
+    -ModeLabel 'local k6 run'
+
+$tokenPreflightScript = Join-Path $PSScriptRoot 'Test-LoadTokens.ps1'
+$sampleCount = [Math]::Min(10, $localTokenCount)
+& $tokenPreflightScript -BaseUrl $BaseUrl -TokensFile $tokensFile -FailOnAuthError -SampleCount $sampleCount -MinMinutesUntilExpiry 30
+Write-Host "LOAD_TEST_IDENTITY_PROOF transport=local identityCount=$localTokenCount (PowerShell preflight; k6 setup logs again once)"
 
 $k6Args = @("run", $scenarioPath)
 

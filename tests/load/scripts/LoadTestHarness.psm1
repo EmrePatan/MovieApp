@@ -96,6 +96,81 @@ function Get-LoadTestVuHourEstimate {
     return [Math]::Round($vuHours, 3)
 }
 
+function Clear-LoadTestCloudIdentityEnvVars {
+    $keys = @(
+        'LOAD_TEST_IDENTITIES_TRANSPORT',
+        'LOAD_TEST_IDENTITIES_SECRET_COUNT',
+        'LOAD_TEST_IDENTITIES_SECRET_NAMES',
+        'LOAD_TEST_EXPECTED_IDENTITY_COUNT',
+        'LOAD_TEST_IDENTITIES_JSON',
+        'LOAD_TEST_IDENTITIES_SHARD_COUNT'
+    )
+
+    foreach ($key in $keys) {
+        Remove-Item -Path "Env:$key" -ErrorAction SilentlyContinue
+    }
+
+    for ($i = 1; $i -le 32; $i++) {
+        Remove-Item -Path ("Env:LOAD_TEST_IDENTITIES_JSON_{0}" -f $i.ToString('000')) -ErrorAction SilentlyContinue
+    }
+}
+
+function Assert-LoadTestLocalRunPrerequisites {
+    param(
+        [Parameter(Mandatory)][string]$LoadRoot,
+        [string]$TokensFilePath,
+        [int]$IdentityCount
+    )
+
+    $defaultTokens = Join-Path $LoadRoot 'data\tokens.json'
+    if ([string]::IsNullOrWhiteSpace($TokensFilePath) -or -not (Test-Path $TokensFilePath)) {
+        throw "Local execution requires a readable tokens.json (default: $defaultTokens). Set LOAD_TEST_TOKENS_FILE or run Mint-LoadTestTokens.ps1."
+    }
+
+    if ($IdentityCount -lt 1) {
+        throw "Local execution requires at least one bearer identity in tokens.json (found $IdentityCount)."
+    }
+}
+
+function Assert-LoadTestProductionRunGates {
+    param(
+        [bool]$IsProduction,
+        [int]$StageVus,
+        [switch]$ConfirmProductionCloudRun,
+        [switch]$ConfirmHighScaleCloudRun,
+        [switch]$ConfirmVeryHighScaleCloudRun,
+        [Parameter(Mandatory)][string]$ModeLabel,
+        [switch]$SkipInteractiveRunPrompt
+    )
+
+    if ($IsProduction -and -not $ConfirmProductionCloudRun) {
+        throw "Production load ($ModeLabel) requires -ConfirmProductionCloudRun."
+    }
+
+    if ($StageVus -ge 500 -and -not $ConfirmVeryHighScaleCloudRun) {
+        throw "Stage >= 500 VU requires -ConfirmVeryHighScaleCloudRun (explicit operator approval)."
+    }
+    elseif ($StageVus -ge 250 -and -not $ConfirmHighScaleCloudRun) {
+        throw "Stage >= 250 VU requires -ConfirmHighScaleCloudRun."
+    }
+
+    if ($SkipInteractiveRunPrompt) {
+        return
+    }
+
+    if ($IsProduction) {
+        $target = $env:LOAD_TEST_BASE_URL
+        if ([string]::IsNullOrWhiteSpace($target)) {
+            $target = '(LOAD_TEST_BASE_URL)'
+        }
+
+        $typed = Read-Host "Type RUN to start $ModeLabel execution against $target"
+        if ($typed -ne 'RUN') {
+            throw 'Aborted by operator.'
+        }
+    }
+}
+
 function Test-LoadTestIsProductionTarget {
     param(
         [string]$BaseUrl,
@@ -789,6 +864,7 @@ function Format-LoadTestCloudPreflight {
         $lines += "VU/identity reuse (manifest): $reuseText"
     } else {
         $lines += "Identity pool:      $IdentityCount"
+        $lines += 'Identity transport:     local (LOAD_TEST_TOKENS_FILE / tokens.json)'
         $lines += "VU/identity reuse:  $reuseText"
     }
 
@@ -799,11 +875,19 @@ function Format-LoadTestCloudPreflight {
         "Search profile:     $SearchProfileHint",
         "Production target:  $IsProduction"
     )
+
+    if ($ExecutionMode -eq 'Local') {
+        $lines += 'Load generator:     monitor local CPU/RAM/network; report JSON includes dropped_iterations / interrupted_iterations'
+        $lines += 'Backend:            monitor Render CPU/RAM during hold — distinguish generator saturation from API saturation'
+    }
     return ($lines -join [Environment]::NewLine)
 }
 
 Export-ModuleMember -Function @(
     'Assert-LoadTestContentDatasetSupported',
+    'Clear-LoadTestCloudIdentityEnvVars',
+    'Assert-LoadTestLocalRunPrerequisites',
+    'Assert-LoadTestProductionRunGates',
     'Invoke-K6Cli',
     'Get-LoadTestPresetTiming',
     'Get-LoadTestStageDuration',

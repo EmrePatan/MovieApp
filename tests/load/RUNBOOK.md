@@ -173,6 +173,23 @@ Record for each stage:
 
 ---
 
+## Local production capacity (150+ VUs)
+
+Use when Grafana Cloud project VU limits block the same stage (e.g. 100-VU Cloud cap). **Same** `user-concurrency` scenario, `capacity` preset, `hot` dataset, thresholds, and identity mapping as Cloud — identities come from **local `tokens.json`** via `k6 run` (not `k6 cloud run`). Grafana Secrets env vars are cleared; transport is **local**.
+
+**Before hold:** confirm `LOAD_TEST_IDENTITY_PROOF transport=local identityCount=…` in k6 setup logs (once per run).
+
+**During the run — distinguish load-generator saturation from MovieApp saturation:**
+
+| Signal | Where |
+|--------|--------|
+| Local CPU pegged, high RAM, NIC maxed | Task Manager / `perfmon` on k6 host |
+| k6 `dropped_iterations` / `interrupted_iterations` rising | k6 stdout + report JSON `iterations` section |
+| Render CPU/RAM stable but k6 errors/timeouts | Likely generator or network bound |
+| Render CPU/RAM climbing with flat generator | Likely API/backend bound |
+
+**Gates (local + production):** `-ConfirmProductionCloudRun`, type `RUN` at prompt; `>= 250` VU also requires `-ConfirmHighScaleCloudRun`; `>= 500` requires `-ConfirmVeryHighScaleCloudRun`. Token preflight (`Test-LoadTokens.ps1`) runs automatically before k6 starts.
+
 ## Cold-cache experiments
 
 `LOAD_TEST_CONTENT_DATASET` supports only **`hot`** and **`varied`** (content ID pools for detail/reviews). There is **no** `cold` dataset mode. **Hot** = warm/steady-state small pool; **varied** = broader ID spread — neither forces backend cache misses.
