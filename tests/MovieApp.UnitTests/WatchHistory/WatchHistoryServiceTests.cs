@@ -930,7 +930,7 @@ public sealed class WatchHistoryServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
+        public Task UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default) =>

@@ -27,7 +27,7 @@ public interface ISeasonRepository
         SeasonProviderDetails details,
         CancellationToken cancellationToken = default);
 
-    Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
+    Task UpsertSeasonsFromProviderAsync(
         Guid tvShowId,
         IReadOnlyList<SeasonProviderDetails> details,
         CancellationToken cancellationToken = default);

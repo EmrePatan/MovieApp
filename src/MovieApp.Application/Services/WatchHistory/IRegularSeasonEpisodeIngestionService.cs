@@ -14,10 +14,4 @@ public sealed record RegularSeasonEpisodeIngestionResult(
     long ProviderSeasonFetchAccumulatedMs,
     long MaxSeasonProviderFetchMs,
     long PersistenceMs,
-    int SaveChangesCount,
-    long PersistenceExistingDataLoadMs,
-    long PersistenceMutationMs,
-    long PersistenceSaveChangesMs,
-    int PersistenceIncomingEpisodeCount,
-    int PersistenceAddedEpisodeCount,
-    int PersistenceUpdatedEpisodeCount);
+    int SaveChangesCount);

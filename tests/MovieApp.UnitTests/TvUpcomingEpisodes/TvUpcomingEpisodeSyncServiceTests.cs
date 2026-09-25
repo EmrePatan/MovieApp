@@ -252,7 +252,7 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
             });
         }
 
-        public async Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
+        public async Task UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
@@ -261,8 +261,6 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
             {
                 await UpsertFromProviderAsync(tvShowId, detail, cancellationToken);
             }
-
-            return SeasonBatchUpsertPersistenceMetrics.Empty;
         }
 
         public Task<Season> UpsertSummaryFromProviderAsync(

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using MovieApp.Api.BackgroundJobs;
 
 namespace MovieApp.UnitTests.Observability;
