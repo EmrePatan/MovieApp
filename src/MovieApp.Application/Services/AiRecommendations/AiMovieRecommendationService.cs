@@ -33,6 +33,10 @@ public sealed class AiMovieRecommendationService(
     {
         var totalStopwatch = Stopwatch.StartNew();
         var settings = options.Value;
+        string? completionOutcome = null;
+        string? completionSelectedSource = null;
+        bool? completionIsAiGenerated = null;
+        int? completionReturnedCount = null;
 
         try
         {
@@ -100,11 +104,17 @@ public sealed class AiMovieRecommendationService(
 
                 var quotaRemaining = await quotaService.GetRemainingUserQuotaAsync(userId, cancellationToken);
 
-                perfContext.SetOutcome("Success");
+                var outcome = validation.ValidatedCount == 0 ? "NoValidResults" : "Success";
+                perfContext.SetOutcome(outcome);
                 perfContext.SetResultCounts(
                     settings.SuggestionCount,
                     validation.GeminiSuggestionCount,
                     validation.ValidatedCount);
+
+                completionOutcome = outcome;
+                completionSelectedSource = generationOutcome.SelectedSource;
+                completionIsAiGenerated = generationOutcome.IsAiGenerated;
+                completionReturnedCount = validation.ValidatedCount;
 
                 return new AiRecommendationServiceResult(
                     session.SessionId,
@@ -165,6 +175,21 @@ public sealed class AiMovieRecommendationService(
         {
             totalStopwatch.Stop();
             perfContext.Metrics.TotalMs = totalStopwatch.ElapsedMilliseconds;
+
+            if (completionSelectedSource is not null &&
+                completionIsAiGenerated is not null &&
+                completionReturnedCount is not null &&
+                completionOutcome is not null)
+            {
+                AiRecommendationPerfLogMessages.LogCompleted(
+                    logger,
+                    completionOutcome,
+                    completionSelectedSource,
+                    completionIsAiGenerated.Value,
+                    completionReturnedCount.Value,
+                    perfContext.Metrics.TotalMs);
+            }
+
             AiRecommendationPerfLogMessages.LogRequest(logger, perfContext.Metrics);
         }
     }

@@ -369,7 +369,10 @@ public sealed class AiMovieRecommendationServiceTests
             Task.CompletedTask;
     }
 
-    private sealed class FakeProvider(bool shouldFail = false, bool isAiGenerated = true) : IAiMovieRecommendationProvider
+    private sealed class FakeProvider(
+        bool shouldFail = false,
+        bool isAiGenerated = true,
+        string selectedSource = "fake") : IAiMovieRecommendationProvider
     {
         public int CallCount { get; private set; }
 
@@ -391,7 +394,7 @@ public sealed class AiMovieRecommendationServiceTests
                     [new AiProviderSuggestion("Arrival", 2016, "movie", 1, "Reason")],
                     null),
                 isAiGenerated,
-                "fake"));
+                selectedSource));
         }
     }
 

@@ -67,6 +67,18 @@ internal static partial class AiRecommendationPerfLogMessages
         bool llmChainBudgetExhausted,
         string providerFailureSummary);
 
+    [LoggerMessage(
+        EventId = 7203,
+        Level = LogLevel.Information,
+        Message = "AI recommendation completed. Outcome={Outcome} SelectedSource={SelectedSource} IsAiGenerated={IsAiGenerated} ReturnedCount={ReturnedCount} TotalMs={TotalMs}")]
+    public static partial void LogCompleted(
+        ILogger logger,
+        string outcome,
+        string selectedSource,
+        bool isAiGenerated,
+        int returnedCount,
+        long totalMs);
+
     internal static void LogRequest(ILogger logger, AiRecommendationPerfMetrics metrics)
     {
         LogProviderChain(
