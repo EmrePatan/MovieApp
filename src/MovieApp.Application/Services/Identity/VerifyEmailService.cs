@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
 
 namespace MovieApp.Application.Services.Identity;
