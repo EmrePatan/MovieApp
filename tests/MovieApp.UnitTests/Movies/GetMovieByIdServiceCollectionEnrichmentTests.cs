@@ -1,11 +1,13 @@
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Keywords;
 
 namespace MovieApp.UnitTests.Movies;
 
@@ -57,18 +59,75 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
         Assert.Equal("Harry Potter Collection", result.Collection.Name);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_WhenMovieHasNoCollection_SkipsProviderOnLaterDetailMiss()
+    {
+        var movie = CreateMovie(tmdbCollectionId: null);
+        var provider = new StubMovieDataProvider(
+            CreateProviderDetails(tmdbCollectionId: 1, collectionName: "unused") with
+            {
+                TmdbCollectionId = null,
+                CollectionName = null,
+                CollectionPosterPath = null,
+                CollectionBackdropPath = null
+            });
+        var cache = new DictionaryCacheService();
+        var service = CreateService(movie, provider, new NoOpCatalogProviderUpsertService(), cache);
+
+        await service.GetByIdAsync(MovieId);
+        await cache.RemoveAsync(MovieDetailsCacheKeys.Create(MovieId));
+        await service.GetByIdAsync(MovieId);
+
+        Assert.Equal(1, provider.GetMovieCallCount);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenKeywordsAreUnsynced_SchedulesBackgroundEnrichment()
+    {
+        var movie = CreateMovie(tmdbCollectionId: 645, collectionName: "Harry Potter Collection");
+        var scheduler = new RecordingKeywordScheduler();
+        var service = CreateService(
+            movie,
+            new StubMovieDataProvider(null),
+            new NoOpCatalogProviderUpsertService(),
+            scheduler: scheduler);
+
+        await service.GetByIdAsync(MovieId);
+
+        Assert.Equal([MovieId], scheduler.MovieIds);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenKeywordsAreSynced_DoesNotScheduleEnrichment()
+    {
+        var movie = CreateMovie(tmdbCollectionId: 645, collectionName: "Harry Potter Collection");
+        movie.KeywordsSyncedAtUtc = DateTime.UtcNow;
+        var scheduler = new RecordingKeywordScheduler();
+        var service = CreateService(
+            movie,
+            new StubMovieDataProvider(null),
+            new NoOpCatalogProviderUpsertService(),
+            scheduler: scheduler);
+
+        await service.GetByIdAsync(MovieId);
+
+        Assert.Empty(scheduler.MovieIds);
+    }
+
     private static GetMovieByIdService CreateService(
         Movie movie,
         StubMovieDataProvider movieDataProvider,
-        ICatalogProviderUpsertService catalogProviderUpsertService) =>
+        ICatalogProviderUpsertService catalogProviderUpsertService,
+        ICacheService? cacheService = null,
+        ICatalogKeywordReadPathScheduler? scheduler = null) =>
         new(
             new FakeMovieRepository(movie),
             new FakeMovieRegionalReleaseRepository(regionalRelease: null),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
-            new NoOpCatalogKeywordIngestionService(),
+            scheduler ?? new NoOpCatalogKeywordReadPathScheduler(),
             movieDataProvider,
             catalogProviderUpsertService,
-            new NoOpCacheService());
+            cacheService ?? new NoOpCacheService());
 
     private static Movie CreateMovie(int? tmdbCollectionId, string? collectionName = null) =>
         new()
@@ -134,23 +193,6 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
             Task.FromResult(regionalRelease);
     }
 
-    private sealed class NoOpCatalogKeywordIngestionService : ICatalogKeywordIngestionService
-    {
-        public Task TryEnrichMovieKeywordsAsync(
-            Guid movieId,
-            bool refreshKeywords,
-            IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task TryEnrichTvShowKeywordsAsync(
-            Guid tvShowId,
-            bool refreshKeywords,
-            IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-    }
-
     private sealed class NoOpCacheService : ICacheService
     {
         public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
@@ -167,5 +209,38 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
 
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class DictionaryCacheService : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult(_entries.TryGetValue(key, out var value) ? (T?)value : null);
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingKeywordScheduler : ICatalogKeywordReadPathScheduler
+    {
+        public List<Guid> MovieIds { get; } = [];
+
+        public void ScheduleMovie(Guid movieId) => MovieIds.Add(movieId);
+
+        public void ScheduleTvShow(Guid tvShowId)
+        {
+        }
     }
 }

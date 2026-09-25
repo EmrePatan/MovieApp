@@ -11,7 +11,7 @@ public sealed class TvShowSeasonSummaryHydrator(
     ITvShowDataProvider tvShowDataProvider,
     ITvShowExternalIdResolver externalIdResolver,
     ICatalogProviderUpsertService catalogProviderUpsertService,
-    ICatalogKeywordIngestionService catalogKeywordIngestionService) : ITvShowSeasonSummaryHydrator
+    ICatalogKeywordReadPathScheduler catalogKeywordReadPathScheduler) : ITvShowSeasonSummaryHydrator
 {
     public async Task<TvShowSeasonSummaryHydrationResult> EnsureSeasonSummariesAsync(
         Guid tvShowId,
@@ -25,22 +25,14 @@ public sealed class TvShowSeasonSummaryHydrator(
 
         if (tvShow.Seasons.Any(season => season.SeasonNumber >= 1))
         {
-            await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
-                tvShow.Id,
-                refreshKeywords: false,
-                cancellationToken: cancellationToken);
-
+            ScheduleKeywordsIfNeeded(tvShow);
             return new TvShowSeasonSummaryHydrationResult(tvShow, ProviderCatalogRefreshed: false);
         }
 
         var externalId = externalIdResolver.Resolve(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
         if (externalId is null)
         {
-            await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
-                tvShow.Id,
-                refreshKeywords: false,
-                cancellationToken: cancellationToken);
-
+            ScheduleKeywordsIfNeeded(tvShow);
             return new TvShowSeasonSummaryHydrationResult(tvShow, ProviderCatalogRefreshed: false);
         }
 
@@ -50,11 +42,7 @@ public sealed class TvShowSeasonSummaryHydrator(
             cancellationToken);
         if (details is null)
         {
-            await catalogKeywordIngestionService.TryEnrichTvShowKeywordsAsync(
-                tvShow.Id,
-                refreshKeywords: false,
-                cancellationToken: cancellationToken);
-
+            ScheduleKeywordsIfNeeded(tvShow);
             return new TvShowSeasonSummaryHydrationResult(tvShow, ProviderCatalogRefreshed: false);
         }
 
@@ -63,5 +51,13 @@ public sealed class TvShowSeasonSummaryHydrator(
             enrichKeywords: true,
             cancellationToken);
         return new TvShowSeasonSummaryHydrationResult(hydratedTvShow, ProviderCatalogRefreshed: true);
+    }
+
+    private void ScheduleKeywordsIfNeeded(TvShow tvShow)
+    {
+        if (tvShow.KeywordsSyncedAtUtc is null)
+        {
+            catalogKeywordReadPathScheduler.ScheduleTvShow(tvShow.Id);
+        }
     }
 }

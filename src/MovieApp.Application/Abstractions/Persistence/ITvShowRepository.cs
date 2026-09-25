@@ -18,6 +18,16 @@ public interface ITvShowRepository
             : new CatalogProviderLookup(tvShow.TmdbId, tvShow.OriginalLanguage);
     }
 
+    async Task<TvShowExternalIds?> GetExternalIdsByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var tvShow = await GetByIdAsync(id, cancellationToken);
+        return tvShow is null
+            ? null
+            : new TvShowExternalIds(tvShow.TmdbId, tvShow.TvdbId, tvShow.ImdbId);
+    }
+
     Task<IReadOnlyDictionary<Guid, TvShow>> GetByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default) =>
