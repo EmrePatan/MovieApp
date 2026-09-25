@@ -69,9 +69,9 @@ public sealed class CatalogKeywordBackfillServiceTests
         Assert.Equal(3, result.Selected);
         Assert.Equal(2, result.Succeeded);
         Assert.Equal(1, result.Failed);
-        Assert.Contains(movieA, repository.SyncedMovieIds);
-        Assert.DoesNotContain(movieB, repository.SyncedMovieIds);
-        Assert.Contains(movieC, repository.SyncedMovieIds);
+        Assert.True(repository.SyncedMovieIds.ContainsKey(movieA));
+        Assert.False(repository.SyncedMovieIds.ContainsKey(movieB));
+        Assert.True(repository.SyncedMovieIds.ContainsKey(movieC));
     }
 
     [Fact]
@@ -205,9 +205,9 @@ public sealed class CatalogKeywordBackfillServiceTests
 
         public HashSet<Guid> PreSyncedTvShowIds { get; } = [];
 
-        public HashSet<Guid> SyncedMovieIds { get; } = [];
+        public ConcurrentDictionary<Guid, byte> SyncedMovieIds { get; } = new();
 
-        public HashSet<Guid> SyncedTvShowIds { get; } = [];
+        public ConcurrentDictionary<Guid, byte> SyncedTvShowIds { get; } = new();
 
         public Task<IReadOnlyList<CatalogKeywordBackfillCandidate>> SelectMovieCandidatesAsync(
             int limit,
@@ -235,10 +235,10 @@ public sealed class CatalogKeywordBackfillServiceTests
             Task.FromResult(new CatalogKeywordCoverageSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
         public Task<bool> IsMovieKeywordSyncedAsync(Guid movieId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(PreSyncedMovieIds.Contains(movieId) || SyncedMovieIds.Contains(movieId));
+            Task.FromResult(PreSyncedMovieIds.Contains(movieId) || SyncedMovieIds.ContainsKey(movieId));
 
         public Task<bool> IsTvShowKeywordSyncedAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(PreSyncedTvShowIds.Contains(tvShowId) || SyncedTvShowIds.Contains(tvShowId));
+            Task.FromResult(PreSyncedTvShowIds.Contains(tvShowId) || SyncedTvShowIds.ContainsKey(tvShowId));
     }
 
     private sealed class TrackingKeywordIngestionService(FakeBackfillRepository repository) : ICatalogKeywordIngestionService
@@ -252,7 +252,7 @@ public sealed class CatalogKeywordBackfillServiceTests
             MovieCalls++;
             if (!FailMovieIds.Contains(movieId))
             {
-                repository.SyncedMovieIds.Add(movieId);
+                repository.SyncedMovieIds.TryAdd(movieId, 0);
             }
 
             return Task.CompletedTask;
@@ -262,7 +262,7 @@ public sealed class CatalogKeywordBackfillServiceTests
         {
             if (!FailMovieIds.Contains(tvShowId))
             {
-                repository.SyncedTvShowIds.Add(tvShowId);
+                repository.SyncedTvShowIds.TryAdd(tvShowId, 0);
             }
 
             return Task.CompletedTask;
@@ -303,7 +303,7 @@ public sealed class CatalogKeywordBackfillServiceTests
         public async Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default)
         {
             await tracker.TrackAsync(this, cancellationToken);
-            repository.SyncedMovieIds.Add(movieId);
+            repository.SyncedMovieIds.TryAdd(movieId, 0);
         }
 
         public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
