@@ -190,6 +190,32 @@ Use when Grafana Cloud project VU limits block the same stage (e.g. 100-VU Cloud
 
 **Gates (local + production):** `-ConfirmProductionCloudRun`, type `RUN` at prompt; `>= 250` VU also requires `-ConfirmHighScaleCloudRun`; `>= 500` requires `-ConfirmVeryHighScaleCloudRun`. Token preflight (`Test-LoadTokens.ps1`) runs automatically before k6 starts.
 
+## 100-VU diagnostic correlation run (single controlled stage)
+
+Use **one** capacity run at **100 VUs** (`hot` dataset, `user-concurrency`) after deploying instrumentation. Goal: determine whether **cache-miss waves** precede Render CPU saturation / k6 timeouts, or CPU saturation grows independently.
+
+**Before hold:** note **UTC start**; enable app log level **Debug** for `MovieApp.Application` (or equivalent) so `HomePerf`, `RecHomePerf`, and `InsightsPerf` HIT/MISS lines are retained alongside `DiscoveryPerf` (Information).
+
+**Same-clock timeline — collect in parallel:**
+
+| Signal | Source |
+|--------|--------|
+| p95 / p99 over time | Grafana k6 run (trends), not only end summary |
+| `http_req_failed`, semantic success | k6 |
+| status=0 / transport timeout rate | k6 `http_outcome_transport_timeout` |
+| CPU %, memory % | Render instance metrics |
+| Home cache MISS | Render logs: `HomePerf` + `Cache=MISS` |
+| Recommendation home MISS | `RecHomePerf` + `Cache=MISS` |
+| Insights V3 / Summary MISS | `InsightsPerf V3` / `InsightsPerf Summary` + `Cache=MISS` |
+| Discovery cache miss load | `DiscoveryPerf Cache=LOAD_COMPLETED` or `Cache=LOAD_FAILED` (per operation + `CacheKey`, `CanonicalLoadMs`, `TotalLoadMs`) |
+| Redis infrastructure failures | `RedisCacheService` failure logs |
+
+**Render log search strings:** `DiscoveryPerf`, `HomePerf Cache=MISS`, `RecHomePerf Cache=MISS`, `InsightsPerf V3 Cache=MISS`, `InsightsPerf Summary Cache=MISS`, Redis cache get/set failure messages.
+
+**Interpretation:** align minute buckets of `DiscoveryPerf` / `HomePerf` MISS rates with Render CPU and k6 p95 spikes. Shared keys (e.g. `discovery-trending:`) should show clustered `LOAD_COMPLETED` if thundering herd is active.
+
+---
+
 ## Cold-cache experiments
 
 `LOAD_TEST_CONTENT_DATASET` supports only **`hot`** and **`varied`** (content ID pools for detail/reviews). There is **no** `cold` dataset mode. **Hot** = warm/steady-state small pool; **varied** = broader ID spread — neither forces backend cache misses.
