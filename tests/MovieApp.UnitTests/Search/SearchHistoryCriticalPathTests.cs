@@ -14,8 +14,9 @@ namespace MovieApp.UnitTests.Search;
 public sealed class SearchHistoryCriticalPathTests
 {
     [Fact]
-    public async Task SearchAsync_ReturnsBeforeSearchHistoryWriteCompletes()
+    public async Task SearchAsync_WaitsForSearchHistoryWriteToComplete()
     {
+        var userId = Guid.NewGuid();
         var history = new BlockingSearchHistoryRepository();
         var cached = new PaginatedResult<SearchItem>(
             [
@@ -41,7 +42,7 @@ public sealed class SearchHistoryCriticalPathTests
             new NoOpSearchRepository(),
             history,
             new SearchTestDoubles.FakeSearchProviderRefreshRepository(),
-            new AuthenticatedUser(Guid.NewGuid()),
+            new AuthenticatedUser(userId),
             new HitCacheService(cached),
             new SearchTestDoubles.FakeProviderIngestionService(),
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
@@ -51,24 +52,33 @@ public sealed class SearchHistoryCriticalPathTests
             NullLogger<SearchService>.Instance,
             new SingleHistoryScopeFactory(history));
 
-        var search = service.SearchAsync(
-            new SearchCriteria(
-                "inception",
-                SearchContentType.Movie,
-                null,
-                null,
-                null,
-                null,
-                SearchSortOption.Relevance,
-                1,
-                20),
-            ContentLocaleResolver.EnglishUnitedStates);
-        var completed = await Task.WhenAny(search, Task.Delay(TimeSpan.FromMilliseconds(500)));
+        var criteria = new SearchCriteria(
+            "inception",
+            SearchContentType.Movie,
+            null,
+            null,
+            null,
+            null,
+            SearchSortOption.Relevance,
+            1,
+            20);
 
-        Assert.Same(search, completed);
-        await search;
+        var search = service.SearchAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
         await history.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var completedBeforeRelease = await Task.WhenAny(search, Task.Delay(TimeSpan.FromMilliseconds(200)));
+        Assert.NotSame(search, completedBeforeRelease);
+
         history.Release();
+
+        var result = await search.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal(1, history.RecordCount);
+        Assert.NotNull(history.LastRecord);
+        Assert.Equal(userId, history.LastRecord.UserId);
+        Assert.Equal("inception", history.LastRecord.Query);
+        Assert.Equal("inception", history.LastRecord.NormalizedQuery);
     }
 
     private sealed class AuthenticatedUser(Guid userId) : ICurrentUser
@@ -132,11 +142,21 @@ public sealed class SearchHistoryCriticalPathTests
             throw new NotSupportedException();
     }
 
+    private sealed record RecordedSearch(
+        Guid UserId,
+        string Query,
+        string NormalizedQuery,
+        DateTime UtcNow);
+
     private sealed class BlockingSearchHistoryRepository : ISearchHistoryRepository
     {
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int RecordCount { get; private set; }
+
+        public RecordedSearch? LastRecord { get; private set; }
 
         public Task RecordSearchAsync(
             Guid userId,
@@ -145,8 +165,10 @@ public sealed class SearchHistoryCriticalPathTests
             DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
+            RecordCount++;
+            LastRecord = new RecordedSearch(userId, query, normalizedQuery, utcNow);
             Started.TrySetResult();
-            return _release.Task;
+            return _release.Task.WaitAsync(cancellationToken);
         }
 
         public void Release() => _release.TrySetResult();
