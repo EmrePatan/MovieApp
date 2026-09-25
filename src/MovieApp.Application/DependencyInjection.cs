@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddScoped<IGetEpisodeService, GetEpisodeService>();
 
         services.AddScoped<IRegisterUserService, RegisterUserService>();
+        services.AddScoped<IAuthenticationSessionService, AuthenticationSessionService>();
         services.AddScoped<ILoginUserService, LoginUserService>();
         services.AddScoped<ISocialAuthService, SocialAuthService>();
         services.AddScoped<IGetCurrentUserService, GetCurrentUserService>();

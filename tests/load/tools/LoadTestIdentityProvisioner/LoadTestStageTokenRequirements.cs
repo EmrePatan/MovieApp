@@ -1,7 +1,7 @@
 namespace MovieApp.LoadTestIdentityProvisioner;
 
 /// <summary>
-/// JWT preflight windows for load-test stages (60-minute access tokens, no refresh).
+/// JWT preflight windows for load-test stages (long-lived access tokens, no refresh).
 /// </summary>
 public static class LoadTestStageTokenRequirements
 {

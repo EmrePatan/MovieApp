@@ -12,7 +12,8 @@ public sealed class ResetPasswordService(
     IApplicationDbContext applicationDbContext,
     IUserRepository userRepository,
     IPasswordResetTokenRepository passwordResetTokenRepository,
-    IPasswordHasher passwordHasher) : IResetPasswordService
+    IPasswordHasher passwordHasher,
+    IAuthenticationSessionService authenticationSessionService) : IResetPasswordService
 {
     public const string SuccessMessage =
         "Your password has been reset. You can now sign in with your new password.";
@@ -66,6 +67,7 @@ public sealed class ResetPasswordService(
 
             await userRepository.UpdateAsync(user, ct);
             await passwordResetTokenRepository.InvalidateActiveTokensForUserAsync(user.Id, utcNow, ct);
+            await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, ct);
         }, cancellationToken);
 
         return new MessageResult(SuccessMessage);

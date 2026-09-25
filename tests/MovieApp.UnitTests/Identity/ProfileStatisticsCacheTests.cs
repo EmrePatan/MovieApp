@@ -136,7 +136,7 @@ public sealed class ProfileStatisticsCacheTests
             repository,
             profileStatisticsCache,
             new FakePasswordHasher(),
-            new FakeTokenService(),
+            new FakeAuthenticationSessionService(),
             new FakeResendVerificationService(),
             []);
 

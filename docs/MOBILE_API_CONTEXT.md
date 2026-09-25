@@ -22,7 +22,8 @@ JWT Bearer tokens (HMAC-SHA256). Configuration section: `Authentication:Jwt`.
 |---------|---------|
 | Issuer | `MovieApp` |
 | Audience | `MovieApp.Mobile` |
-| Access token lifetime | 60 minutes (`AccessTokenMinutes`) |
+| Access token lifetime | 60 minutes (`AccessTokenMinutes`, default) |
+| Refresh token lifetime | 30 days (`Authentication:RefreshToken:LifetimeDays`, default) |
 
 JWT claims include `sub` (user ID), `email`, `jti`, `iat`, and `security_stamp`. The security stamp is rotated on email/password change and invalidates previously issued tokens.
 
@@ -308,9 +309,9 @@ When exceeded, the API returns `429 Too Many Requests` with ProblemDetails and o
 | Item | Value |
 |------|-------|
 | Header format | `Authorization: Bearer <accessToken>` |
-| Token expiration | 60 minutes from issuance (configurable via `AccessTokenMinutes`) |
-| Token refresh | No refresh-token endpoint exists; re-login or re-authenticate via email/password change (which returns a new token) |
-| Logout | **No server-side logout endpoint.** Discard the token locally. |
+| Access token expiration | Configurable via `AccessTokenMinutes` (default 60 minutes) |
+| Token refresh | `POST /api/auth/refresh` with `{ "refreshToken": "..." }` returns a new access token, refresh token (rotation), and user |
+| Logout | `POST /api/auth/logout` with `{ "refreshToken": "..." }` revokes the refresh token (204). Discard tokens locally. |
 
 ### Identifying authenticated endpoints
 

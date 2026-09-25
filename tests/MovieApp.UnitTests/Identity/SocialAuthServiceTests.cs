@@ -30,7 +30,7 @@ public sealed class SocialAuthServiceTests
         var result = await service.AuthenticateAsync(
             new SocialAuthRequest(ExternalLoginProviders.Google, "token"));
 
-        Assert.Equal("token-value", result.AccessToken);
+        Assert.Equal("token", result.AccessToken);
         Assert.Equal("google.user@example.com", result.User.Email);
         Assert.Equal(1, userRepository.CreateCount);
         Assert.Equal(1, externalLoginRepository.CreateCount);
@@ -265,7 +265,7 @@ public sealed class SocialAuthServiceTests
             externalLoginRepository,
             userRepository,
             verifiers,
-            new FakeTokenService(),
+            new FakeAuthenticationSessionService(),
             NullLogger<SocialAuthService>.Instance);
 
     private sealed class FakeSocialIdentityTokenVerifier : ISocialIdentityTokenVerifier
@@ -421,9 +421,4 @@ public sealed class SocialAuthServiceTests
         }
     }
 
-    private sealed class FakeTokenService : ITokenService
-    {
-        public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
-            new("token-value", DateTime.UtcNow.AddHours(1));
-    }
 }

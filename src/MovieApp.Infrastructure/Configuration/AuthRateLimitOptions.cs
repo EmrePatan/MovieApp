@@ -31,4 +31,8 @@ public sealed class AuthRateLimitOptions
     public int VerifyEmailPermitLimit { get; set; } = 5;
 
     public int VerifyEmailWindowMinutes { get; set; } = 15;
+
+    public int RefreshPermitLimit { get; set; } = 30;
+
+    public int RefreshWindowMinutes { get; set; } = 1;
 }

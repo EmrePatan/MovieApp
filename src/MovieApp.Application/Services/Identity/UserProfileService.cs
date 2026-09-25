@@ -17,7 +17,7 @@ public sealed class UserProfileService(
     IUserStatisticsRepository userStatisticsRepository,
     IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
-    ITokenService tokenService,
+    IAuthenticationSessionService authenticationSessionService,
     IResendVerificationService resendVerificationService,
     IEnumerable<ISocialIdentityTokenVerifier> tokenVerifiers) : IUserProfileService
 {
@@ -75,7 +75,7 @@ public sealed class UserProfileService(
         var normalizedEmail = UserEmailNormalizer.Normalize(email);
         if (user.NormalizedEmail == normalizedEmail)
         {
-            return CreateAuthenticationResult(user);
+            return await CreateAuthenticationResult(user);
         }
 
         if (await userRepository.ExistsByNormalizedEmailAsync(normalizedEmail, cancellationToken))
@@ -90,7 +90,8 @@ public sealed class UserProfileService(
             contentLocale,
             cancellationToken);
 
-        return CreateAuthenticationResult(user);
+        await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, cancellationToken);
+        return await CreateAuthenticationResult(user);
     }
 
     public async Task<AuthenticationResult> ChangePasswordAsync(
@@ -112,7 +113,8 @@ public sealed class UserProfileService(
         user.ChangePassword(passwordHash, DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
 
-        return CreateAuthenticationResult(user);
+        await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, cancellationToken);
+        return await authenticationSessionService.IssueAsync(user, cancellationToken);
     }
 
     public async Task<UserStatisticsResult> GetStatisticsAsync(
@@ -292,12 +294,6 @@ public sealed class UserProfileService(
         }
     }
 
-    private AuthenticationResult CreateAuthenticationResult(Domain.Entities.User user)
-    {
-        var token = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
-        return new AuthenticationResult(
-            token.AccessToken,
-            token.ExpiresAt,
-            UserMapper.ToCurrentUserResult(user));
-    }
+    private Task<AuthenticationResult> CreateAuthenticationResult(Domain.Entities.User user) =>
+        authenticationSessionService.IssueAsync(user);
 }

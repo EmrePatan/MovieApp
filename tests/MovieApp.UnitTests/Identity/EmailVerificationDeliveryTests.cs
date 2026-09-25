@@ -219,7 +219,7 @@ public sealed class EmailVerificationDeliveryTests
             new FakeApplicationDbContext(),
             new FakeUserRepository(user),
             tokenRepository,
-            new FakeTokenService());
+            new FakeAuthenticationSessionService());
 
         var authResult = await verifyService.VerifyEmailAsync(new VerifyEmailRequest(rawToken!));
 

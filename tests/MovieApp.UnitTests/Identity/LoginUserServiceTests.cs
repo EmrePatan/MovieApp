@@ -17,8 +17,7 @@ public sealed class LoginUserServiceTests
         user.MarkEmailVerified(DateTime.UtcNow);
         var repository = new FakeUserRepository(user);
         var passwordHasher = new FakePasswordHasher(shouldVerify: true);
-        var tokenService = new FakeTokenService();
-        var service = new LoginUserService(repository, passwordHasher, tokenService);
+        var service = new LoginUserService(repository, passwordHasher, new FakeAuthenticationSessionService());
 
         var result = await service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123"));
 
@@ -31,7 +30,7 @@ public sealed class LoginUserServiceTests
     public async Task LoginAsyncThrowsAuthenticationExceptionForInvalidCredentials()
     {
         var repository = new FakeUserRepository(null);
-        var service = new LoginUserService(repository, new FakePasswordHasher(true), new FakeTokenService());
+        var service = new LoginUserService(repository, new FakePasswordHasher(true), new FakeAuthenticationSessionService());
 
         await Assert.ThrowsAsync<AuthenticationException>(() =>
             service.LoginAsync(new LoginUserRequest("missing@example.com", "StrongPassword123")));
@@ -49,7 +48,7 @@ public sealed class LoginUserServiceTests
         var service = new LoginUserService(
             new FakeUserRepository(user),
             new FakePasswordHasher(true),
-            new FakeTokenService());
+            new FakeAuthenticationSessionService());
 
         await Assert.ThrowsAsync<AuthenticationException>(() =>
             service.LoginAsync(new LoginUserRequest("social@example.com", "StrongPassword123")));
@@ -62,7 +61,7 @@ public sealed class LoginUserServiceTests
         var service = new LoginUserService(
             new FakeUserRepository(user),
             new FakePasswordHasher(true),
-            new FakeTokenService());
+            new FakeAuthenticationSessionService());
 
         await Assert.ThrowsAsync<EmailNotVerifiedException>(() =>
             service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123")));
@@ -76,7 +75,7 @@ public sealed class LoginUserServiceTests
         var service = new LoginUserService(
             new FakeUserRepository(user),
             new FakePasswordHasher(true),
-            new FakeTokenService());
+            new FakeAuthenticationSessionService());
 
         var result = await service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123"));
 
@@ -91,7 +90,7 @@ public sealed class LoginUserServiceTests
         var service = new LoginUserService(
             new FakeUserRepository(user),
             new FakePasswordHasher(true),
-            new FakeTokenService());
+            new FakeAuthenticationSessionService());
 
         await Assert.ThrowsAsync<AuthenticationException>(() =>
             service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123")));
@@ -144,9 +143,4 @@ public sealed class LoginUserServiceTests
         public bool VerifyPassword(string password, string passwordHash) => shouldVerify;
     }
 
-    private sealed class FakeTokenService : ITokenService
-    {
-        public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
-            new("token", DateTime.UtcNow.AddHours(1));
-    }
 }

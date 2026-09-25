@@ -19,6 +19,8 @@ public static class AuthContractMapper
         new(
             result.AccessToken,
             result.ExpiresAt,
+            result.RefreshToken,
+            result.RefreshTokenExpiresAt,
             ToCurrentUserResponse(result.User));
 
     public static RegisterResponse ToRegisterResponse(RegistrationResult result) =>

@@ -1,8 +1,5 @@
-using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
-using MovieApp.Application.Identity;
-using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Identity;
 
 namespace MovieApp.Application.Services.Identity;
@@ -11,7 +8,7 @@ public sealed class VerifyEmailService(
     IApplicationDbContext applicationDbContext,
     IUserRepository userRepository,
     IEmailVerificationTokenRepository emailVerificationTokenRepository,
-    ITokenService tokenService) : IVerifyEmailService
+    IAuthenticationSessionService authenticationSessionService) : IVerifyEmailService
 {
     public const string InvalidTokenMessage = "Invalid or expired verification token.";
 
@@ -54,11 +51,7 @@ public sealed class VerifyEmailService(
             user.RecordSuccessfulLogin(utcNow);
             await userRepository.UpdateAsync(user, ct);
 
-            var token = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
-            result = new AuthenticationResult(
-                token.AccessToken,
-                token.ExpiresAt,
-                UserMapper.ToCurrentUserResult(user));
+            result = await authenticationSessionService.IssueAsync(user, ct);
         }, cancellationToken);
 
         return result!;

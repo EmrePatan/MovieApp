@@ -154,7 +154,8 @@ public sealed class ResetPasswordServiceTests
             applicationDbContext,
             userRepository,
             tokenRepository,
-            passwordHasher);
+            passwordHasher,
+            new FakeAuthenticationSessionService());
     }
 
     private static PasswordResetToken CreateActiveToken(Guid userId, string rawToken) =>

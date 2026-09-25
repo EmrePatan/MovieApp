@@ -15,4 +15,6 @@ public static class AuthRateLimitPolicies
     public const string VerifyEmail = "auth-verify-email";
 
     public const string ResendVerification = "auth-resend-verification";
+
+    public const string Refresh = "auth-refresh";
 }

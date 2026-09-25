@@ -20,7 +20,8 @@ public sealed class AuthController(
     IForgotPasswordService forgotPasswordService,
     IResetPasswordService resetPasswordService,
     IVerifyEmailService verifyEmailService,
-    IResendVerificationService resendVerificationService) : ControllerBase
+    IResendVerificationService resendVerificationService,
+    IAuthenticationSessionService authenticationSessionService) : ControllerBase
 {
     [HttpPost("register")]
     [EnableRateLimiting(AuthRateLimitPolicies.Register)]
@@ -88,6 +89,41 @@ public sealed class AuthController(
                 "Social authentication conflict.",
                 exception.Message));
         }
+    }
+
+    [HttpPost("refresh")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Refresh)]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<AuthResponse>> Refresh(
+        [FromBody] RefreshTokenRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await authenticationSessionService.RefreshAsync(request.RefreshToken, cancellationToken);
+            return Ok(AuthContractMapper.ToAuthResponse(result));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication failed.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("logout")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Refresh)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> Logout(
+        [FromBody] LogoutRequest request,
+        CancellationToken cancellationToken)
+    {
+        await authenticationSessionService.RevokeRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        return NoContent();
     }
 
     [HttpPost("login")]

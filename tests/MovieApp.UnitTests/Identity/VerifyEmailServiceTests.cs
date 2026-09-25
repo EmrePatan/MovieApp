@@ -60,7 +60,7 @@ public sealed class VerifyEmailServiceTests
             new FakeApplicationDbContext(),
             userRepository,
             tokenRepository,
-            new FakeTokenService());
+            new FakeAuthenticationSessionService());
 
     private sealed class FakeApplicationDbContext : IApplicationDbContext
     {
@@ -136,9 +136,4 @@ public sealed class VerifyEmailServiceTests
             Task.CompletedTask;
     }
 
-    private sealed class FakeTokenService : ITokenService
-    {
-        public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
-            new("token", DateTime.UtcNow.AddHours(1));
-    }
 }

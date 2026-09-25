@@ -56,6 +56,9 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
 
+        services.Configure<Application.Configuration.RefreshTokenOptions>(
+            configuration.GetSection(Application.Configuration.RefreshTokenOptions.SectionName));
+
         services.AddOptions<SocialAuthOptions>()
             .Bind(configuration.GetSection(SocialAuthOptions.SectionName))
             .ValidateOnStart();
@@ -276,6 +279,8 @@ public static class DependencyInjection
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
 
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
         services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
 

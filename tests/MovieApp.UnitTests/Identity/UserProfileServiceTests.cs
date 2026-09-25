@@ -338,7 +338,7 @@ public sealed class UserProfileServiceTests
             statisticsRepository,
             new FakeProfileStatisticsCache(),
             passwordHasher,
-            new FakeTokenService(),
+            new FakeAuthenticationSessionService(),
             resendVerificationService,
             socialVerifiers);
     }
@@ -436,11 +436,6 @@ public sealed class UserProfileServiceTests
             (shouldVerifyCurrentPassword && password == "StrongPassword123");
     }
 
-    private sealed class FakeTokenService : ITokenService
-    {
-        public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
-            new("token", DateTime.UtcNow.AddHours(1));
-    }
 
     private sealed class FakeResendVerificationService : IResendVerificationService
     {

@@ -411,6 +411,9 @@ Movie and TV catalog endpoints remain publicly accessible. Favorites and watchli
     "SigningKey": "",
     "AccessTokenMinutes": 60
   },
+  "RefreshToken": {
+    "LifetimeDays": 30
+  },
     "PasswordReset": {
       "TokenLifetimeMinutes": 60,
       "EmailProvider": "Development",

@@ -30,6 +30,8 @@ public static class UserProfileContractMapper
         new(
             result.AccessToken,
             result.ExpiresAt,
+            result.RefreshToken,
+            result.RefreshTokenExpiresAt,
             ToUserProfileResponse(result.User));
 
     public static UserStatisticsResponse ToUserStatisticsResponse(

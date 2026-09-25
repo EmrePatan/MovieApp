@@ -15,7 +15,7 @@ public sealed class SocialAuthService(
     IUserExternalLoginRepository externalLoginRepository,
     IUserRepository userRepository,
     IEnumerable<ISocialIdentityTokenVerifier> tokenVerifiers,
-    ITokenService tokenService,
+    IAuthenticationSessionService authenticationSessionService,
     ILogger<SocialAuthService> logger) : ISocialAuthService
 {
     private readonly Dictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
@@ -268,7 +268,7 @@ public sealed class SocialAuthService(
             throw;
         }
 
-        return IssueAuthenticationResult(user, perf);
+        return await IssueAuthenticationResultAsync(user, perf, cancellationToken);
     }
 
     private async Task<AuthenticationResult> IssueAuthenticationResultAsync(
@@ -289,19 +289,31 @@ public sealed class SocialAuthService(
         await userRepository.UpdateAsync(user, cancellationToken);
         perf.PersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
 
-        return IssueAuthenticationResult(user, perf);
+        return await IssueSessionAsync(user, perf, cancellationToken);
     }
 
-    private AuthenticationResult IssueAuthenticationResult(User user, SocialAuthPerfState perf)
+    private async Task<AuthenticationResult> IssueAuthenticationResultAsync(
+        User user,
+        SocialAuthPerfState perf,
+        CancellationToken cancellationToken)
+    {
+        if (!user.IsActive)
+        {
+            throw new AuthenticationException("This account is inactive.");
+        }
+
+        return await IssueSessionAsync(user, perf, cancellationToken);
+    }
+
+    private async Task<AuthenticationResult> IssueSessionAsync(
+        User user,
+        SocialAuthPerfState perf,
+        CancellationToken cancellationToken)
     {
         var issueTokenStopwatch = Stopwatch.StartNew();
-        var token = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
+        var result = await authenticationSessionService.IssueAsync(user, cancellationToken);
         perf.IssueTokenMs += issueTokenStopwatch.ElapsedMilliseconds;
-
-        return new AuthenticationResult(
-            token.AccessToken,
-            token.ExpiresAt,
-            UserMapper.ToCurrentUserResult(user));
+        return result;
     }
 
     private static bool ShouldMarkEmailVerified(VerifiedSocialIdentity identity, string email) =>

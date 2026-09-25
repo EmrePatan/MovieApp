@@ -93,6 +93,16 @@ internal static class AuthRateLimitExtensions
                     options.ResendVerificationWindowMinutes);
             });
 
+            rateLimiterOptions.AddPolicy(AuthRateLimitPolicies.Refresh, httpContext =>
+            {
+                var options = httpContext.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value;
+                return CreateAuthDistributedPolicy(
+                    httpContext,
+                    AuthRateLimitPolicies.Refresh,
+                    options.RefreshPermitLimit,
+                    options.RefreshWindowMinutes);
+            });
+
             rateLimiterOptions.AddPolicy(
                 ProductMetricsRateLimitPolicies.Increment,
                 httpContext => CreateInMemoryFixedWindowPolicy(httpContext, 120, 1));

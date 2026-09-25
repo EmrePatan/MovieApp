@@ -61,6 +61,47 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
         var loginPayload = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.NotNull(loginPayload);
         Assert.False(string.IsNullOrWhiteSpace(loginPayload.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(loginPayload.RefreshToken));
+    }
+
+    [Fact]
+    public async Task RefreshTokenRotatesAndInvalidatesPreviousRefreshToken()
+    {
+        await fixture.ResetAsync();
+
+        var email = $"refresh-{Guid.NewGuid():N}@example.com";
+        await AuthIntegrationHelpers.RegisterUserAsync(_client, email);
+        await AuthIntegrationHelpers.VerifyLatestEmailAndGetAccessTokenAsync(
+            _client,
+            fixture.Factory.EmailSender);
+
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
+            email,
+            "StrongPassword123"));
+
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        var loginPayload = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(loginPayload);
+
+        var refreshResponse = await _client.PostAsJsonAsync(
+            "/api/auth/refresh",
+            new RefreshTokenRequest(loginPayload.RefreshToken));
+
+        Assert.Equal(HttpStatusCode.OK, refreshResponse.StatusCode);
+        var refreshedPayload = await refreshResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(refreshedPayload);
+        Assert.False(string.IsNullOrWhiteSpace(refreshedPayload.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(refreshedPayload.RefreshToken));
+        Assert.NotEqual(loginPayload.RefreshToken, refreshedPayload.RefreshToken);
+
+        var meResponse = await SendAuthorizedGetAsync("/api/auth/me", refreshedPayload.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
+
+        var staleRefreshResponse = await _client.PostAsJsonAsync(
+            "/api/auth/refresh",
+            new RefreshTokenRequest(loginPayload.RefreshToken));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, staleRefreshResponse.StatusCode);
     }
 
     [Fact]

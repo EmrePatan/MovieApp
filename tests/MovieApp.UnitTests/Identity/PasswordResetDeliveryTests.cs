@@ -185,7 +185,8 @@ public sealed class PasswordResetDeliveryTests
             new TransactionalApplicationDbContext(),
             new FakeUserRepository(user),
             tokenRepository,
-            new FakePasswordHasher());
+            new FakePasswordHasher(),
+            new FakeAuthenticationSessionService());
 
         var result = await resetService.ResetPasswordAsync(new ResetPasswordRequest(rawToken, "NewPassword1!"));
 

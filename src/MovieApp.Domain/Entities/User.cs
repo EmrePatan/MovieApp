@@ -46,6 +46,8 @@ public sealed class User
 
     public ICollection<EmailVerificationToken> EmailVerificationTokens { get; set; } = [];
 
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
+
     public ICollection<CatalogFollow> CatalogFollows { get; set; } = [];
 
     public ICollection<UserReleaseNotification> ReleaseNotifications { get; set; } = [];

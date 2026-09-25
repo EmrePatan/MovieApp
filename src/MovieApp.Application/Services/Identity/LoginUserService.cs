@@ -1,7 +1,5 @@
-using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
-using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Users;
@@ -11,7 +9,7 @@ namespace MovieApp.Application.Services.Identity;
 public sealed class LoginUserService(
     IUserRepository userRepository,
     IPasswordHasher passwordHasher,
-    ITokenService tokenService) : ILoginUserService
+    IAuthenticationSessionService authenticationSessionService) : ILoginUserService
 {
     private const string InvalidCredentialsMessage = "Invalid email or password.";
 
@@ -42,11 +40,6 @@ public sealed class LoginUserService(
         user.RecordSuccessfulLogin(DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
 
-        var token = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
-
-        return new AuthenticationResult(
-            token.AccessToken,
-            token.ExpiresAt,
-            UserMapper.ToCurrentUserResult(user));
+        return await authenticationSessionService.IssueAsync(user, cancellationToken);
     }
 }
