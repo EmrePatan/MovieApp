@@ -22,6 +22,14 @@ public static class SearchPaginationValidator
                 $"Page size must not exceed {MovieSearchPagination.MaxPageSize}.");
         }
 
+        // Skip/Take take a 32-bit count. (page - 1) * pageSize overflows to a negative
+        // offset for large pages and EF throws ArgumentOutOfRangeException (HTTP 500).
+        if ((long)(page - 1) * pageSize > int.MaxValue)
+        {
+            return SearchQueryValidationResult.Failure(
+                "Page is too large for the requested page size.");
+        }
+
         return SearchQueryValidationResult.Success();
     }
 }
