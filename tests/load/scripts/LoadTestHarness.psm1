@@ -47,6 +47,22 @@ function Get-LoadTestStageDuration {
     return $t.RampUp + $t.Hold + $t.RampDown
 }
 
+function Assert-LoadTestContentDatasetSupported {
+    param([string]$Dataset = 'hot')
+
+    if ([string]::IsNullOrWhiteSpace($Dataset)) {
+        $Dataset = 'hot'
+    }
+
+    $normalized = $Dataset.Trim().ToLowerInvariant()
+    $supported = @('hot', 'varied')
+    if ($normalized -notin $supported) {
+        throw "Unsupported LOAD_TEST_CONTENT_DATASET: '$Dataset'. Supported values: $($supported -join ', ')."
+    }
+
+    return $normalized
+}
+
 function Get-LoadTestIdentityReuseRatio {
     param(
         [int]$StageVus,
@@ -787,6 +803,7 @@ function Format-LoadTestCloudPreflight {
 }
 
 Export-ModuleMember -Function @(
+    'Assert-LoadTestContentDatasetSupported',
     'Invoke-K6Cli',
     'Get-LoadTestPresetTiming',
     'Get-LoadTestStageDuration',

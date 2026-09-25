@@ -175,6 +175,8 @@ Record for each stage:
 
 ## Cold-cache experiments
 
+`LOAD_TEST_CONTENT_DATASET` supports only **`hot`** and **`varied`** (content ID pools for detail/reviews). There is **no** `cold` dataset mode. **Hot** = warm/steady-state small pool; **varied** = broader ID spread — neither forces backend cache misses.
+
 Do **not** flush production Redis/Postgres to simulate cold cache. Document cold-cache experiments for **non-production** environments only (new empty Redis, fresh deploy, controlled catalog import).
 
 ---

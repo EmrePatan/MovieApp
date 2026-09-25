@@ -21,6 +21,16 @@ function Assert-True($name, $condition) {
     }
 }
 
+Assert-Equal 'content dataset hot' 'hot' (Assert-LoadTestContentDatasetSupported -Dataset 'hot')
+Assert-Equal 'content dataset varied' 'varied' (Assert-LoadTestContentDatasetSupported -Dataset 'varied')
+$contentDatasetRejected = $false
+try {
+    Assert-LoadTestContentDatasetSupported -Dataset 'cold'
+} catch {
+    $contentDatasetRejected = $_.Exception.Message -match 'hot' -and $_.Exception.Message -match 'varied'
+}
+Assert-True 'content dataset cold rejected' $contentDatasetRejected
+
 Assert-Equal 'reuse 150/100' 1.5 (Get-LoadTestIdentityReuseRatio -StageVus 150 -IdentityCount 100)
 Assert-Equal 'reuse 250/100' 2.5 (Get-LoadTestIdentityReuseRatio -StageVus 250 -IdentityCount 100)
 

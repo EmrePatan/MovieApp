@@ -118,10 +118,14 @@ Random uniform sleeps (seconds):
 
 ## Content datasets
 
+Supported values for `-ContentDataset` / `LOAD_TEST_CONTENT_DATASET` are **`hot`** and **`varied` only**. Any other value fails at `Invoke-K6.ps1` and in k6 `lib/config.js`.
+
 | Dataset | Env | Purpose |
 |---------|-----|---------|
-| **HOT** | `LOAD_TEST_CONTENT_DATASET=hot` | Small pool — steady-state cache behavior |
-| **VARIED** | `LOAD_TEST_CONTENT_DATASET=varied` | Large pool — reduced hot-key skew |
+| **HOT** | `LOAD_TEST_CONTENT_DATASET=hot` | Small warm catalog pool — **steady-state** detail/reviews traffic (popular ingested IDs) |
+| **VARIED** | `LOAD_TEST_CONTENT_DATASET=varied` | Broader content-ID distribution — less hot-key skew on detail/reviews |
+
+Neither mode clears or bypasses Redis/`IMemoryCache`, and neither guarantees cold backend caches. Home, personalized, recommendations, insights, and discover paths do not use these ID pools. **Cold-cache capacity testing** requires a separately controlled environment and cache state (see `RUNBOOK.md`).
 
 Configure `data/hot-content.json` and `data/varied-content.json` (from examples). Include `externalRatingsWarm*` IDs only when `LOAD_TEST_INCLUDE_EXTERNAL_RATINGS=true`.
 

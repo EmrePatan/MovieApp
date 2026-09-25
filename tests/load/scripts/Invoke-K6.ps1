@@ -9,6 +9,7 @@ param(
 
     [int]$StageTarget = 0,
 
+    [ValidateSet("hot", "varied")]
     [string]$ContentDataset = "hot",
 
     [string]$BaseUrl = $env:LOAD_TEST_BASE_URL,

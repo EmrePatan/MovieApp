@@ -15,7 +15,20 @@ export const baseUrl = () => {
 
 export const scenarioName = () => __ENV.LOAD_TEST_SCENARIO || 'user-concurrency';
 
-export const contentDataset = () => (__ENV.LOAD_TEST_CONTENT_DATASET || 'hot').toLowerCase();
+export const SUPPORTED_CONTENT_DATASETS = ['hot', 'varied'];
+
+export function assertSupportedContentDataset(value) {
+  const raw = value === undefined || value === null || String(value).trim() === '' ? 'hot' : String(value);
+  const dataset = raw.toLowerCase().trim();
+  if (!SUPPORTED_CONTENT_DATASETS.includes(dataset)) {
+    throw new Error(
+      `Unsupported LOAD_TEST_CONTENT_DATASET: "${raw}". Supported values: ${SUPPORTED_CONTENT_DATASETS.join(', ')}.`,
+    );
+  }
+  return dataset;
+}
+
+export const contentDataset = () => assertSupportedContentDataset(__ENV.LOAD_TEST_CONTENT_DATASET);
 
 export const presetName = () => (__ENV.LOAD_TEST_PRESET || 'smoke').toLowerCase();
 
