@@ -6,7 +6,7 @@ internal static partial class RecommendationServiceLogMessages
 {
     [LoggerMessage(
         EventId = 7101,
-        Level = LogLevel.Debug,
+        Level = LogLevel.Information,
         Message = "RecHomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs}")]
     public static partial void LogCacheHit(
         ILogger logger,
@@ -16,7 +16,7 @@ internal static partial class RecommendationServiceLogMessages
 
     [LoggerMessage(
         EventId = 7102,
-        Level = LogLevel.Debug,
+        Level = LogLevel.Information,
         Message = "RecHomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} UserContextMs={UserContextMs} PersonalizedSectionMs={PersonalizedSectionMs} BecauseYouWatchedMs={BecauseYouWatchedMs} CacheWriteMs={CacheWriteMs} MeaningfulInteractionCount={MeaningfulInteractionCount} SectionCount={SectionCount}")]
     public static partial void LogCacheMiss(
         ILogger logger,

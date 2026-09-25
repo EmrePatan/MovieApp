@@ -178,6 +178,11 @@ public static class DependencyInjection
                 postgreSqlConnectionString,
                 npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3)));
 
+        services.AddDbContextFactory<ApplicationDbContext>(options =>
+            options.UseNpgsql(
+                postgreSqlConnectionString,
+                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3)));
+
 
 
         services.AddScoped<IApplicationDbContext>(provider =>

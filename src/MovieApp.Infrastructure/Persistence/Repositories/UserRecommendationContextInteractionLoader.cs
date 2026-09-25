@@ -26,10 +26,91 @@ internal static class UserRecommendationContextInteractionLoader
 
     internal static Task<UserInteractionSnapshot> LoadAsync(
         ApplicationDbContext dbContext,
+        IDbContextFactory<ApplicationDbContext>? dbContextFactory,
         Guid userId,
         RecommendationQueryMetrics metrics,
         CancellationToken cancellationToken) =>
-        LoadSequentiallyAsync(dbContext, userId, metrics, cancellationToken);
+        dbContextFactory is null
+            ? LoadSequentiallyAsync(dbContext, userId, metrics, cancellationToken)
+            : LoadInParallelAsync(dbContextFactory, userId, metrics, cancellationToken);
+
+    private static async Task<UserInteractionSnapshot> LoadInParallelAsync(
+        IDbContextFactory<ApplicationDbContext> dbContextFactory,
+        Guid userId,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        var ratingsTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadRatingsAsync(context, userId, metrics, ct),
+                cancellationToken));
+        var favoritesTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadFavoritesAsync(context, userId, metrics, ct),
+                cancellationToken));
+        var watchedMoviesTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadWatchedMoviesAsync(context, userId, metrics, ct),
+                cancellationToken));
+        var watchlistTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadWatchlistAsync(context, userId, metrics, ct),
+                cancellationToken));
+        var watchedEpisodesTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadWatchedEpisodesAsync(context, userId, metrics, ct),
+                cancellationToken));
+        var catalogFollowsTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadCatalogFollowsAsync(context, userId, metrics, ct),
+                cancellationToken));
+        var searchHistoryTask = TimedLoadAsync(
+            () => LoadInIsolatedContextAsync(
+                dbContextFactory,
+                (context, ct) => LoadSearchHistoryAsync(context, userId, metrics, ct),
+                cancellationToken));
+
+        await Task.WhenAll(
+            ratingsTask,
+            favoritesTask,
+            watchedMoviesTask,
+            watchlistTask,
+            watchedEpisodesTask,
+            catalogFollowsTask,
+            searchHistoryTask);
+
+        var ratings = await ratingsTask;
+        var favorites = await favoritesTask;
+        var watchedMovies = await watchedMoviesTask;
+        var watchlist = await watchlistTask;
+        var watchedEpisodes = await watchedEpisodesTask;
+        var catalogFollows = await catalogFollowsTask;
+        var searchHistory = await searchHistoryTask;
+
+        return new UserInteractionSnapshot(
+            ratings.Result,
+            favorites.Result,
+            watchedMovies.Result,
+            watchlist.Result,
+            watchedEpisodes.Result,
+            catalogFollows.Result,
+            searchHistory.Result,
+            ratings.ElapsedMs,
+            favorites.ElapsedMs,
+            watchedMovies.ElapsedMs,
+            watchlist.ElapsedMs,
+            watchedEpisodes.ElapsedMs,
+            catalogFollows.ElapsedMs,
+            searchHistory.ElapsedMs,
+            "parallel",
+            metrics.DbRoundTrips);
+    }
 
     private static async Task<UserInteractionSnapshot> LoadSequentiallyAsync(
         ApplicationDbContext dbContext,
@@ -69,6 +150,15 @@ internal static class UserRecommendationContextInteractionLoader
             searchHistory.ElapsedMs,
             "sequential",
             metrics.DbRoundTrips);
+    }
+
+    private static async Task<T> LoadInIsolatedContextAsync<T>(
+        IDbContextFactory<ApplicationDbContext> dbContextFactory,
+        Func<ApplicationDbContext, CancellationToken, Task<T>> load,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await load(context, cancellationToken);
     }
 
     private static async Task<(T Result, long ElapsedMs)> TimedLoadAsync<T>(Func<Task<T>> load)

@@ -9,6 +9,7 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 internal sealed class UserRecommendationContextLoader(
     ApplicationDbContext dbContext,
+    IDbContextFactory<ApplicationDbContext>? dbContextFactory,
     ILogger logger)
 {
     private const int MaxCastPeople = 20;
@@ -56,6 +57,7 @@ internal sealed class UserRecommendationContextLoader(
 
         var interactions = await UserRecommendationContextInteractionLoader.LoadAsync(
             dbContext,
+            dbContextFactory,
             userId,
             metrics,
             cancellationToken);
@@ -142,22 +144,55 @@ internal sealed class UserRecommendationContextLoader(
             metrics,
             cancellationToken,
             movieQueryMs => searchMatchMoviesMs = movieQueryMs,
-            tvQueryMs => searchMatchTvMs = tvQueryMs));
+            tvQueryMs => searchMatchTvMs = tvQueryMs,
+            dbContextFactory));
         dbTotalMs += searchMatchMoviesMs + searchMatchTvMs;
 
         var collapsedSeeds = CollapseSeeds(seeds);
         var movieSeedList = collapsedSeeds.Where(seed => seed.ContentType == "movie").ToList();
         var tvSeedList = collapsedSeeds.Where(seed => seed.ContentType == "tv").ToList();
 
-        var movieSignalsStopwatch = Stopwatch.StartNew();
-        var movieSignals = await BuildMovieSignalsAsync(movieSeedList, metrics, cancellationToken);
-        movieSignalsStopwatch.Stop();
-        dbTotalMs += movieSignalsStopwatch.ElapsedMilliseconds;
+        long movieSignalsStopwatchMs;
+        long tvSignalsStopwatchMs;
+        List<UserBehaviorSignal> movieSignals;
+        List<UserBehaviorSignal> tvSignals;
 
-        var tvSignalsStopwatch = Stopwatch.StartNew();
-        var tvSignals = await BuildTvSignalsAsync(tvSeedList, metrics, cancellationToken);
-        tvSignalsStopwatch.Stop();
-        dbTotalMs += tvSignalsStopwatch.ElapsedMilliseconds;
+        if (dbContextFactory is not null)
+        {
+            var movieSignalsStopwatch = Stopwatch.StartNew();
+            var tvSignalsStopwatch = Stopwatch.StartNew();
+            var movieSignalsTask = BuildMovieSignalsInIsolatedContextAsync(
+                dbContextFactory,
+                movieSeedList,
+                metrics,
+                cancellationToken);
+            var tvSignalsTask = BuildTvSignalsInIsolatedContextAsync(
+                dbContextFactory,
+                tvSeedList,
+                metrics,
+                cancellationToken);
+            await Task.WhenAll(movieSignalsTask, tvSignalsTask);
+            movieSignals = await movieSignalsTask;
+            tvSignals = await tvSignalsTask;
+            movieSignalsStopwatch.Stop();
+            tvSignalsStopwatch.Stop();
+            movieSignalsStopwatchMs = movieSignalsStopwatch.ElapsedMilliseconds;
+            tvSignalsStopwatchMs = tvSignalsStopwatch.ElapsedMilliseconds;
+        }
+        else
+        {
+            var movieSignalsStopwatch = Stopwatch.StartNew();
+            movieSignals = await BuildMovieSignalsAsync(movieSeedList, metrics, cancellationToken);
+            movieSignalsStopwatch.Stop();
+            movieSignalsStopwatchMs = movieSignalsStopwatch.ElapsedMilliseconds;
+
+            var tvSignalsStopwatch = Stopwatch.StartNew();
+            tvSignals = await BuildTvSignalsAsync(tvSeedList, metrics, cancellationToken);
+            tvSignalsStopwatch.Stop();
+            tvSignalsStopwatchMs = tvSignalsStopwatch.ElapsedMilliseconds;
+        }
+
+        dbTotalMs += movieSignalsStopwatchMs + tvSignalsStopwatchMs;
 
         totalStopwatch.Stop();
         LogLoadSummary(
@@ -169,8 +204,8 @@ internal sealed class UserRecommendationContextLoader(
             tvTitleLookupStopwatch.ElapsedMilliseconds,
             searchMatchMoviesMs,
             searchMatchTvMs,
-            movieSignalsStopwatch.ElapsedMilliseconds,
-            tvSignalsStopwatch.ElapsedMilliseconds,
+            movieSignalsStopwatchMs,
+            tvSignalsStopwatchMs,
             signalBuildExecutionMode: "split-query",
             movieSignalCount: movieSignals.Count,
             tvSignalCount: tvSignals.Count,
@@ -588,7 +623,8 @@ internal sealed class UserRecommendationContextLoader(
         RecommendationQueryMetrics metrics,
         CancellationToken cancellationToken,
         Action<long>? recordMovieQueryMs = null,
-        Action<long>? recordTvQueryMs = null)
+        Action<long>? recordTvQueryMs = null,
+        IDbContextFactory<ApplicationDbContext>? dbContextFactory = null)
     {
         var distinctQueries = recentQueries
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -599,17 +635,48 @@ internal sealed class UserRecommendationContextLoader(
             return [];
         }
 
-        var movieQueryStopwatch = Stopwatch.StartNew();
-        metrics.RecordRoundTrip();
-        var matchingMovies = await LoadSearchMatchMoviesAsync(distinctQueries, cancellationToken);
-        movieQueryStopwatch.Stop();
-        recordMovieQueryMs?.Invoke(movieQueryStopwatch.ElapsedMilliseconds);
+        List<UserRecommendationContextModels.SearchMatchRow> matchingMovies;
+        List<UserRecommendationContextModels.SearchMatchRow> matchingTvShows;
+        long movieQueryMs;
+        long tvQueryMs;
 
-        var tvQueryStopwatch = Stopwatch.StartNew();
-        metrics.RecordRoundTrip();
-        var matchingTvShows = await LoadSearchMatchTvShowsAsync(distinctQueries, cancellationToken);
-        tvQueryStopwatch.Stop();
-        recordTvQueryMs?.Invoke(tvQueryStopwatch.ElapsedMilliseconds);
+        if (dbContextFactory is not null)
+        {
+            var movieTask = TimedSearchMatchLoadAsync(
+                dbContextFactory,
+                distinctQueries,
+                metrics,
+                static (context, queries, ct) =>
+                    BestMovieTitleMatches(context.Movies.AsNoTracking(), queries).ToListAsync(ct),
+                cancellationToken);
+            var tvTask = TimedSearchMatchLoadAsync(
+                dbContextFactory,
+                distinctQueries,
+                metrics,
+                static (context, queries, ct) =>
+                    BestTvShowTitleMatches(context.TvShows.AsNoTracking(), queries).ToListAsync(ct),
+                cancellationToken);
+            await Task.WhenAll(movieTask, tvTask);
+            (matchingMovies, movieQueryMs) = await movieTask;
+            (matchingTvShows, tvQueryMs) = await tvTask;
+        }
+        else
+        {
+            var movieQueryStopwatch = Stopwatch.StartNew();
+            metrics.RecordRoundTrip();
+            matchingMovies = await LoadSearchMatchMoviesAsync(distinctQueries, cancellationToken);
+            movieQueryStopwatch.Stop();
+            movieQueryMs = movieQueryStopwatch.ElapsedMilliseconds;
+
+            var tvQueryStopwatch = Stopwatch.StartNew();
+            metrics.RecordRoundTrip();
+            matchingTvShows = await LoadSearchMatchTvShowsAsync(distinctQueries, cancellationToken);
+            tvQueryStopwatch.Stop();
+            tvQueryMs = tvQueryStopwatch.ElapsedMilliseconds;
+        }
+
+        recordMovieQueryMs?.Invoke(movieQueryMs);
+        recordTvQueryMs?.Invoke(tvQueryMs);
 
         var seeds = new List<UserRecommendationContextModels.SignalSeed>();
 
@@ -748,6 +815,44 @@ internal sealed class UserRecommendationContextLoader(
 
     internal static bool TitleMatchesQuery(string title, string query) =>
         title.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private async Task<List<UserBehaviorSignal>> BuildMovieSignalsInIsolatedContextAsync(
+        IDbContextFactory<ApplicationDbContext> dbContextFactory,
+        List<UserRecommendationContextModels.SignalSeed> seeds,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var loader = new UserRecommendationContextLoader(context, null, logger);
+        return await loader.BuildMovieSignalsAsync(seeds, metrics, cancellationToken);
+    }
+
+    private async Task<List<UserBehaviorSignal>> BuildTvSignalsInIsolatedContextAsync(
+        IDbContextFactory<ApplicationDbContext> dbContextFactory,
+        List<UserRecommendationContextModels.SignalSeed> seeds,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var loader = new UserRecommendationContextLoader(context, null, logger);
+        return await loader.BuildTvSignalsAsync(seeds, metrics, cancellationToken);
+    }
+
+    private static async Task<(List<UserRecommendationContextModels.SearchMatchRow> Rows, long ElapsedMs)>
+        TimedSearchMatchLoadAsync(
+            IDbContextFactory<ApplicationDbContext> dbContextFactory,
+            IReadOnlyList<string> distinctQueries,
+            RecommendationQueryMetrics metrics,
+            Func<ApplicationDbContext, IReadOnlyList<string>, CancellationToken, Task<List<UserRecommendationContextModels.SearchMatchRow>>> load,
+            CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        metrics.RecordRoundTrip();
+        var rows = await load(context, distinctQueries, cancellationToken);
+        stopwatch.Stop();
+        return (rows, stopwatch.ElapsedMilliseconds);
+    }
 
     private async Task<List<UserBehaviorSignal>> BuildMovieSignalsAsync(
         List<UserRecommendationContextModels.SignalSeed> seeds,

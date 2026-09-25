@@ -33,7 +33,7 @@ internal static partial class HomeServiceLogMessages
 
     [LoggerMessage(
         EventId = 7003,
-        Level = LogLevel.Debug,
+        Level = LogLevel.Information,
         Message = "HomePerf Browse TotalMs={TotalMs} HotThisWeekMs={HotThisWeekMs} TrendingMs={TrendingMs} TopRatedMs={TopRatedMs} NewReleasesMs={NewReleasesMs} SectionCount={SectionCount}")]
     public static partial void LogBrowse(
         ILogger logger,
@@ -46,7 +46,7 @@ internal static partial class HomeServiceLogMessages
 
     [LoggerMessage(
         EventId = 7004,
-        Level = LogLevel.Debug,
+        Level = LogLevel.Information,
         Message = "HomePerf Personalized TotalMs={TotalMs} HotThisWeekDedupMs={HotThisWeekDedupMs} ComingUpMs={ComingUpMs} RecommendedForYouMs={RecommendedForYouMs} IsPersonalized={IsPersonalized} SectionCount={SectionCount}")]
     public static partial void LogPersonalized(
         ILogger logger,
