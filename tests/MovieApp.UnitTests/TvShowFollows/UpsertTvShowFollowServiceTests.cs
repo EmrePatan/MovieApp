@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShowFollows;
@@ -181,7 +182,8 @@ public sealed class UpsertTvShowFollowServiceTests
             new FakeCurrentUser(UserId),
             repository,
             new FakeTvShowRepository(tvShowExists ? CreateTvShow() : null),
-            enqueuer ?? new FakeTvShowFollowBaselineJobEnqueuer(repository));
+            enqueuer ?? new FakeTvShowFollowBaselineJobEnqueuer(repository),
+            new NoOpCacheService());
 
     private static TvShow CreateTvShow() =>
         new()
@@ -355,5 +357,23 @@ public sealed class UpsertTvShowFollowServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<CatalogFollow>, int)>(
                 (_follow is null ? [] : new List<CatalogFollow> { _follow }, _follow is null ? 0 : 1));
+    }
+
+    private sealed class NoOpCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

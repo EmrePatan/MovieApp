@@ -22,6 +22,7 @@ public sealed class HomeService(
     IServiceScopeFactory scopeFactory,
     ICacheService cacheService,
     IOptions<HomeOptions> options,
+    IOptions<ReleaseRegionOptions> releaseRegionOptions,
     ILogger<HomeService> logger) : IHomeService
 {
     private const string RecommendedForYouKey = "recommended-for-you";
@@ -51,6 +52,8 @@ public sealed class HomeService(
     ];
 
     private readonly HomeOptions _options = options.Value;
+    private readonly ReleaseRegionOptions _releaseRegionOptions = releaseRegionOptions.Value;
+    private readonly UserRecommendationCacheGeneration _recommendationCacheGeneration = new(cacheService);
 
     public async Task<HomeResult> GetHomeAsync(
         HomeCriteria criteria,
@@ -63,7 +66,15 @@ public sealed class HomeService(
         ValidateCriteria(criteria);
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var cacheKey = HomeCacheKeys.Create(userId, criteria.Type, criteria.SectionSize, contentLocale);
+        var recommendationGeneration = await _recommendationCacheGeneration.GetAsync(userId, cancellationToken);
+        var releaseRegionKey = ResolveReleaseRegion(releaseRegion);
+        var cacheKey = HomeCacheKeys.Create(
+            userId,
+            criteria.Type,
+            criteria.SectionSize,
+            contentLocale,
+            releaseRegionKey,
+            recommendationGeneration);
         var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
@@ -351,6 +362,16 @@ public sealed class HomeService(
             orderedSections.Count);
 
         return new HomePersonalizedResult(orderedSections, isPersonalized, DateTime.UtcNow);
+    }
+
+    private string ResolveReleaseRegion(string? releaseRegion)
+    {
+        if (!string.IsNullOrWhiteSpace(releaseRegion))
+        {
+            return WatchProviderRegionValidator.Normalize(releaseRegion);
+        }
+
+        return WatchProviderRegionValidator.Normalize(_releaseRegionOptions.DefaultRegion);
     }
 
     private async Task<HomeSection> BuildComingUpSectionAsync(

@@ -31,12 +31,53 @@ public sealed class RatingRepository(ApplicationDbContext dbContext) : IRatingRe
                 cancellationToken);
     }
 
-    public async Task<Rating> AddAsync(Rating rating, CancellationToken cancellationToken = default)
+    public async Task<(Rating Rating, bool Created)> AddAsync(
+        Rating rating,
+        CancellationToken cancellationToken = default)
     {
         rating.ValidateInvariants();
-        dbContext.Ratings.Add(rating);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return rating;
+
+        try
+        {
+            dbContext.Ratings.Add(rating);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return (rating, true);
+        }
+        catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
+        {
+            dbContext.Entry(rating).State = EntityState.Detached;
+
+            var existing = await FindConflictingRatingAsync(rating, cancellationToken);
+            if (existing is null)
+            {
+                throw;
+            }
+
+            existing.UpdateScore(rating.Score, rating.UpdatedAt);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return (existing, false);
+        }
+    }
+
+    private async Task<Rating?> FindConflictingRatingAsync(
+        Rating rating,
+        CancellationToken cancellationToken)
+    {
+        if (rating.MovieId is Guid movieId)
+        {
+            return await dbContext.Ratings.FirstOrDefaultAsync(
+                item => item.UserId == rating.UserId && item.MovieId == movieId,
+                cancellationToken);
+        }
+
+        if (rating.TvShowId is Guid tvShowId)
+        {
+            return await dbContext.Ratings.FirstOrDefaultAsync(
+                item => item.UserId == rating.UserId && item.TvShowId == tvShowId,
+                cancellationToken);
+        }
+
+        return null;
     }
 
     public async Task UpdateAsync(Rating rating, CancellationToken cancellationToken = default)

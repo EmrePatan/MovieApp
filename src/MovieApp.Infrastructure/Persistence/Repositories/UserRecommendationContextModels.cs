@@ -6,6 +6,8 @@ internal static class UserRecommendationContextModels
 {
     internal const int MaxSearchQueries = 10;
 
+    internal const int SearchMatchCandidatesPerQuery = 5;
+
     internal sealed record RatingRow(
         Guid? MovieId,
         Guid? TvShowId,

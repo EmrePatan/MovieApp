@@ -36,6 +36,35 @@ public sealed class FakeTvShowDataProviderTests
     }
 
     [Fact]
+    public async Task SearchTvShowsAsyncReturnsOfficeForOfficeQuery()
+    {
+        var provider = new FakeTvShowDataProvider(new TvShowDataProviderCallTracker());
+
+        var result = await provider.SearchTvShowsAsync(
+            "office",
+            SearchPaginationDefaults.DefaultPage,
+            SearchPaginationDefaults.DefaultPageSize);
+
+        Assert.Single(result.Results);
+        Assert.Equal("The Office", result.Results[0].Title);
+        Assert.Equal(FakeTvShowDataProvider.OfficeTmdbId, result.Results[0].TmdbId);
+        Assert.NotEqual(FakeTvShowDataProvider.BreakingBadTmdbId, result.Results[0].TmdbId);
+    }
+
+    [Fact]
+    public async Task GetSeasonAsyncReturnsOfficeSeasonWithEpisodes()
+    {
+        var provider = new FakeTvShowDataProvider(new TvShowDataProviderCallTracker());
+
+        var season = await provider.GetSeasonAsync(FakeTvShowDataProvider.OfficeExternalId, 1);
+
+        Assert.NotNull(season);
+        Assert.Equal(FakeTvShowDataProvider.OfficeExternalId, season.ExternalTvShowId);
+        Assert.Single(season.Episodes);
+        Assert.Equal(1, season.Episodes[0].EpisodeNumber);
+    }
+
+    [Fact]
     public async Task SearchTvShowsAsyncReturnsEmptyPageBeyondAvailableResults()
     {
         var provider = new FakeTvShowDataProvider(new TvShowDataProviderCallTracker());

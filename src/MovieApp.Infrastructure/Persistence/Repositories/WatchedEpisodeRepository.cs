@@ -212,46 +212,7 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
         int take,
         CancellationToken cancellationToken = default)
     {
-        var showsWithUnwatchedEpisodes = dbContext.Episodes
-            .AsNoTracking()
-            .Where(episode => episode.Season.SeasonNumber >= 1)
-            .Where(episode => !dbContext.WatchedEpisodes.Any(watchedEpisode =>
-                watchedEpisode.UserId == userId &&
-                watchedEpisode.EpisodeId == episode.Id))
-            .Select(episode => episode.Season.TvShowId)
-            .Distinct();
-
-        var watchedShows = dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId)
-            .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-            .Select(group => new
-            {
-                TvShowId = group.Key,
-                LastWatchedAt = group.Max(watchedEpisode => watchedEpisode.WatchedAt)
-            });
-
-        var items = await watchedShows
-            .Where(show => showsWithUnwatchedEpisodes.Contains(show.TvShowId))
-            .OrderByDescending(show => show.LastWatchedAt)
-            .Take(take)
-            .Join(
-                dbContext.TvShows.AsNoTracking(),
-                show => show.TvShowId,
-                tvShow => tvShow.Id,
-                (show, tvShow) => new
-                {
-                    show.TvShowId,
-                    tvShow.Title,
-                    tvShow.OriginalTitle,
-                    tvShow.PosterPath,
-                    tvShow.BackdropPath,
-                    tvShow.FirstAirDate,
-                    tvShow.VoteAverage,
-                    tvShow.VoteCount,
-                    show.LastWatchedAt
-                })
-            .ToListAsync(cancellationToken);
+        var items = await BuildContinueWatchingQuery(userId, take).ToListAsync(cancellationToken);
 
         return items
             .Select(item => (
@@ -266,6 +227,62 @@ public sealed class WatchedEpisodeRepository(ApplicationDbContext dbContext) : I
                 item.LastWatchedAt))
             .ToList();
     }
+
+    internal string GetContinueWatchingSql(Guid userId, int take) =>
+        BuildContinueWatchingQuery(userId, take).ToQueryString();
+
+    private IQueryable<ContinueWatchingRow> BuildContinueWatchingQuery(Guid userId, int take)
+    {
+        var watchedShows = dbContext.WatchedEpisodes
+            .AsNoTracking()
+            .Where(watchedEpisode => watchedEpisode.UserId == userId)
+            .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
+            .Select(group => new
+            {
+                TvShowId = group.Key,
+                LastWatchedAt = group.Max(watchedEpisode => watchedEpisode.WatchedAt)
+            });
+
+        var showsWithUnwatchedEpisodes = dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode => episode.Season.SeasonNumber >= 1)
+            .Where(episode => watchedShows.Select(show => show.TvShowId).Contains(episode.Season.TvShowId))
+            .Where(episode => !dbContext.WatchedEpisodes.Any(watchedEpisode =>
+                watchedEpisode.UserId == userId &&
+                watchedEpisode.EpisodeId == episode.Id))
+            .Select(episode => episode.Season.TvShowId)
+            .Distinct();
+
+        return watchedShows
+            .Where(show => showsWithUnwatchedEpisodes.Contains(show.TvShowId))
+            .OrderByDescending(show => show.LastWatchedAt)
+            .Take(take)
+            .Join(
+                dbContext.TvShows.AsNoTracking(),
+                show => show.TvShowId,
+                tvShow => tvShow.Id,
+                (show, tvShow) => new ContinueWatchingRow(
+                    show.TvShowId,
+                    tvShow.Title,
+                    tvShow.OriginalTitle,
+                    tvShow.PosterPath,
+                    tvShow.BackdropPath,
+                    tvShow.FirstAirDate,
+                    tvShow.VoteAverage,
+                    tvShow.VoteCount,
+                    show.LastWatchedAt));
+    }
+
+    private sealed record ContinueWatchingRow(
+        Guid TvShowId,
+        string Title,
+        string? OriginalTitle,
+        string? PosterPath,
+        string? BackdropPath,
+        DateOnly? FirstAirDate,
+        decimal VoteAverage,
+        int VoteCount,
+        DateTime LastWatchedAt);
 
     public async Task<IReadOnlyList<Guid>> GetWatchedEpisodeIdsForSeasonAsync(
         Guid userId,

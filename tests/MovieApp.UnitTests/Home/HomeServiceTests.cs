@@ -47,6 +47,24 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
+    public async Task GetHomeAsync_IsolatesCacheByReleaseRegion()
+    {
+        var cache = new SharedHomeCacheService();
+        var service = CreateService(
+            cache: cache,
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: new FakeDiscoveryService(),
+            watchHistoryService: new FakeWatchHistoryService([]));
+        var criteria = new HomeCriteria(SearchContentType.All, 2);
+
+        await service.GetHomeAsync(criteria, ContentLocaleResolver.EnglishUnitedStates, "US");
+        await service.GetHomeAsync(criteria, ContentLocaleResolver.EnglishUnitedStates, "TR");
+        await service.GetHomeAsync(criteria, ContentLocaleResolver.EnglishUnitedStates, "us");
+
+        Assert.Equal(2, cache.HomeSetCount);
+    }
+
+    [Fact]
     public async Task GetHomeAsyncBuildsColdStartSectionsInOrder()
     {
         var cache = new FakeCacheService();
@@ -668,6 +686,7 @@ public sealed class HomeServiceTests
                 homeOptions),
             cache ?? new FakeCacheService(),
             Options.Create(homeOptions),
+            Options.Create(new ReleaseRegionOptions()),
             NullLogger<HomeService>.Instance);
     }
 

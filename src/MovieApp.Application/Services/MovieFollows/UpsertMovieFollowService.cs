@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
@@ -16,7 +18,8 @@ public sealed class UpsertMovieFollowService(
     ICatalogFollowRepository catalogFollowRepository,
     IMovieRepository movieRepository,
     IMovieRegionalReleaseRepository movieRegionalReleaseRepository,
-    IOptions<ReleaseRegionOptions> releaseRegionOptions) : IUpsertMovieFollowService
+    IOptions<ReleaseRegionOptions> releaseRegionOptions,
+    ICacheService cacheService) : IUpsertMovieFollowService
 {
     private const int MaxCreateAttempts = 3;
 
@@ -63,6 +66,8 @@ public sealed class UpsertMovieFollowService(
             var added = await catalogFollowRepository.TryAddAsync(follow, cancellationToken);
             if (added)
             {
+                await new UserRecommendationCacheGeneration(cacheService)
+                    .InvalidateForUserAsync(userId, cancellationToken);
                 return (MovieFollowMutationResult.Created, new MovieFollowStatusResult(true));
             }
         }

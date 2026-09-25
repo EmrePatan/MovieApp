@@ -425,15 +425,21 @@ public sealed class RecommendationService(
         return (sections, personalizedStopwatch.ElapsedMilliseconds, becauseYouWatchedStopwatch.ElapsedMilliseconds);
     }
 
+    internal static List<UserBehaviorSignal> SelectBecauseYouWatchedSources(
+        IEnumerable<UserBehaviorSignal> signals) =>
+        signals
+            .Where(signal => signal.SignalType == UserBehaviorSignalTypes.Watched)
+            .OrderByDescending(signal => signal.SignalAtUtc ?? DateTime.MinValue)
+            .ThenBy(signal => signal.ContentId)
+            .Take(3)
+            .ToList();
+
     private async Task<IReadOnlyList<RecommendationItem>> BuildBecauseYouWatchedSectionAsync(
         UserRecommendationContext context,
         int sectionSize,
         CancellationToken cancellationToken)
     {
-        var watchedSources = context.Signals
-            .Where(signal => signal.SignalType == UserBehaviorSignalTypes.Watched)
-            .Take(3)
-            .ToList();
+        var watchedSources = SelectBecauseYouWatchedSources(context.Signals);
 
         if (watchedSources.Count == 0)
         {

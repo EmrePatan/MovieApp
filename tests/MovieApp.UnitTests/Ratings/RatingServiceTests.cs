@@ -139,10 +139,12 @@ public sealed class RatingServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Rating?>(null);
 
-        public Task<Rating> AddAsync(Rating rating, CancellationToken cancellationToken = default)
+        public Task<(Rating Rating, bool Created)> AddAsync(
+            Rating rating,
+            CancellationToken cancellationToken = default)
         {
             AddCount++;
-            return Task.FromResult(rating);
+            return Task.FromResult((rating, true));
         }
 
         public Task UpdateAsync(Rating rating, CancellationToken cancellationToken = default)

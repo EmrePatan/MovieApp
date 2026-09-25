@@ -22,13 +22,19 @@ internal static class TvShowCompletionQueries
     /// <summary>
     /// One row per show in which the user has watched at least one regular (season ≥ 1) episode.
     /// </summary>
-    internal static IQueryable<TvShowCompletionRow> StartedShows(ApplicationDbContext dbContext, Guid userId) =>
-        dbContext.TvShows
+    internal static IQueryable<TvShowCompletionRow> StartedShows(ApplicationDbContext dbContext, Guid userId)
+    {
+        var startedShowIds = dbContext.WatchedEpisodes
             .AsNoTracking()
-            .Where(tvShow => dbContext.WatchedEpisodes.Any(watchedEpisode =>
+            .Where(watchedEpisode =>
                 watchedEpisode.UserId == userId &&
-                watchedEpisode.Episode.Season.TvShowId == tvShow.Id &&
-                watchedEpisode.Episode.Season.SeasonNumber >= 1))
+                watchedEpisode.Episode.Season.SeasonNumber >= 1)
+            .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
+            .Distinct();
+
+        return dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => startedShowIds.Contains(tvShow.Id))
             .Select(tvShow => new TvShowCompletionRow
             {
                 TvShowId = tvShow.Id,
@@ -51,6 +57,7 @@ internal static class TvShowCompletionQueries
                         watchedEpisode.Episode.Season.SeasonNumber >= 1)
                     .Max(watchedEpisode => (DateTime?)watchedEpisode.WatchedAt),
             });
+    }
 }
 
 internal sealed class TvShowCompletionRow
