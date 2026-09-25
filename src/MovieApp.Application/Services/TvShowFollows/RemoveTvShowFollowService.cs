@@ -1,16 +1,24 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Identity;
 
 namespace MovieApp.Application.Services.TvShowFollows;
 
 public sealed class RemoveTvShowFollowService(
     ICurrentUser currentUser,
-    ITvShowFollowRepository tvShowFollowRepository) : IRemoveTvShowFollowService
+    ITvShowFollowRepository tvShowFollowRepository,
+    ICacheService cacheService) : IRemoveTvShowFollowService
 {
     public async Task RemoveAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await tvShowFollowRepository.RemoveForTvShowAsync(userId, tvShowId, cancellationToken);
+        var removed = await tvShowFollowRepository.RemoveForTvShowAsync(userId, tvShowId, cancellationToken);
+        if (removed)
+        {
+            await new UserRecommendationCacheGeneration(cacheService)
+                .InvalidateForUserAsync(userId, cancellationToken);
+        }
     }
 }

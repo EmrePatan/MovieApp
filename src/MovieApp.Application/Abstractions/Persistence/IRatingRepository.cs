@@ -15,7 +15,7 @@ public interface IRatingRepository
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
-    Task<Rating> AddAsync(Rating rating, CancellationToken cancellationToken = default);
+    Task<(Rating Rating, bool Created)> AddAsync(Rating rating, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(Rating rating, CancellationToken cancellationToken = default);
 

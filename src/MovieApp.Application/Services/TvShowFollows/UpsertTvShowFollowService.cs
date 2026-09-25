@@ -1,6 +1,8 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShowFollows;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.TvShowFollows;
@@ -13,7 +15,8 @@ public sealed class UpsertTvShowFollowService(
     ICurrentUser currentUser,
     ITvShowFollowRepository tvShowFollowRepository,
     ITvShowRepository tvShowRepository,
-    ITvShowFollowBaselineJobEnqueuer tvShowFollowBaselineJobEnqueuer) : IUpsertTvShowFollowService
+    ITvShowFollowBaselineJobEnqueuer tvShowFollowBaselineJobEnqueuer,
+    ICacheService cacheService) : IUpsertTvShowFollowService
 {
     private const int MaxCreateAttempts = 3;
 
@@ -81,6 +84,9 @@ public sealed class UpsertTvShowFollowService(
         await tvShowFollowRepository.SaveChangesAsync(cancellationToken);
 
         await EnqueueBaselineEstablishmentAsync(follow, cancellationToken);
+
+        await new UserRecommendationCacheGeneration(cacheService)
+            .InvalidateForUserAsync(follow.UserId, cancellationToken);
 
         follow = await GetRefreshedFollowAsync(follow.UserId, follow.TvShowId, cancellationToken);
 

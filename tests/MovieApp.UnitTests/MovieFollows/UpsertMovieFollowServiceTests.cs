@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.MovieFollows;
@@ -67,6 +69,18 @@ public sealed class UpsertMovieFollowServiceTests
     }
 
     [Fact]
+    public async Task UpsertAsync_CreateBumpsRecommendationCacheGeneration()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cache = new RecordingCacheService();
+        var service = CreateService(CreateMovie(today.AddDays(30)), regionalRelease: null, cache);
+
+        await service.UpsertAsync(MovieId);
+
+        Assert.Contains(RecommendationCacheKeys.Generation(UserId), cache.SetKeys);
+    }
+
+    [Fact]
     public async Task UpsertAsync_SyncedNullEffective_RejectsFollow()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -79,13 +93,15 @@ public sealed class UpsertMovieFollowServiceTests
 
     private static UpsertMovieFollowService CreateService(
         Movie movie,
-        MovieRegionalRelease? regionalRelease) =>
+        MovieRegionalRelease? regionalRelease,
+        ICacheService? cacheService = null) =>
         new(
             new FakeCurrentUser(UserId),
             new FakeCatalogFollowRepository(),
             new FakeMovieRepository(movie),
             new FakeMovieRegionalReleaseRepository(regionalRelease),
-            Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }));
+            Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
+            cacheService ?? new NoOpCacheService());
 
     private static Movie CreateMovie(DateOnly? releaseDate) =>
         new()
@@ -193,5 +209,46 @@ public sealed class UpsertMovieFollowServiceTests
 
         public Task RemoveMovieFollowsByMovieIdAsync(Guid movieId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordingCacheService : ICacheService
+    {
+        public List<string> SetKeys { get; } = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class
+        {
+            SetKeys.Add(key);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class NoOpCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

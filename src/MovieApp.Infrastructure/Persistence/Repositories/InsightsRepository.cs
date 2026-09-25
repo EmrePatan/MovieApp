@@ -377,15 +377,25 @@ public sealed class InsightsRepository(
             .ToListAsync(cancellationToken);
     }
 
+    internal string GetTvShowDnaTitlesSql(Guid userId) =>
+        TvShowDnaTitles(userId).ToQueryString();
+
     private async Task<IReadOnlyList<InsightsDnaTitleData>> GetTvShowDnaTitlesAsync(
         Guid userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        await TvShowDnaTitles(userId).ToListAsync(cancellationToken);
+
+    private IQueryable<InsightsDnaTitleData> TvShowDnaTitles(Guid userId)
     {
-        return await dbContext.TvShows
+        var watchedShowIds = dbContext.WatchedEpisodes
             .AsNoTracking()
-            .Where(tvShow => dbContext.WatchedEpisodes.Any(
-                watchedEpisode => watchedEpisode.UserId == userId &&
-                                  watchedEpisode.Episode.Season.TvShowId == tvShow.Id))
+            .Where(watchedEpisode => watchedEpisode.UserId == userId)
+            .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
+            .Distinct();
+
+        return dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => watchedShowIds.Contains(tvShow.Id))
             .Select(tvShow => new InsightsDnaTitleData(
                 tvShow.FirstAirDate.HasValue
                     ? tvShow.FirstAirDate.Value.Year
@@ -394,8 +404,7 @@ public sealed class InsightsRepository(
                     .Select(tvGenre => new InsightsDnaGenreData(
                         tvGenre.GenreId,
                         tvGenre.Genre.Name))
-                    .ToList()))
-            .ToListAsync(cancellationToken);
+                    .ToList()));
     }
 
     public async Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(

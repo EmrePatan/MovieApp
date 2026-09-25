@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Domain.Entities;
@@ -85,9 +86,21 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
     public async Task<Review> AddAsync(Review review, CancellationToken cancellationToken = default)
     {
         review.ValidateInvariants();
-        dbContext.Reviews.Add(review);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return review;
+
+        try
+        {
+            dbContext.Reviews.Add(review);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return review;
+        }
+        catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
+        {
+            dbContext.Entry(review).State = EntityState.Detached;
+            throw new ConflictException(
+                review.MovieId is not null
+                    ? "A review for this movie already exists."
+                    : "A review for this TV show already exists.");
+        }
     }
 
     public async Task UpdateAsync(Review review, CancellationToken cancellationToken = default)

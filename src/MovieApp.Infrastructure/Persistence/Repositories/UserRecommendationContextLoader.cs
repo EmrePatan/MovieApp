@@ -666,16 +666,72 @@ internal sealed class UserRecommendationContextLoader(
     private Task<List<UserRecommendationContextModels.SearchMatchRow>> LoadSearchMatchMoviesAsync(
         IReadOnlyList<string> distinctQueries,
         CancellationToken cancellationToken) =>
-        FilterMoviesBySearchQueries(dbContext.Movies.AsNoTracking(), distinctQueries)
-            .Select(movie => new UserRecommendationContextModels.SearchMatchRow(movie.Id, movie.Title, movie.VoteCount))
+        BestMovieTitleMatches(dbContext.Movies.AsNoTracking(), distinctQueries)
             .ToListAsync(cancellationToken);
 
     private Task<List<UserRecommendationContextModels.SearchMatchRow>> LoadSearchMatchTvShowsAsync(
         IReadOnlyList<string> distinctQueries,
         CancellationToken cancellationToken) =>
-        FilterTvShowsBySearchQueries(dbContext.TvShows.AsNoTracking(), distinctQueries)
-            .Select(tvShow => new UserRecommendationContextModels.SearchMatchRow(tvShow.Id, tvShow.Title, tvShow.VoteCount))
+        BestTvShowTitleMatches(dbContext.TvShows.AsNoTracking(), distinctQueries)
             .ToListAsync(cancellationToken);
+
+    internal static IQueryable<UserRecommendationContextModels.SearchMatchRow> BestMovieTitleMatches(
+        IQueryable<Domain.Entities.Movie> movies,
+        IReadOnlyList<string> distinctQueries)
+    {
+        if (distinctQueries.Count == 0)
+        {
+            return movies.Where(_ => false).Select(movie => new UserRecommendationContextModels.SearchMatchRow(
+                movie.Id,
+                movie.Title,
+                movie.VoteCount));
+        }
+
+        IQueryable<Domain.Entities.Movie>? union = null;
+        foreach (var term in distinctQueries)
+        {
+            var branch = movies
+                .Where(movie => EF.Functions.ILike(movie.Title, "%" + term + "%"))
+                .OrderByDescending(movie => movie.VoteCount)
+                .ThenBy(movie => movie.Id)
+                .Take(UserRecommendationContextModels.SearchMatchCandidatesPerQuery);
+            union = union is null ? branch : union.Concat(branch);
+        }
+
+        return union!.Select(movie => new UserRecommendationContextModels.SearchMatchRow(
+            movie.Id,
+            movie.Title,
+            movie.VoteCount));
+    }
+
+    internal static IQueryable<UserRecommendationContextModels.SearchMatchRow> BestTvShowTitleMatches(
+        IQueryable<Domain.Entities.TvShow> tvShows,
+        IReadOnlyList<string> distinctQueries)
+    {
+        if (distinctQueries.Count == 0)
+        {
+            return tvShows.Where(_ => false).Select(tvShow => new UserRecommendationContextModels.SearchMatchRow(
+                tvShow.Id,
+                tvShow.Title,
+                tvShow.VoteCount));
+        }
+
+        IQueryable<Domain.Entities.TvShow>? union = null;
+        foreach (var term in distinctQueries)
+        {
+            var branch = tvShows
+                .Where(tvShow => EF.Functions.ILike(tvShow.Title, "%" + term + "%"))
+                .OrderByDescending(tvShow => tvShow.VoteCount)
+                .ThenBy(tvShow => tvShow.Id)
+                .Take(UserRecommendationContextModels.SearchMatchCandidatesPerQuery);
+            union = union is null ? branch : union.Concat(branch);
+        }
+
+        return union!.Select(tvShow => new UserRecommendationContextModels.SearchMatchRow(
+            tvShow.Id,
+            tvShow.Title,
+            tvShow.VoteCount));
+    }
 
     private static UserRecommendationContextModels.SignalSeed? SelectBestSearchMatch(
         IReadOnlyList<UserRecommendationContextModels.SearchMatchRow> matches,
@@ -692,32 +748,6 @@ internal sealed class UserRecommendationContextLoader(
 
     internal static bool TitleMatchesQuery(string title, string query) =>
         title.Contains(query, StringComparison.OrdinalIgnoreCase);
-
-    private static IQueryable<Domain.Entities.Movie> FilterMoviesBySearchQueries(
-        IQueryable<Domain.Entities.Movie> source,
-        IReadOnlyList<string> distinctQueries)
-    {
-        if (distinctQueries.Count == 0)
-        {
-            return source.Where(_ => false);
-        }
-
-        return source.Where(movie => distinctQueries
-            .Any(term => EF.Functions.ILike(movie.Title, "%" + term + "%")));
-    }
-
-    private static IQueryable<Domain.Entities.TvShow> FilterTvShowsBySearchQueries(
-        IQueryable<Domain.Entities.TvShow> source,
-        IReadOnlyList<string> distinctQueries)
-    {
-        if (distinctQueries.Count == 0)
-        {
-            return source.Where(_ => false);
-        }
-
-        return source.Where(tvShow => distinctQueries
-            .Any(term => EF.Functions.ILike(tvShow.Title, "%" + term + "%")));
-    }
 
     private async Task<List<UserBehaviorSignal>> BuildMovieSignalsAsync(
         List<UserRecommendationContextModels.SignalSeed> seeds,

@@ -37,9 +37,9 @@ public sealed class RatingService(
         }
 
         var rating = Rating.CreateForMovie(userId, movieId, score, utcNow);
-        await ratingRepository.AddAsync(rating, cancellationToken);
+        var (savedRating, created) = await ratingRepository.AddAsync(rating, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
-        return new RatingUpsertResult(RatingMapper.ToResult(rating), Created: true);
+        return new RatingUpsertResult(RatingMapper.ToResult(savedRating), created);
     }
 
     public async Task<RatingUpsertResult> UpsertTvShowRatingAsync(
@@ -62,9 +62,9 @@ public sealed class RatingService(
         }
 
         var rating = Rating.CreateForTvShow(userId, tvShowId, score, utcNow);
-        await ratingRepository.AddAsync(rating, cancellationToken);
+        var (savedRating, created) = await ratingRepository.AddAsync(rating, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
-        return new RatingUpsertResult(RatingMapper.ToResult(rating), Created: true);
+        return new RatingUpsertResult(RatingMapper.ToResult(savedRating), created);
     }
 
     public async Task DeleteMovieRatingAsync(Guid movieId, CancellationToken cancellationToken = default)
