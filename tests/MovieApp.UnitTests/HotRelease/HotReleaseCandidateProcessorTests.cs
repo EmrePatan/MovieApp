@@ -236,7 +236,7 @@ public sealed class HotReleaseCandidateProcessorTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new Season { TvShowId = tvShowId, SeasonNumber = details.SeasonNumber });
 
-        public async Task UpsertSeasonsFromProviderAsync(
+        public async Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
@@ -245,6 +245,8 @@ public sealed class HotReleaseCandidateProcessorTests
             {
                 await UpsertFromProviderAsync(tvShowId, detail, cancellationToken);
             }
+
+            return SeasonBatchUpsertPersistenceMetrics.Empty;
         }
 
         public Task<Season> UpsertSummaryFromProviderAsync(

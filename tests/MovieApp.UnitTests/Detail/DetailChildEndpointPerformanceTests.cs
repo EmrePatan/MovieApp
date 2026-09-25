@@ -217,11 +217,11 @@ public sealed class DetailChildEndpointPerformanceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task UpsertSeasonsFromProviderAsync(
+        public Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+            Task.FromResult(SeasonBatchUpsertPersistenceMetrics.Empty);
 
         public Task<Season> UpsertSummaryFromProviderAsync(
             Guid tvShowId,
@@ -289,7 +289,7 @@ public sealed class DetailChildEndpointPerformanceTests
                 UpdatedAt = DateTime.UtcNow,
             });
 
-        public async Task UpsertSeasonsFromProviderAsync(
+        public async Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
@@ -298,6 +298,8 @@ public sealed class DetailChildEndpointPerformanceTests
             {
                 await UpsertFromProviderAsync(tvShowId, detail, cancellationToken);
             }
+
+            return SeasonBatchUpsertPersistenceMetrics.Empty;
         }
 
         public Task<Season> UpsertSummaryFromProviderAsync(

@@ -340,7 +340,7 @@ public sealed class RegularSeasonEpisodeIngestionServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public async Task UpsertSeasonsFromProviderAsync(
+        public async Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default)
@@ -356,6 +356,7 @@ public sealed class RegularSeasonEpisodeIngestionServiceTests
                 UpsertBatchCalls++;
                 LastSeasonOrder = details.Select(d => d.SeasonNumber).ToList();
                 await Task.Yield();
+                return SeasonBatchUpsertPersistenceMetrics.Empty;
             }
             finally
             {

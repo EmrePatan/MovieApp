@@ -459,7 +459,7 @@ public sealed class TvShowWatchProgressAggregateTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task UpsertSeasonsFromProviderAsync(
+        public Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default) =>
@@ -510,7 +510,7 @@ public sealed class TvShowWatchProgressAggregateTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task UpsertSeasonsFromProviderAsync(
+        public Task<SeasonBatchUpsertPersistenceMetrics> UpsertSeasonsFromProviderAsync(
             Guid tvShowId,
             IReadOnlyList<SeasonProviderDetails> details,
             CancellationToken cancellationToken = default) =>
