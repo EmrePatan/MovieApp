@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Watchlists;
@@ -13,7 +15,8 @@ public sealed class AddTvShowToWatchlistService(
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
     ITvShowRepository tvShowRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddTvShowToWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    IServiceScopeFactory? analyticsScopeFactory = null) : IAddTvShowToWatchlistService
 {
     public async Task<WatchlistItemMutationResult> AddAsync(
         Guid watchlistId,
@@ -32,7 +35,7 @@ public sealed class AddTvShowToWatchlistService(
             return WatchlistItemMutationResult.AlreadyExists;
         }
 
-        if (await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken) is null)
+        if (!await tvShowRepository.ExistsAsync(tvShowId, cancellationToken))
         {
             throw new NotFoundException("The requested TV show was not found.");
         }
@@ -42,7 +45,11 @@ public sealed class AddTvShowToWatchlistService(
         if (added)
         {
             await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+            await BackgroundAnalyticsInvalidation.RunAsync(
+                analyticsCacheInvalidator,
+                analyticsScopeFactory,
+                userId,
+                cancellationToken);
             return WatchlistItemMutationResult.Created;
         }
 

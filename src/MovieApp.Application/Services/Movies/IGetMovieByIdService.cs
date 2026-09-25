@@ -13,4 +13,15 @@ public interface IGetMovieByIdService
         Guid id,
         Movie? prefetchedMovie,
         CancellationToken cancellationToken = default);
+
+    Task<MovieDetailsResult> GetByIdAsync(
+        Guid id,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
+
+    Task<MovieDetailsResult> GetByIdAsync(
+        Guid id,
+        Movie? prefetchedMovie,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
 }

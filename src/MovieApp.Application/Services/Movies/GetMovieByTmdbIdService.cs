@@ -13,7 +13,19 @@ public sealed class GetMovieByTmdbIdService(
     ICatalogProviderUpsertService catalogProviderUpsertService,
     IGetMovieByIdService getMovieByIdService) : IGetMovieByTmdbIdService
 {
-    public async Task<MovieDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default)
+    public Task<MovieDetailsResult> GetAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+        GetCoreAsync(tmdbId, contentLocale: null, cancellationToken);
+
+    public Task<MovieDetailsResult> GetAsync(
+        int tmdbId,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        GetCoreAsync(tmdbId, contentLocale, cancellationToken);
+
+    private async Task<MovieDetailsResult> GetCoreAsync(
+        int tmdbId,
+        string? contentLocale,
+        CancellationToken cancellationToken)
     {
         if (tmdbId <= 0)
         {
@@ -39,6 +51,8 @@ public sealed class GetMovieByTmdbIdService(
                 cancellationToken);
         }
 
-        return await getMovieByIdService.GetByIdAsync(movie.Id, movie, cancellationToken);
+        return contentLocale is null
+            ? await getMovieByIdService.GetByIdAsync(movie.Id, movie, cancellationToken)
+            : await getMovieByIdService.GetByIdAsync(movie.Id, movie, contentLocale, cancellationToken);
     }
 }

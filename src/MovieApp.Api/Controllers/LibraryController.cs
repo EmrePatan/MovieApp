@@ -14,8 +14,57 @@ namespace MovieApp.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/library")]
-public sealed class LibraryController(ILibraryService libraryService) : ControllerBase
+public sealed class LibraryController(
+    ILibraryService libraryService,
+    ILibraryActionStatusService libraryActionStatusService) : ControllerBase
 {
+    [HttpGet("actions")]
+    [ProducesResponseType(typeof(LibraryActionStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<LibraryActionStatusResponse>> GetActionStatus(
+        [FromQuery] string? mediaType,
+        [FromQuery] Guid contentId,
+        [FromQuery] Guid? episodeId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await libraryActionStatusService.GetAsync(
+                mediaType,
+                contentId,
+                episodeId,
+                cancellationToken);
+
+            return Ok(new LibraryActionStatusResponse(
+                result.MediaType,
+                result.ContentId,
+                result.IsFavorited,
+                result.IsInWatchlist,
+                result.WatchlistIds,
+                result.IsFollowing,
+                result.NotifyNewSeasons,
+                result.NotifyNewEpisodes,
+                result.BaselineEstablished,
+                result.IsWatched,
+                result.WatchedAt));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid library action request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(LibraryListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

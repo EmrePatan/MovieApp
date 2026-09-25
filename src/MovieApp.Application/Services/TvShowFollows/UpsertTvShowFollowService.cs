@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
@@ -16,7 +17,8 @@ public sealed class UpsertTvShowFollowService(
     ITvShowFollowRepository tvShowFollowRepository,
     ITvShowRepository tvShowRepository,
     ITvShowFollowBaselineJobEnqueuer tvShowFollowBaselineJobEnqueuer,
-    ICacheService cacheService) : IUpsertTvShowFollowService
+    ICacheService cacheService,
+    IServiceScopeFactory? recommendationScopeFactory = null) : IUpsertTvShowFollowService
 {
     private const int MaxCreateAttempts = 3;
 
@@ -28,7 +30,7 @@ public sealed class UpsertTvShowFollowService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         var utcNow = DateTime.UtcNow;
 
-        if (await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken) is null)
+        if (!await tvShowRepository.ExistsAsync(tvShowId, cancellationToken))
         {
             throw new NotFoundException("The requested TV show was not found.");
         }
@@ -85,8 +87,11 @@ public sealed class UpsertTvShowFollowService(
 
         await EnqueueBaselineEstablishmentAsync(follow, cancellationToken);
 
-        await new UserRecommendationCacheGeneration(cacheService)
-            .InvalidateForUserAsync(follow.UserId, cancellationToken);
+        await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+            cacheService,
+            recommendationScopeFactory,
+            follow.UserId,
+            cancellationToken);
 
         follow = await GetRefreshedFollowAsync(follow.UserId, follow.TvShowId, cancellationToken);
 

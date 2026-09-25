@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Identity;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class UserRepository(ApplicationDbContext dbContext) : IUserRepository
+public sealed class UserRepository(
+    ApplicationDbContext dbContext,
+    IMemoryCache? memoryCache = null) : IUserRepository
 {
     public async Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -55,6 +59,10 @@ public sealed class UserRepository(ApplicationDbContext dbContext) : IUserReposi
         {
             dbContext.Users.Update(user);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (memoryCache is not null)
+            {
+                SecurityStampCache.Invalidate(memoryCache, user.Id);
+            }
         }
         catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
         {
@@ -74,6 +82,11 @@ public sealed class UserRepository(ApplicationDbContext dbContext) : IUserReposi
 
         dbContext.Users.Remove(user);
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (memoryCache is not null)
+        {
+            SecurityStampCache.Invalidate(memoryCache, id);
+        }
+
         return true;
     }
 }

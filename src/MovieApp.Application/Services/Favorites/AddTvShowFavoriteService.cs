@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Favorites;
@@ -12,7 +14,8 @@ public sealed class AddTvShowFavoriteService(
     ICurrentUser currentUser,
     IFavoriteRepository favoriteRepository,
     ITvShowRepository tvShowRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddTvShowFavoriteService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    IServiceScopeFactory? analyticsScopeFactory = null) : IAddTvShowFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
@@ -23,7 +26,7 @@ public sealed class AddTvShowFavoriteService(
             return FavoriteMutationResult.AlreadyExists;
         }
 
-        if (await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken) is null)
+        if (!await tvShowRepository.ExistsAsync(tvShowId, cancellationToken))
         {
             throw new NotFoundException("The requested TV show was not found.");
         }
@@ -33,7 +36,11 @@ public sealed class AddTvShowFavoriteService(
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
         if (added)
         {
-            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+            await BackgroundAnalyticsInvalidation.RunAsync(
+                analyticsCacheInvalidator,
+                analyticsScopeFactory,
+                userId,
+                cancellationToken);
             return FavoriteMutationResult.Created;
         }
 

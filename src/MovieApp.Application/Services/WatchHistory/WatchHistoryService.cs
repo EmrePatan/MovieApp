@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShows;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
@@ -12,6 +13,7 @@ using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace MovieApp.Application.Services.WatchHistory;
@@ -28,7 +30,8 @@ public sealed class WatchHistoryService(
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     ITvShowCatalogSyncStateService catalogSyncStateService,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
-    ILogger<WatchHistoryService> logger) : IWatchHistoryService
+    ILogger<WatchHistoryService> logger,
+    IServiceScopeFactory? analyticsScopeFactory = null) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
@@ -187,7 +190,7 @@ public sealed class WatchHistoryService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
         var existenceStopwatch = Stopwatch.StartNew();
-        var tvShow = await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken)
+        var tvShowStatus = await tvShowRepository.GetStatusAsync(tvShowId, cancellationToken)
             ?? throw new NotFoundException("The requested TV show was not found.");
         existenceStopwatch.Stop();
 
@@ -220,7 +223,7 @@ public sealed class WatchHistoryService(
         var regularWatchedEpisodes = regularSeasons.Sum(season => season.WatchedEpisodes);
         var isFullyWatched = TvShowCompletionPolicy.IsCaughtUp(regularTotalEpisodes, regularWatchedEpisodes);
         var isCompleted = TvShowCompletionPolicy.IsCompleted(
-            TvShowCompletionPolicy.IsConcluded(tvShow.Status),
+            TvShowCompletionPolicy.IsConcluded(tvShowStatus),
             regularTotalEpisodes,
             regularWatchedEpisodes);
         var nextEpisode = await episodeRepository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId, cancellationToken);
@@ -521,7 +524,11 @@ public sealed class WatchHistoryService(
     }
 
     private Task InvalidateProfileStatisticsAsync(Guid userId, CancellationToken cancellationToken) =>
-        analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+        BackgroundAnalyticsInvalidation.RunAsync(
+            analyticsCacheInvalidator,
+            analyticsScopeFactory,
+            userId,
+            cancellationToken);
 
     private static void ValidatePagination(int page, int pageSize)
     {
@@ -546,7 +553,7 @@ public sealed class WatchHistoryService(
 
     private async Task EnsureMovieExistsAsync(Guid movieId, CancellationToken cancellationToken)
     {
-        if (await movieRepository.GetByIdAsync(movieId, cancellationToken) is null)
+        if (!await movieRepository.ExistsAsync(movieId, cancellationToken))
         {
             throw new NotFoundException("The requested movie was not found.");
         }
@@ -554,7 +561,7 @@ public sealed class WatchHistoryService(
 
     private async Task EnsureEpisodeExistsAsync(Guid episodeId, CancellationToken cancellationToken)
     {
-        if (await episodeRepository.GetByIdAsync(episodeId, cancellationToken) is null)
+        if (!await episodeRepository.ExistsAsync(episodeId, cancellationToken))
         {
             throw new NotFoundException("The requested episode was not found.");
         }
@@ -562,7 +569,7 @@ public sealed class WatchHistoryService(
 
     private async Task EnsureTvShowExistsAsync(Guid tvShowId, CancellationToken cancellationToken)
     {
-        if (await tvShowRepository.GetByIdAsync(tvShowId, cancellationToken) is null)
+        if (!await tvShowRepository.ExistsAsync(tvShowId, cancellationToken))
         {
             throw new NotFoundException("The requested TV show was not found.");
         }

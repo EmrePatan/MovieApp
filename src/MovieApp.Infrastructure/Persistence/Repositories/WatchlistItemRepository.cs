@@ -172,9 +172,11 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
         Guid movieId,
         CancellationToken cancellationToken = default)
     {
-        return await dbContext.WatchlistItems
+        return await dbContext.Watchlists
             .AsNoTracking()
-            .Where(item => item.Watchlist.UserId == userId && item.MovieId == movieId)
+            .Where(watchlist => watchlist.UserId == userId)
+            .SelectMany(watchlist => watchlist.Items)
+            .Where(item => item.MovieId == movieId)
             .Select(item => item.WatchlistId)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -185,9 +187,11 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
-        return await dbContext.WatchlistItems
+        return await dbContext.Watchlists
             .AsNoTracking()
-            .Where(item => item.Watchlist.UserId == userId && item.TvShowId == tvShowId)
+            .Where(watchlist => watchlist.UserId == userId)
+            .SelectMany(watchlist => watchlist.Items)
+            .Where(item => item.TvShowId == tvShowId)
             .Select(item => item.WatchlistId)
             .Distinct()
             .ToListAsync(cancellationToken);

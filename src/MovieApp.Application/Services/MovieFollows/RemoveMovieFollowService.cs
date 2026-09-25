@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
@@ -10,7 +11,8 @@ namespace MovieApp.Application.Services.MovieFollows;
 public sealed class RemoveMovieFollowService(
     ICurrentUser currentUser,
     ICatalogFollowRepository catalogFollowRepository,
-    ICacheService cacheService) : IRemoveMovieFollowService
+    ICacheService cacheService,
+    IServiceScopeFactory? recommendationScopeFactory = null) : IRemoveMovieFollowService
 {
     public async Task RemoveAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
@@ -23,8 +25,11 @@ public sealed class RemoveMovieFollowService(
 
         if (removed)
         {
-            await new UserRecommendationCacheGeneration(cacheService)
-                .InvalidateForUserAsync(userId, cancellationToken);
+            await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+                cacheService,
+                recommendationScopeFactory,
+                userId,
+                cancellationToken);
         }
     }
 }

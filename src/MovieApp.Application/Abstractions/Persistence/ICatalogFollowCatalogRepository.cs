@@ -32,4 +32,26 @@ public interface ICatalogFollowCatalogRepository
         string region,
         int limit,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedMovieReleasesForHomeAsync(
+        Guid userId,
+        DateOnly today,
+        string region,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedTvPremieresForHomeAsync(
+        Guid userId,
+        DateOnly today,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedEpisodeReleasesForHomeAsync(
+        Guid userId,
+        DateOnly today,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

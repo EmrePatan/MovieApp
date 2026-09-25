@@ -16,25 +16,30 @@ public sealed class DetailLocalizationOverlayService(
     private static readonly TimeSpan CatalogOverlayCacheTtl = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan CollectionOverlayCacheTtl = TimeSpan.FromHours(24);
 
-    public async Task<MovieDetailsResult> ApplyMovieOverlayAsync(
-        MovieDetailsResult canonical,
+    public Task<MovieDetailLocalizationData?> LoadMovieOverlayAsync(
+        int? tmdbId,
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        if (!ShouldApplyOverlay(canonical.TmdbId, contentLocale))
+        if (!ShouldApplyOverlay(tmdbId, contentLocale))
         {
-            return canonical;
+            return Task.FromResult<MovieDetailLocalizationData?>(null);
         }
 
-        var overlay = await GetOrLoadOverlayAsync(
-            DetailLocalizationCacheKeys.Movie(canonical.TmdbId!.Value, contentLocale),
+        return GetOrLoadOverlayAsync(
+            DetailLocalizationCacheKeys.Movie(tmdbId!.Value, contentLocale),
             () => localizedDetailDataProvider.GetMovieLocalizationAsync(
-                canonical.TmdbId!.Value,
+                tmdbId.Value,
                 contentLocale,
                 cancellationToken),
             CatalogOverlayCacheTtl,
             cancellationToken);
+    }
 
+    public MovieDetailsResult ApplyLoadedMovieOverlay(
+        MovieDetailsResult canonical,
+        MovieDetailLocalizationData? overlay)
+    {
         if (overlay is null)
         {
             return canonical;
@@ -57,25 +62,39 @@ public sealed class DetailLocalizationOverlayService(
         };
     }
 
-    public async Task<TvShowDetailsResult> ApplyTvShowOverlayAsync(
-        TvShowDetailsResult canonical,
+    public async Task<MovieDetailsResult> ApplyMovieOverlayAsync(
+        MovieDetailsResult canonical,
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        if (!ShouldApplyOverlay(canonical.TmdbId, contentLocale))
+        var overlay = await LoadMovieOverlayAsync(canonical.TmdbId, contentLocale, cancellationToken);
+        return ApplyLoadedMovieOverlay(canonical, overlay);
+    }
+
+    public Task<TvShowDetailLocalizationData?> LoadTvShowOverlayAsync(
+        int? tmdbId,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ShouldApplyOverlay(tmdbId, contentLocale))
         {
-            return canonical;
+            return Task.FromResult<TvShowDetailLocalizationData?>(null);
         }
 
-        var overlay = await GetOrLoadOverlayAsync(
-            DetailLocalizationCacheKeys.TvShow(canonical.TmdbId!.Value, contentLocale),
+        return GetOrLoadOverlayAsync(
+            DetailLocalizationCacheKeys.TvShow(tmdbId!.Value, contentLocale),
             () => localizedDetailDataProvider.GetTvShowLocalizationAsync(
-                canonical.TmdbId!.Value,
+                tmdbId.Value,
                 contentLocale,
                 cancellationToken),
             CatalogOverlayCacheTtl,
             cancellationToken);
+    }
 
+    public TvShowDetailsResult ApplyLoadedTvShowOverlay(
+        TvShowDetailsResult canonical,
+        TvShowDetailLocalizationData? overlay)
+    {
         if (overlay is null)
         {
             return canonical;
@@ -105,23 +124,37 @@ public sealed class DetailLocalizationOverlayService(
         };
     }
 
-    public async Task<SeasonResult> ApplySeasonOverlayAsync(
-        SeasonResult canonical,
-        int tvShowTmdbId,
+    public async Task<TvShowDetailsResult> ApplyTvShowOverlayAsync(
+        TvShowDetailsResult canonical,
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        if (!ShouldApplyOverlay(tvShowTmdbId, contentLocale))
+        var overlay = await LoadTvShowOverlayAsync(canonical.TmdbId, contentLocale, cancellationToken);
+        return ApplyLoadedTvShowOverlay(canonical, overlay);
+    }
+
+    public Task<TvSeasonDetailLocalizationData?> LoadTvSeasonOverlayAsync(
+        int? tmdbId,
+        int seasonNumber,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ShouldApplyOverlay(tmdbId, contentLocale))
         {
-            return canonical;
+            return Task.FromResult<TvSeasonDetailLocalizationData?>(null);
         }
 
-        var overlay = await GetTvSeasonOverlayAsync(
-            tvShowTmdbId,
-            canonical.SeasonNumber,
+        return GetTvSeasonOverlayAsync(
+            tmdbId!.Value,
+            seasonNumber,
             contentLocale,
             cancellationToken);
+    }
 
+    public SeasonResult ApplyLoadedSeasonOverlay(
+        SeasonResult canonical,
+        TvSeasonDetailLocalizationData? overlay)
+    {
         if (overlay is null)
         {
             return canonical;
@@ -154,23 +187,24 @@ public sealed class DetailLocalizationOverlayService(
         };
     }
 
-    public async Task<EpisodeResult> ApplyEpisodeOverlayAsync(
-        EpisodeResult canonical,
+    public async Task<SeasonResult> ApplySeasonOverlayAsync(
+        SeasonResult canonical,
         int tvShowTmdbId,
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        if (!ShouldApplyOverlay(tvShowTmdbId, contentLocale))
-        {
-            return canonical;
-        }
-
-        var overlay = await GetTvSeasonOverlayAsync(
+        var overlay = await LoadTvSeasonOverlayAsync(
             tvShowTmdbId,
             canonical.SeasonNumber,
             contentLocale,
             cancellationToken);
+        return ApplyLoadedSeasonOverlay(canonical, overlay);
+    }
 
+    public EpisodeResult ApplyLoadedEpisodeOverlay(
+        EpisodeResult canonical,
+        TvSeasonDetailLocalizationData? overlay)
+    {
         if (overlay is null)
         {
             return canonical;
@@ -191,6 +225,20 @@ public sealed class DetailLocalizationOverlayService(
                 canonical.Overview,
                 localizedEpisode.Overview)
         };
+    }
+
+    public async Task<EpisodeResult> ApplyEpisodeOverlayAsync(
+        EpisodeResult canonical,
+        int tvShowTmdbId,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        var overlay = await LoadTvSeasonOverlayAsync(
+            tvShowTmdbId,
+            canonical.SeasonNumber,
+            contentLocale,
+            cancellationToken);
+        return ApplyLoadedEpisodeOverlay(canonical, overlay);
     }
 
     public async Task<PersonDetailResult> ApplyPersonOverlayAsync(

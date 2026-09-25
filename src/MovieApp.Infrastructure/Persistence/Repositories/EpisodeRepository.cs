@@ -17,6 +17,9 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
             .FirstOrDefaultAsync(episode => episode.Id == id, cancellationToken);
     }
 
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.Episodes.AsNoTracking().AnyAsync(episode => episode.Id == id, cancellationToken);
+
     public async Task<int> CountByTvShowIdAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
         return await dbContext.Episodes

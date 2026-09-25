@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
@@ -9,7 +10,8 @@ namespace MovieApp.Application.Services.TvShowFollows;
 public sealed class RemoveTvShowFollowService(
     ICurrentUser currentUser,
     ITvShowFollowRepository tvShowFollowRepository,
-    ICacheService cacheService) : IRemoveTvShowFollowService
+    ICacheService cacheService,
+    IServiceScopeFactory? recommendationScopeFactory = null) : IRemoveTvShowFollowService
 {
     public async Task RemoveAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
@@ -17,8 +19,11 @@ public sealed class RemoveTvShowFollowService(
         var removed = await tvShowFollowRepository.RemoveForTvShowAsync(userId, tvShowId, cancellationToken);
         if (removed)
         {
-            await new UserRecommendationCacheGeneration(cacheService)
-                .InvalidateForUserAsync(userId, cancellationToken);
+            await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+                cacheService,
+                recommendationScopeFactory,
+                userId,
+                cancellationToken);
         }
     }
 }

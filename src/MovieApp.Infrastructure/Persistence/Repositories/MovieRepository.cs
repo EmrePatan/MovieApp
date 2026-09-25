@@ -19,6 +19,24 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
             .FirstOrDefaultAsync(movie => movie.Id == id, cancellationToken);
     }
 
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.Movies.AsNoTracking().AnyAsync(movie => movie.Id == id, cancellationToken);
+
+    public async Task<MovieReleaseDateLookup> GetReleaseDateLookupAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var releaseDate = await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movie.Id == id)
+            .Select(movie => new { movie.ReleaseDate })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return releaseDate is null
+            ? default
+            : new MovieReleaseDateLookup(true, releaseDate.ReleaseDate);
+    }
+
     public async Task<CatalogProviderLookup?> GetProviderLookupByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default)

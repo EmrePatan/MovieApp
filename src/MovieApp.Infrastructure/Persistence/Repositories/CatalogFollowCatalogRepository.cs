@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContext)
+public sealed class CatalogFollowCatalogRepository(
+    ApplicationDbContext dbContext,
+    IServiceScopeFactory? scopeFactory = null)
     : ICatalogFollowCatalogRepository
 {
     public async Task<(IReadOnlyList<CatalogFollowItemResult> Items, int TotalCount)> GetFollowingCatalogAsync(
@@ -267,29 +270,132 @@ public sealed class CatalogFollowCatalogRepository(ApplicationDbContext dbContex
             return [];
         }
 
-        var movieQuery = FollowedMovieUpcomingRowsQuery(userId, today, region);
-        var tvPremiereQuery = FollowedTvPremiereUpcomingRowsQuery(userId, today);
+        if (scopeFactory is null)
+        {
+            var movieRows = await GetFollowedMovieReleasesForHomeAsync(
+                userId,
+                today,
+                region,
+                limit,
+                cancellationToken);
+            var tvPremiereRows = await GetFollowedTvPremieresForHomeAsync(
+                userId,
+                today,
+                limit,
+                cancellationToken);
+            var episodeRows = await GetFollowedEpisodeReleasesForHomeAsync(
+                userId,
+                today,
+                limit,
+                cancellationToken);
+            return MergeFollowedUpcomingForHome(movieRows, tvPremiereRows, episodeRows, limit);
+        }
 
-        var movieRows = await OrderFollowedUpcomingRows(movieQuery).Take(limit).ToListAsync(cancellationToken);
-        var tvPremiereRows = await OrderFollowedUpcomingRows(tvPremiereQuery).Take(limit).ToListAsync(cancellationToken);
-        var episodeRows = await FetchBoundedFollowedUpcomingEpisodeRowsAsync(
+        var moviesTask = RunIsolatedAsync(
+            repository => repository.GetFollowedMovieReleasesForHomeAsync(
+                userId,
+                today,
+                region,
+                limit,
+                cancellationToken));
+        var premieresTask = RunIsolatedAsync(
+            repository => repository.GetFollowedTvPremieresForHomeAsync(
+                userId,
+                today,
+                limit,
+                cancellationToken));
+        var episodesTask = RunIsolatedAsync(
+            repository => repository.GetFollowedEpisodeReleasesForHomeAsync(
+                userId,
+                today,
+                limit,
+                cancellationToken));
+
+        await Task.WhenAll(moviesTask, premieresTask, episodesTask);
+        return MergeFollowedUpcomingForHome(
+            moviesTask.Result,
+            premieresTask.Result,
+            episodesTask.Result,
+            limit);
+    }
+
+    public async Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedMovieReleasesForHomeAsync(
+        Guid userId,
+        DateOnly today,
+        string region,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit <= 0)
+        {
+            return [];
+        }
+
+        var rows = await OrderFollowedUpcomingRows(FollowedMovieUpcomingRowsQuery(userId, today, region))
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+        return rows.Select(ToFollowedUpcomingItemResult).ToList();
+    }
+
+    public async Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedTvPremieresForHomeAsync(
+        Guid userId,
+        DateOnly today,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit <= 0)
+        {
+            return [];
+        }
+
+        var rows = await OrderFollowedUpcomingRows(FollowedTvPremiereUpcomingRowsQuery(userId, today))
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+        return rows.Select(ToFollowedUpcomingItemResult).ToList();
+    }
+
+    public async Task<IReadOnlyList<CatalogUpcomingItemResult>> GetFollowedEpisodeReleasesForHomeAsync(
+        Guid userId,
+        DateOnly today,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit <= 0)
+        {
+            return [];
+        }
+
+        var rows = await FetchBoundedFollowedUpcomingEpisodeRowsAsync(
             userId,
             today,
             limit,
             cancellationToken);
-
-        return movieRows
-            .Concat(tvPremiereRows)
-            .Concat(episodeRows)
-            .OrderBy(row => row.ReleaseDate)
-            .ThenBy(row => row.UpcomingKind)
-            .ThenBy(row => row.ContentType)
-            .ThenBy(row => row.ContentId)
-            .ThenBy(row => row.EpisodeId)
-            .Take(limit)
-            .Select(ToFollowedUpcomingItemResult)
-            .ToList();
+        return rows.Select(ToFollowedUpcomingItemResult).ToList();
     }
+
+    private async Task<T> RunIsolatedAsync<T>(
+        Func<ICatalogFollowCatalogRepository, Task<T>> action)
+    {
+        using var scope = scopeFactory!.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<ICatalogFollowCatalogRepository>();
+        return await action(repository);
+    }
+
+    private static List<CatalogUpcomingItemResult> MergeFollowedUpcomingForHome(
+        IReadOnlyList<CatalogUpcomingItemResult> movies,
+        IReadOnlyList<CatalogUpcomingItemResult> tvPremieres,
+        IReadOnlyList<CatalogUpcomingItemResult> episodes,
+        int limit) =>
+        movies
+            .Concat(tvPremieres)
+            .Concat(episodes)
+            .OrderBy(item => item.ReleaseDate)
+            .ThenBy(item => item.UpcomingKind)
+            .ThenBy(item => item.ContentType)
+            .ThenBy(item => item.ContentId)
+            .ThenBy(item => item.EpisodeId)
+            .Take(limit)
+            .ToList();
 
     internal IQueryable<FollowedUpcomingCatalogRow> FollowedMovieUpcomingRowsQuery(
         Guid userId,

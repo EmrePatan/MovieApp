@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Watchlists;
@@ -13,7 +15,8 @@ public sealed class AddMovieToWatchlistService(
     IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
     IMovieRepository movieRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IAddMovieToWatchlistService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    IServiceScopeFactory? analyticsScopeFactory = null) : IAddMovieToWatchlistService
 {
     public async Task<WatchlistItemMutationResult> AddAsync(
         Guid watchlistId,
@@ -32,7 +35,7 @@ public sealed class AddMovieToWatchlistService(
             return WatchlistItemMutationResult.AlreadyExists;
         }
 
-        if (await movieRepository.GetByIdAsync(movieId, cancellationToken) is null)
+        if (!await movieRepository.ExistsAsync(movieId, cancellationToken))
         {
             throw new NotFoundException("The requested movie was not found.");
         }
@@ -42,7 +45,11 @@ public sealed class AddMovieToWatchlistService(
         if (added)
         {
             await watchlistRepository.TouchAsync(watchlistId, DateTime.UtcNow, cancellationToken);
-            await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+            await BackgroundAnalyticsInvalidation.RunAsync(
+                analyticsCacheInvalidator,
+                analyticsScopeFactory,
+                userId,
+                cancellationToken);
             return WatchlistItemMutationResult.Created;
         }
 
