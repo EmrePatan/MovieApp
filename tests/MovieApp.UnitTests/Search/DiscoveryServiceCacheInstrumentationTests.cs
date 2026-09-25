@@ -69,8 +69,7 @@ public sealed class DiscoveryServiceCacheInstrumentationTests
         Assert.Contains(
             logger.Messages,
             message => message.Contains("DiscoveryPerf Cache=LOAD_FAILED", StringComparison.Ordinal)
-                && message.Contains("FailurePhase=Canonical", StringComparison.Ordinal)
-                && message.Contains("ExceptionType=InvalidOperationException", StringComparison.Ordinal));
+                && message.Contains("FailurePhase=Canonical", StringComparison.Ordinal));
     }
 
     private static DiscoveryService CreateService(
@@ -105,7 +104,7 @@ public sealed class DiscoveryServiceCacheInstrumentationTests
         return items;
     }
 
-    private static PaginatedResult<SearchItem> Paginated(IReadOnlyList<SearchItem> items) =>
+    private static PaginatedResult<SearchItem> Paginated(List<SearchItem> items) =>
         new(items, 1, items.Count, items.Count, 1);
 
     private sealed class StubSearchRepository : ISearchRepository

@@ -207,7 +207,7 @@ Use **one** capacity run at **100 VUs** (`hot` dataset, `user-concurrency`) afte
 | Home cache MISS | Render logs: `HomePerf` + `Cache=MISS` |
 | Recommendation home MISS | `RecHomePerf` + `Cache=MISS` |
 | Insights V3 / Summary MISS | `InsightsPerf V3` / `InsightsPerf Summary` + `Cache=MISS` |
-| Discovery cache miss load | `DiscoveryPerf Cache=LOAD_COMPLETED` or `Cache=LOAD_FAILED` (per operation + `CacheKey`, `CanonicalLoadMs`, `TotalLoadMs`) |
+| Discovery cache miss load | `DiscoveryPerf Cache=LOAD_COMPLETED` or `Cache=LOAD_FAILED` (per `Operation`, `CacheKey`, `CanonicalLoadMs`, `TotalLoadMs`, `FailurePhase`) |
 | Redis infrastructure failures | `RedisCacheService` failure logs |
 
 **Render log search strings:** `DiscoveryPerf`, `HomePerf Cache=MISS`, `RecHomePerf Cache=MISS`, `InsightsPerf V3 Cache=MISS`, `InsightsPerf Summary Cache=MISS`, Redis cache get/set failure messages.

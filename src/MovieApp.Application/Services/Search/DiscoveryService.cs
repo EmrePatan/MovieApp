@@ -143,7 +143,7 @@ public sealed class DiscoveryService(
             cacheWriteMs = cacheWriteStopwatch.ElapsedMilliseconds;
 
             totalLoadStopwatch.Stop();
-            DiscoveryServiceLogMessages.LogCacheLoadCompleted(
+            LogDiscoveryCacheLoadCompleted(
                 logger,
                 operation,
                 cacheKey,
@@ -156,7 +156,7 @@ public sealed class DiscoveryService(
 
             return result;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             totalLoadStopwatch.Stop();
             var failurePhase = canonicalLoadMs == 0
@@ -165,20 +165,66 @@ public sealed class DiscoveryService(
                     ? "Overlay"
                     : "CacheWrite";
 
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                DiscoveryServiceLogMessages.LogCacheLoadFailed(
-                    logger,
-                    operation,
-                    cacheKey,
-                    cacheLookupStopwatch.ElapsedMilliseconds,
-                    failurePhase,
-                    totalLoadStopwatch.ElapsedMilliseconds,
-                    exception.GetType().Name);
-            }
+            LogDiscoveryCacheLoadFailed(
+                logger,
+                operation,
+                cacheKey,
+                cacheLookupStopwatch.ElapsedMilliseconds,
+                failurePhase,
+                totalLoadStopwatch.ElapsedMilliseconds);
 
             throw;
         }
+    }
+
+    private static void LogDiscoveryCacheLoadCompleted(
+        ILogger logger,
+        string operation,
+        string cacheKey,
+        long cacheLookupMs,
+        long canonicalLoadMs,
+        long overlayMs,
+        long cacheWriteMs,
+        long totalLoadMs,
+        int itemCount)
+    {
+        if (!logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        DiscoveryServiceLogMessages.LogCacheLoadCompleted(
+            logger,
+            operation,
+            cacheKey,
+            cacheLookupMs,
+            canonicalLoadMs,
+            overlayMs,
+            cacheWriteMs,
+            totalLoadMs,
+            itemCount);
+    }
+
+    private static void LogDiscoveryCacheLoadFailed(
+        ILogger logger,
+        string operation,
+        string cacheKey,
+        long cacheLookupMs,
+        string failurePhase,
+        long elapsedMs)
+    {
+        if (!logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        DiscoveryServiceLogMessages.LogCacheLoadFailed(
+            logger,
+            operation,
+            cacheKey,
+            cacheLookupMs,
+            failurePhase,
+            elapsedMs);
     }
 
     private static void ValidateDiscoveryCriteria(DiscoveryCriteria criteria)

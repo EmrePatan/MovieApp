@@ -22,13 +22,12 @@ internal static partial class DiscoveryServiceLogMessages
     [LoggerMessage(
         EventId = 7202,
         Level = LogLevel.Information,
-        Message = "DiscoveryPerf Cache=LOAD_FAILED Operation={Operation} CacheKey={CacheKey} CacheLookupMs={CacheLookupMs} FailurePhase={FailurePhase} ElapsedMs={ElapsedMs} ExceptionType={ExceptionType}")]
+        Message = "DiscoveryPerf Cache=LOAD_FAILED Operation={Operation} CacheKey={CacheKey} CacheLookupMs={CacheLookupMs} FailurePhase={FailurePhase} ElapsedMs={ElapsedMs}")]
     public static partial void LogCacheLoadFailed(
         ILogger logger,
         string operation,
         string cacheKey,
         long cacheLookupMs,
         string failurePhase,
-        long elapsedMs,
-        string exceptionType);
+        long elapsedMs);
 }
