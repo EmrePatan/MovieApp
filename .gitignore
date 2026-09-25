@@ -81,6 +81,9 @@ logs/
 check-runs.json
 ci-job-logs.zip
 .ci-job-log.zip
+.ci-artifact.zip
+.ci-job-logs.zip
+.ci-job.html
 local-integration-test-output.txt
 .docker-unit-test.log
 .old-composer-tests.cs
