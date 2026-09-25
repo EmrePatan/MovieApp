@@ -4,12 +4,13 @@ using Microsoft.Extensions.Caching.Memory;
 namespace MovieApp.Infrastructure.Identity;
 
 /// <summary>
-/// Short-lived memory cache for JWT security-stamp checks. A detail page fires several
-/// authenticated calls at once; without this, each one reads the users table.
+/// Short-lived, instance-local memory cache for JWT security-stamp checks. A detail page
+/// fires several authenticated calls at once; without this, each one reads the users table.
+/// Each API instance maintains its own entries (no distributed invalidation).
 /// </summary>
 public sealed class SecurityStampCache
 {
-    public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(8);
+    public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(5);
 
     private readonly ConcurrentDictionary<Guid, Lazy<Task<Guid?>>> _inflight = new();
 
