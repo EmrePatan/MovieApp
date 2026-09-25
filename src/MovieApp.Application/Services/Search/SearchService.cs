@@ -361,25 +361,20 @@ public sealed class SearchService(
             return;
         }
 
-        _ = Task.Run(
-            async () =>
-            {
-                try
-                {
-                    using var scope = searchHistoryScopeFactory.CreateScope();
-                    var repository = scope.ServiceProvider.GetRequiredService<ISearchHistoryRepository>();
-                    await repository.RecordSearchAsync(
-                        userId,
-                        displayQuery,
-                        normalizedQuery,
-                        searchedAtUtc,
-                        CancellationToken.None);
-                }
-                catch (Exception exception)
-                {
-                    SearchServiceLogMessages.LogSearchHistoryFailed(logger, userId, exception);
-                }
-            },
-            CancellationToken.None);
+        try
+        {
+            using var scope = searchHistoryScopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<ISearchHistoryRepository>();
+            await repository.RecordSearchAsync(
+                userId,
+                displayQuery,
+                normalizedQuery,
+                searchedAtUtc,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            SearchServiceLogMessages.LogSearchHistoryFailed(logger, userId, exception);
+        }
     }
 }
