@@ -242,7 +242,7 @@ internal static class UserRecommendationContextInteractionLoader
             .ToListAsync(cancellationToken);
     }
 
-    private static async Task<List<UserRecommendationContextModels.WatchedEpisodeRow>> LoadWatchedEpisodesAsync(
+    internal static async Task<List<UserRecommendationContextModels.WatchedEpisodeRow>> LoadWatchedTvShowAggregatesAsync(
         ApplicationDbContext dbContext,
         Guid userId,
         RecommendationQueryMetrics metrics,
@@ -252,11 +252,19 @@ internal static class UserRecommendationContextInteractionLoader
         return await dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(item => item.UserId == userId)
-            .Select(item => new UserRecommendationContextModels.WatchedEpisodeRow(
-                item.Episode.Season.TvShowId,
-                item.WatchedAt))
+            .GroupBy(item => item.Episode.Season.TvShowId)
+            .Select(group => new UserRecommendationContextModels.WatchedEpisodeRow(
+                group.Key,
+                group.Max(item => item.WatchedAt)))
             .ToListAsync(cancellationToken);
     }
+
+    private static Task<List<UserRecommendationContextModels.WatchedEpisodeRow>> LoadWatchedEpisodesAsync(
+        ApplicationDbContext dbContext,
+        Guid userId,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken) =>
+        LoadWatchedTvShowAggregatesAsync(dbContext, userId, metrics, cancellationToken);
 
     private static async Task<List<UserRecommendationContextModels.CatalogFollowRow>> LoadCatalogFollowsAsync(
         ApplicationDbContext dbContext,

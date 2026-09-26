@@ -131,13 +131,12 @@ internal static class UserRecommendationContextInteractionProbe
                 null))
             .ToListAsync(cancellationToken);
 
-        var watchedEpisodeRows = await dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(item => item.UserId == userId)
-            .Select(item => new UserRecommendationContextModels.WatchedEpisodeRow(
-                item.Episode.Season.TvShowId,
-                item.WatchedAt))
-            .ToListAsync(cancellationToken);
+        var watchedEpisodeMetrics = new RecommendationQueryMetrics();
+        var watchedEpisodeRows = await UserRecommendationContextInteractionLoader.LoadWatchedTvShowAggregatesAsync(
+            dbContext,
+            userId,
+            watchedEpisodeMetrics,
+            cancellationToken);
 
         var catalogFollowRows = await dbContext.CatalogFollows
             .AsNoTracking()
