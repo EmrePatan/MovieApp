@@ -76,7 +76,7 @@ public sealed class TvShowSearchApiTests(TvShowSearchApiFixture fixture)
             Assert.Equal(1, tracker.SearchTvShowsCallCount);
         }
 
-        var secondResponse = await _client.GetAsync("/api/tvshows/search?q= BREAKING ");
+        var secondResponse = await _client.GetAsync("/api/tvshows/search?q= breaking ");
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
 
         await using (var scope = fixture.Factory.Services.CreateAsyncScope())

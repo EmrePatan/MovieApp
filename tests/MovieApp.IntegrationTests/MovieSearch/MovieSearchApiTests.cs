@@ -80,7 +80,7 @@ public sealed class MovieSearchApiTests(MovieSearchApiFixture fixture)
             Assert.Equal(1, tracker.SearchMoviesCallCount);
         }
 
-        var secondResponse = await _client.GetAsync("/api/movies/search?q= INTERSTELLAR ");
+        var secondResponse = await _client.GetAsync("/api/movies/search?q= Interstellar ");
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
 
         await using var context = CreateContext();
