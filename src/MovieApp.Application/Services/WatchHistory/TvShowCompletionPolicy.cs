@@ -20,6 +20,13 @@ public static class TvShowCompletionPolicy
     public static bool IsCaughtUp(int regularTotalEpisodes, int regularWatchedEpisodes) =>
         regularTotalEpisodes > 0 && regularWatchedEpisodes >= regularTotalEpisodes;
 
+    /// <summary>
+    /// Primary sort key for the Library "watching" list (in-progress bucket before caught-up).
+    /// Persistence mirrors this as <c>RegularWatchedEpisodes &lt; RegularTotalEpisodes</c>.
+    /// </summary>
+    public static bool IsWatchingLibrarySortInProgress(int regularWatchedEpisodes, int regularTotalEpisodes) =>
+        regularWatchedEpisodes < regularTotalEpisodes;
+
     public static int ResolveSeasonEpisodeTotal(int ingestedEpisodeCount, int? summaryEpisodeCount) =>
         ingestedEpisodeCount > 0 ? ingestedEpisodeCount : Math.Max(0, summaryEpisodeCount ?? 0);
 }

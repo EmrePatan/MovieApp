@@ -8,6 +8,7 @@ using MovieApp.Application.Library;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.Application.Services.Library;
@@ -131,7 +132,7 @@ public sealed class LibraryService(
                     criteria,
                     page,
                     totalCount,
-                    lastItem.ProgressPercentage is < 100,
+                    ResolveWatchingSortInProgress(lastItem),
                     lastItem.LastActivityAt ?? DateTime.MinValue,
                     lastItem.Id)),
             LibraryCategory.Liked => LibraryKeysetCursor.Encode(
@@ -163,5 +164,16 @@ public sealed class LibraryService(
                     lastItem.Id)),
             _ => null
         };
+    }
+
+    private static bool ResolveWatchingSortInProgress(LibraryItemResult lastItem)
+    {
+        if (lastItem.WatchingSortInProgress is bool watchingSortInProgress)
+        {
+            return watchingSortInProgress;
+        }
+
+        throw new InvalidOperationException(
+            "Watching library items must include WatchingSortInProgress for keyset pagination.");
     }
 }

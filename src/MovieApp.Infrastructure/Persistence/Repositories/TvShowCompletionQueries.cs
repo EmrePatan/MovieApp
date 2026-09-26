@@ -6,6 +6,8 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 /// <summary>
 /// SQL-translatable form of <see cref="MovieApp.Application.Services.WatchHistory.TvShowCompletionPolicy"/>.
+/// Library watching sort uses <c>RegularWatchedEpisodes &lt; RegularTotalEpisodes</c>
+/// (see <see cref="MovieApp.Application.Services.WatchHistory.TvShowCompletionPolicy.IsWatchingLibrarySortInProgress"/>).
 /// </summary>
 internal static class TvShowCompletionQueries
 {

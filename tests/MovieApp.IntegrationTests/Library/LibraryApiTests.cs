@@ -383,6 +383,45 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task WatchingCursorPaginationIsContiguousAcrossPartialAndCaughtUpShows()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var partialShowId = await SeedTvShowAsync();
+        await _client.GetAsync($"/api/tvshows/{partialShowId}/seasons/1");
+        var partialEpisode = await SeedEpisodeAsync(partialShowId, 1, 1);
+        await SendAuthorizedPostAsync($"/api/watch-history/episodes/{partialEpisode}", token);
+
+        var caughtUpShowId = await SeedSecondTvShowWithAllEpisodesAsync();
+        await MarkTvShowWatchedAsync(caughtUpShowId, token);
+        await SetTvShowStatusAsync(caughtUpShowId, TvShowStatus.ReturningSeries);
+
+        try
+        {
+            var caughtUpEpisode = await SeedEpisodeAsync(caughtUpShowId, 1, 1);
+            await SendAuthorizedPostAsync($"/api/watch-history/episodes/{caughtUpEpisode}", token);
+
+            var pageOne = await GetLibraryAsync(
+                "/api/library?category=watching&mediaType=tv&page=1&pageSize=1",
+                token);
+            Assert.NotNull(pageOne.NextCursor);
+            Assert.Equal(partialShowId, pageOne.Items[0].Id);
+
+            var pageTwo = await GetLibraryAsync(
+                $"/api/library?category=watching&mediaType=tv&pageSize=1&cursor={Uri.EscapeDataString(pageOne.NextCursor!)}",
+                token);
+            Assert.Single(pageTwo.Items);
+            Assert.Equal(caughtUpShowId, pageTwo.Items[0].Id);
+            Assert.Null(pageTwo.NextCursor);
+        }
+        finally
+        {
+            await SetTvShowStatusAsync(caughtUpShowId, TvShowStatus.Ended);
+        }
+    }
+
+    [Fact]
     public async Task CursorPaginationReturnsContiguousLikedPages()
     {
         await fixture.ResetAsync();

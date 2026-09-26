@@ -14,4 +14,5 @@ public sealed record LibraryItemResult(
     DateTime? LastActivityAt,
     decimal? ProgressPercentage,
     LibraryNextEpisodeResult? NextEpisode,
-    string CollectionStatus);
+    string CollectionStatus,
+    bool? WatchingSortInProgress = null);

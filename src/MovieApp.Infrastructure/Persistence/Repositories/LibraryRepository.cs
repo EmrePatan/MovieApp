@@ -4,6 +4,7 @@ using MovieApp.Application.Library;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.WatchHistory;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -44,7 +45,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             : request.AfterCursor!.SnapshotTotalCount;
 
         var ordered = query
-            .OrderByDescending(item => item.RegularWatchedEpisodes < item.RegularTotalEpisodes)
+            .OrderByDescending(item => item.RegularWatchedEpisodes < item.RegularTotalEpisodes) // IsWatchingLibrarySortInProgress
             .ThenByDescending(item => item.LastWatchedAt)
             .ThenBy(item => item.TvShow.Id);
 
@@ -86,7 +87,10 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 progressPercentage: WatchHistoryMapper.CalculateProgressPercentage(
                     row.RegularWatchedEpisodes,
                     row.RegularTotalEpisodes),
-                nextEpisode: nextEpisodesByShowId.GetValueOrDefault(row.TvShow.Id)))
+                nextEpisode: nextEpisodesByShowId.GetValueOrDefault(row.TvShow.Id),
+                watchingSortInProgress: TvShowCompletionPolicy.IsWatchingLibrarySortInProgress(
+                    row.RegularWatchedEpisodes,
+                    row.RegularTotalEpisodes)))
             .ToList();
 
         return (items, totalCount);
@@ -582,7 +586,8 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         DateTime? watchedAt,
         DateTime? lastActivityAt,
         decimal? progressPercentage,
-        LibraryNextEpisodeResult? nextEpisode) =>
+        LibraryNextEpisodeResult? nextEpisode,
+        bool? watchingSortInProgress = null) =>
         new(
             tvShow.Id,
             "tv",
@@ -597,7 +602,8 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             lastActivityAt,
             progressPercentage,
             nextEpisode,
-            collectionStatus);
+            collectionStatus,
+            watchingSortInProgress);
 
     internal sealed class WatchedUnionRow
     {
