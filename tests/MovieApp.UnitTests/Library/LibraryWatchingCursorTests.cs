@@ -5,6 +5,8 @@ using MovieApp.Application.Library;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Library;
+using MovieApp.Application.Services.Localization;
+using MovieApp.UnitTests.Localization;
 
 namespace MovieApp.UnitTests.Library;
 
@@ -28,10 +30,11 @@ public sealed class LibraryWatchingCursorTests
         var service = new LibraryService(
             repository,
             new AuthenticatedCurrentUser(UserId),
+            new EmptyContentLocalizedPosterRepository(),
             NullLogger<LibraryService>.Instance);
 
         var criteria = new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 1);
-        var page1 = await service.GetLibraryAsync(criteria);
+        var page1 = await service.GetLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.NotNull(page1.NextCursor);
         Assert.True(LibraryKeysetCursor.TryDecode(
@@ -59,10 +62,11 @@ public sealed class LibraryWatchingCursorTests
         var service = new LibraryService(
             repository,
             new AuthenticatedCurrentUser(UserId),
+            new EmptyContentLocalizedPosterRepository(),
             NullLogger<LibraryService>.Instance);
 
         var criteria = new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 1);
-        var page1 = await service.GetLibraryAsync(criteria);
+        var page1 = await service.GetLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Null(page1.NextCursor);
         Assert.False(page1.HasNextPage);

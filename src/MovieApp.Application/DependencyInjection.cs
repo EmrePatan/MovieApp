@@ -56,6 +56,8 @@ public static class DependencyInjection
         services.AddScoped<IGetCollectionService, GetCollectionService>();
         services.AddScoped<IDetailLocalizationOverlayService, DetailLocalizationOverlayService>();
         services.AddScoped<ISummaryLocalizationOverlayService, SummaryLocalizationOverlayService>();
+        services.AddScoped<IContentLocalizedPosterSynchronizer, ContentLocalizedPosterSynchronizer>();
+        services.AddScoped<IContentLocalizedPosterBackfillService, ContentLocalizedPosterBackfillService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
         services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();

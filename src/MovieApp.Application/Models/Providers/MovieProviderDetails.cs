@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Images;
+
 namespace MovieApp.Application.Models.Providers;
 
 public sealed record MovieProviderDetails(
@@ -21,4 +23,5 @@ public sealed record MovieProviderDetails(
     string? CollectionPosterPath = null,
     string? CollectionBackdropPath = null,
     IReadOnlyList<ProviderKeywordSummary>? Keywords = null,
-    IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null);
+    IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null,
+    IReadOnlyList<ProviderImageResult>? ProviderPosters = null);

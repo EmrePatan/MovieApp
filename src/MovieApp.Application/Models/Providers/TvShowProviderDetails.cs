@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Images;
+
 namespace MovieApp.Application.Models.Providers;
 
 public sealed record TvShowProviderDetails(
@@ -20,4 +22,5 @@ public sealed record TvShowProviderDetails(
     IReadOnlyList<SeasonProviderSummary> Seasons,
     NextEpisodeToAirProviderSummary? NextEpisodeToAir = null,
     IReadOnlyList<ProviderKeywordSummary>? Keywords = null,
-    IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null);
+    IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null,
+    IReadOnlyList<ProviderImageResult>? ProviderPosters = null);

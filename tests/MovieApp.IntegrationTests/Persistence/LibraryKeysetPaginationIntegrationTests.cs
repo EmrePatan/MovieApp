@@ -7,6 +7,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Library;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
@@ -47,19 +48,23 @@ public sealed class LibraryKeysetPaginationIntegrationTests
         const int pageSize = 10;
         var criteria = new LibraryCriteria(LibraryCategory.Liked, SearchContentType.Movie, 1, pageSize);
 
-        var page1 = await service.GetLibraryAsync(criteria);
+        var page1 = await service.GetLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(10, page1.Items.Count);
         Assert.NotNull(page1.NextCursor);
         Assert.True(page1.HasNextPage);
         Assert.Equal(25, page1.TotalCount);
 
-        var page2 = await service.GetLibraryAsync(criteria with { Cursor = page1.NextCursor, Page = 1 });
+        var page2 = await service.GetLibraryAsync(
+            criteria with { Cursor = page1.NextCursor, Page = 1 },
+            ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(10, page2.Items.Count);
         Assert.Equal(2, page2.Page);
         Assert.NotNull(page2.NextCursor);
         Assert.Equal(25, page2.TotalCount);
 
-        var page3 = await service.GetLibraryAsync(criteria with { Cursor = page2.NextCursor, Page = 1 });
+        var page3 = await service.GetLibraryAsync(
+            criteria with { Cursor = page2.NextCursor, Page = 1 },
+            ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(5, page3.Items.Count);
         Assert.Null(page3.NextCursor);
         Assert.False(page3.HasNextPage);
@@ -97,11 +102,13 @@ public sealed class LibraryKeysetPaginationIntegrationTests
         var criteria = new LibraryCriteria(LibraryCategory.Liked, SearchContentType.Movie, 1, 10);
 
         interceptor.Reset();
-        var page1 = await service.GetLibraryAsync(criteria);
+        var page1 = await service.GetLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(1, interceptor.CountQueryCount);
 
         interceptor.Reset();
-        var page2 = await service.GetLibraryAsync(criteria with { Cursor = page1.NextCursor, Page = 1 });
+        var page2 = await service.GetLibraryAsync(
+            criteria with { Cursor = page1.NextCursor, Page = 1 },
+            ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(0, interceptor.CountQueryCount);
         Assert.Equal(page1.TotalCount, page2.TotalCount);
         Assert.Equal(10, page2.Items.Count);
@@ -134,7 +141,8 @@ public sealed class LibraryKeysetPaginationIntegrationTests
         var service = CreateService(context, userId);
         interceptor.Reset();
         var page2 = await service.GetLibraryAsync(
-            new LibraryCriteria(LibraryCategory.Liked, SearchContentType.Movie, 2, 10));
+            new LibraryCriteria(LibraryCategory.Liked, SearchContentType.Movie, 2, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, interceptor.CountQueryCount);
         Assert.Equal(10, page2.Items.Count);
@@ -149,12 +157,14 @@ public sealed class LibraryKeysetPaginationIntegrationTests
         var service = CreateService(context, userId);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.GetLibraryAsync(new LibraryCriteria(
-                LibraryCategory.Liked,
-                SearchContentType.Movie,
-                1,
-                10,
-                "not-a-valid-cursor")));
+            service.GetLibraryAsync(
+                new LibraryCriteria(
+                    LibraryCategory.Liked,
+                    SearchContentType.Movie,
+                    1,
+                    10,
+                    "not-a-valid-cursor"),
+                ContentLocaleResolver.EnglishUnitedStates));
     }
 
     [Fact]
@@ -201,7 +211,11 @@ public sealed class LibraryKeysetPaginationIntegrationTests
     }
 
     private static LibraryService CreateService(ApplicationDbContext context, Guid userId) =>
-        new(new LibraryRepository(context), new FixedCurrentUser(userId), NullLogger<LibraryService>.Instance);
+        new(
+            new LibraryRepository(context),
+            new FixedCurrentUser(userId),
+            new ContentLocalizedPosterRepository(context),
+            NullLogger<LibraryService>.Instance);
 
     private static async Task<Guid> SeedUserAsync(ApplicationDbContext context, string userName)
     {

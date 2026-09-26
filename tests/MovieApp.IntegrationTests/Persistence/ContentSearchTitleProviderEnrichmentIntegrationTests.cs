@@ -4,7 +4,9 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Images;
 using MovieApp.Application.Services.Keywords;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
@@ -76,7 +78,8 @@ public sealed class ContentSearchTitleProviderEnrichmentIntegrationTests
             new TvShowRepository(context, synchronizer),
             new NoOpKeywordIngestion(),
             new NoOpMovieCacheInvalidator(),
-            synchronizer);
+            synchronizer,
+            new NoOpContentLocalizedPosterSynchronizer());
 
         var enrichment = new ContentSearchTitleProviderEnrichmentService(
             new ContentSearchTitleProviderEnrichmentRepository(context),
@@ -215,6 +218,17 @@ public sealed class ContentSearchTitleProviderEnrichmentIntegrationTests
     private sealed class NoOpMovieCacheInvalidator : IMovieCatalogDetailsCacheInvalidator
     {
         public Task InvalidateAsync(Guid movieId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class NoOpContentLocalizedPosterSynchronizer : IContentLocalizedPosterSynchronizer
+    {
+        public Task SyncFromProviderPostersAsync(
+            CatalogContentType contentType,
+            Guid contentId,
+            string? canonicalPosterPath,
+            IReadOnlyList<ProviderImageResult>? providerPosters,
+            CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 }

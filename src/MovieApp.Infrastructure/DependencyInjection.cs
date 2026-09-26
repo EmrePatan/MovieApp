@@ -201,6 +201,8 @@ public static class DependencyInjection
 
 
         services.AddScoped<IContentSearchTitleSynchronizer, ContentSearchTitleSynchronizer>();
+        services.AddScoped<IContentLocalizedPosterRepository, ContentLocalizedPosterRepository>();
+        services.AddScoped<IContentLocalizedPosterBackfillRepository, ContentLocalizedPosterBackfillRepository>();
         services.AddScoped<IContentSearchTitleCatalogBackfillService, ContentSearchTitleCatalogBackfillService>();
         services.AddScoped<IContentSearchTitleProviderEnrichmentRepository, ContentSearchTitleProviderEnrichmentRepository>();
         services.AddScoped<IMovieRepository, MovieRepository>();

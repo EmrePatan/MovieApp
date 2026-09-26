@@ -29,4 +29,13 @@ internal static class TmdbRequestPath
 
         return segments.Count == 0 ? path : $"{path}?{string.Join('&', segments)}";
     }
+
+    public static string WithIncludeImageLanguage(string relativePath, string includeImageLanguage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(includeImageLanguage);
+
+        var separator = relativePath.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+        return $"{relativePath}{separator}include_image_language={Uri.EscapeDataString(includeImageLanguage)}";
+    }
 }

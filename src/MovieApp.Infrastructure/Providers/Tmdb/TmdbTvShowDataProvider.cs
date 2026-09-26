@@ -1,6 +1,7 @@
 using System.Net;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
@@ -129,13 +130,16 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
 
     private static string BuildTvShowDetailsPath(int tmdbId, bool includeKeywords)
     {
-        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations" };
+        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations", "images" };
         if (includeKeywords)
         {
             appendParts.Add("keywords");
         }
 
-        return $"tv/{tmdbId}?append_to_response={string.Join(',', appendParts)}";
+        var path = $"tv/{tmdbId}?append_to_response={string.Join(',', appendParts)}";
+        return TmdbRequestPath.WithIncludeImageLanguage(
+            path,
+            SupportedArtworkLanguageKeys.BuildTmdbIncludeImageLanguageParameter());
     }
 
     public async Task<SeasonProviderDetails?> GetSeasonAsync(

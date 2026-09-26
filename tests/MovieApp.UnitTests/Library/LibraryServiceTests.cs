@@ -4,6 +4,8 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Library;
+using MovieApp.Application.Services.Localization;
+using MovieApp.UnitTests.Localization;
 
 namespace MovieApp.UnitTests.Library;
 
@@ -18,7 +20,8 @@ public sealed class LibraryServiceTests
         var service = CreateService(repository);
 
         await service.GetLibraryAsync(
-            new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 24));
+            new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 24),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(LibraryCategory.Watching, repository.LastCategory);
         Assert.Equal(SearchContentType.Tv, repository.LastMediaType);
@@ -31,7 +34,8 @@ public sealed class LibraryServiceTests
         var service = CreateService(repository);
 
         await service.GetLibraryAsync(
-            new LibraryCriteria(LibraryCategory.Watchlist, SearchContentType.All, 2, 12));
+            new LibraryCriteria(LibraryCategory.Watchlist, SearchContentType.All, 2, 12),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(LibraryCategory.Watchlist, repository.LastCategory);
         Assert.Equal(2, repository.LastPage);
@@ -51,7 +55,8 @@ public sealed class LibraryServiceTests
         var service = CreateService(repository);
 
         var result = await service.GetLibraryAsync(
-            new LibraryCriteria(LibraryCategory.Watching, SearchContentType.All, 1, 24));
+            new LibraryCriteria(LibraryCategory.Watching, SearchContentType.All, 1, 24),
+            ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.Equal(1, result.TotalCount);
@@ -59,7 +64,11 @@ public sealed class LibraryServiceTests
     }
 
     private static LibraryService CreateService(ILibraryRepository repository) =>
-        new(repository, new AuthenticatedCurrentUser(UserId), NullLogger<LibraryService>.Instance);
+        new(
+            repository,
+            new AuthenticatedCurrentUser(UserId),
+            new EmptyContentLocalizedPosterRepository(),
+            NullLogger<LibraryService>.Instance);
 
     private static LibraryItemResult CreateItem(Guid id, string type, string status) =>
         new(

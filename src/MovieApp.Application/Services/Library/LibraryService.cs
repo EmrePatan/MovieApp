@@ -8,18 +8,23 @@ using MovieApp.Application.Library;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Application.Validation;
+using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Library;
 
 public sealed class LibraryService(
     ILibraryRepository libraryRepository,
     ICurrentUser currentUser,
+    IContentLocalizedPosterRepository contentLocalizedPosterRepository,
     ILogger<LibraryService> logger) : ILibraryService
 {
     public async Task<PaginatedResult<LibraryItemResult>> GetLibraryAsync(
         LibraryCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var validation = LibraryValidator.Validate(criteria);
@@ -106,15 +111,59 @@ public sealed class LibraryService(
             hasNextPage);
 
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)criteria.PageSize);
+        var localizedPageItems = await ApplyLocalizedPostersAsync(pageItems, contentLocale, cancellationToken);
 
         return new PaginatedResult<LibraryItemResult>(
-            pageItems,
+            localizedPageItems,
             page,
             criteria.PageSize,
             totalCount,
             totalPages,
             nextCursor,
             hasNextPage);
+    }
+
+    private async Task<IReadOnlyList<LibraryItemResult>> ApplyLocalizedPostersAsync(
+        IReadOnlyList<LibraryItemResult> items,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || items.Count == 0)
+        {
+            return items;
+        }
+
+        var keys = items
+            .Select(item => new ContentLocalizedPosterKey(
+                string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+                    ? CatalogContentType.Tv
+                    : CatalogContentType.Movie,
+                item.Id))
+            .ToList();
+
+        var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
+            contentLocalizedPosterRepository,
+            keys,
+            contentLocale,
+            cancellationToken);
+
+        return items
+            .Select(item =>
+            {
+                var key = new ContentLocalizedPosterKey(
+                    string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+                        ? CatalogContentType.Tv
+                        : CatalogContentType.Movie,
+                    item.Id);
+                return item with
+                {
+                    PosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+                        item.PosterUrl,
+                        key,
+                        localizedPosters)
+                };
+            })
+            .ToList();
     }
 
     private static string? BuildNextCursor(

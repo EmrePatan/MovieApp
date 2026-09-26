@@ -9,10 +9,12 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Keywords;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.MovieFollows;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Movies;
 
@@ -24,7 +26,8 @@ public sealed class GetMovieByIdService(
     IMovieDataProvider movieDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService,
-    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetMovieByIdService
+    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null,
+    IContentLocalizedPosterRepository? contentLocalizedPosterRepository = null) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan CollectionProbeTtl = TimeSpan.FromHours(24);
@@ -63,7 +66,7 @@ public sealed class GetMovieByIdService(
         var cachedEntry = await cacheService.GetAsync<MovieDetailsCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
-            return await ApplyOverlayAsync(cachedEntry.Result, contentLocale, cancellationToken);
+            return await ApplyOverlayAsync(id, cachedEntry.Result, contentLocale, cancellationToken);
         }
 
         var movie = prefetchedMovie ?? await movieRepository.GetByIdAsync(id, cancellationToken);
@@ -83,13 +86,14 @@ public sealed class GetMovieByIdService(
 
         if (overlayTask is null)
         {
-            return result;
+            return await ApplyLocalizedPosterOverlayAsync(id, result, contentLocale, cancellationToken);
         }
 
-        return detailLocalizationOverlayService!.ApplyLoadedMovieOverlay(
+        var localized = detailLocalizationOverlayService!.ApplyLoadedMovieOverlay(
             result,
             await overlayTask,
             contentLocale);
+        return await ApplyOverlayAsync(id, localized, contentLocale, cancellationToken);
     }
 
     private Task<Models.Localization.MovieDetailLocalizationData?>? StartMovieOverlay(
@@ -106,19 +110,48 @@ public sealed class GetMovieByIdService(
     }
 
     private async Task<MovieDetailsResult> ApplyOverlayAsync(
+        Guid movieId,
         MovieDetailsResult result,
         string? contentLocale,
         CancellationToken cancellationToken)
     {
-        if (detailLocalizationOverlayService is null || contentLocale is null)
+        if (detailLocalizationOverlayService is not null && contentLocale is not null)
+        {
+            result = await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
+                result,
+                contentLocale,
+                cancellationToken);
+        }
+
+        return await ApplyLocalizedPosterOverlayAsync(movieId, result, contentLocale, cancellationToken);
+    }
+
+    private async Task<MovieDetailsResult> ApplyLocalizedPosterOverlayAsync(
+        Guid movieId,
+        MovieDetailsResult result,
+        string? contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (contentLocalizedPosterRepository is null ||
+            contentLocale is null ||
+            !ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
             return result;
         }
 
-        return await detailLocalizationOverlayService.ApplyMovieOverlayAsync(
-            result,
+        var key = new ContentLocalizedPosterKey(CatalogContentType.Movie, movieId);
+        var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
+            contentLocalizedPosterRepository,
+            [key],
             contentLocale,
             cancellationToken);
+
+        var posterPath = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+            result.PosterPath,
+            key,
+            localizedPosters);
+
+        return result with { PosterPath = posterPath };
     }
 
     private async Task<MovieDetailsResult> BuildDetailsAsync(

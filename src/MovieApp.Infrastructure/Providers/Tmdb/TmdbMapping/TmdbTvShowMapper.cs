@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Images;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
@@ -57,8 +58,14 @@ internal static class TmdbTvShowMapper
             Keywords: details.Keywords is null
                 ? null
                 : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Results),
-            ProviderSearchTitles: TmdbContentSearchTitleMapper.MapTvShow(details));
+            ProviderSearchTitles: TmdbContentSearchTitleMapper.MapTvShow(details),
+            ProviderPosters: MapProviderPosters(details.Images));
     }
+
+    private static IReadOnlyList<ProviderImageResult>? MapProviderPosters(TmdbImagesResponseJson? images) =>
+        images is null
+            ? null
+            : TmdbImagesMapper.ToProviderImagesResult(images).Posters;
 
     private static NextEpisodeToAirProviderSummary? ToNextEpisodeToAir(TmdbNextEpisodeToAirJson? nextEpisode)
     {

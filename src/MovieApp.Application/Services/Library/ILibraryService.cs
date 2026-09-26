@@ -7,5 +7,6 @@ public interface ILibraryService
 {
     Task<PaginatedResult<LibraryItemResult>> GetLibraryAsync(
         LibraryCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 }

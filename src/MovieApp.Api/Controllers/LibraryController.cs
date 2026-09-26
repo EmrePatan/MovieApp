@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
@@ -101,7 +102,10 @@ public sealed class LibraryController(
                 pageSize ?? LibraryValidator.DefaultPageSize,
                 string.IsNullOrWhiteSpace(cursor) ? null : cursor.Trim());
 
-            var result = await libraryService.GetLibraryAsync(criteria, cancellationToken);
+            var result = await libraryService.GetLibraryAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
 
             return Ok(LibraryContractMapper.ToLibraryListResponse(result));
         }

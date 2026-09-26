@@ -7,6 +7,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Keywords;
+using MovieApp.UnitTests.Localization;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Domain.Entities;
 using MovieApp.UnitTests.Search;
@@ -158,7 +159,8 @@ public sealed class SummaryIngestionKeywordRegressionTests
                 new UnsupportedKeywordCatalogRepository(),
                 NullLogger<CatalogKeywordIngestionService>.Instance),
             new NoOpMovieCatalogDetailsCacheInvalidator(),
-            new NoOpContentSearchTitleSynchronizer());
+            new NoOpContentSearchTitleSynchronizer(),
+            new NoOpContentLocalizedPosterSynchronizer());
 
         public Task<Movie> UpsertMovieFromProviderAsync(
             MovieProviderDetails details,

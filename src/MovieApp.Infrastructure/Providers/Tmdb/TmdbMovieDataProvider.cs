@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
@@ -128,12 +129,15 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
 
     private static string BuildMovieDetailsPath(int tmdbId, bool includeKeywords)
     {
-        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations" };
+        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations", "images" };
         if (includeKeywords)
         {
             appendParts.Add("keywords");
         }
 
-        return $"movie/{tmdbId}?append_to_response={string.Join(',', appendParts)}";
+        var path = $"movie/{tmdbId}?append_to_response={string.Join(',', appendParts)}";
+        return TmdbRequestPath.WithIncludeImageLanguage(
+            path,
+            SupportedArtworkLanguageKeys.BuildTmdbIncludeImageLanguageParameter());
     }
 }

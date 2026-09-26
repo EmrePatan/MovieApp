@@ -1,7 +1,9 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Keywords;
 
@@ -10,7 +12,8 @@ public sealed class CatalogProviderUpsertService(
     ITvShowRepository tvShowRepository,
     ICatalogKeywordIngestionService keywordIngestionService,
     IMovieCatalogDetailsCacheInvalidator movieCatalogDetailsCacheInvalidator,
-    IContentSearchTitleSynchronizer contentSearchTitleSynchronizer) : ICatalogProviderUpsertService
+    IContentSearchTitleSynchronizer contentSearchTitleSynchronizer,
+    IContentLocalizedPosterSynchronizer contentLocalizedPosterSynchronizer) : ICatalogProviderUpsertService
 {
     public async Task<Movie> UpsertMovieFromProviderAsync(
         MovieProviderDetails details,
@@ -26,6 +29,13 @@ public sealed class CatalogProviderUpsertService(
             details.OriginalTitle,
             details.ProviderSearchTitles,
             DateTime.UtcNow,
+            cancellationToken);
+
+        await contentLocalizedPosterSynchronizer.SyncFromProviderPostersAsync(
+            CatalogContentType.Movie,
+            movie.Id,
+            details.PosterPath,
+            details.ProviderPosters,
             cancellationToken);
 
         if (enrichKeywords)
@@ -59,6 +69,12 @@ public sealed class CatalogProviderUpsertService(
                 detail.OriginalTitle,
                 detail.ProviderSearchTitles,
                 DateTime.UtcNow,
+                cancellationToken);
+            await contentLocalizedPosterSynchronizer.SyncFromProviderPostersAsync(
+                CatalogContentType.Movie,
+                movie.Id,
+                detail.PosterPath,
+                detail.ProviderPosters,
                 cancellationToken);
         }
 
@@ -96,6 +112,13 @@ public sealed class CatalogProviderUpsertService(
             DateTime.UtcNow,
             cancellationToken);
 
+        await contentLocalizedPosterSynchronizer.SyncFromProviderPostersAsync(
+            CatalogContentType.Tv,
+            tvShow.Id,
+            details.PosterPath,
+            details.ProviderPosters,
+            cancellationToken);
+
         if (enrichKeywords)
         {
             await keywordIngestionService.TryEnrichTvShowKeywordsAsync(
@@ -125,6 +148,12 @@ public sealed class CatalogProviderUpsertService(
                 detail.OriginalTitle,
                 detail.ProviderSearchTitles,
                 DateTime.UtcNow,
+                cancellationToken);
+            await contentLocalizedPosterSynchronizer.SyncFromProviderPostersAsync(
+                CatalogContentType.Tv,
+                tvShows[index].Id,
+                detail.PosterPath,
+                detail.ProviderPosters,
                 cancellationToken);
         }
 

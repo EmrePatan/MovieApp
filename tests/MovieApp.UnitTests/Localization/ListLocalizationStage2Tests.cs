@@ -288,7 +288,8 @@ public sealed class ListLocalizationStage2Tests
             new StubTvShowRepository(),
             new DetailLocalizationOverlayService(
                 localizedDetailDataProvider ?? new NullLocalizedDetailDataProvider(),
-                cache));
+                cache),
+            new EmptyContentLocalizedPosterRepository());
 
     private static SearchItem CreateMovieItem(Guid id, string title, int tmdbId) =>
         new(

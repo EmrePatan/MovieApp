@@ -37,4 +37,6 @@ internal sealed class TmdbMovieDetailsResponseJson
     public TmdbMovieAlternativeTitlesAppendJson? AlternativeTitles { get; set; }
 
     public TmdbTranslationsAppendJson? Translations { get; set; }
+
+    public TmdbImagesResponseJson? Images { get; set; }
 }

@@ -89,6 +89,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ContentSearchTitle> ContentSearchTitles => Set<ContentSearchTitle>();
 
+    public DbSet<ContentLocalizedPoster> ContentLocalizedPosters => Set<ContentLocalizedPoster>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

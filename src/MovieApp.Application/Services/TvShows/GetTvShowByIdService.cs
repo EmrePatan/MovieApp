@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Mapping;
@@ -14,7 +15,8 @@ public sealed class GetTvShowByIdService(
     ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService,
     ITvShowExternalIdLookup? externalIdLookup = null,
-    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetTvShowByIdService
+    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null,
+    IContentLocalizedPosterRepository? contentLocalizedPosterRepository = null) : IGetTvShowByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
 
@@ -38,7 +40,7 @@ public sealed class GetTvShowByIdService(
         var cachedEntry = await cacheService.GetAsync<TvShowDetailsCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null && cachedEntry.Result.Seasons.Count > 0)
         {
-            return await ApplyOverlayAsync(cachedEntry.Result, contentLocale, cancellationToken);
+            return await ApplyOverlayAsync(id, cachedEntry.Result, contentLocale, cancellationToken);
         }
 
         var overlayTask = await StartTvShowOverlayAsync(id, contentLocale, cancellationToken);
@@ -62,13 +64,14 @@ public sealed class GetTvShowByIdService(
 
         if (overlayTask is null || detailLocalizationOverlayService is null)
         {
-            return result;
+            return await ApplyOverlayAsync(id, result, contentLocale, cancellationToken);
         }
 
-        return detailLocalizationOverlayService.ApplyLoadedTvShowOverlay(
+        var localized = detailLocalizationOverlayService.ApplyLoadedTvShowOverlay(
             result,
             await overlayTask,
             contentLocale);
+        return await ApplyOverlayAsync(id, localized, contentLocale, cancellationToken);
     }
 
     private async Task<Task<TvShowDetailLocalizationData?>?> StartTvShowOverlayAsync(
@@ -91,18 +94,47 @@ public sealed class GetTvShowByIdService(
     }
 
     private async Task<TvShowDetailsResult> ApplyOverlayAsync(
+        Guid tvShowId,
         TvShowDetailsResult result,
         string? contentLocale,
         CancellationToken cancellationToken)
     {
-        if (detailLocalizationOverlayService is null || contentLocale is null)
+        if (detailLocalizationOverlayService is not null && contentLocale is not null)
+        {
+            result = await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
+                result,
+                contentLocale,
+                cancellationToken);
+        }
+
+        return await ApplyLocalizedPosterOverlayAsync(tvShowId, result, contentLocale, cancellationToken);
+    }
+
+    private async Task<TvShowDetailsResult> ApplyLocalizedPosterOverlayAsync(
+        Guid tvShowId,
+        TvShowDetailsResult result,
+        string? contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (contentLocalizedPosterRepository is null ||
+            contentLocale is null ||
+            !ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
             return result;
         }
 
-        return await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
-            result,
+        var key = new ContentLocalizedPosterKey(CatalogContentType.Tv, tvShowId);
+        var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
+            contentLocalizedPosterRepository,
+            [key],
             contentLocale,
             cancellationToken);
+
+        var posterPath = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+            result.PosterPath,
+            key,
+            localizedPosters);
+
+        return result with { PosterPath = posterPath };
     }
 }
