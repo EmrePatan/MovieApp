@@ -14,12 +14,12 @@ public sealed class AiMovieIdentityResolver(
     IMovieDataProvider movieDataProvider,
     ITvShowDataProvider tvShowDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
-    IAiRecommendationCatalogTitleAliasReader catalogTitleAliasReader,
     IAiRecommendationPerfContext perfContext) : IMovieIdentityResolver
 {
     private const int SearchPageSize = 10;
 
-    private readonly Dictionary<(string MediaType, int TmdbId), ResolvedMovieIdentity?> _hintIdentityCache = new();
+    private readonly Dictionary<(string MediaType, int TmdbId), MovieProviderDetails?> _movieDetailsCache = new();
+    private readonly Dictionary<(string MediaType, int TmdbId), TvShowProviderDetails?> _tvShowDetailsCache = new();
 
     public async Task<ResolvedMovieIdentity?> ResolveAsync(
         AiProviderSuggestion suggestion,
@@ -32,10 +32,10 @@ public sealed class AiMovieIdentityResolver(
 
         if (suggestion.TmdbId is int tmdbId && tmdbId > 0)
         {
-            var hinted = await GetOrResolveHintIdentityAsync(suggestion, tmdbId, cancellationToken);
-            if (hinted is not null && await IdentityMatchesSuggestionAsync(hinted, suggestion, cancellationToken))
+            var resolved = await TryResolveValidatedTmdbIdAsync(suggestion, tmdbId, cancellationToken);
+            if (resolved is not null)
             {
-                return hinted;
+                return resolved;
             }
 
             return await ResolveBySearchAsync(ClearTmdbId(suggestion), cancellationToken);
@@ -44,38 +44,106 @@ public sealed class AiMovieIdentityResolver(
         return await ResolveBySearchAsync(suggestion, cancellationToken);
     }
 
-    private async Task<ResolvedMovieIdentity?> GetOrResolveHintIdentityAsync(
-        AiProviderSuggestion suggestion,
-        int tmdbId,
-        CancellationToken cancellationToken)
-    {
-        var cacheKey = (NormalizeMediaType(suggestion.MediaType), tmdbId);
-        if (_hintIdentityCache.TryGetValue(cacheKey, out var cached))
-        {
-            perfContext.RecordValidationDedupHit();
-            return cached;
-        }
-
-        var resolved = await ResolveHintIdentityAsync(suggestion, tmdbId, cancellationToken);
-        _hintIdentityCache[cacheKey] = resolved;
-        return resolved;
-    }
-
-    private async Task<ResolvedMovieIdentity?> ResolveHintIdentityAsync(
+    private async Task<ResolvedMovieIdentity?> TryResolveValidatedTmdbIdAsync(
         AiProviderSuggestion suggestion,
         int tmdbId,
         CancellationToken cancellationToken)
     {
         if (string.Equals(suggestion.MediaType, "movie", StringComparison.OrdinalIgnoreCase))
         {
-            var catalogMovie = await movieRepository.GetByTmdbIdAsync(tmdbId, cancellationToken);
-            if (catalogMovie is not null)
+            var details = await GetOrFetchMovieDetailsAsync(tmdbId, cancellationToken);
+            if (details is null || !TmdbAiSuggestionIdentityValidator.MatchesMovie(suggestion, details))
             {
-                perfContext.RecordValidationCatalogHit();
-                return AiResolvedIdentityMapper.FromMovie(catalogMovie);
+                return null;
             }
 
-            return await ResolveMovieFromProviderAsync(suggestion, tmdbId, cancellationToken);
+            return await MaterializeMovieAsync(details, cancellationToken);
+        }
+
+        var tvDetails = await GetOrFetchTvShowDetailsAsync(tmdbId, cancellationToken);
+        if (tvDetails is null || !TmdbAiSuggestionIdentityValidator.MatchesTvShow(suggestion, tvDetails))
+        {
+            return null;
+        }
+
+        return await MaterializeTvShowAsync(tvDetails, cancellationToken);
+    }
+
+    private async Task<MovieProviderDetails?> GetOrFetchMovieDetailsAsync(
+        int tmdbId,
+        CancellationToken cancellationToken)
+    {
+        var cacheKey = (NormalizeMediaType("movie"), tmdbId);
+        if (_movieDetailsCache.TryGetValue(cacheKey, out var cached))
+        {
+            perfContext.RecordValidationDedupHit();
+            return cached;
+        }
+
+        perfContext.RecordTmdbResolutionCall();
+
+        var details = await movieDataProvider.GetMovieAsync(
+            tmdbId.ToString(CultureInfo.InvariantCulture),
+            cancellationToken: cancellationToken);
+
+        _movieDetailsCache[cacheKey] = details;
+        return details;
+    }
+
+    private async Task<TvShowProviderDetails?> GetOrFetchTvShowDetailsAsync(
+        int tmdbId,
+        CancellationToken cancellationToken)
+    {
+        var cacheKey = (NormalizeMediaType("tv"), tmdbId);
+        if (_tvShowDetailsCache.TryGetValue(cacheKey, out var cached))
+        {
+            perfContext.RecordValidationDedupHit();
+            return cached;
+        }
+
+        perfContext.RecordTmdbResolutionCall();
+
+        var details = await tvShowDataProvider.GetTvShowAsync(
+            tmdbId.ToString(CultureInfo.InvariantCulture),
+            cancellationToken: cancellationToken);
+
+        _tvShowDetailsCache[cacheKey] = details;
+        return details;
+    }
+
+    private async Task<ResolvedMovieIdentity?> MaterializeMovieAsync(
+        MovieProviderDetails details,
+        CancellationToken cancellationToken)
+    {
+        if (details.TmdbId is not int tmdbId)
+        {
+            return null;
+        }
+
+        var catalogMovie = await movieRepository.GetByTmdbIdAsync(tmdbId, cancellationToken);
+        if (catalogMovie is not null)
+        {
+            perfContext.RecordValidationCatalogHit();
+            return AiResolvedIdentityMapper.FromMovie(catalogMovie);
+        }
+
+        perfContext.RecordValidationProviderFallback();
+
+        var movie = await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
+            details,
+            enrichKeywords: false,
+            cancellationToken);
+
+        return AiResolvedIdentityMapper.FromMovie(movie);
+    }
+
+    private async Task<ResolvedMovieIdentity?> MaterializeTvShowAsync(
+        TvShowProviderDetails details,
+        CancellationToken cancellationToken)
+    {
+        if (details.TmdbId is not int tmdbId)
+        {
+            return null;
         }
 
         var catalogTvShow = await tvShowRepository.GetByTmdbIdAsync(tmdbId, cancellationToken);
@@ -85,51 +153,10 @@ public sealed class AiMovieIdentityResolver(
             return AiResolvedIdentityMapper.FromTvShow(catalogTvShow);
         }
 
-        return await ResolveTvShowFromProviderAsync(suggestion, tmdbId, cancellationToken);
-    }
-
-    private async Task<ResolvedMovieIdentity?> ResolveMovieFromProviderAsync(
-        AiProviderSuggestion suggestion,
-        int tmdbId,
-        CancellationToken cancellationToken)
-    {
         perfContext.RecordValidationProviderFallback();
-        perfContext.RecordTmdbResolutionCall();
-
-        var providerDetails = await movieDataProvider.GetMovieAsync(
-            tmdbId.ToString(CultureInfo.InvariantCulture),
-            cancellationToken: cancellationToken);
-        if (providerDetails is null)
-        {
-            return null;
-        }
-
-        var movie = await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
-            providerDetails,
-            enrichKeywords: false,
-            cancellationToken);
-
-        return AiResolvedIdentityMapper.FromMovie(movie);
-    }
-
-    private async Task<ResolvedMovieIdentity?> ResolveTvShowFromProviderAsync(
-        AiProviderSuggestion suggestion,
-        int tmdbId,
-        CancellationToken cancellationToken)
-    {
-        perfContext.RecordValidationProviderFallback();
-        perfContext.RecordTmdbResolutionCall();
-
-        var providerDetails = await tvShowDataProvider.GetTvShowAsync(
-            tmdbId.ToString(CultureInfo.InvariantCulture),
-            cancellationToken: cancellationToken);
-        if (providerDetails is null)
-        {
-            return null;
-        }
 
         var tvShow = await catalogProviderUpsertService.UpsertTvShowFromProviderAsync(
-            providerDetails,
+            details,
             enrichKeywords: false,
             cancellationToken);
 
@@ -177,13 +204,7 @@ public sealed class AiMovieIdentityResolver(
             return null;
         }
 
-        var resolved = await GetOrResolveHintIdentityAsync(suggestion, matchTmdbId, cancellationToken);
-        if (resolved is null || !await IdentityMatchesSuggestionAsync(resolved, suggestion, cancellationToken))
-        {
-            return null;
-        }
-
-        return resolved;
+        return await TryResolveValidatedTmdbIdAsync(suggestion, matchTmdbId, cancellationToken);
     }
 
     private async Task<ResolvedMovieIdentity?> ResolveTvShowBySearchAsync(
@@ -215,54 +236,8 @@ public sealed class AiMovieIdentityResolver(
             return null;
         }
 
-        var resolved = await GetOrResolveHintIdentityAsync(suggestion, matchTmdbId, cancellationToken);
-        if (resolved is null || !await IdentityMatchesSuggestionAsync(resolved, suggestion, cancellationToken))
-        {
-            return null;
-        }
-
-        return resolved;
+        return await TryResolveValidatedTmdbIdAsync(suggestion, matchTmdbId, cancellationToken);
     }
-
-    private async Task<bool> IdentityMatchesSuggestionAsync(
-        ResolvedMovieIdentity resolved,
-        AiProviderSuggestion suggestion,
-        CancellationToken cancellationToken)
-    {
-        if (!string.Equals(
-                resolved.MediaType,
-                NormalizeMediaType(suggestion.MediaType),
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var releaseDate = EffectiveReleaseDate(resolved);
-
-        if (TitleYearMatcher.MatchesSearchFallback(
-                resolved.Title,
-                resolved.OriginalTitle,
-                suggestion.Title,
-                suggestion.Year,
-                releaseDate))
-        {
-            return true;
-        }
-
-        var aliases = await catalogTitleAliasReader.GetTitleAliasesAsync(
-            resolved.MediaType,
-            resolved.MovieId,
-            cancellationToken);
-
-        return TitleYearMatcher.MatchesSearchFallbackAny(
-            suggestion.Title,
-            suggestion.Year,
-            releaseDate,
-            aliases);
-    }
-
-    private static DateOnly? EffectiveReleaseDate(ResolvedMovieIdentity resolved) =>
-        resolved.ReleaseDate ?? (resolved.Year is int year ? new DateOnly(year, 1, 1) : null);
 
     private static AiProviderSuggestion ClearTmdbId(AiProviderSuggestion suggestion) =>
         suggestion with { TmdbId = null };
