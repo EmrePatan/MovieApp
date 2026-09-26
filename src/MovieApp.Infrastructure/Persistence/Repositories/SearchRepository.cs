@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Common;
@@ -14,6 +16,7 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 public sealed class SearchRepository(
     ApplicationDbContext dbContext,
     IOptions<TopRatedOptions> topRatedOptions,
+    ILogger<SearchRepository> logger,
     IMemoryCache? memoryCache = null) : ISearchRepository
 {
     private static readonly TimeSpan CatalogMeanCacheTtl = TimeSpan.FromMinutes(10);
@@ -21,16 +24,17 @@ public sealed class SearchRepository(
         SearchCriteria criteria,
         CancellationToken cancellationToken = default)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var normalizedQuery = string.IsNullOrWhiteSpace(criteria.Query)
             ? null
             : QueryNormalizer.Normalize(criteria.Query);
 
         var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, criteria, normalizedQuery);
-        var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var page = criteria.Page;
         SearchKeysetCursor? keysetCursor = null;
-        if (!string.IsNullOrWhiteSpace(criteria.Cursor))
+        var isCursorContinuation = !string.IsNullOrWhiteSpace(criteria.Cursor);
+        if (isCursorContinuation)
         {
             if (!SearchKeysetCursor.TryDecode(criteria.Cursor, criteria, normalizedQuery, out keysetCursor, out _))
             {
@@ -40,24 +44,71 @@ public sealed class SearchRepository(
             page = keysetCursor!.Page + 1;
         }
 
+        var useSnapshotTotal = isCursorContinuation
+            && keysetCursor!.Version >= 2
+            && keysetCursor.SnapshotTotalCount > 0;
+
+        var countExecuted = false;
+        long countMs = 0;
+        int totalCount;
+        if (useSnapshotTotal)
+        {
+            totalCount = keysetCursor!.SnapshotTotalCount;
+        }
+        else
+        {
+            var countStopwatch = Stopwatch.StartNew();
+            totalCount = await combinedQuery.CountAsync(cancellationToken);
+            countMs = countStopwatch.ElapsedMilliseconds;
+            countExecuted = true;
+        }
+
         var sortedQuery = SearchQueryBuilder.ApplySort(combinedQuery, criteria.Sort, normalizedQuery);
         var pageQuery = keysetCursor is not null
             ? SearchKeysetPagination.ApplyAfterCursor(sortedQuery, keysetCursor, criteria.Sort, normalizedQuery)
             : sortedQuery.Skip((page - 1) * criteria.PageSize);
 
-        var items = await pageQuery
-            .Take(criteria.PageSize)
+        var pageFetchStopwatch = Stopwatch.StartNew();
+        var fetchedRows = await pageQuery
+            .Take(criteria.PageSize + 1)
             .ToListAsync(cancellationToken);
+        var pageFetchMs = pageFetchStopwatch.ElapsedMilliseconds;
+
+        var hasNextPage = fetchedRows.Count > criteria.PageSize;
+        var items = fetchedRows.Take(criteria.PageSize).ToList();
 
         string? nextCursor = null;
-        if (items.Count == criteria.PageSize && page * criteria.PageSize < totalCount)
+        if (hasNextPage)
         {
             var lastItem = ToSearchItem(items[^1]);
             nextCursor = SearchKeysetCursor.Encode(
-                SearchKeysetCursor.CreateFromItem(lastItem, criteria, normalizedQuery, page));
+                SearchKeysetCursor.CreateFromItem(lastItem, criteria, normalizedQuery, page, totalCount));
         }
 
-        return ToPaginatedResult(items, page, criteria.PageSize, totalCount, nextCursor);
+        var mode = isCursorContinuation
+            ? "CursorContinuation"
+            : criteria.Page > 1
+                ? "Offset"
+                : "CursorFirst";
+
+        SearchRepositoryLogMessages.LogSearchPaginationPerf(
+            logger,
+            mode,
+            countExecuted,
+            countMs,
+            pageFetchMs,
+            totalStopwatch.ElapsedMilliseconds,
+            criteria.PageSize,
+            items.Count,
+            hasNextPage);
+
+        return ToPaginatedResult(
+            items,
+            page,
+            criteria.PageSize,
+            totalCount,
+            nextCursor,
+            hasNextPage);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
@@ -397,7 +448,8 @@ public sealed class SearchRepository(
         int page,
         int pageSize,
         int totalCount,
-        string? nextCursor = null)
+        string? nextCursor = null,
+        bool? hasNextPageOverride = null)
     {
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
 
@@ -407,7 +459,8 @@ public sealed class SearchRepository(
             pageSize,
             totalCount,
             totalPages,
-            nextCursor);
+            nextCursor,
+            hasNextPageOverride);
     }
 
     private static SearchItem ToSearchItem(SearchItemProjection projection) =>

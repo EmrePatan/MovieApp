@@ -6,9 +6,10 @@ public sealed record PaginatedResult<T>(
     int PageSize,
     int TotalCount,
     int TotalPages,
-    string? NextCursor = null)
+    string? NextCursor = null,
+    bool? HasNextPageOverride = null)
 {
-    public bool HasNextPage => Page < TotalPages;
+    public bool HasNextPage => HasNextPageOverride ?? Page < TotalPages;
 
     public bool HasPreviousPage => Page > 1;
 }

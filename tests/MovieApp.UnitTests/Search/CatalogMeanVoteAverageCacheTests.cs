@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
@@ -31,6 +32,7 @@ public sealed class CatalogMeanVoteAverageCacheTests
         var repository = new SearchRepository(
             context,
             Options.Create(new TopRatedOptions()),
+            NullLogger<SearchRepository>.Instance,
             cache);
 
         var first = await repository.GetCatalogMeanVoteAverageAsync(SearchContentType.Movie);

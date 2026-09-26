@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
@@ -11,7 +12,7 @@ namespace MovieApp.IntegrationTests.Persistence;
 public sealed class SearchRepositoryIntegrationTests
 {
     private static SearchRepository CreateRepository(ApplicationDbContext context) =>
-        new(context, Options.Create(new TopRatedOptions()));
+        new(context, Options.Create(new TopRatedOptions()), NullLogger<SearchRepository>.Instance);
 
     [Fact]
     public async Task SearchAsyncPaginatesMovieOnlyResultsWithoutDuplicatesOrGaps()

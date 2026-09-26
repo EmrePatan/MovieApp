@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
@@ -52,10 +53,10 @@ public sealed class TopRatedRankingTests
             });
         await context.SaveChangesAsync();
 
-        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions
-        {
-            MinimumVoteConfidence = 100
-        }));
+        var repository = new SearchRepository(
+            context,
+            Options.Create(new TopRatedOptions { MinimumVoteConfidence = 100 }),
+            NullLogger<SearchRepository>.Instance);
 
         var result = await repository.GetTopRatedAsync(new DiscoveryCriteria(
             SearchContentType.Movie,

@@ -11,11 +11,16 @@ public sealed class SearchKeysetCursor
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public int Version { get; init; } = 1;
+    public int Version { get; init; } = 2;
 
     public int Page { get; init; }
 
     public string Fingerprint { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Exact total from the first page of this cursor chain (snapshot; not recalculated on continuation).
+    /// </summary>
+    public int SnapshotTotalCount { get; init; }
 
     public int RelevanceTier { get; init; }
 
@@ -51,12 +56,14 @@ public sealed class SearchKeysetCursor
         SearchItem item,
         SearchCriteria criteria,
         string? normalizedQuery,
-        int page)
+        int page,
+        int snapshotTotalCount)
     {
         return new SearchKeysetCursor
         {
             Page = page,
             Fingerprint = ComputeFingerprint(criteria, normalizedQuery),
+            SnapshotTotalCount = snapshotTotalCount,
             RelevanceTier = ComputeRelevanceTier(item, normalizedQuery),
             VoteAverage = item.VoteAverage,
             VoteCount = item.VoteCount,
@@ -114,7 +121,13 @@ public sealed class SearchKeysetCursor
         {
             var json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded.Trim()));
             var parsed = JsonSerializer.Deserialize<SearchKeysetCursor>(json, JsonOptions);
-            if (parsed is null || parsed.Version != 1 || parsed.Id == Guid.Empty)
+            if (parsed is null || parsed.Id == Guid.Empty || parsed.Version is not (1 or 2))
+            {
+                errorMessage = "Cursor is invalid.";
+                return false;
+            }
+
+            if (parsed.Version == 2 && parsed.SnapshotTotalCount < 0)
             {
                 errorMessage = "Cursor is invalid.";
                 return false;

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
@@ -20,7 +21,7 @@ public sealed class EfQueryQualityIntegrationTests
         await using var context = CreateStrictQueryContext();
         await SeedDiscoveryCatalogAsync(context);
 
-        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()));
+        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()), NullLogger<SearchRepository>.Instance);
         var criteria = new DiscoveryCriteria(SearchContentType.All, 1, 5);
 
         _ = await repository.GetTrendingAsync(criteria);

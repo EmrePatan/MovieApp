@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
@@ -59,7 +60,7 @@ public sealed class TopRatedGenreMembershipTests
             new MovieGenre { MovieId = dramaMovieId, GenreId = dramaGenreId });
         await context.SaveChangesAsync();
 
-        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()));
+        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()), NullLogger<SearchRepository>.Instance);
         var items = new List<SearchItem>
         {
             new(animatedMovieId, "movie", "Animated Film", null, null, null, null, null, 8m, 100, null),
@@ -124,7 +125,7 @@ public sealed class TopRatedGenreMembershipTests
             new MovieGenre { MovieId = dramaMovieId, GenreId = dramaGenreId });
         await context.SaveChangesAsync();
 
-        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()));
+        var repository = new SearchRepository(context, Options.Create(new TopRatedOptions()), NullLogger<SearchRepository>.Instance);
         var items = new List<SearchItem>
         {
             new(animatedMovieId, "movie", "Animated Film", null, null, null, null, null, 8m, 100, null),

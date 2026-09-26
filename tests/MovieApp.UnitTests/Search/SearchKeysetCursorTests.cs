@@ -34,12 +34,13 @@ public sealed class SearchKeysetCursorTests
             123,
             null);
 
-        var cursor = SearchKeysetCursor.CreateFromItem(item, criteria, "batman", 1);
+        var cursor = SearchKeysetCursor.CreateFromItem(item, criteria, "batman", 1, 42);
         var encoded = SearchKeysetCursor.Encode(cursor);
 
         Assert.True(SearchKeysetCursor.TryDecode(encoded, criteria, "batman", out var decoded, out _));
         Assert.Equal(cursor.Id, decoded!.Id);
         Assert.Equal(cursor.Fingerprint, decoded.Fingerprint);
+        Assert.Equal(42, decoded.SnapshotTotalCount);
     }
 
     [Fact]
@@ -71,7 +72,7 @@ public sealed class SearchKeysetCursorTests
             null,
             null);
 
-        var encoded = SearchKeysetCursor.Encode(SearchKeysetCursor.CreateFromItem(item, criteria, "batman", 1));
+        var encoded = SearchKeysetCursor.Encode(SearchKeysetCursor.CreateFromItem(item, criteria, "batman", 1, 10));
         var otherCriteria = criteria with { Sort = SearchSortOption.TitleAsc };
 
         Assert.False(SearchKeysetCursor.TryDecode(encoded, otherCriteria, "batman", out _, out var error));
