@@ -1,6 +1,4 @@
-using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
-using MovieApp.Application.Caching;
 using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Home;
@@ -12,9 +10,9 @@ using MovieApp.Application.Models.Search;
 namespace MovieApp.Application.Services.Localization;
 
 public sealed class SummaryLocalizationOverlayService(
-    ICacheService cacheService,
     IMovieRepository movieRepository,
-    ITvShowRepository tvShowRepository) : ISummaryLocalizationOverlayService
+    ITvShowRepository tvShowRepository,
+    IDetailLocalizationOverlayService detailLocalizationOverlayService) : ISummaryLocalizationOverlayService
 {
     public async Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
         PaginatedResult<SearchItem> canonical,
@@ -341,7 +339,10 @@ public sealed class SummaryLocalizationOverlayService(
     {
         if (string.Equals(contentType, "movie", StringComparison.OrdinalIgnoreCase))
         {
-            var overlay = await TryGetCachedMovieOverlayAsync(tmdbId, contentLocale, cancellationToken);
+            var overlay = await detailLocalizationOverlayService.LoadMovieOverlayAsync(
+                tmdbId,
+                contentLocale,
+                cancellationToken);
             return (
                 LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title),
                 LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
@@ -349,7 +350,10 @@ public sealed class SummaryLocalizationOverlayService(
 
         if (string.Equals(contentType, "tv", StringComparison.OrdinalIgnoreCase))
         {
-            var overlay = await TryGetCachedTvShowOverlayAsync(tmdbId, contentLocale, cancellationToken);
+            var overlay = await detailLocalizationOverlayService.LoadTvShowOverlayAsync(
+                tmdbId,
+                contentLocale,
+                cancellationToken);
             return (
                 LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title),
                 LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
@@ -367,41 +371,23 @@ public sealed class SummaryLocalizationOverlayService(
     {
         if (string.Equals(contentType, "movie", StringComparison.OrdinalIgnoreCase))
         {
-            var overlay = await TryGetCachedMovieOverlayAsync(tmdbId, contentLocale, cancellationToken);
+            var overlay = await detailLocalizationOverlayService.LoadMovieOverlayAsync(
+                tmdbId,
+                contentLocale,
+                cancellationToken);
             return LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title);
         }
 
         if (string.Equals(contentType, "tv", StringComparison.OrdinalIgnoreCase))
         {
-            var overlay = await TryGetCachedTvShowOverlayAsync(tmdbId, contentLocale, cancellationToken);
+            var overlay = await detailLocalizationOverlayService.LoadTvShowOverlayAsync(
+                tmdbId,
+                contentLocale,
+                cancellationToken);
             return LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title);
         }
 
         return canonicalTitle;
-    }
-
-    private async Task<MovieDetailLocalizationData?> TryGetCachedMovieOverlayAsync(
-        int tmdbId,
-        string contentLocale,
-        CancellationToken cancellationToken)
-    {
-        var cached = await cacheService.GetAsync<DetailLocalizationCacheEntry<MovieDetailLocalizationData>>(
-            DetailLocalizationCacheKeys.Movie(tmdbId, contentLocale),
-            cancellationToken);
-
-        return cached?.Data;
-    }
-
-    private async Task<TvShowDetailLocalizationData?> TryGetCachedTvShowOverlayAsync(
-        int tmdbId,
-        string contentLocale,
-        CancellationToken cancellationToken)
-    {
-        var cached = await cacheService.GetAsync<DetailLocalizationCacheEntry<TvShowDetailLocalizationData>>(
-            DetailLocalizationCacheKeys.TvShow(tmdbId, contentLocale),
-            cancellationToken);
-
-        return cached?.Data;
     }
 
     private async Task<IReadOnlyDictionary<Guid, int>> ResolveTmdbIdsByContentIdsAsync(

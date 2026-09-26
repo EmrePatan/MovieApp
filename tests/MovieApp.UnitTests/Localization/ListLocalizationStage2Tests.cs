@@ -195,6 +195,25 @@ public sealed class ListLocalizationStage2Tests
     }
 
     [Fact]
+    public async Task SummaryOverlay_FetchesTurkishTitleFromProvider_WhenCacheMisses()
+    {
+        var provider = new RecordingLocalizedDetailDataProvider
+        {
+            MovieLocalization = new MovieDetailLocalizationData("Yıldızlararası", "Turkish overview", null)
+        };
+        var service = CreateSummaryOverlayService(new InMemoryCacheService(), provider);
+        var canonical = CreateSearchPage("Interstellar", "English overview");
+
+        var result = await service.ApplyToSearchItemsAsync(
+            canonical,
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(1, provider.MovieCalls);
+        Assert.Equal("Yıldızlararası", result.Items[0].Title);
+        Assert.Equal("Turkish overview", result.Items[0].Overview);
+    }
+
+    [Fact]
     public async Task ProviderIngestion_UsesCanonicalSummariesForDatabaseWrites_OnTurkishLocale()
     {
         const int tmdbId = 157336;
@@ -261,8 +280,15 @@ public sealed class ListLocalizationStage2Tests
         Assert.Equal(1, localizedProvider.MovieSearchCalls);
     }
 
-    private static SummaryLocalizationOverlayService CreateSummaryOverlayService(ICacheService cache) =>
-        new(cache, new StubMovieRepository(), new StubTvShowRepository());
+    private static SummaryLocalizationOverlayService CreateSummaryOverlayService(
+        ICacheService cache,
+        ILocalizedDetailDataProvider? localizedDetailDataProvider = null) =>
+        new(
+            new StubMovieRepository(),
+            new StubTvShowRepository(),
+            new DetailLocalizationOverlayService(
+                localizedDetailDataProvider ?? new NullLocalizedDetailDataProvider(),
+                cache));
 
     private static SearchItem CreateMovieItem(Guid id, string title, int tmdbId) =>
         new(
@@ -761,5 +787,80 @@ public sealed class ListLocalizationStage2Tests
             int pageSize,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class NullLocalizedDetailDataProvider : ILocalizedDetailDataProvider
+    {
+        public Task<MovieDetailLocalizationData?> GetMovieLocalizationAsync(
+            int tmdbId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<MovieDetailLocalizationData?>(null);
+
+        public Task<TvShowDetailLocalizationData?> GetTvShowLocalizationAsync(
+            int tmdbId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvShowDetailLocalizationData?>(null);
+
+        public Task<TvSeasonDetailLocalizationData?> GetTvSeasonLocalizationAsync(
+            int tmdbTvId,
+            int seasonNumber,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvSeasonDetailLocalizationData?>(null);
+
+        public Task<PersonDetailLocalizationData?> GetPersonLocalizationAsync(
+            int tmdbPersonId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<PersonDetailLocalizationData?>(null);
+
+        public Task<CollectionDetailLocalizationData?> GetCollectionLocalizationAsync(
+            int tmdbCollectionId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<CollectionDetailLocalizationData?>(null);
+    }
+
+    private sealed class RecordingLocalizedDetailDataProvider : ILocalizedDetailDataProvider
+    {
+        public MovieDetailLocalizationData? MovieLocalization { get; init; }
+
+        public int MovieCalls { get; private set; }
+
+        public Task<MovieDetailLocalizationData?> GetMovieLocalizationAsync(
+            int tmdbId,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            MovieCalls++;
+            return Task.FromResult(MovieLocalization);
+        }
+
+        public Task<TvShowDetailLocalizationData?> GetTvShowLocalizationAsync(
+            int tmdbId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvShowDetailLocalizationData?>(null);
+
+        public Task<TvSeasonDetailLocalizationData?> GetTvSeasonLocalizationAsync(
+            int tmdbTvId,
+            int seasonNumber,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvSeasonDetailLocalizationData?>(null);
+
+        public Task<PersonDetailLocalizationData?> GetPersonLocalizationAsync(
+            int tmdbPersonId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<PersonDetailLocalizationData?>(null);
+
+        public Task<CollectionDetailLocalizationData?> GetCollectionLocalizationAsync(
+            int tmdbCollectionId,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<CollectionDetailLocalizationData?>(null);
     }
 }
