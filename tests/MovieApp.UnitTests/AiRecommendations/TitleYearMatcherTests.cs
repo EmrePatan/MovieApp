@@ -70,6 +70,32 @@ public sealed class TitleYearMatcherTests
     }
 
     [Fact]
+    public void MatchesSearchFallbackAcceptsTurkishDiacriticAndAsciiVariants()
+    {
+        var matches = TitleYearMatcher.MatchesSearchFallback(
+            "Organize Isler: Sazan Sarmali",
+            null,
+            "Organize İşler: Sazan Sarmalı",
+            2019,
+            new DateOnly(2019, 1, 1));
+
+        Assert.True(matches);
+    }
+
+    [Fact]
+    public void MatchesSearchFallbackAllowsMissingReleaseDateWhenYearProvided()
+    {
+        var matches = TitleYearMatcher.MatchesSearchFallback(
+            "Arrival",
+            null,
+            "Arrival",
+            2016,
+            null);
+
+        Assert.True(matches);
+    }
+
+    [Fact]
     public void MatchesSearchFallbackAnyAcceptsLocalizedAliasTitle()
     {
         var matches = TitleYearMatcher.MatchesSearchFallbackAny(

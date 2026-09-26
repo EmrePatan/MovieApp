@@ -5,6 +5,8 @@ namespace MovieApp.Application.Services.AiRecommendations;
 
 internal static class TitleYearMatcher
 {
+    private static readonly CultureInfo TurkishCulture = CultureInfo.GetCultureInfo("tr-TR");
+
     internal static bool Matches(
         string? candidateTitle,
         string? candidateOriginalTitle,
@@ -114,7 +116,7 @@ internal static class TitleYearMatcher
 
         if (releaseDate is null)
         {
-            return false;
+            return true;
         }
 
         return Math.Abs(releaseDate.Value.Year - suggestionYear) <= 1;
@@ -134,14 +136,28 @@ internal static class TitleYearMatcher
 
         var builder = new StringBuilder(title.Length);
 
-        foreach (var character in title.Trim().ToLower(CultureInfo.InvariantCulture))
+        foreach (var character in title.Trim().ToLower(TurkishCulture))
         {
-            if (char.IsLetterOrDigit(character))
+            if (!char.IsLetterOrDigit(character))
             {
-                builder.Append(character);
+                continue;
             }
+
+            builder.Append(FoldTurkishLetter(character));
         }
 
         return builder.ToString();
     }
+
+    private static char FoldTurkishLetter(char character) =>
+        character switch
+        {
+            'ç' => 'c',
+            'ğ' => 'g',
+            'ı' => 'i',
+            'ö' => 'o',
+            'ş' => 's',
+            'ü' => 'u',
+            _ => character
+        };
 }
