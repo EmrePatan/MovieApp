@@ -9,7 +9,6 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Keywords;
-using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.MovieFollows;
 using MovieApp.Application.Validation;

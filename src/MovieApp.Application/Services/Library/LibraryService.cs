@@ -11,7 +11,6 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Application.Validation;
-using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Library;
@@ -124,7 +123,7 @@ public sealed class LibraryService(
     }
 
     private async Task<IReadOnlyList<LibraryItemResult>> ApplyLocalizedPostersAsync(
-        IReadOnlyList<LibraryItemResult> items,
+        List<LibraryItemResult> items,
         string contentLocale,
         CancellationToken cancellationToken)
     {
