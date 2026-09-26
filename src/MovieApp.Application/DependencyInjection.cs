@@ -168,6 +168,7 @@ public static class DependencyInjection
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
         services.AddScoped<ICatalogKeywordBackfillService, CatalogKeywordBackfillService>();
         services.AddScoped<ICatalogProviderUpsertService, CatalogProviderUpsertService>();
+        services.AddScoped<IContentSearchTitleProviderEnrichmentService, ContentSearchTitleProviderEnrichmentService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<ISearchHistoryService, SearchHistoryService>();
         services.AddScoped<IRecommendationService, RecommendationService>();

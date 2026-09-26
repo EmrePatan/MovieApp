@@ -161,6 +161,19 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult<MovieProviderDetails?>(PosterlessDetails);
         }
 
+        if (int.TryParse(externalId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var tmdbId))
+        {
+            if (tmdbId == InterstellarTmdbId)
+            {
+                return Task.FromResult<MovieProviderDetails?>(InterstellarDetails);
+            }
+
+            if (tmdbId == PosterlessTmdbId)
+            {
+                return Task.FromResult<MovieProviderDetails?>(PosterlessDetails);
+            }
+        }
+
         if (TryParsePagedCatalogExternalId(externalId, out var index))
         {
             return Task.FromResult<MovieProviderDetails?>(CreatePagedCatalogDetails(index));

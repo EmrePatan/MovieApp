@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Search;
+
 namespace MovieApp.Application.Abstractions.Persistence;
 
 public interface IContentSearchTitleCatalogBackfillService
@@ -6,5 +8,6 @@ public interface IContentSearchTitleCatalogBackfillService
     /// Rebuilds canonical and original search-title rows from persisted catalog titles only.
     /// Does not call TMDB.
     /// </summary>
-    Task BackfillCanonicalAndOriginalAsync(CancellationToken cancellationToken = default);
+    Task<ContentSearchTitleCatalogBackfillResult> BackfillCanonicalAndOriginalAsync(
+        CancellationToken cancellationToken = default);
 }
