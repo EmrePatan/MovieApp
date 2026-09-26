@@ -81,6 +81,7 @@ public sealed class DiscoveryServiceCacheInstrumentationTests
             cache,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             new SearchTestDoubles.InMemorySearchRefreshLockService(),
+            new DiscoveryCacheLoadCoordinator(),
             logger);
 
     private static List<SearchItem> CreateItems(int count)

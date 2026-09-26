@@ -16,6 +16,7 @@ public sealed class DiscoveryService(
     ICacheService cacheService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ISearchRefreshLockService refreshLockService,
+    DiscoveryCacheLoadCoordinator loadCoordinator,
     ILogger<DiscoveryService> logger) : IDiscoveryService
 {
     private static readonly TimeSpan PopularCacheTtl = TimeSpan.FromMinutes(10);
@@ -108,53 +109,147 @@ public sealed class DiscoveryService(
         string contentLocale,
         CancellationToken cancellationToken)
     {
+        var totalStopwatch = Stopwatch.StartNew();
         var cacheLookupStopwatch = Stopwatch.StartNew();
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
+        var initialCacheLookupMs = cacheLookupStopwatch.ElapsedMilliseconds;
 
         if (cachedEntry is not null)
         {
             return cachedEntry.Result;
         }
 
+        var inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+        if (inFlight is not null)
+        {
+            var result = await inFlight;
+            LogDiscoveryCachePerf(
+                operation,
+                "WaiterInProcess",
+                initialCacheLookupMs,
+                lockAcquireMs: 0,
+                waitForOwnerMs: totalStopwatch.ElapsedMilliseconds,
+                pollCount: 0,
+                postWaitCacheLookupMs: 0,
+                fallbackLoadMs: 0,
+                totalStopwatch.ElapsedMilliseconds);
+            return result;
+        }
+
+        var lockAcquireStopwatch = Stopwatch.StartNew();
         var lockKey = DiscoveryCacheLockKeys.Create(cacheKey);
         var lockHandle = await refreshLockService.TryAcquireAsync(
             lockKey,
             RefreshLockDuration,
             cancellationToken);
+        lockAcquireStopwatch.Stop();
+        var lockAcquireMs = lockAcquireStopwatch.ElapsedMilliseconds;
+
+        long waitForOwnerMs = 0;
+        var pollCount = 0;
+        long postWaitCacheLookupMs = 0;
+        string role;
 
         if (lockHandle is null)
         {
-            var waited = await WaitForCachedDiscoveryAsync(cacheKey, cancellationToken);
+            inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+            if (inFlight is not null)
+            {
+                role = "WaiterInProcess";
+                var waitStopwatch = Stopwatch.StartNew();
+                var result = await inFlight;
+                waitStopwatch.Stop();
+                waitForOwnerMs = waitStopwatch.ElapsedMilliseconds;
+                totalStopwatch.Stop();
+                LogDiscoveryCachePerf(
+                    operation,
+                    role,
+                    initialCacheLookupMs,
+                    lockAcquireMs,
+                    waitForOwnerMs,
+                    pollCount,
+                    postWaitCacheLookupMs,
+                    fallbackLoadMs: 0,
+                    totalStopwatch.ElapsedMilliseconds);
+                return result;
+            }
+
+            var redisWaitStopwatch = Stopwatch.StartNew();
+            (var waited, pollCount) = await WaitForCachedDiscoveryAsync(cacheKey, cancellationToken);
+            redisWaitStopwatch.Stop();
+            waitForOwnerMs = redisWaitStopwatch.ElapsedMilliseconds;
+
             if (waited is not null)
             {
-                if (logger.IsEnabled(LogLevel.Debug))
-                {
-                    DiscoveryServiceLogMessages.LogCacheWaitFilled(logger, operation, cacheKey);
-                }
-
+                role = "WaiterRedis";
+                totalStopwatch.Stop();
+                LogDiscoveryCachePerf(
+                    operation,
+                    role,
+                    initialCacheLookupMs,
+                    lockAcquireMs,
+                    waitForOwnerMs,
+                    pollCount,
+                    postWaitCacheLookupMs,
+                    fallbackLoadMs: 0,
+                    totalStopwatch.ElapsedMilliseconds);
                 return waited.Result;
             }
         }
 
         try
         {
+            var postWaitLookupStopwatch = Stopwatch.StartNew();
             cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
+            postWaitLookupStopwatch.Stop();
+            postWaitCacheLookupMs = postWaitLookupStopwatch.ElapsedMilliseconds;
+
             if (cachedEntry is not null)
             {
+                role = lockHandle is not null ? "OwnerRecheckHit" : "WaiterRecheckHit";
+                totalStopwatch.Stop();
+                LogDiscoveryCachePerf(
+                    operation,
+                    role,
+                    initialCacheLookupMs,
+                    lockAcquireMs,
+                    waitForOwnerMs,
+                    pollCount,
+                    postWaitCacheLookupMs,
+                    fallbackLoadMs: 0,
+                    totalStopwatch.ElapsedMilliseconds);
                 return cachedEntry.Result;
             }
 
-            var stampedeRole = lockHandle is not null ? "Owner" : "FallbackLoad";
-            return await LoadAndCacheDiscoveryAsync(
+            role = lockHandle is not null ? "Owner" : "FallbackLoad";
+            var fallbackStopwatch = Stopwatch.StartNew();
+
+            async Task<PaginatedResult<SearchItem>> LoadOwnerAsync() =>
+                await LoadAndCacheDiscoveryAsync(
+                    operation,
+                    cacheKey,
+                    loadCanonical,
+                    ttl,
+                    contentLocale,
+                    role,
+                    initialCacheLookupMs,
+                    cancellationToken);
+
+            var loaded = await loadCoordinator.RunInFlightAsync(cacheKey, LoadOwnerAsync);
+            fallbackStopwatch.Stop();
+            totalStopwatch.Stop();
+            LogDiscoveryCachePerf(
                 operation,
-                cacheKey,
-                loadCanonical,
-                ttl,
-                contentLocale,
-                stampedeRole,
-                cacheLookupStopwatch.ElapsedMilliseconds,
-                cancellationToken);
+                role,
+                initialCacheLookupMs,
+                lockAcquireMs,
+                waitForOwnerMs,
+                pollCount,
+                postWaitCacheLookupMs,
+                fallbackLoadMs: fallbackStopwatch.ElapsedMilliseconds,
+                totalStopwatch.ElapsedMilliseconds);
+            return loaded;
         }
         finally
         {
@@ -167,6 +262,35 @@ public sealed class DiscoveryService(
                     cancellationToken);
             }
         }
+    }
+
+    private void LogDiscoveryCachePerf(
+        string operation,
+        string role,
+        long initialCacheLookupMs,
+        long lockAcquireMs,
+        long waitForOwnerMs,
+        int pollCount,
+        long postWaitCacheLookupMs,
+        long fallbackLoadMs,
+        long totalMs)
+    {
+        if (!logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        DiscoveryServiceLogMessages.LogDiscoveryCachePerf(
+            logger,
+            operation,
+            role,
+            initialCacheLookupMs,
+            lockAcquireMs,
+            waitForOwnerMs,
+            pollCount,
+            postWaitCacheLookupMs,
+            fallbackLoadMs,
+            totalMs);
     }
 
     private async Task<PaginatedResult<SearchItem>> LoadAndCacheDiscoveryAsync(
@@ -244,23 +368,38 @@ public sealed class DiscoveryService(
         }
     }
 
-    private async Task<DiscoveryCacheEntry?> WaitForCachedDiscoveryAsync(
+    private async Task<(DiscoveryCacheEntry? Entry, int PollCount)> WaitForCachedDiscoveryAsync(
         string cacheKey,
         CancellationToken cancellationToken)
     {
+        var pollCount = 0;
+
         for (var attempt = 0; attempt < MaxCachePollAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            var inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+            if (inFlight is not null)
+            {
+                await inFlight.ConfigureAwait(false);
+                var cachedAfterInFlight = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
+                if (cachedAfterInFlight is not null)
+                {
+                    return (cachedAfterInFlight, pollCount);
+                }
+            }
+
             await Task.Delay(CachePollInterval, cancellationToken);
+            pollCount++;
 
             var cached = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
             if (cached is not null)
             {
-                return cached;
+                return (cached, pollCount);
             }
         }
 
-        return null;
+        return (null, pollCount);
     }
 
     private static void LogDiscoveryCacheLoadCompleted(

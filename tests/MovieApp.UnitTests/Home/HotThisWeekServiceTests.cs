@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
@@ -140,6 +141,7 @@ public sealed class HotThisWeekServiceTests
             snapshotService,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             cache,
+            new HotThisWeekLoadCoordinator(),
             Options.Create(new HomeOptions { HotThisWeekCacheTtlMinutes = 30 }),
             NullLogger<HotThisWeekService>.Instance);
 

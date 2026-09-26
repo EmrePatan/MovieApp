@@ -40,4 +40,18 @@ internal static partial class HotThisWeekTrendingSnapshotLogMessages
         string readSource,
         int itemCount,
         DateTimeOffset? snapshotRefreshedAt);
+
+    [LoggerMessage(
+        EventId = 7014,
+        Level = LogLevel.Information,
+        Message = "HotThisWeekCachePerf Role={Role} CacheLookupMs={CacheLookupMs} SnapshotLookupMs={SnapshotLookupMs} TrendingFallbackMs={TrendingFallbackMs} WaitMs={WaitMs} TotalMs={TotalMs} ItemCount={ItemCount}")]
+    internal static partial void LogCachePerf(
+        ILogger logger,
+        string role,
+        long cacheLookupMs,
+        long snapshotLookupMs,
+        long trendingFallbackMs,
+        long waitMs,
+        long totalMs,
+        int itemCount);
 }

@@ -110,6 +110,7 @@ public sealed class DiscoveryServiceStampedeTests
             cache,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             lockService,
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoveryService>.Instance);
 
     private static List<SearchItem> CreateItems(int count)

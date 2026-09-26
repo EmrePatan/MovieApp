@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -15,6 +16,7 @@ public sealed class HotThisWeekService(
     IHotThisWeekTrendingSnapshotService trendingSnapshotService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ICacheService cacheService,
+    HotThisWeekLoadCoordinator loadCoordinator,
     IOptions<HomeOptions> options,
     ILogger<HotThisWeekService> logger) : IHotThisWeekService
 {
@@ -31,19 +33,71 @@ public sealed class HotThisWeekService(
             return [];
         }
 
+        var totalStopwatch = Stopwatch.StartNew();
         var cacheKey = HotThisWeekCacheKeys.Create(type, maxItems, contentLocale);
+
+        var cacheLookupStopwatch = Stopwatch.StartNew();
         var cached = await cacheService.GetAsync<HotThisWeekCacheEntry>(cacheKey, cancellationToken);
+        cacheLookupStopwatch.Stop();
         if (cached is not null)
         {
+            LogCachePerf("CacheHit", cacheLookupStopwatch.ElapsedMilliseconds, 0, 0, 0, totalStopwatch, cached.Items.Count);
             return cached.Items;
         }
 
+        var inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+        if (inFlight is not null)
+        {
+            var waitStopwatch = Stopwatch.StartNew();
+            var shared = await inFlight;
+            waitStopwatch.Stop();
+            LogCachePerf(
+                "WaiterInProcess",
+                cacheLookupStopwatch.ElapsedMilliseconds,
+                0,
+                0,
+                waitStopwatch.ElapsedMilliseconds,
+                totalStopwatch,
+                shared.Count);
+            return shared;
+        }
+
+        var loaded = await loadCoordinator.RunInFlightAsync(
+            cacheKey,
+            () => LoadAndCacheAsync(
+                type,
+                maxItems,
+                contentLocale,
+                cacheKey,
+                cancellationToken));
+
+        totalStopwatch.Stop();
+        return loaded;
+    }
+
+    private async Task<IReadOnlyList<SearchItem>> LoadAndCacheAsync(
+        SearchContentType type,
+        int maxItems,
+        string contentLocale,
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        var totalStopwatch = Stopwatch.StartNew();
+        long snapshotLookupMs = 0;
+        long trendingFallbackMs = 0;
+        string role;
+
+        var snapshotStopwatch = Stopwatch.StartNew();
         var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
+        snapshotStopwatch.Stop();
+        snapshotLookupMs = snapshotStopwatch.ElapsedMilliseconds;
+
         IReadOnlyList<SearchItem> items;
         DateTimeOffset? snapshotRefreshedAt = null;
 
         if (snapshot is { Items.Count: > 0 })
         {
+            role = "SnapshotHit";
             var filtered = FilterAndTake(snapshot.Items, type, maxItems);
             items = await ApplySnapshotLocalizationAsync(filtered, contentLocale, cancellationToken);
             snapshotRefreshedAt = snapshot.RefreshedAt;
@@ -55,10 +109,14 @@ public sealed class HotThisWeekService(
         }
         else
         {
+            role = "TrendingFallback";
+            var trendingStopwatch = Stopwatch.StartNew();
             var discovery = await discoveryService.GetTrendingAsync(
                 new DiscoveryCriteria(type, 1, maxItems),
                 contentLocale,
                 cancellationToken);
+            trendingStopwatch.Stop();
+            trendingFallbackMs = trendingStopwatch.ElapsedMilliseconds;
             items = discovery.Items;
             HotThisWeekTrendingSnapshotLogMessages.LogReadSource(
                 logger,
@@ -73,7 +131,34 @@ public sealed class HotThisWeekService(
             TimeSpan.FromMinutes(_options.HotThisWeekCacheTtlMinutes),
             cancellationToken);
 
+        totalStopwatch.Stop();
+        LogCachePerf(role, 0, snapshotLookupMs, trendingFallbackMs, 0, totalStopwatch, items.Count);
         return items;
+    }
+
+    private void LogCachePerf(
+        string role,
+        long cacheLookupMs,
+        long snapshotLookupMs,
+        long trendingFallbackMs,
+        long waitMs,
+        Stopwatch totalStopwatch,
+        int itemCount)
+    {
+        if (!logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        HotThisWeekTrendingSnapshotLogMessages.LogCachePerf(
+            logger,
+            role,
+            cacheLookupMs,
+            snapshotLookupMs,
+            trendingFallbackMs,
+            waitMs,
+            totalStopwatch.ElapsedMilliseconds,
+            itemCount);
     }
 
     internal static List<SearchItem> FilterAndTake(

@@ -30,6 +30,22 @@ internal static partial class DiscoveryServiceLogMessages
         string cacheKey);
 
     [LoggerMessage(
+        EventId = 7204,
+        Level = LogLevel.Information,
+        Message = "DiscoveryCachePerf Operation={Operation} Role={Role} InitialCacheLookupMs={InitialCacheLookupMs} LockAcquireMs={LockAcquireMs} WaitForOwnerMs={WaitForOwnerMs} PollCount={PollCount} PostWaitCacheLookupMs={PostWaitCacheLookupMs} FallbackLoadMs={FallbackLoadMs} TotalMs={TotalMs}")]
+    public static partial void LogDiscoveryCachePerf(
+        ILogger logger,
+        string operation,
+        string role,
+        long initialCacheLookupMs,
+        long lockAcquireMs,
+        long waitForOwnerMs,
+        int pollCount,
+        long postWaitCacheLookupMs,
+        long fallbackLoadMs,
+        long totalMs);
+
+    [LoggerMessage(
         EventId = 7202,
         Level = LogLevel.Information,
         Message = "DiscoveryPerf Cache=LOAD_FAILED Operation={Operation} CacheKey={CacheKey} CacheLookupMs={CacheLookupMs} FailurePhase={FailurePhase} ElapsedMs={ElapsedMs}")]
