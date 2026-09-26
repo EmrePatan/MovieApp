@@ -6,6 +6,7 @@ using MovieApp.Application.Common;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Search;
 using MovieApp.Infrastructure.Persistence.Search;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -27,13 +28,36 @@ public sealed class SearchRepository(
         var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, criteria, normalizedQuery);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
-        var items = await SearchQueryBuilder
-            .ApplySort(combinedQuery, criteria.Sort, normalizedQuery)
-            .Skip((criteria.Page - 1) * criteria.PageSize)
+        var page = criteria.Page;
+        SearchKeysetCursor? keysetCursor = null;
+        if (!string.IsNullOrWhiteSpace(criteria.Cursor))
+        {
+            if (!SearchKeysetCursor.TryDecode(criteria.Cursor, criteria, normalizedQuery, out keysetCursor, out _))
+            {
+                throw new InvalidOperationException("Search cursor was not validated before repository execution.");
+            }
+
+            page = keysetCursor!.Page + 1;
+        }
+
+        var sortedQuery = SearchQueryBuilder.ApplySort(combinedQuery, criteria.Sort, normalizedQuery);
+        var pageQuery = keysetCursor is not null
+            ? SearchKeysetPagination.ApplyAfterCursor(sortedQuery, keysetCursor, criteria.Sort, normalizedQuery)
+            : sortedQuery.Skip((page - 1) * criteria.PageSize);
+
+        var items = await pageQuery
             .Take(criteria.PageSize)
             .ToListAsync(cancellationToken);
 
-        return ToPaginatedResult(items, criteria.Page, criteria.PageSize, totalCount);
+        string? nextCursor = null;
+        if (items.Count == criteria.PageSize && page * criteria.PageSize < totalCount)
+        {
+            var lastItem = ToSearchItem(items[^1]);
+            nextCursor = SearchKeysetCursor.Encode(
+                SearchKeysetCursor.CreateFromItem(lastItem, criteria, normalizedQuery, page));
+        }
+
+        return ToPaginatedResult(items, page, criteria.PageSize, totalCount, nextCursor);
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
@@ -372,7 +396,8 @@ public sealed class SearchRepository(
         IReadOnlyList<SearchItemProjection> items,
         int page,
         int pageSize,
-        int totalCount)
+        int totalCount,
+        string? nextCursor = null)
     {
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
 
@@ -381,7 +406,8 @@ public sealed class SearchRepository(
             page,
             pageSize,
             totalCount,
-            totalPages);
+            totalPages,
+            nextCursor);
     }
 
     private static SearchItem ToSearchItem(SearchItemProjection projection) =>

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Caching;
@@ -26,7 +28,18 @@ public static class UnifiedSearchCacheKeys
             criteria.MinRating?.ToString("0.##", CultureInfo.InvariantCulture) ?? "_",
             criteria.MaxRating?.ToString("0.##", CultureInfo.InvariantCulture) ?? "_",
             criteria.Sort,
-            criteria.Page.ToString(CultureInfo.InvariantCulture),
+            ResolvePageSegment(criteria),
             criteria.PageSize.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static string ResolvePageSegment(SearchCriteria criteria)
+    {
+        if (!string.IsNullOrWhiteSpace(criteria.Cursor))
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(criteria.Cursor));
+            return "cursor:" + Convert.ToHexString(hash.AsSpan(0, 8));
+        }
+
+        return criteria.Page.ToString(CultureInfo.InvariantCulture);
     }
 }

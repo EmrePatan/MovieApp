@@ -5,7 +5,8 @@ public sealed record PaginatedResult<T>(
     int Page,
     int PageSize,
     int TotalCount,
-    int TotalPages)
+    int TotalPages,
+    string? NextCursor = null)
 {
     public bool HasNextPage => Page < TotalPages;
 

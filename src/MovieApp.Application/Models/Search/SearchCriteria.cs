@@ -9,4 +9,5 @@ public sealed record SearchCriteria(
     decimal? MaxRating,
     SearchSortOption Sort,
     int Page,
-    int PageSize);
+    int PageSize,
+    string? Cursor = null);

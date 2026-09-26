@@ -33,6 +33,7 @@ public sealed class SearchController(
         [FromQuery] decimal? minRating,
         [FromQuery] decimal? maxRating,
         [FromQuery] string? sort,
+        [FromQuery] string? cursor,
         CancellationToken cancellationToken)
     {
         try
@@ -46,7 +47,8 @@ public sealed class SearchController(
                 year,
                 minRating,
                 maxRating,
-                sort);
+                sort,
+                cursor);
 
             var result = await searchService.SearchAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
@@ -93,7 +95,8 @@ public sealed class SearchController(
         int? year,
         decimal? minRating,
         decimal? maxRating,
-        string? sort)
+        string? sort,
+        string? cursor = null)
     {
         var typeValidation = AdvancedSearchValidator.ValidateType(type);
         if (!typeValidation.IsValid)
@@ -119,7 +122,8 @@ public sealed class SearchController(
             maxRating,
             sortOption,
             page ?? SearchPaginationDefaults.DefaultPage,
-            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+            string.IsNullOrWhiteSpace(cursor) ? null : cursor.Trim());
     }
 
     private static ProblemDetails CreateProblemDetails(int statusCode, string title, string detail) =>

@@ -1,5 +1,7 @@
 using MovieApp.Application.Common;
+using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Search;
 
 namespace MovieApp.Application.Validation;
 
@@ -112,10 +114,29 @@ public static class AdvancedSearchValidator
             return queryValidation;
         }
 
-        var paginationValidation = ValidatePagination(criteria.Page, criteria.PageSize);
-        if (!paginationValidation.IsValid)
+        if (!string.IsNullOrWhiteSpace(criteria.Cursor))
         {
-            return paginationValidation;
+            var normalizedQuery = string.IsNullOrWhiteSpace(criteria.Query)
+                ? null
+                : QueryNormalizer.Normalize(criteria.Query);
+            if (!SearchKeysetCursor.TryDecode(criteria.Cursor, criteria, normalizedQuery, out _, out var cursorError))
+            {
+                return SearchQueryValidationResult.Failure(cursorError!);
+            }
+
+            if (criteria.PageSize < 1 || criteria.PageSize > SearchPaginationDefaults.MaxPageSize)
+            {
+                return SearchQueryValidationResult.Failure(
+                    $"Page size must not exceed {SearchPaginationDefaults.MaxPageSize}.");
+            }
+        }
+        else
+        {
+            var paginationValidation = ValidatePagination(criteria.Page, criteria.PageSize);
+            if (!paginationValidation.IsValid)
+            {
+                return paginationValidation;
+            }
         }
 
         var yearValidation = ValidateYear(criteria.Year);
