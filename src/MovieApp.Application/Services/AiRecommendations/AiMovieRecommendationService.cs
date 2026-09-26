@@ -87,6 +87,7 @@ public sealed class AiMovieRecommendationService(
                     generation.Suggestions,
                     session,
                     settings.MaxReturnedCount,
+                    responseLanguage,
                     cancellationToken);
 
                 UpdateSessionAfterValidation(session, message, validation.Recommendations);

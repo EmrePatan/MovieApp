@@ -49,7 +49,7 @@ public sealed class AiMovieRecommendationValidatorTests
         resolver.SetResolver("Long Film", CreateMovie(Guid.NewGuid(), "Long Film", 2016, 180, ["Drama"]));
         resolver.SetResolver("Old Film", CreateMovie(Guid.NewGuid(), "Old Film", 2000, 100, ["Drama"]));
 
-        var result = await validator.ValidateAsync(Guid.NewGuid(), suggestions, session, 5, CancellationToken.None);
+        var result = await validator.ValidateAsync(Guid.NewGuid(), suggestions, session, 5, cancellationToken: CancellationToken.None);
 
         Assert.Single(result.Recommendations);
         Assert.Equal("Arrival", result.Recommendations[0].Movie.Title);
@@ -83,7 +83,7 @@ public sealed class AiMovieRecommendationValidatorTests
             suggestions,
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(3, result.ValidatedCount);
         Assert.True(result.PartialResults);
@@ -102,7 +102,7 @@ public sealed class AiMovieRecommendationValidatorTests
             [new AiProviderSuggestion("Missing", 2020, "movie", null, "r")],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(0, result.ValidatedCount);
         Assert.False(result.PartialResults);
@@ -122,7 +122,7 @@ public sealed class AiMovieRecommendationValidatorTests
             [new AiProviderSuggestion("İçerde", 2016, "tv", 56676, "Bensu Soral")],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(0, result.ValidatedCount);
         Assert.Equal(1, result.RejectedCount);
@@ -147,7 +147,7 @@ public sealed class AiMovieRecommendationValidatorTests
             [new AiProviderSuggestion("İçerde", 2016, "tv", 67750, reason)],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Single(result.Recommendations);
         Assert.Equal(reason, result.Recommendations[0].Reason);
@@ -196,7 +196,7 @@ public sealed class AiMovieRecommendationValidatorTests
         resolver.SetResolver("Long Film", CreateMovie(Guid.NewGuid(), "Long Film", 2016, 180, ["Drama"]));
         resolver.SetResolver("Old Film", CreateMovie(Guid.NewGuid(), "Old Film", 2000, 100, ["Drama"]));
 
-        await validator.ValidateAsync(Guid.NewGuid(), suggestions, session, 5, CancellationToken.None);
+        await validator.ValidateAsync(Guid.NewGuid(), suggestions, session, 5, cancellationToken: CancellationToken.None);
 
         Assert.Equal(1, perfContext.Metrics.ValidationRejectedWatched);
         Assert.Equal(2, perfContext.Metrics.ValidationRejectedResponseDuplicate);
@@ -227,7 +227,7 @@ public sealed class AiMovieRecommendationValidatorTests
             [new AiProviderSuggestion("Mindhunter", 2017, "tv", null, "Psychological crime series")],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Single(result.Recommendations);
         Assert.Equal("tv", result.Recommendations[0].Movie.MediaType);
@@ -272,7 +272,7 @@ public sealed class AiMovieRecommendationValidatorTests
             ],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(2, result.ValidatedCount);
         Assert.Equal(
@@ -301,7 +301,7 @@ public sealed class AiMovieRecommendationValidatorTests
             [new AiProviderSuggestion("Fresh Movie", 2016, "movie", null, "fresh movie")],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(1, tasteDataSource.MaxConcurrentCalls);
         Assert.Equal(["GetWatchedMovieIdsAsync", "GetWatchedTvShowIdsAsync"], tasteDataSource.CallOrder);
@@ -326,7 +326,7 @@ public sealed class AiMovieRecommendationValidatorTests
             [new AiProviderSuggestion("Mindhunter", 2017, "tv", null, "Psychological crime series")],
             new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
             5,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Empty(result.Recommendations);
     }
@@ -380,6 +380,7 @@ public sealed class AiMovieRecommendationValidatorTests
 
         public Task<ResolvedMovieIdentity?> ResolveAsync(
             AiProviderSuggestion suggestion,
+            string? searchLanguage = null,
             CancellationToken cancellationToken = default)
         {
             if (_map.TryGetValue(suggestion.Title, out var movie))

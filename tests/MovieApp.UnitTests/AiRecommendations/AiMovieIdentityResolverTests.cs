@@ -1,4 +1,5 @@
 using System.Globalization;
+using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.AiRecommendations;
@@ -188,7 +189,7 @@ public sealed class AiMovieIdentityResolverTests
             new AiProviderSuggestion("İçerde", 2016, "tv", 56676, "Reason"));
 
         Assert.Null(result);
-        Assert.Equal(1, tvProvider.SearchCallCount);
+        Assert.Equal(2, tvProvider.SearchCallCount);
         Assert.Equal(1, tvProvider.GetTvShowCallCount);
         Assert.Equal(0, tvRepository.GetByTmdbIdCallCount);
     }
@@ -671,7 +672,99 @@ public sealed class AiMovieIdentityResolverTests
             new AiProviderSuggestion("Arrival", 2016, "movie", null, "Reason"));
 
         Assert.Null(result);
-        Assert.Equal(1, movieProvider.SearchCallCount);
+        Assert.Equal(2, movieProvider.SearchCallCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncPassesTurkishLanguageToTmdbSearch()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository
+        {
+            MovieByTmdbId = CreateMovie(movieId, 42, "G.O.R.A.", 2004)
+        };
+        var movieProvider = new TrackingMovieDataProvider();
+        movieProvider.MovieDetailsByTmdbId[42] = CreateMovieProviderDetails(
+            42,
+            "G.O.R.A.",
+            2004,
+            providerSearchTitles:
+            [
+                new ProviderSearchTitleEntry(
+                    "Gora",
+                    ContentSearchTitleKind.Translation,
+                    ContentSearchTitleSource.TmdbTranslation,
+                    "tr",
+                    "TR",
+                    null)
+            ]);
+
+        var tmdbSearch = new TrackingAiRecommendationTmdbSearch(movieProvider, new TrackingTvShowDataProvider())
+        {
+            MovieSearchResults =
+            [
+                new MovieProviderSummary("42", 42, null, null, "Gora", null, new DateOnly(2004, 1, 1), null, 7m, 100)
+            ]
+        };
+
+        var resolver = CreateResolver(movieRepository, movieProvider, tmdbSearch: tmdbSearch);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Gora", 2004, "movie", null, "Reason"),
+            searchLanguage: "tr");
+
+        Assert.NotNull(result);
+        Assert.Equal("tr-TR", tmdbSearch.LastMovieSearchLanguage);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncFallsBackToAlternateMediaTypeAfterPrimarySearchFails()
+    {
+        var tvShowId = Guid.NewGuid();
+        var tvRepository = new TrackingTvShowRepository
+        {
+            TvShowByTmdbId = CreateTvShow(tvShowId, 99, "Sample Series", 2020)
+        };
+        var movieProvider = new TrackingMovieDataProvider();
+        var tvProvider = new TrackingTvShowDataProvider();
+        tvProvider.TvShowDetailsByTmdbId[99] = CreateTvShowProviderDetails(99, "Sample Series", 2020);
+
+        var tmdbSearch = new TrackingAiRecommendationTmdbSearch(movieProvider, tvProvider)
+        {
+            MovieSearchResults = [],
+            TvSearchResults =
+            [
+                new TvShowProviderSummary(
+                    "99",
+                    99,
+                    null,
+                    null,
+                    "Sample Series",
+                    null,
+                    null,
+                    new DateOnly(2020, 1, 1),
+                    null,
+                    null,
+                    null,
+                    8m,
+                    100)
+            ]
+        };
+
+        var resolver = CreateResolver(
+            movieRepository: new TrackingMovieRepository(),
+            movieProvider: movieProvider,
+            tvShowRepository: tvRepository,
+            tvShowProvider: tvProvider,
+            tmdbSearch: tmdbSearch);
+
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Sample Series", 0, "movie", null, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal("tv", result!.MediaType);
+        Assert.Equal(tvShowId, result.MovieId);
+        Assert.Equal(1, tmdbSearch.MovieSearchCallCount);
+        Assert.Equal(1, tmdbSearch.TvSearchCallCount);
     }
 
     private static AiMovieIdentityResolver CreateResolver(
@@ -679,18 +772,22 @@ public sealed class AiMovieIdentityResolverTests
         TrackingMovieDataProvider? movieProvider = null,
         TrackingTvShowRepository? tvShowRepository = null,
         TrackingTvShowDataProvider? tvShowProvider = null,
-        TrackingCatalogProviderUpsertService? catalogUpsert = null)
+        TrackingCatalogProviderUpsertService? catalogUpsert = null,
+        TrackingAiRecommendationTmdbSearch? tmdbSearch = null)
     {
         movieRepository ??= new TrackingMovieRepository();
         movieProvider ??= new TrackingMovieDataProvider();
         tvShowRepository ??= new TrackingTvShowRepository();
         tvShowProvider ??= new TrackingTvShowDataProvider();
         catalogUpsert ??= new TrackingCatalogProviderUpsertService();
+        tmdbSearch ??= new TrackingAiRecommendationTmdbSearch(movieProvider, tvShowProvider);
 
         movieRepository.PerfContext = catalogUpsert.PerfContext;
         tvShowRepository.PerfContext = catalogUpsert.PerfContext;
         movieProvider.PerfContext = catalogUpsert.PerfContext;
         tvShowProvider.PerfContext = catalogUpsert.PerfContext;
+        tmdbSearch.MovieProvider = movieProvider;
+        tmdbSearch.TvShowProvider = tvShowProvider;
 
         return new AiMovieIdentityResolver(
             movieRepository,
@@ -698,7 +795,60 @@ public sealed class AiMovieIdentityResolverTests
             movieProvider,
             tvShowProvider,
             catalogUpsert,
+            tmdbSearch,
             catalogUpsert.PerfContext);
+    }
+
+    private sealed class TrackingAiRecommendationTmdbSearch : IAiRecommendationTmdbSearch
+    {
+        public TrackingAiRecommendationTmdbSearch(
+            TrackingMovieDataProvider movieProvider,
+            TrackingTvShowDataProvider tvShowProvider)
+        {
+            MovieProvider = movieProvider;
+            TvShowProvider = tvShowProvider;
+        }
+
+        public TrackingMovieDataProvider MovieProvider { get; set; }
+
+        public TrackingTvShowDataProvider TvShowProvider { get; set; }
+
+        public IReadOnlyList<MovieProviderSummary> MovieSearchResults { get; set; } = [];
+
+        public IReadOnlyList<TvShowProviderSummary> TvSearchResults { get; set; } = [];
+
+        public int MovieSearchCallCount { get; private set; }
+
+        public int TvSearchCallCount { get; private set; }
+
+        public string? LastMovieSearchLanguage { get; private set; }
+
+        public async Task<MovieProviderSearchResult> SearchMoviesAsync(
+            string query,
+            int page,
+            int pageSize,
+            string? language,
+            CancellationToken cancellationToken = default)
+        {
+            MovieSearchCallCount++;
+            LastMovieSearchLanguage = language;
+            _ = await MovieProvider.SearchMoviesAsync(query, page, pageSize, cancellationToken);
+            var results = MovieSearchResults.Count > 0 ? MovieSearchResults : MovieProvider.SearchResults;
+            return new MovieProviderSearchResult(results, page, pageSize, results.Count, 1);
+        }
+
+        public async Task<TvShowProviderSearchResult> SearchTvShowsAsync(
+            string query,
+            int page,
+            int pageSize,
+            string? language,
+            CancellationToken cancellationToken = default)
+        {
+            TvSearchCallCount++;
+            _ = await TvShowProvider.SearchTvShowsAsync(query, page, pageSize, cancellationToken);
+            var results = TvSearchResults.Count > 0 ? TvSearchResults : TvShowProvider.SearchResults;
+            return new TvShowProviderSearchResult(results, page, pageSize, results.Count, 1);
+        }
     }
 
     private static Movie CreateMovie(Guid id, int tmdbId, string title, int year)

@@ -14,6 +14,7 @@ public sealed class AiMovieRecommendationValidator(
         IReadOnlyList<AiProviderSuggestion> suggestions,
         AiRecommendationSessionState session,
         int maxReturnedCount,
+        string? searchLanguage = null,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -37,7 +38,7 @@ public sealed class AiMovieRecommendationValidator(
                 continue;
             }
 
-            var resolved = await identityResolver.ResolveAsync(suggestion, cancellationToken);
+            var resolved = await identityResolver.ResolveAsync(suggestion, searchLanguage, cancellationToken);
             if (resolved is null)
             {
                 rejectedCount++;

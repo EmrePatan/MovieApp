@@ -9,5 +9,6 @@ public interface IAiMovieRecommendationValidator
         IReadOnlyList<AiProviderSuggestion> suggestions,
         AiRecommendationSessionState session,
         int maxReturnedCount,
+        string? searchLanguage = null,
         CancellationToken cancellationToken = default);
 }

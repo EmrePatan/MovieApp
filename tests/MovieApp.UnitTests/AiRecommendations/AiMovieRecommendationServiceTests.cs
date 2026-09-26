@@ -405,6 +405,7 @@ public sealed class AiMovieRecommendationServiceTests
             IReadOnlyList<AiProviderSuggestion> suggestions,
             AiRecommendationSessionState session,
             int maxReturnedCount,
+            string? searchLanguage = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(result ?? new AiValidationResult([], suggestions.Count, 0, suggestions.Count, false));
     }
@@ -416,6 +417,7 @@ public sealed class AiMovieRecommendationServiceTests
             IReadOnlyList<AiProviderSuggestion> suggestions,
             AiRecommendationSessionState session,
             int maxReturnedCount,
+            string? searchLanguage = null,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Validation failed.");
     }

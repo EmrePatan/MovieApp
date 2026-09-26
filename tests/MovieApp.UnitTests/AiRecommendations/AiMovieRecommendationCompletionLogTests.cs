@@ -204,6 +204,7 @@ public sealed class AiMovieRecommendationCompletionLogTests
             IReadOnlyList<AiProviderSuggestion> suggestions,
             AiRecommendationSessionState session,
             int maxReturnedCount,
+            string? searchLanguage = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(result);
     }
