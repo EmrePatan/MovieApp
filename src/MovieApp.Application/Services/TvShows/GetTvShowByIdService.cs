@@ -65,7 +65,10 @@ public sealed class GetTvShowByIdService(
             return result;
         }
 
-        return detailLocalizationOverlayService.ApplyLoadedTvShowOverlay(result, await overlayTask);
+        return detailLocalizationOverlayService.ApplyLoadedTvShowOverlay(
+            result,
+            await overlayTask,
+            contentLocale);
     }
 
     private async Task<Task<TvShowDetailLocalizationData?>?> StartTvShowOverlayAsync(

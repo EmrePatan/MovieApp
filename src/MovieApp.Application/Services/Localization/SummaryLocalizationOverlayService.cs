@@ -176,6 +176,8 @@ public sealed class SummaryLocalizationOverlayService(
             suggestion.Type,
             suggestion.TmdbId.Value,
             suggestion.Title,
+            originalTitle: null,
+            originalLanguage: null,
             contentLocale,
             cancellationToken);
 
@@ -197,6 +199,8 @@ public sealed class SummaryLocalizationOverlayService(
             item.Type,
             tmdbId,
             item.Title,
+            item.OriginalTitle,
+            originalLanguage: null,
             item.Overview,
             contentLocale,
             cancellationToken);
@@ -222,6 +226,8 @@ public sealed class SummaryLocalizationOverlayService(
                 "movie",
                 movieTmdbId,
                 item.Title,
+                item.OriginalTitle,
+                originalLanguage: null,
                 contentLocale,
                 cancellationToken);
             return item with { Title = localizedTitle };
@@ -234,6 +240,8 @@ public sealed class SummaryLocalizationOverlayService(
                 "tv",
                 tvTmdbId,
                 item.Title,
+                item.OriginalTitle,
+                originalLanguage: null,
                 contentLocale,
                 cancellationToken);
             return item with { Title = localizedTitle };
@@ -256,6 +264,8 @@ public sealed class SummaryLocalizationOverlayService(
                 "movie",
                 movieTmdbId,
                 item.Title,
+                originalTitle: null,
+                originalLanguage: null,
                 contentLocale,
                 cancellationToken);
             return item with { Title = localizedTitle };
@@ -268,6 +278,8 @@ public sealed class SummaryLocalizationOverlayService(
                 "tv",
                 tvTmdbId,
                 item.Title,
+                originalTitle: null,
+                originalLanguage: null,
                 contentLocale,
                 cancellationToken);
             return item with { Title = localizedTitle };
@@ -290,6 +302,8 @@ public sealed class SummaryLocalizationOverlayService(
             recommendation.Movie.MediaType,
             tmdbId,
             recommendation.Movie.Title,
+            originalTitle: null,
+            originalLanguage: null,
             recommendation.Movie.Overview,
             contentLocale,
             cancellationToken);
@@ -318,6 +332,8 @@ public sealed class SummaryLocalizationOverlayService(
             item.Type,
             item.TmdbId.Value,
             item.Title,
+            item.OriginalTitle,
+            originalLanguage: null,
             item.Overview,
             contentLocale,
             cancellationToken);
@@ -333,6 +349,8 @@ public sealed class SummaryLocalizationOverlayService(
         string contentType,
         int tmdbId,
         string canonicalTitle,
+        string? originalTitle,
+        string? originalLanguage,
         string? canonicalOverview,
         string contentLocale,
         CancellationToken cancellationToken)
@@ -344,7 +362,12 @@ public sealed class SummaryLocalizationOverlayService(
                 contentLocale,
                 cancellationToken);
             return (
-                LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title),
+                LocalizedDisplayTitleSelector.Choose(
+                    canonicalTitle,
+                    originalTitle,
+                    originalLanguage,
+                    overlay?.Title,
+                    contentLocale),
                 LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
         }
 
@@ -355,7 +378,12 @@ public sealed class SummaryLocalizationOverlayService(
                 contentLocale,
                 cancellationToken);
             return (
-                LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title),
+                LocalizedDisplayTitleSelector.Choose(
+                    canonicalTitle,
+                    originalTitle,
+                    originalLanguage,
+                    overlay?.Title,
+                    contentLocale),
                 LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
         }
 
@@ -366,6 +394,8 @@ public sealed class SummaryLocalizationOverlayService(
         string contentType,
         int tmdbId,
         string canonicalTitle,
+        string? originalTitle,
+        string? originalLanguage,
         string contentLocale,
         CancellationToken cancellationToken)
     {
@@ -375,7 +405,12 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
-            return LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title);
+            return LocalizedDisplayTitleSelector.Choose(
+                canonicalTitle,
+                originalTitle,
+                originalLanguage,
+                overlay?.Title,
+                contentLocale);
         }
 
         if (string.Equals(contentType, "tv", StringComparison.OrdinalIgnoreCase))
@@ -384,7 +419,12 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
-            return LocalizationFieldFallback.Choose(canonicalTitle, overlay?.Title);
+            return LocalizedDisplayTitleSelector.Choose(
+                canonicalTitle,
+                originalTitle,
+                originalLanguage,
+                overlay?.Title,
+                contentLocale);
         }
 
         return canonicalTitle;

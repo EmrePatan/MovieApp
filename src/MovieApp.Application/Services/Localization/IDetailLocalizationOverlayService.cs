@@ -15,7 +15,8 @@ public interface IDetailLocalizationOverlayService
 
     MovieDetailsResult ApplyLoadedMovieOverlay(
         MovieDetailsResult canonical,
-        MovieDetailLocalizationData? overlay);
+        MovieDetailLocalizationData? overlay,
+        string? contentLocale = null);
 
     Task<TvShowDetailLocalizationData?> LoadTvShowOverlayAsync(
         int? tmdbId,
@@ -24,7 +25,8 @@ public interface IDetailLocalizationOverlayService
 
     TvShowDetailsResult ApplyLoadedTvShowOverlay(
         TvShowDetailsResult canonical,
-        TvShowDetailLocalizationData? overlay);
+        TvShowDetailLocalizationData? overlay,
+        string? contentLocale = null);
 
     Task<TvSeasonDetailLocalizationData?> LoadTvSeasonOverlayAsync(
         int? tmdbId,

@@ -38,7 +38,8 @@ public sealed class DetailLocalizationOverlayService(
 
     public MovieDetailsResult ApplyLoadedMovieOverlay(
         MovieDetailsResult canonical,
-        MovieDetailLocalizationData? overlay)
+        MovieDetailLocalizationData? overlay,
+        string? contentLocale = null)
     {
         if (overlay is null)
         {
@@ -56,7 +57,12 @@ public sealed class DetailLocalizationOverlayService(
 
         return canonical with
         {
-            Title = LocalizationFieldFallback.Choose(canonical.Title, overlay.Title),
+            Title = ChooseDisplayTitle(
+                canonical.Title,
+                canonical.OriginalTitle,
+                canonical.OriginalLanguage,
+                overlay.Title,
+                contentLocale),
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
             Collection = collection
         };
@@ -68,7 +74,7 @@ public sealed class DetailLocalizationOverlayService(
         CancellationToken cancellationToken = default)
     {
         var overlay = await LoadMovieOverlayAsync(canonical.TmdbId, contentLocale, cancellationToken);
-        return ApplyLoadedMovieOverlay(canonical, overlay);
+        return ApplyLoadedMovieOverlay(canonical, overlay, contentLocale);
     }
 
     public Task<TvShowDetailLocalizationData?> LoadTvShowOverlayAsync(
@@ -93,7 +99,8 @@ public sealed class DetailLocalizationOverlayService(
 
     public TvShowDetailsResult ApplyLoadedTvShowOverlay(
         TvShowDetailsResult canonical,
-        TvShowDetailLocalizationData? overlay)
+        TvShowDetailLocalizationData? overlay,
+        string? contentLocale = null)
     {
         if (overlay is null)
         {
@@ -117,7 +124,12 @@ public sealed class DetailLocalizationOverlayService(
 
         return canonical with
         {
-            Title = LocalizationFieldFallback.Choose(canonical.Title, overlay.Title),
+            Title = ChooseDisplayTitle(
+                canonical.Title,
+                canonical.OriginalTitle,
+                canonical.OriginalLanguage,
+                overlay.Title,
+                contentLocale),
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
             Status = LocalizationFieldFallback.Choose(canonical.Status, overlay.Status),
             Seasons = seasons
@@ -130,7 +142,7 @@ public sealed class DetailLocalizationOverlayService(
         CancellationToken cancellationToken = default)
     {
         var overlay = await LoadTvShowOverlayAsync(canonical.TmdbId, contentLocale, cancellationToken);
-        return ApplyLoadedTvShowOverlay(canonical, overlay);
+        return ApplyLoadedTvShowOverlay(canonical, overlay, contentLocale);
     }
 
     public Task<TvSeasonDetailLocalizationData?> LoadTvSeasonOverlayAsync(
@@ -394,4 +406,19 @@ public sealed class DetailLocalizationOverlayService(
 
         return overlay;
     }
+
+    private static string ChooseDisplayTitle(
+        string canonicalTitle,
+        string? originalTitle,
+        string? originalLanguage,
+        string? localizedTitle,
+        string? contentLocale) =>
+        contentLocale is null
+            ? LocalizationFieldFallback.Choose(canonicalTitle, localizedTitle)
+            : LocalizedDisplayTitleSelector.Choose(
+                canonicalTitle,
+                originalTitle,
+                originalLanguage,
+                localizedTitle,
+                contentLocale);
 }

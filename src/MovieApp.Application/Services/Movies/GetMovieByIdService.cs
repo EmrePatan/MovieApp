@@ -86,7 +86,10 @@ public sealed class GetMovieByIdService(
             return result;
         }
 
-        return detailLocalizationOverlayService!.ApplyLoadedMovieOverlay(result, await overlayTask);
+        return detailLocalizationOverlayService!.ApplyLoadedMovieOverlay(
+            result,
+            await overlayTask,
+            contentLocale);
     }
 
     private Task<Models.Localization.MovieDetailLocalizationData?>? StartMovieOverlay(
