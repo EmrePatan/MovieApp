@@ -22,16 +22,13 @@ public sealed class AiMovieRecommendationValidator(
         var totalStopwatch = Stopwatch.StartNew();
 
         var watchedIdsStopwatch = Stopwatch.StartNew();
-        var watchedMovieIdsTask = tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
-        var watchedTvShowIdsTask = tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
         var personConstraintTask = string.IsNullOrWhiteSpace(userMessage)
             ? Task.FromResult<PersonFilmographyConstraint?>(null)
             : requestedPersonFilmographyResolver.TryResolveAsync(userMessage, searchLanguage, cancellationToken);
 
-        await Task.WhenAll(watchedMovieIdsTask, watchedTvShowIdsTask, personConstraintTask);
-
-        var watchedMovieIds = await watchedMovieIdsTask;
-        var watchedTvShowIds = await watchedTvShowIdsTask;
+        // Watched-id queries must stay sequential: they share the request-scoped DbContext.
+        var watchedMovieIds = await tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
+        var watchedTvShowIds = await tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
         var personConstraint = await personConstraintTask;
         watchedIdsStopwatch.Stop();
 

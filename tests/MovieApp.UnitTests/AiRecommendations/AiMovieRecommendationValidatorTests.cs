@@ -312,7 +312,7 @@ public sealed class AiMovieRecommendationValidatorTests
             5,
             cancellationToken: CancellationToken.None);
 
-        Assert.Equal(2, tasteDataSource.MaxConcurrentCalls);
+        Assert.Equal(1, tasteDataSource.MaxConcurrentCalls);
         Assert.Equal(["GetWatchedMovieIdsAsync", "GetWatchedTvShowIdsAsync"], tasteDataSource.CallOrder);
     }
 
