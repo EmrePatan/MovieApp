@@ -75,8 +75,9 @@ public sealed class EfQueryQualityIntegrationTests
         _ = await new UserStatisticsRepository(context).GetStatisticsAsync(userId);
 
         var libraryRepository = new LibraryRepository(context);
-        _ = await libraryRepository.GetWatchingAsync(userId, SearchContentType.All, 1, 24);
-        _ = await libraryRepository.GetWatchedAsync(userId, SearchContentType.All, 1, 24);
+        var libraryPage = new MovieApp.Application.Models.Library.LibraryPageRequest(1, 24, 25, null, true);
+        _ = await libraryRepository.GetWatchingAsync(userId, SearchContentType.All, libraryPage);
+        _ = await libraryRepository.GetWatchedAsync(userId, SearchContentType.All, libraryPage);
     }
 
     private static ApplicationDbContext CreateStrictQueryContext()

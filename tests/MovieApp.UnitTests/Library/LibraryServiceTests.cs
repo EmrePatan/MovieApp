@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Library;
@@ -58,7 +59,7 @@ public sealed class LibraryServiceTests
     }
 
     private static LibraryService CreateService(ILibraryRepository repository) =>
-        new(repository, new AuthenticatedCurrentUser(UserId));
+        new(repository, new AuthenticatedCurrentUser(UserId), NullLogger<LibraryService>.Instance);
 
     private static LibraryItemResult CreateItem(Guid id, string type, string status) =>
         new(
@@ -99,34 +100,30 @@ public sealed class LibraryServiceTests
         public Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchingAsync(
             Guid userId,
             SearchContentType mediaType,
-            int page,
-            int pageSize,
+            LibraryPageRequest request,
             CancellationToken cancellationToken = default) =>
-            RecordAndReturn(LibraryCategory.Watching, mediaType, page);
+            RecordAndReturn(LibraryCategory.Watching, mediaType, request.Page);
 
         public Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchedAsync(
             Guid userId,
             SearchContentType mediaType,
-            int page,
-            int pageSize,
+            LibraryPageRequest request,
             CancellationToken cancellationToken = default) =>
-            RecordAndReturn(LibraryCategory.Watched, mediaType, page);
+            RecordAndReturn(LibraryCategory.Watched, mediaType, request.Page);
 
         public Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetLikedAsync(
             Guid userId,
             SearchContentType mediaType,
-            int page,
-            int pageSize,
+            LibraryPageRequest request,
             CancellationToken cancellationToken = default) =>
-            RecordAndReturn(LibraryCategory.Liked, mediaType, page);
+            RecordAndReturn(LibraryCategory.Liked, mediaType, request.Page);
 
         public Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchlistAsync(
             Guid userId,
             SearchContentType mediaType,
-            int page,
-            int pageSize,
+            LibraryPageRequest request,
             CancellationToken cancellationToken = default) =>
-            RecordAndReturn(LibraryCategory.Watchlist, mediaType, page);
+            RecordAndReturn(LibraryCategory.Watchlist, mediaType, request.Page);
 
         private Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> RecordAndReturn(
             LibraryCategory category,

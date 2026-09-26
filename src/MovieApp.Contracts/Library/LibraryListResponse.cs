@@ -7,4 +7,5 @@ public sealed record LibraryListResponse(
     int TotalCount,
     int TotalPages,
     bool HasNextPage,
-    bool HasPreviousPage);
+    bool HasPreviousPage,
+    string? NextCursor = null);

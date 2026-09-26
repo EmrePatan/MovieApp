@@ -1,3 +1,4 @@
+using MovieApp.Application.Library;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
 
@@ -10,6 +11,16 @@ public static class LibraryValidator
 
     public static SearchQueryValidationResult Validate(LibraryCriteria criteria)
     {
+        if (!string.IsNullOrWhiteSpace(criteria.Cursor))
+        {
+            if (criteria.PageSize < 1 || criteria.PageSize > MaxPageSize)
+            {
+                return SearchQueryValidationResult.Failure($"Page size cannot exceed {MaxPageSize}.");
+            }
+
+            return SearchQueryValidationResult.Success();
+        }
+
         var pagination = SearchPaginationValidator.Validate(criteria.Page, criteria.PageSize);
         if (!pagination.IsValid)
         {
@@ -22,6 +33,20 @@ public static class LibraryValidator
         }
 
         return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateCursor(
+        LibraryCriteria criteria,
+        Guid userId)
+    {
+        if (string.IsNullOrWhiteSpace(criteria.Cursor))
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        return LibraryKeysetCursor.TryDecode(criteria.Cursor, userId, criteria, out _, out var error)
+            ? SearchQueryValidationResult.Success()
+            : SearchQueryValidationResult.Failure(error!);
     }
 
     public static SearchQueryValidationResult ValidateCategory(string? category)

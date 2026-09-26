@@ -383,6 +383,38 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task CursorPaginationReturnsContiguousLikedPages()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var (firstMovieId, secondMovieId) = await SeedTwoDistinctMoviesAsync();
+
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{firstMovieId}", token);
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{secondMovieId}", token);
+
+        var pageOneResponse = await SendAuthorizedGetAsync(
+            "/api/library?category=liked&mediaType=movie&page=1&pageSize=1",
+            token);
+        var pageOne = await pageOneResponse.Content.ReadFromJsonAsync<LibraryListResponse>();
+
+        Assert.NotNull(pageOne);
+        Assert.NotNull(pageOne.NextCursor);
+        Assert.True(pageOne.HasNextPage);
+
+        var pageTwoResponse = await SendAuthorizedGetAsync(
+            $"/api/library?category=liked&mediaType=movie&pageSize=1&cursor={Uri.EscapeDataString(pageOne.NextCursor!)}",
+            token);
+        var pageTwo = await pageTwoResponse.Content.ReadFromJsonAsync<LibraryListResponse>();
+
+        Assert.NotNull(pageTwo);
+        Assert.Single(pageOne.Items);
+        Assert.Single(pageTwo.Items);
+        Assert.NotEqual(pageOne.Items[0].Id, pageTwo.Items[0].Id);
+        Assert.Equal(pageOne.TotalCount, pageTwo.TotalCount);
+    }
+
+    [Fact]
     public async Task PaginationIsStableWithoutOverlap()
     {
         await fixture.ResetAsync();

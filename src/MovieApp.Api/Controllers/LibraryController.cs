@@ -74,6 +74,7 @@ public sealed class LibraryController(
         [FromQuery] string? mediaType,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] string? cursor,
         CancellationToken cancellationToken)
     {
         try
@@ -97,7 +98,8 @@ public sealed class LibraryController(
                 libraryCategory,
                 contentType,
                 page ?? SearchPaginationDefaults.DefaultPage,
-                pageSize ?? LibraryValidator.DefaultPageSize);
+                pageSize ?? LibraryValidator.DefaultPageSize,
+                string.IsNullOrWhiteSpace(cursor) ? null : cursor.Trim());
 
             var result = await libraryService.GetLibraryAsync(criteria, cancellationToken);
 

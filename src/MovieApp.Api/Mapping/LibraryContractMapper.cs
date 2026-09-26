@@ -14,7 +14,8 @@ public static class LibraryContractMapper
             result.TotalCount,
             result.TotalPages,
             result.HasNextPage,
-            result.HasPreviousPage);
+            result.HasPreviousPage,
+            result.NextCursor);
 
     public static LibraryItemResponse ToLibraryItemResponse(LibraryItemResult item) =>
         new(

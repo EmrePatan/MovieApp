@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Library;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
@@ -16,8 +17,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
     public async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchingAsync(
         Guid userId,
         SearchContentType mediaType,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         CancellationToken cancellationToken = default)
     {
         if (mediaType == SearchContentType.Movie)
@@ -39,15 +39,37 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                     TvShow = tvShow
                 });
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCount = request.ExecuteCount
+            ? await query.CountAsync(cancellationToken)
+            : request.AfterCursor!.SnapshotTotalCount;
 
-        var rows = await query
+        var ordered = query
             .OrderByDescending(item => item.RegularWatchedEpisodes < item.RegularTotalEpisodes)
             .ThenByDescending(item => item.LastWatchedAt)
-            .ThenBy(item => item.TvShow.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ThenBy(item => item.TvShow.Id);
+
+        var watchingCursor = request.AfterCursor;
+        var watchingAnchorInstant = watchingCursor?.GetSortInstant();
+        var rows = watchingCursor is not null
+            ? await ordered
+                .Where(item =>
+                    (watchingCursor.WatchingInProgress
+                        && item.RegularWatchedEpisodes >= item.RegularTotalEpisodes)
+                    || ((item.RegularWatchedEpisodes < item.RegularTotalEpisodes) == watchingCursor.WatchingInProgress
+                        && item.LastWatchedAt < watchingAnchorInstant)
+                    || ((item.RegularWatchedEpisodes < item.RegularTotalEpisodes) == watchingCursor.WatchingInProgress
+                        && item.LastWatchedAt == watchingAnchorInstant
+                        && item.TvShow.Id.CompareTo(watchingCursor.PrimaryId) > 0))
+                .Take(request.FetchLimit)
+                .ToListAsync(cancellationToken)
+            : request.Page > 1
+                ? await ordered
+                    .Skip((request.Page - 1) * request.PageSize)
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken)
+                : await ordered
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken);
 
         var nextEpisodesByShowId = await GetNextUnwatchedEpisodesAsync(
             userId,
@@ -73,23 +95,25 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
     public async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchedAsync(
         Guid userId,
         SearchContentType mediaType,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         CancellationToken cancellationToken = default)
     {
         if (mediaType == SearchContentType.Movie)
         {
-            return await GetWatchedMoviesAsync(userId, page, pageSize, cancellationToken);
+            return await GetWatchedMoviesAsync(userId, request, cancellationToken);
         }
 
         if (mediaType == SearchContentType.Tv)
         {
-            return await GetWatchedTvShowsAsync(userId, page, pageSize, cancellationToken);
+            return await GetWatchedTvShowsAsync(userId, request, cancellationToken);
         }
 
         var merged = WatchedUnionRows(userId);
-        var totalCount = await merged.CountAsync(cancellationToken);
-        var pageRows = await PageWatchedRows(merged, page, pageSize, includeTypeTieBreak: true)
+        var totalCount = request.ExecuteCount
+            ? await merged.CountAsync(cancellationToken)
+            : request.AfterCursor!.SnapshotTotalCount;
+        var pageRows = await PageWatchedRows(merged, request, includeTypeTieBreak: true)
+            .Take(request.FetchLimit)
             .ToListAsync(cancellationToken);
 
         return (pageRows.Select(MapUnionRow).ToList(), totalCount);
@@ -98,8 +122,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
     public async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetLikedAsync(
         Guid userId,
         SearchContentType mediaType,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.Favorites
@@ -108,16 +131,36 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         query = ApplyFavoriteMediaTypeFilter(query, mediaType);
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCount = request.ExecuteCount
+            ? await query.CountAsync(cancellationToken)
+            : request.AfterCursor!.SnapshotTotalCount;
 
-        var favorites = await query
+        var queryWithIncludes = query
             .Include(favorite => favorite.Movie)
-            .Include(favorite => favorite.TvShow)
+            .Include(favorite => favorite.TvShow);
+
+        var ordered = queryWithIncludes
             .OrderByDescending(favorite => favorite.CreatedAt)
-            .ThenBy(favorite => favorite.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ThenBy(favorite => favorite.MovieId ?? favorite.TvShowId ?? favorite.Id);
+
+        var likedCursor = request.AfterCursor;
+        var likedAnchor = likedCursor?.GetSortInstant();
+        var favorites = likedCursor is not null
+            ? await ordered
+                .Where(favorite =>
+                    favorite.CreatedAt < likedAnchor
+                    || (favorite.CreatedAt == likedAnchor
+                        && (favorite.MovieId ?? favorite.TvShowId ?? favorite.Id).CompareTo(likedCursor.PrimaryId) > 0))
+                .Take(request.FetchLimit)
+                .ToListAsync(cancellationToken)
+            : request.Page > 1
+                ? await ordered
+                    .Skip((request.Page - 1) * request.PageSize)
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken)
+                : await ordered
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken);
 
         var items = favorites
             .Select(favorite => favorite.Movie is not null
@@ -145,8 +188,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
     public async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchlistAsync(
         Guid userId,
         SearchContentType mediaType,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.WatchlistItems
@@ -178,12 +220,30 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             .ThenBy(item => item.Type)
             .ThenBy(item => item.Id);
 
-        var totalCount = await dedupedQuery.CountAsync(cancellationToken);
+        var totalCount = request.ExecuteCount
+            ? await dedupedQuery.CountAsync(cancellationToken)
+            : request.AfterCursor!.SnapshotTotalCount;
 
-        var pageKeys = await dedupedQuery
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        var watchlistCursor = request.AfterCursor;
+        var watchlistAnchor = watchlistCursor?.GetSortInstant();
+        var pageKeys = watchlistCursor is not null
+            ? await dedupedQuery
+                .Where(item =>
+                    item.AddedAt < watchlistAnchor
+                    || (item.AddedAt == watchlistAnchor && item.Type.CompareTo(watchlistCursor.Type) > 0)
+                    || (item.AddedAt == watchlistAnchor
+                        && item.Type == watchlistCursor.Type
+                        && item.Id.CompareTo(watchlistCursor.PrimaryId) > 0))
+                .Take(request.FetchLimit)
+                .ToListAsync(cancellationToken)
+            : request.Page > 1
+                ? await dedupedQuery
+                    .Skip((request.Page - 1) * request.PageSize)
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken)
+                : await dedupedQuery
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken);
 
         var movieIds = pageKeys
             .Where(item => item.Type == "movie")
@@ -242,23 +302,42 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
     private async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchedMoviesAsync(
         Guid userId,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         CancellationToken cancellationToken)
     {
         var query = dbContext.WatchedMovies
             .AsNoTracking()
             .Where(watchedMovie => watchedMovie.UserId == userId);
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCount = request.ExecuteCount
+            ? await query.CountAsync(cancellationToken)
+            : request.AfterCursor!.SnapshotTotalCount;
 
-        var watchedMovies = await query
-            .Include(watchedMovie => watchedMovie.Movie)
+        var ordered = query
             .OrderByDescending(watchedMovie => watchedMovie.WatchedAt)
-            .ThenBy(watchedMovie => watchedMovie.MovieId)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ThenBy(watchedMovie => watchedMovie.MovieId);
+
+        var watchedCursor = request.AfterCursor;
+        var watchedAnchor = watchedCursor?.GetSortInstant();
+        var watchedMovies = watchedCursor is not null
+            ? await ordered
+                .Where(watchedMovie =>
+                    watchedMovie.WatchedAt < watchedAnchor
+                    || (watchedMovie.WatchedAt == watchedAnchor
+                        && watchedMovie.MovieId.CompareTo(watchedCursor.PrimaryId) > 0))
+                .Include(watchedMovie => watchedMovie.Movie)
+                .Take(request.FetchLimit)
+                .ToListAsync(cancellationToken)
+            : request.Page > 1
+                ? await ordered
+                    .Include(watchedMovie => watchedMovie.Movie)
+                    .Skip((request.Page - 1) * request.PageSize)
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken)
+                : await ordered
+                    .Include(watchedMovie => watchedMovie.Movie)
+                    .Take(request.FetchLimit)
+                    .ToListAsync(cancellationToken);
 
         var items = watchedMovies
             .Select(watchedMovie => MapMovie(
@@ -276,13 +355,15 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
     private async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchedTvShowsAsync(
         Guid userId,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         CancellationToken cancellationToken)
     {
         var rows = CompletedTvShowRows(userId);
-        var totalCount = await rows.CountAsync(cancellationToken);
-        var pageRows = await PageWatchedRows(rows, page, pageSize, includeTypeTieBreak: false)
+        var totalCount = request.ExecuteCount
+            ? await rows.CountAsync(cancellationToken)
+            : request.AfterCursor!.SnapshotTotalCount;
+        var pageRows = await PageWatchedRows(rows, request, includeTypeTieBreak: false)
+            .Take(request.FetchLimit)
             .ToListAsync(cancellationToken);
 
         return (pageRows.Select(MapUnionRow).ToList(), totalCount);
@@ -343,8 +424,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
     private static IQueryable<WatchedUnionRow> PageWatchedRows(
         IQueryable<WatchedUnionRow> rows,
-        int page,
-        int pageSize,
+        LibraryPageRequest request,
         bool includeTypeTieBreak)
     {
         IOrderedQueryable<WatchedUnionRow> ordered = includeTypeTieBreak
@@ -356,7 +436,28 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 .OrderByDescending(row => row.LastActivityAt)
                 .ThenBy(row => row.Id);
 
-        return ordered.Skip(GetPageSkip(page, pageSize)).Take(pageSize);
+        if (request.AfterCursor is not null)
+        {
+            var cursor = request.AfterCursor;
+            var anchor = cursor.GetSortInstant();
+            return includeTypeTieBreak
+                ? ordered.Where(row =>
+                    row.LastActivityAt < anchor
+                    || (row.LastActivityAt == anchor && row.Type.CompareTo(cursor.Type) > 0)
+                    || (row.LastActivityAt == anchor
+                        && row.Type == cursor.Type
+                        && row.Id.CompareTo(cursor.PrimaryId) > 0))
+                : ordered.Where(row =>
+                    row.LastActivityAt < anchor
+                    || (row.LastActivityAt == anchor && row.Id.CompareTo(cursor.PrimaryId) > 0));
+        }
+
+        if (request.Page > 1)
+        {
+            return ordered.Skip(GetPageSkip(request.Page, request.PageSize));
+        }
+
+        return ordered;
     }
 
     private static int GetPageSkip(int page, int pageSize)
