@@ -139,7 +139,7 @@ public sealed class TvShowRepository(
             dbContext.TvShows.Add(tvShow);
         }
 
-        ApplyProviderDetails(tvShow, details, utcNow);
+        await ApplyProviderDetailsAsync(tvShow, details, utcNow, cancellationToken);
 
         await SyncGenresAsync(tvShow, details.Genres, cancellationToken);
         await SyncSeasonSummariesAsync(tvShow, details.Seasons, cancellationToken);
@@ -208,7 +208,7 @@ public sealed class TvShowRepository(
                 }
             }
 
-            ApplyProviderDetails(tvShow, detail, utcNow);
+            await ApplyProviderDetailsAsync(tvShow, detail, utcNow, cancellationToken);
             SyncGenresWithContext(tvShow, detail.Genres, genresByName, utcNow);
             SyncSeasonSummaries(tvShow, detail.Seasons, utcNow);
             results.Add(tvShow);
@@ -356,11 +356,15 @@ public sealed class TvShowRepository(
             StringComparer.OrdinalIgnoreCase);
     }
 
-    private static void ApplyProviderDetails(TvShow tvShow, TvShowProviderDetails details, DateTime utcNow)
+    private async Task ApplyProviderDetailsAsync(
+        TvShow tvShow,
+        TvShowProviderDetails details,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
     {
         tvShow.TmdbId = details.TmdbId;
         tvShow.TvdbId = details.TvdbId;
-        tvShow.ImdbId = details.ImdbId;
+        tvShow.ImdbId = await ResolveImdbIdForUpsertAsync(tvShow, details.ImdbId, cancellationToken);
         tvShow.Title = details.Title;
         tvShow.OriginalTitle = details.OriginalTitle;
         tvShow.Overview = details.Overview;
@@ -373,6 +377,25 @@ public sealed class TvShowRepository(
         tvShow.VoteCount = details.VoteCount;
         tvShow.Status = TvShowStatusParser.Parse(details.Status);
         tvShow.UpdatedAt = utcNow;
+    }
+
+    private async Task<string?> ResolveImdbIdForUpsertAsync(
+        TvShow tvShow,
+        string? candidateImdbId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(candidateImdbId))
+        {
+            return tvShow.ImdbId;
+        }
+
+        var normalized = candidateImdbId.Trim();
+        var imdbAlreadyUsed = await dbContext.TvShows.AsNoTracking()
+            .AnyAsync(
+                row => row.ImdbId == normalized && row.Id != tvShow.Id,
+                cancellationToken);
+
+        return imdbAlreadyUsed ? tvShow.ImdbId : normalized;
     }
 
     private void SyncGenresWithContext(

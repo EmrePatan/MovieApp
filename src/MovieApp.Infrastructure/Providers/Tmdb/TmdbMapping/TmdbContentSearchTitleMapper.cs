@@ -6,6 +6,8 @@ namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 
 internal static class TmdbContentSearchTitleMapper
 {
+    private const int ProviderTitleTypeMaxLength = 64;
+
     internal static IReadOnlyList<ProviderSearchTitleEntry> MapMovie(TmdbMovieDetailsResponseJson details)
     {
         var entries = new List<ProviderSearchTitleEntry>();
@@ -108,6 +110,16 @@ internal static class TmdbContentSearchTitleMapper
     private static string? NormalizeLanguage(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
-    private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? NormalizeOptional(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= ProviderTitleTypeMaxLength
+            ? trimmed
+            : trimmed[..ProviderTitleTypeMaxLength];
+    }
 }
