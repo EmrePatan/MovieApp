@@ -70,6 +70,18 @@ public sealed class TitleYearMatcherTests
     }
 
     [Fact]
+    public void MatchesSearchFallbackAnyAcceptsLocalizedAliasTitle()
+    {
+        var matches = TitleYearMatcher.MatchesSearchFallbackAny(
+            "İçerde",
+            2016,
+            new DateOnly(2016, 9, 19),
+            ["Insider", "The Voice of Romania", "İçerde"]);
+
+        Assert.True(matches);
+    }
+
+    [Fact]
     public void MatchesKeepsStrictTitleForHintValidation()
     {
         var matches = TitleYearMatcher.Matches(

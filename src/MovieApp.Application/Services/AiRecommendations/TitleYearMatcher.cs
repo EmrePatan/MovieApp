@@ -35,6 +35,28 @@ internal static class TitleYearMatcher
         return YearMatchesSearchFallback(suggestionYear, releaseDate);
     }
 
+    internal static bool MatchesSearchFallbackAny(
+        string suggestionTitle,
+        int suggestionYear,
+        DateOnly? releaseDate,
+        IEnumerable<string?> candidateTitles)
+    {
+        foreach (var candidateTitle in candidateTitles)
+        {
+            if (string.IsNullOrWhiteSpace(candidateTitle))
+            {
+                continue;
+            }
+
+            if (MatchesSearchFallback(candidateTitle, null, suggestionTitle, suggestionYear, releaseDate))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TitleMatchesStrict(
         string? candidateTitle,
         string? candidateOriginalTitle,

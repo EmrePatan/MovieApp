@@ -1,4 +1,5 @@
 using System.Globalization;
+using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.AiRecommendations;
@@ -175,6 +176,44 @@ public sealed class AiMovieIdentityResolverTests
         Assert.Null(result);
         Assert.Equal(1, tvProvider.SearchCallCount);
         Assert.Equal(1, tvRepository.GetByTmdbIdCallCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncAcceptsCorrectTmdbHintWhenLocalizedTitleMatchesCatalogAlias()
+    {
+        var icindeId = Guid.NewGuid();
+        var tvRepository = new TrackingTvShowRepository();
+        var insider = CreateTvShow(icindeId, 67750, "Insider", 2016);
+        insider.OriginalTitle = null;
+        tvRepository.TvShowsByTmdbId[67750] = insider;
+
+        var aliasReader = new TrackingCatalogTitleAliasReader();
+        aliasReader.SetAliases("tv", icindeId, ["İçerde"]);
+
+        var resolver = CreateResolver(tvShowRepository: tvRepository, catalogTitleAliasReader: aliasReader);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("İçerde", 2016, "tv", 67750, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal("Insider", result!.Title);
+        Assert.Equal(icindeId, result.MovieId);
+        Assert.Equal(0, tvRepository.PerfContext.Metrics.ValidationSearchFallbacks);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncRejectsUnrelatedTitleDespiteValidTmdbId()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository
+        {
+            MovieByTmdbId = CreateMovie(movieId, 329996, "Arrival", 2016)
+        };
+
+        var resolver = CreateResolver(movieRepository, new TrackingMovieDataProvider());
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("The Voice of Romania", 2016, "movie", 329996, "Reason"));
+
+        Assert.Null(result);
     }
 
     [Fact]
@@ -515,13 +554,15 @@ public sealed class AiMovieIdentityResolverTests
         TrackingMovieDataProvider? movieProvider = null,
         TrackingTvShowRepository? tvShowRepository = null,
         TrackingTvShowDataProvider? tvShowProvider = null,
-        TrackingCatalogProviderUpsertService? catalogUpsert = null)
+        TrackingCatalogProviderUpsertService? catalogUpsert = null,
+        TrackingCatalogTitleAliasReader? catalogTitleAliasReader = null)
     {
         movieRepository ??= new TrackingMovieRepository();
         movieProvider ??= new TrackingMovieDataProvider();
         tvShowRepository ??= new TrackingTvShowRepository();
         tvShowProvider ??= new TrackingTvShowDataProvider();
         catalogUpsert ??= new TrackingCatalogProviderUpsertService();
+        catalogTitleAliasReader ??= new TrackingCatalogTitleAliasReader();
 
         movieRepository.PerfContext = catalogUpsert.PerfContext;
         tvShowRepository.PerfContext = catalogUpsert.PerfContext;
@@ -534,7 +575,25 @@ public sealed class AiMovieIdentityResolverTests
             movieProvider,
             tvShowProvider,
             catalogUpsert,
+            catalogTitleAliasReader,
             catalogUpsert.PerfContext);
+    }
+
+    private sealed class TrackingCatalogTitleAliasReader : IAiRecommendationCatalogTitleAliasReader
+    {
+        private readonly Dictionary<(string MediaType, Guid ContentId), IReadOnlyList<string>> _aliases = new();
+
+        public void SetAliases(string mediaType, Guid contentId, IReadOnlyList<string> aliases) =>
+            _aliases[(mediaType, contentId)] = aliases;
+
+        public Task<IReadOnlyList<string>> GetTitleAliasesAsync(
+            string mediaType,
+            Guid contentId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>(
+                _aliases.TryGetValue((mediaType, contentId), out var aliases)
+                    ? aliases
+                    : []);
     }
 
     private static Movie CreateMovie(Guid id, int tmdbId, string title, int year)

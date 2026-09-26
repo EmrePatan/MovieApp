@@ -14,6 +14,7 @@ public sealed class AiMovieIdentityResolver(
     IMovieDataProvider movieDataProvider,
     ITvShowDataProvider tvShowDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
+    IAiRecommendationCatalogTitleAliasReader catalogTitleAliasReader,
     IAiRecommendationPerfContext perfContext) : IMovieIdentityResolver
 {
     private const int SearchPageSize = 10;
@@ -32,7 +33,7 @@ public sealed class AiMovieIdentityResolver(
         if (suggestion.TmdbId is int tmdbId && tmdbId > 0)
         {
             var hinted = await GetOrResolveHintIdentityAsync(suggestion, tmdbId, cancellationToken);
-            if (hinted is not null && IdentityMatchesSuggestion(hinted, suggestion))
+            if (hinted is not null && await IdentityMatchesSuggestionAsync(hinted, suggestion, cancellationToken))
             {
                 return hinted;
             }
@@ -177,7 +178,7 @@ public sealed class AiMovieIdentityResolver(
         }
 
         var resolved = await GetOrResolveHintIdentityAsync(suggestion, matchTmdbId, cancellationToken);
-        if (resolved is null || !IdentityMatchesSuggestion(resolved, suggestion))
+        if (resolved is null || !await IdentityMatchesSuggestionAsync(resolved, suggestion, cancellationToken))
         {
             return null;
         }
@@ -215,7 +216,7 @@ public sealed class AiMovieIdentityResolver(
         }
 
         var resolved = await GetOrResolveHintIdentityAsync(suggestion, matchTmdbId, cancellationToken);
-        if (resolved is null || !IdentityMatchesSuggestion(resolved, suggestion))
+        if (resolved is null || !await IdentityMatchesSuggestionAsync(resolved, suggestion, cancellationToken))
         {
             return null;
         }
@@ -223,7 +224,10 @@ public sealed class AiMovieIdentityResolver(
         return resolved;
     }
 
-    private static bool IdentityMatchesSuggestion(ResolvedMovieIdentity resolved, AiProviderSuggestion suggestion)
+    private async Task<bool> IdentityMatchesSuggestionAsync(
+        ResolvedMovieIdentity resolved,
+        AiProviderSuggestion suggestion,
+        CancellationToken cancellationToken)
     {
         if (!string.Equals(
                 resolved.MediaType,
@@ -233,13 +237,32 @@ public sealed class AiMovieIdentityResolver(
             return false;
         }
 
-        return TitleYearMatcher.MatchesSearchFallback(
-            resolved.Title,
-            resolved.OriginalTitle,
+        var releaseDate = EffectiveReleaseDate(resolved);
+
+        if (TitleYearMatcher.MatchesSearchFallback(
+                resolved.Title,
+                resolved.OriginalTitle,
+                suggestion.Title,
+                suggestion.Year,
+                releaseDate))
+        {
+            return true;
+        }
+
+        var aliases = await catalogTitleAliasReader.GetTitleAliasesAsync(
+            resolved.MediaType,
+            resolved.MovieId,
+            cancellationToken);
+
+        return TitleYearMatcher.MatchesSearchFallbackAny(
             suggestion.Title,
             suggestion.Year,
-            resolved.ReleaseDate);
+            releaseDate,
+            aliases);
     }
+
+    private static DateOnly? EffectiveReleaseDate(ResolvedMovieIdentity resolved) =>
+        resolved.ReleaseDate ?? (resolved.Year is int year ? new DateOnly(year, 1, 1) : null);
 
     private static AiProviderSuggestion ClearTmdbId(AiProviderSuggestion suggestion) =>
         suggestion with { TmdbId = null };
