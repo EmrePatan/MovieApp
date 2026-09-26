@@ -184,27 +184,7 @@ public sealed class AiMovieIdentityResolver(
 
         var query = BuildSearchQuery(suggestion);
         var searchResult = await movieDataProvider.SearchMoviesAsync(query, 1, SearchPageSize, cancellationToken);
-        var candidates = searchResult.Results
-            .Where(item => TitleYearMatcher.MatchesSearchFallback(
-                item.Title,
-                item.OriginalTitle,
-                suggestion.Title,
-                suggestion.Year,
-                item.ReleaseDate))
-            .ToList();
-
-        if (candidates.Count != 1)
-        {
-            return null;
-        }
-
-        var match = candidates[0];
-        if (match.TmdbId is not int matchTmdbId || matchTmdbId <= 0)
-        {
-            return null;
-        }
-
-        return await TryResolveValidatedTmdbIdAsync(suggestion, matchTmdbId, cancellationToken);
+        return await ResolveSingleMovieFromSearchResultsAsync(suggestion, searchResult.Results, cancellationToken);
     }
 
     private async Task<ResolvedMovieIdentity?> ResolveTvShowBySearchAsync(
@@ -216,27 +196,98 @@ public sealed class AiMovieIdentityResolver(
 
         var query = BuildSearchQuery(suggestion);
         var searchResult = await tvShowDataProvider.SearchTvShowsAsync(query, 1, SearchPageSize, cancellationToken);
-        var candidates = searchResult.Results
-            .Where(item => TitleYearMatcher.MatchesSearchFallback(
-                item.Title,
-                item.OriginalTitle,
-                suggestion.Title,
-                suggestion.Year,
-                item.FirstAirDate))
-            .ToList();
+        return await ResolveSingleTvShowFromSearchResultsAsync(suggestion, searchResult.Results, cancellationToken);
+    }
 
-        if (candidates.Count != 1)
+    private async Task<ResolvedMovieIdentity?> ResolveSingleMovieFromSearchResultsAsync(
+        AiProviderSuggestion suggestion,
+        IReadOnlyList<MovieProviderSummary> searchResults,
+        CancellationToken cancellationToken)
+    {
+        MovieProviderDetails? matchedDetails = null;
+
+        foreach (var item in searchResults)
         {
-            return null;
+            if (item.TmdbId is not int tmdbId || tmdbId <= 0)
+            {
+                continue;
+            }
+
+            if (!SearchSummaryYearIsCompatible(suggestion.Year, item.ReleaseDate))
+            {
+                continue;
+            }
+
+            var details = await GetOrFetchMovieDetailsAsync(tmdbId, cancellationToken);
+            if (details is null || !TmdbAiSuggestionIdentityValidator.MatchesMovie(suggestion, details))
+            {
+                continue;
+            }
+
+            if (matchedDetails is not null)
+            {
+                return null;
+            }
+
+            matchedDetails = details;
         }
 
-        var match = candidates[0];
-        if (match.TmdbId is not int matchTmdbId || matchTmdbId <= 0)
+        return matchedDetails is null
+            ? null
+            : await MaterializeMovieAsync(matchedDetails, cancellationToken);
+    }
+
+    private async Task<ResolvedMovieIdentity?> ResolveSingleTvShowFromSearchResultsAsync(
+        AiProviderSuggestion suggestion,
+        IReadOnlyList<TvShowProviderSummary> searchResults,
+        CancellationToken cancellationToken)
+    {
+        TvShowProviderDetails? matchedDetails = null;
+
+        foreach (var item in searchResults)
         {
-            return null;
+            if (item.TmdbId is not int tmdbId || tmdbId <= 0)
+            {
+                continue;
+            }
+
+            if (!SearchSummaryYearIsCompatible(suggestion.Year, item.FirstAirDate))
+            {
+                continue;
+            }
+
+            var details = await GetOrFetchTvShowDetailsAsync(tmdbId, cancellationToken);
+            if (details is null || !TmdbAiSuggestionIdentityValidator.MatchesTvShow(suggestion, details))
+            {
+                continue;
+            }
+
+            if (matchedDetails is not null)
+            {
+                return null;
+            }
+
+            matchedDetails = details;
         }
 
-        return await TryResolveValidatedTmdbIdAsync(suggestion, matchTmdbId, cancellationToken);
+        return matchedDetails is null
+            ? null
+            : await MaterializeTvShowAsync(matchedDetails, cancellationToken);
+    }
+
+    private static bool SearchSummaryYearIsCompatible(int suggestionYear, DateOnly? releaseDate)
+    {
+        if (suggestionYear <= 0)
+        {
+            return true;
+        }
+
+        if (releaseDate is null)
+        {
+            return true;
+        }
+
+        return Math.Abs(releaseDate.Value.Year - suggestionYear) <= 1;
     }
 
     private static AiProviderSuggestion ClearTmdbId(AiProviderSuggestion suggestion) =>

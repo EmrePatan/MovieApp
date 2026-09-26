@@ -194,6 +194,56 @@ public sealed class AiMovieIdentityResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncSearchFallbackAcceptsLocalizedTitleViaTmdbProviderSearchTitles()
+    {
+        var movieId = Guid.NewGuid();
+        var movieRepository = new TrackingMovieRepository();
+        movieRepository.MoviesByTmdbId[42444] = CreateMovie(movieId, 42444, "G.O.R.A.", 2004);
+
+        var movieProvider = new TrackingMovieDataProvider
+        {
+            SearchResults =
+            [
+                new MovieProviderSummary(
+                    "42444",
+                    42444,
+                    null,
+                    null,
+                    "G.O.R.A.",
+                    null,
+                    new DateOnly(2004, 1, 1),
+                    null,
+                    7m,
+                    100)
+            ]
+        };
+        movieProvider.MovieDetailsByTmdbId[42444] = CreateMovieProviderDetails(
+            42444,
+            "G.O.R.A.",
+            2004,
+            originalTitle: "G.O.R.A.",
+            providerSearchTitles:
+            [
+                new ProviderSearchTitleEntry(
+                    "Gora",
+                    ContentSearchTitleKind.Translation,
+                    ContentSearchTitleSource.TmdbTranslation,
+                    "tr",
+                    "TR",
+                    null)
+            ]);
+
+        var resolver = CreateResolver(movieRepository, movieProvider);
+        var result = await resolver.ResolveAsync(
+            new AiProviderSuggestion("Gora", 2004, "movie", 34589, "Reason"));
+
+        Assert.NotNull(result);
+        Assert.Equal(movieId, result!.MovieId);
+        Assert.Equal(1, movieProvider.SearchCallCount);
+        Assert.Equal(2, movieProvider.GetMovieCallCount);
+    }
+
+    [Fact]
     public async Task ResolveAsyncAcceptsCorrectTmdbHintWhenLocalizedTitleMatchesTmdbProviderSearchTitles()
     {
         var icindeId = Guid.NewGuid();
@@ -419,13 +469,15 @@ public sealed class AiMovieIdentityResolverTests
                 new MovieProviderSummary("2", 2, null, null, "Arrival", null, new DateOnly(2016, 6, 1), null, 6m, 1)
             ]
         };
+        movieProvider.MovieDetailsByTmdbId[1] = CreateMovieProviderDetails(1, "Arrival", 2016);
+        movieProvider.MovieDetailsByTmdbId[2] = CreateMovieProviderDetails(2, "Arrival", 2016);
 
         var resolver = CreateResolver(new TrackingMovieRepository(), movieProvider);
         var result = await resolver.ResolveAsync(
             new AiProviderSuggestion("Arrival", 2016, "movie", 9866, "Reason"));
 
         Assert.Null(result);
-        Assert.Equal(1, movieProvider.GetMovieCallCount);
+        Assert.Equal(3, movieProvider.GetMovieCallCount);
         Assert.Equal(1, movieProvider.SearchCallCount);
         Assert.Equal(0, movieProvider.PerfContext.Metrics.ValidationProviderFallbacks);
         Assert.Equal(1, movieProvider.PerfContext.Metrics.ValidationSearchFallbacks);
@@ -442,6 +494,8 @@ public sealed class AiMovieIdentityResolverTests
                 new MovieProviderSummary("2", 2, null, null, "Arrival", null, new DateOnly(2016, 6, 1), null, 6m, 1)
             ]
         };
+        movieProvider.MovieDetailsByTmdbId[1] = CreateMovieProviderDetails(1, "Arrival", 2016);
+        movieProvider.MovieDetailsByTmdbId[2] = CreateMovieProviderDetails(2, "Arrival", 2016);
 
         var resolver = CreateResolver(new TrackingMovieRepository(), movieProvider);
         var result = await resolver.ResolveAsync(
