@@ -9,7 +9,8 @@ public sealed class CatalogProviderUpsertService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     ICatalogKeywordIngestionService keywordIngestionService,
-    IMovieCatalogDetailsCacheInvalidator movieCatalogDetailsCacheInvalidator) : ICatalogProviderUpsertService
+    IMovieCatalogDetailsCacheInvalidator movieCatalogDetailsCacheInvalidator,
+    IContentSearchTitleSynchronizer contentSearchTitleSynchronizer) : ICatalogProviderUpsertService
 {
     public async Task<Movie> UpsertMovieFromProviderAsync(
         MovieProviderDetails details,
@@ -18,6 +19,14 @@ public sealed class CatalogProviderUpsertService(
     {
         var movie = await movieRepository.UpsertFromProviderAsync(details, cancellationToken);
         await movieCatalogDetailsCacheInvalidator.InvalidateAsync(movie.Id, cancellationToken);
+        await contentSearchTitleSynchronizer.SyncFromProviderDetailAsync(
+            Domain.Enums.CatalogContentType.Movie,
+            movie.Id,
+            details.Title,
+            details.OriginalTitle,
+            details.ProviderSearchTitles,
+            DateTime.UtcNow,
+            cancellationToken);
 
         if (enrichKeywords)
         {
@@ -38,9 +47,19 @@ public sealed class CatalogProviderUpsertService(
     {
         var movies = await movieRepository.UpsertFromProviderBatchAsync(details, cancellationToken);
 
-        foreach (var movie in movies)
+        for (var index = 0; index < movies.Count; index++)
         {
+            var movie = movies[index];
             await movieCatalogDetailsCacheInvalidator.InvalidateAsync(movie.Id, cancellationToken);
+            var detail = details[index];
+            await contentSearchTitleSynchronizer.SyncFromProviderDetailAsync(
+                Domain.Enums.CatalogContentType.Movie,
+                movie.Id,
+                detail.Title,
+                detail.OriginalTitle,
+                detail.ProviderSearchTitles,
+                DateTime.UtcNow,
+                cancellationToken);
         }
 
         if (!enrichKeywords)
@@ -68,6 +87,14 @@ public sealed class CatalogProviderUpsertService(
         CancellationToken cancellationToken = default)
     {
         var tvShow = await tvShowRepository.UpsertFromProviderAsync(details, cancellationToken);
+        await contentSearchTitleSynchronizer.SyncFromProviderDetailAsync(
+            Domain.Enums.CatalogContentType.Tv,
+            tvShow.Id,
+            details.Title,
+            details.OriginalTitle,
+            details.ProviderSearchTitles,
+            DateTime.UtcNow,
+            cancellationToken);
 
         if (enrichKeywords)
         {
@@ -87,6 +114,19 @@ public sealed class CatalogProviderUpsertService(
         CancellationToken cancellationToken = default)
     {
         var tvShows = await tvShowRepository.UpsertFromProviderBatchAsync(details, cancellationToken);
+
+        for (var index = 0; index < tvShows.Count; index++)
+        {
+            var detail = details[index];
+            await contentSearchTitleSynchronizer.SyncFromProviderDetailAsync(
+                Domain.Enums.CatalogContentType.Tv,
+                tvShows[index].Id,
+                detail.Title,
+                detail.OriginalTitle,
+                detail.ProviderSearchTitles,
+                DateTime.UtcNow,
+                cancellationToken);
+        }
 
         if (!enrichKeywords)
         {

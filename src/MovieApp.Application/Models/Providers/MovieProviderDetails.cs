@@ -20,4 +20,5 @@ public sealed record MovieProviderDetails(
     string? CollectionName = null,
     string? CollectionPosterPath = null,
     string? CollectionBackdropPath = null,
-    IReadOnlyList<ProviderKeywordSummary>? Keywords = null);
+    IReadOnlyList<ProviderKeywordSummary>? Keywords = null,
+    IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null);

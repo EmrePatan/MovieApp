@@ -144,7 +144,12 @@ public sealed class TmdbMovieDataProviderTests
         Assert.Single(result!.Keywords!);
         Assert.Equal("space travel", result.Keywords![0].Name);
         Assert.Single(handler.Requests);
-        Assert.Contains("append_to_response=external_ids,keywords", handler.Requests[0].RequestUri?.Query);
+        var query = handler.Requests[0].RequestUri?.Query;
+        Assert.Contains("append_to_response=", query);
+        Assert.Contains("external_ids", query);
+        Assert.Contains("alternative_titles", query);
+        Assert.Contains("translations", query);
+        Assert.Contains("keywords", query);
     }
 
     [Fact]

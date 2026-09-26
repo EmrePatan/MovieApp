@@ -50,7 +50,8 @@ internal static class TmdbMovieMapper
             CollectionBackdropPath: NormalizeImagePath(details.BelongsToCollection?.BackdropPath),
             Keywords: details.Keywords is null
                 ? null
-                : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Keywords));
+                : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Keywords),
+            ProviderSearchTitles: TmdbContentSearchTitleMapper.MapMovie(details));
     }
 
     internal static MovieProviderSearchResult ToSearchResult(

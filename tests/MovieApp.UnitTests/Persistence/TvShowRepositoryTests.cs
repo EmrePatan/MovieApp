@@ -17,7 +17,7 @@ public sealed class TvShowRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
 
         var details = CreateBreakingBadDetails();
 
@@ -41,7 +41,7 @@ public sealed class TvShowRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
         var details = CreateBreakingBadDetails();
 
         await repository.UpsertFromProviderAsync(details);
@@ -58,7 +58,7 @@ public sealed class TvShowRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
         var created = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
 
         var identity = await repository.GetExternalIdsByIdAsync(created.Id);
@@ -77,7 +77,7 @@ public sealed class TvShowRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
         var created = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
 
         var status = await repository.GetStatusAsync(created.Id);
@@ -97,7 +97,7 @@ public sealed class TvShowRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
 
         var existing = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
         var resolved = await repository.EnsureFromSummariesAsync(
@@ -130,7 +130,7 @@ public sealed class TvShowRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
 
         var resolved = await repository.EnsureFromSummariesAsync(
         [
@@ -181,3 +181,4 @@ public sealed class TvShowRepositoryTests
                 new SeasonProviderSummary(3, "Season 3", new DateOnly(2010, 3, 21), 2, "/fake/s3.jpg")
             ]);
 }
+

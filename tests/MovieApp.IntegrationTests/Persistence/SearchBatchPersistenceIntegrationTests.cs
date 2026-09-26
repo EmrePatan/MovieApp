@@ -17,7 +17,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearMovieCatalogAsync(context);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = new[]
         {
@@ -54,7 +54,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
         });
         await context.SaveChangesAsync();
 
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
         var movies = await repository.UpsertFromProviderBatchAsync(
         [
             CreateMovieDetails(920001, "tt9200001", "Updated Batch Movie", ["Drama", "Sci-Fi"]),
@@ -75,7 +75,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearMovieCatalogAsync(context);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var movies = await repository.UpsertFromProviderBatchAsync(
         [
@@ -110,7 +110,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearMovieCatalogAsync(context);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var duplicateDetails = CreateMovieDetails(940001, "tt9400001", "Duplicate Tmdb Movie", ["Drama"]);
         await repository.UpsertFromProviderBatchAsync([duplicateDetails, duplicateDetails with { Title = "Duplicate Tmdb Movie Updated" }]);
@@ -142,7 +142,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
         }
 
         await using var context = CatalogPersistenceFixture.CreateContext();
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
         var details = new[]
         {
             CreateMovieDetails(950001, "tt9500001", "Good Batch Movie", ["Drama"]),
@@ -176,7 +176,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearTvCatalogAsync(context);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
 
         var tvShows = await repository.UpsertFromProviderBatchAsync(
         [
@@ -228,7 +228,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
         });
         await context.SaveChangesAsync();
 
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
         var tvShows = await repository.UpsertFromProviderBatchAsync(
         [
             CreateTvShowDetails(
@@ -256,7 +256,7 @@ public sealed class SearchBatchPersistenceIntegrationTests
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         await ClearTvCatalogAsync(context);
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
 
         var duplicateDetails = CreateTvShowDetails(
             980001,

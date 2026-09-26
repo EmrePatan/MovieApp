@@ -15,7 +15,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = new MovieProviderDetails(
             ExternalId: "fake-tmdb-900001",
@@ -55,7 +55,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = CreateDetails(
             tmdbId: 348369,
@@ -76,7 +76,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = CreateDetails(
             tmdbId: 27205,
@@ -96,7 +96,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = CreateDetails(
             tmdbId: 900001,
@@ -121,7 +121,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = CreateDetails(
             tmdbId: 12345,
@@ -156,7 +156,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var resolved = await repository.EnsureFromSummariesAsync(
         [
@@ -186,7 +186,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var details = CreateDetails(
             tmdbId: 900001,
@@ -215,7 +215,7 @@ public sealed class MovieRepositoryTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var repository = new MovieRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
         var withCollection = CreateDetails(
             tmdbId: 900001,
@@ -261,3 +261,4 @@ public sealed class MovieRepositoryTests
             VoteCount: 100,
             Genres: ["Drama"]);
 }
+

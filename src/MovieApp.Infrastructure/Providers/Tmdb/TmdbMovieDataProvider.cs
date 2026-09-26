@@ -128,7 +128,12 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
 
     private static string BuildMovieDetailsPath(int tmdbId, bool includeKeywords)
     {
-        var appendToResponse = includeKeywords ? "external_ids,keywords" : "external_ids";
-        return $"movie/{tmdbId}?append_to_response={appendToResponse}";
+        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations" };
+        if (includeKeywords)
+        {
+            appendParts.Add("keywords");
+        }
+
+        return $"movie/{tmdbId}?append_to_response={string.Join(',', appendParts)}";
     }
 }

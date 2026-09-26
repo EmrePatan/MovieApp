@@ -200,6 +200,8 @@ public static class DependencyInjection
 
 
 
+        services.AddScoped<IContentSearchTitleSynchronizer, ContentSearchTitleSynchronizer>();
+        services.AddScoped<IContentSearchTitleCatalogBackfillService, ContentSearchTitleCatalogBackfillService>();
         services.AddScoped<IMovieRepository, MovieRepository>();
 
         services.AddScoped<IMovieRegionalReleaseRepository, MovieRegionalReleaseRepository>();

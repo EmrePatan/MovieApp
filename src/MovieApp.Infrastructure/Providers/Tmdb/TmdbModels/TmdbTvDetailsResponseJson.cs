@@ -35,6 +35,10 @@ internal sealed class TmdbTvDetailsResponseJson
     public TmdbExternalIdsJson? ExternalIds { get; set; }
 
     public TmdbTvKeywordsResponseJson? Keywords { get; set; }
+
+    public TmdbTvAlternativeTitlesAppendJson? AlternativeTitles { get; set; }
+
+    public TmdbTvTranslationsAppendJson? Translations { get; set; }
 }
 
 internal sealed class TmdbTvSeasonSummaryJson

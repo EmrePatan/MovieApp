@@ -56,7 +56,8 @@ internal static class TmdbTvShowMapper
             NextEpisodeToAir: ToNextEpisodeToAir(details.NextEpisodeToAir),
             Keywords: details.Keywords is null
                 ? null
-                : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Results));
+                : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Results),
+            ProviderSearchTitles: TmdbContentSearchTitleMapper.MapTvShow(details));
     }
 
     private static NextEpisodeToAirProviderSummary? ToNextEpisodeToAir(TmdbNextEpisodeToAirJson? nextEpisode)

@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Domain.Entities;
+using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Keywords;
 
@@ -17,7 +18,8 @@ public sealed class CatalogProviderUpsertServiceTests
             movieRepository,
             new FakeTvShowRepository(),
             keywordIngestion,
-            new NoOpMovieCatalogDetailsCacheInvalidator());
+            new NoOpMovieCatalogDetailsCacheInvalidator(),
+            new NoOpContentSearchTitleSynchronizer());
 
         await service.UpsertMovieFromProviderAsync(CreateMovieDetails());
 
@@ -33,7 +35,8 @@ public sealed class CatalogProviderUpsertServiceTests
             movieRepository,
             new FakeTvShowRepository(),
             keywordIngestion,
-            new NoOpMovieCatalogDetailsCacheInvalidator());
+            new NoOpMovieCatalogDetailsCacheInvalidator(),
+            new NoOpContentSearchTitleSynchronizer());
 
         var details = new[]
         {
@@ -58,7 +61,8 @@ public sealed class CatalogProviderUpsertServiceTests
             movieRepository,
             new FakeTvShowRepository(),
             keywordIngestion,
-            new NoOpMovieCatalogDetailsCacheInvalidator());
+            new NoOpMovieCatalogDetailsCacheInvalidator(),
+            new NoOpContentSearchTitleSynchronizer());
 
         await service.UpsertMovieFromProviderAsync(CreateMovieDetails(), enrichKeywords: true);
 

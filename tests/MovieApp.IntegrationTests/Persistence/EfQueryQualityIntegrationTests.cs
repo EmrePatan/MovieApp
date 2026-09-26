@@ -56,7 +56,7 @@ public sealed class EfQueryQualityIntegrationTests
         await using var context = CreateStrictQueryContext();
         var (tvShowId, tmdbId) = await SeedTvShowCatalogAsync(context);
 
-        var repository = new TvShowRepository(context);
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
         _ = await repository.GetByTmdbIdAsync(tmdbId);
         _ = await repository.GetByIdAsync(tvShowId);
     }

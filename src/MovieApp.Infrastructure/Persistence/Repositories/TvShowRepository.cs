@@ -8,7 +8,9 @@ using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRepository
+public sealed class TvShowRepository(
+    ApplicationDbContext dbContext,
+    IContentSearchTitleSynchronizer contentSearchTitleSynchronizer) : ITvShowRepository
 {
     public async Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -260,6 +262,7 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
 
         var utcNow = DateTime.UtcNow;
         var hasChanges = false;
+        var insertedTvShows = new List<TvShow>();
 
         foreach (var summary in summaries)
         {
@@ -289,6 +292,7 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
 
             dbContext.TvShows.Add(tvShow);
             mutableExistingIds[summary.TmdbId.Value] = tvShow.Id;
+            insertedTvShows.Add(tvShow);
             hasChanges = true;
         }
 
@@ -300,6 +304,17 @@ public sealed class TvShowRepository(ApplicationDbContext dbContext) : ITvShowRe
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            foreach (var tvShow in insertedTvShows)
+            {
+                await contentSearchTitleSynchronizer.SyncCatalogTitlesAsync(
+                    CatalogContentType.Tv,
+                    tvShow.Id,
+                    tvShow.Title,
+                    tvShow.OriginalTitle,
+                    cancellationToken);
+            }
+
             return mutableExistingIds;
         }
         catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))

@@ -5,10 +5,13 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepository
+public sealed class MovieRepository(
+    ApplicationDbContext dbContext,
+    IContentSearchTitleSynchronizer contentSearchTitleSynchronizer) : IMovieRepository
 {
     public async Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -247,6 +250,7 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
 
         var utcNow = DateTime.UtcNow;
         var hasChanges = false;
+        var insertedMovies = new List<Movie>();
 
         foreach (var summary in summaries)
         {
@@ -273,6 +277,7 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
 
             dbContext.Movies.Add(movie);
             mutableExistingIds[summary.TmdbId.Value] = movie.Id;
+            insertedMovies.Add(movie);
             hasChanges = true;
         }
 
@@ -284,6 +289,17 @@ public sealed class MovieRepository(ApplicationDbContext dbContext) : IMovieRepo
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            foreach (var movie in insertedMovies)
+            {
+                await contentSearchTitleSynchronizer.SyncCatalogTitlesAsync(
+                    CatalogContentType.Movie,
+                    movie.Id,
+                    movie.Title,
+                    movie.OriginalTitle,
+                    cancellationToken);
+            }
+
             return mutableExistingIds;
         }
         catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))

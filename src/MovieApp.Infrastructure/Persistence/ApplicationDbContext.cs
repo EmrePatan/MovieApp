@@ -86,6 +86,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ExternalRatingSnapshot> ExternalRatingSnapshots => Set<ExternalRatingSnapshot>();
 
+    public DbSet<ContentSearchTitle> ContentSearchTitles => Set<ContentSearchTitle>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

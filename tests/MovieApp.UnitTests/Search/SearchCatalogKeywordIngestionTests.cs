@@ -33,7 +33,8 @@ public sealed class SearchCatalogKeywordIngestionTests
                 keywordsProvider,
                 keywordRepository,
                 NullLogger<CatalogKeywordIngestionService>.Instance),
-            new NoOpMovieCatalogDetailsCacheInvalidator());
+            new NoOpMovieCatalogDetailsCacheInvalidator(),
+            new NoOpContentSearchTitleSynchronizer());
 
         var service = new SearchMoviesService(
             new KeywordReturningMovieDataProvider(),
