@@ -109,6 +109,52 @@ public sealed class AiMovieRecommendationValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsyncRejectsUnresolvedWrongTmdbHintInRejectedCount()
+    {
+        var resolver = new FakeIdentityResolver();
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullAiRecommendationPerfContext.Instance);
+
+        var result = await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [new AiProviderSuggestion("İçerde", 2016, "tv", 56676, "Bensu Soral")],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            CancellationToken.None);
+
+        Assert.Equal(0, result.ValidatedCount);
+        Assert.Equal(1, result.RejectedCount);
+        Assert.Empty(result.Recommendations);
+    }
+
+    [Fact]
+    public async Task ValidateAsyncKeepsReasonOnCorrectlyResolvedSuggestion()
+    {
+        var resolver = new FakeIdentityResolver();
+        resolver.SetResolver(
+            "İçerde",
+            CreateContent("tv", _movie1, "İçerde", 2016, null, ["Drama"]));
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullAiRecommendationPerfContext.Instance);
+
+        const string reason = "Bensu Soral'ın başrolünde yer aldığı dizi.";
+        var result = await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [new AiProviderSuggestion("İçerde", 2016, "tv", 67750, reason)],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            CancellationToken.None);
+
+        Assert.Single(result.Recommendations);
+        Assert.Equal(reason, result.Recommendations[0].Reason);
+        Assert.Equal("İçerde", result.Recommendations[0].Movie.Title);
+    }
+
+    [Fact]
     public async Task ValidateAsyncRecordsRejectionCounters()
     {
         var perfContext = new AiRecommendationPerfContext();
