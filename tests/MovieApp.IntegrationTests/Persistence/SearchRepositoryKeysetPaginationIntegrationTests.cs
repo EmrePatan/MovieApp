@@ -214,13 +214,89 @@ public sealed class SearchRepositoryKeysetPaginationIntegrationTests
         Assert.False(validation.IsValid);
     }
 
-    private static async Task ClearSearchCatalogAsync(ApplicationDbContext context)
+    [Fact]
+    public async Task SearchAsyncRelevanceKeysetWithAliasMatchesIsContiguousWithoutDuplicates()
     {
-        context.Movies.RemoveRange(context.Movies);
-        context.TvShows.RemoveRange(context.TvShows);
-        context.People.RemoveRange(context.People);
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        await SearchRepositoryIntegrationTests.ClearSearchCatalogAsync(context);
+
+        var utcNow = DateTime.UtcNow;
+        var synchronizer = new ContentSearchTitleSynchronizer(context);
+        var movieIds = new List<Guid>();
+
+        for (var index = 0; index < 12; index++)
+        {
+            var movieId = Guid.NewGuid();
+            movieIds.Add(movieId);
+            context.Movies.Add(new MovieApp.Domain.Entities.Movie
+            {
+                Id = movieId,
+                Title = $"Display Title {index:D2}",
+                OriginalTitle = "Original EN",
+                VoteAverage = 8,
+                VoteCount = 500,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            });
+        }
+
         await context.SaveChangesAsync();
+
+        foreach (var movieId in movieIds)
+        {
+            await synchronizer.SyncFromProviderDetailAsync(
+                MovieApp.Domain.Enums.CatalogContentType.Movie,
+                movieId,
+                "Display",
+                "Original EN",
+                [
+                    new MovieApp.Application.Models.Providers.ProviderSearchTitleEntry(
+                        "Shared Islik Alias Match",
+                        MovieApp.Domain.Enums.ContentSearchTitleKind.Alternative,
+                        MovieApp.Domain.Enums.ContentSearchTitleSource.TmdbAlternative,
+                        null,
+                        "TR",
+                        null),
+                    new MovieApp.Application.Models.Providers.ProviderSearchTitleEntry(
+                        "Second Islik Alias Row",
+                        MovieApp.Domain.Enums.ContentSearchTitleKind.Alternative,
+                        MovieApp.Domain.Enums.ContentSearchTitleSource.TmdbAlternative,
+                        null,
+                        "TR",
+                        null),
+                ],
+                utcNow);
+        }
+
+        var repository = CreateRepository(context);
+        const int pageSize = 5;
+        var criteria = new SearchCriteria(
+            "islik",
+            SearchContentType.Movie,
+            null,
+            null,
+            null,
+            null,
+            SearchSortOption.Relevance,
+            1,
+            pageSize);
+
+        var page1 = await repository.SearchAsync(criteria);
+        Assert.Equal(12, page1.TotalCount);
+        Assert.Equal(pageSize, page1.Items.Count);
+        Assert.NotNull(page1.NextCursor);
+
+        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 });
+        var page3 = await repository.SearchAsync(criteria with { Cursor = page2.NextCursor!, Page = 1 });
+
+        var allIds = page1.Items.Concat(page2.Items).Concat(page3.Items).Select(item => item.Id).ToList();
+        Assert.Equal(12, allIds.Count);
+        Assert.Equal(12, allIds.Distinct().Count());
+        Assert.Equal(12, page2.TotalCount);
     }
+
+    private static async Task ClearSearchCatalogAsync(ApplicationDbContext context) =>
+        await SearchRepositoryIntegrationTests.ClearSearchCatalogAsync(context);
 
     private static ApplicationDbContext CreateInstrumentedContext(out SearchCountQueryInterceptor interceptor)
     {

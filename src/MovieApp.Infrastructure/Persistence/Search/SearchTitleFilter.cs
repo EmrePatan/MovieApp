@@ -60,55 +60,28 @@ internal static class SearchTitleFilter
 
     public static IOrderedQueryable<SearchItemProjection> OrderByRelevance(
         IQueryable<SearchItemProjection> query,
-        SearchTextMatch match)
-    {
-        var primary = match.Primary;
-        var turkish = match.TurkishAlternate;
-
-        return query.OrderBy(item =>
-            (EF.Functions.ILike(item.Title, primary) && item.Title.Length == primary.Length)
-            || (turkish != null
-                && EF.Functions.ILike(item.Title, turkish)
-                && item.Title.Length == turkish.Length)
-                ? 0
-                : EF.Functions.ILike(item.Title, primary + "%")
-                    || (turkish != null && EF.Functions.ILike(item.Title, turkish + "%"))
-                    ? 1
-                    : 2);
-    }
+        SearchQueryMatch match) =>
+        query.OrderBy(item => item.RelevanceTier);
 
     public static IQueryable<SearchItemProjection> WhereAfterRelevanceCursor(
         IQueryable<SearchItemProjection> query,
         SearchKeysetCursor cursor,
-        SearchTextMatch match)
-    {
-        var primary = match.Primary;
-        var turkish = match.TurkishAlternate;
-
-        return query.Where(item =>
-            RelevanceTier(item.Title, primary, turkish) > cursor.RelevanceTier
-            || (RelevanceTier(item.Title, primary, turkish) == cursor.RelevanceTier
+        SearchQueryMatch match) =>
+        query.Where(item =>
+            item.RelevanceTier > cursor.RelevanceTier
+            || (item.RelevanceTier == cursor.RelevanceTier
                 && item.VoteCount < cursor.VoteCount)
-            || (RelevanceTier(item.Title, primary, turkish) == cursor.RelevanceTier
+            || (item.RelevanceTier == cursor.RelevanceTier
                 && item.VoteCount == cursor.VoteCount
                 && item.VoteAverage < cursor.VoteAverage)
-            || (RelevanceTier(item.Title, primary, turkish) == cursor.RelevanceTier
+            || (item.RelevanceTier == cursor.RelevanceTier
                 && item.VoteCount == cursor.VoteCount
                 && item.VoteAverage == cursor.VoteAverage
                 && item.Type.CompareTo(cursor.Type) > 0)
-            || (RelevanceTier(item.Title, primary, turkish) == cursor.RelevanceTier
+            || (item.RelevanceTier == cursor.RelevanceTier
                 && item.VoteCount == cursor.VoteCount
                 && item.VoteAverage == cursor.VoteAverage
                 && item.Type == cursor.Type
                 && item.Id.CompareTo(cursor.Id) > 0));
-    }
 
-    private static int RelevanceTier(string title, string primary, string? turkish) =>
-        (EF.Functions.ILike(title, primary) && title.Length == primary.Length)
-        || (turkish != null && EF.Functions.ILike(title, turkish) && title.Length == turkish.Length)
-            ? 0
-            : EF.Functions.ILike(title, primary + "%")
-                || (turkish != null && EF.Functions.ILike(title, turkish + "%"))
-                ? 1
-                : 2;
 }

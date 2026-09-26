@@ -12,7 +12,7 @@ internal static class SearchKeysetPagination
         IQueryable<SearchItemProjection> query,
         SearchKeysetCursor cursor,
         SearchSortOption sort,
-        SearchTextMatch textMatch)
+        SearchQueryMatch queryMatch)
     {
         var effectiveSort = sort == SearchSortOption.Rating ? SearchSortOption.RatingDesc : sort;
 
@@ -25,7 +25,7 @@ internal static class SearchKeysetPagination
             SearchSortOption.TitleAsc => ApplyAfterTitleAsc(query, cursor),
             SearchSortOption.TitleDesc => ApplyAfterTitleDesc(query, cursor),
             SearchSortOption.Popular => ApplyAfterPopular(query, cursor),
-            _ => ApplyAfterRelevance(query, cursor, textMatch)
+            _ => ApplyAfterRelevance(query, cursor, queryMatch)
         };
     }
 
@@ -126,14 +126,14 @@ internal static class SearchKeysetPagination
     private static IQueryable<SearchItemProjection> ApplyAfterRelevance(
         IQueryable<SearchItemProjection> query,
         SearchKeysetCursor cursor,
-        SearchTextMatch textMatch)
+        SearchQueryMatch queryMatch)
     {
-        if (textMatch.IsEmpty)
+        if (queryMatch.IsEmpty)
         {
             return ApplyAfterPopular(query, cursor);
         }
 
-        return SearchTitleFilter.WhereAfterRelevanceCursor(query, cursor, textMatch);
+        return SearchTitleFilter.WhereAfterRelevanceCursor(query, cursor, queryMatch);
     }
 
     private static DateOnly ParseReleaseDate(string? releaseDateIso) =>

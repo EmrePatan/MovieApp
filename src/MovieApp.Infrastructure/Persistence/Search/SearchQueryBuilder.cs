@@ -10,12 +10,12 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> BuildMovieQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        SearchTextMatch textMatch,
+        SearchQueryMatch queryMatch,
         string? genreName = null)
     {
         var query = dbContext.Movies.AsNoTracking().AsQueryable();
 
-        query = SearchTitleFilter.WhereMovieTitleContains(query, textMatch);
+        query = SearchCatalogContentQuery.WhereMovieMatchesSearch(query, dbContext, queryMatch);
 
         if (criteria.GenreId.HasValue)
         {
@@ -45,29 +45,41 @@ internal static class SearchQueryBuilder
             query = query.Where(movie => movie.VoteAverage <= criteria.MaxRating.Value);
         }
 
-        return query.Select(movie => new SearchItemProjection
+        if (queryMatch.IsEmpty)
         {
-            Id = movie.Id,
-            Type = "movie",
-            Title = movie.Title,
-            OriginalTitle = movie.OriginalTitle,
-            Overview = movie.Overview,
-            PosterUrl = movie.PosterPath,
-            BackdropUrl = movie.BackdropPath,
-            ReleaseDate = movie.ReleaseDate,
-            VoteAverage = movie.VoteAverage,
-            VoteCount = movie.VoteCount,
-            Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null,
-            TmdbId = movie.TmdbId,
-            KnownForDepartment = (string?)null
-        });
+            return query.Select(movie => new SearchItemProjection
+            {
+                Id = movie.Id,
+                Type = "movie",
+                Title = movie.Title,
+                OriginalTitle = movie.OriginalTitle,
+                Overview = movie.Overview,
+                PosterUrl = movie.PosterPath,
+                BackdropUrl = movie.BackdropPath,
+                ReleaseDate = movie.ReleaseDate,
+                VoteAverage = movie.VoteAverage,
+                VoteCount = movie.VoteCount,
+                Year = movie.ReleaseDate.HasValue ? movie.ReleaseDate.Value.Year : null,
+                TmdbId = movie.TmdbId,
+                KnownForDepartment = (string?)null,
+                RelevanceTier = 0
+            });
+        }
+
+        return SearchCatalogContentQuery.ProjectMoviesWithRelevance(
+            query,
+            dbContext,
+            queryMatch.Primary,
+            queryMatch.TurkishAlternate,
+            queryMatch.Folded);
     }
 
     public static IQueryable<SearchItemProjection> BuildPersonQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        SearchTextMatch textMatch)
+        SearchQueryMatch queryMatch)
     {
+        var textMatch = queryMatch.Text;
         var query = dbContext.People.AsNoTracking().AsQueryable();
 
         query = SearchTitleFilter.WherePersonNameContains(query, textMatch);
@@ -86,19 +98,31 @@ internal static class SearchQueryBuilder
             VoteCount = 0,
             Year = null,
             TmdbId = person.TmdbId,
-            KnownForDepartment = null
+            KnownForDepartment = null,
+            RelevanceTier =
+                (EF.Functions.ILike(person.Name, textMatch.Primary)
+                    && person.Name.Length == textMatch.Primary.Length)
+                || (textMatch.TurkishAlternate != null
+                    && EF.Functions.ILike(person.Name, textMatch.TurkishAlternate)
+                    && person.Name.Length == textMatch.TurkishAlternate.Length)
+                    ? 0
+                    : EF.Functions.ILike(person.Name, textMatch.Primary + "%")
+                        || (textMatch.TurkishAlternate != null
+                            && EF.Functions.ILike(person.Name, textMatch.TurkishAlternate + "%"))
+                        ? 1
+                        : 2
         });
     }
 
     public static IQueryable<SearchItemProjection> BuildTvShowQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        SearchTextMatch textMatch,
+        SearchQueryMatch queryMatch,
         string? genreName = null)
     {
         var query = dbContext.TvShows.AsNoTracking().AsQueryable();
 
-        query = SearchTitleFilter.WhereTvShowTitleContains(query, textMatch);
+        query = SearchCatalogContentQuery.WhereTvShowMatchesSearch(query, dbContext, queryMatch);
 
         if (criteria.GenreId.HasValue)
         {
@@ -128,38 +152,49 @@ internal static class SearchQueryBuilder
             query = query.Where(tvShow => tvShow.VoteAverage <= criteria.MaxRating.Value);
         }
 
-        return query.Select(tvShow => new SearchItemProjection
+        if (queryMatch.IsEmpty)
         {
-            Id = tvShow.Id,
-            Type = "tv",
-            Title = tvShow.Title,
-            OriginalTitle = tvShow.OriginalTitle,
-            Overview = tvShow.Overview,
-            PosterUrl = tvShow.PosterPath,
-            BackdropUrl = tvShow.BackdropPath,
-            ReleaseDate = tvShow.FirstAirDate,
-            VoteAverage = tvShow.VoteAverage,
-            VoteCount = tvShow.VoteCount,
-            Year = tvShow.FirstAirDate.HasValue ? tvShow.FirstAirDate.Value.Year : null,
-            TmdbId = tvShow.TmdbId,
-            KnownForDepartment = (string?)null
-        });
+            return query.Select(tvShow => new SearchItemProjection
+            {
+                Id = tvShow.Id,
+                Type = "tv",
+                Title = tvShow.Title,
+                OriginalTitle = tvShow.OriginalTitle,
+                Overview = tvShow.Overview,
+                PosterUrl = tvShow.PosterPath,
+                BackdropUrl = tvShow.BackdropPath,
+                ReleaseDate = tvShow.FirstAirDate,
+                VoteAverage = tvShow.VoteAverage,
+                VoteCount = tvShow.VoteCount,
+                Year = tvShow.FirstAirDate.HasValue ? tvShow.FirstAirDate.Value.Year : null,
+                TmdbId = tvShow.TmdbId,
+                KnownForDepartment = (string?)null,
+                RelevanceTier = 0
+            });
+        }
+
+        return SearchCatalogContentQuery.ProjectTvShowsWithRelevance(
+            query,
+            dbContext,
+            queryMatch.Primary,
+            queryMatch.TurkishAlternate,
+            queryMatch.Folded);
     }
 
     public static IQueryable<SearchItemProjection> BuildCombinedQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        SearchTextMatch textMatch,
+        SearchQueryMatch queryMatch,
         string? genreName = null)
     {
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, textMatch, genreName),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, textMatch, genreName),
-            SearchContentType.Person => BuildPersonQuery(dbContext, criteria, textMatch),
-            _ => BuildMovieQuery(dbContext, criteria, textMatch, genreName)
-                .Concat(BuildTvShowQuery(dbContext, criteria, textMatch, genreName))
-                .Concat(BuildPersonQuery(dbContext, criteria, textMatch))
+            SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, queryMatch, genreName),
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, queryMatch, genreName),
+            SearchContentType.Person => BuildPersonQuery(dbContext, criteria, queryMatch),
+            _ => BuildMovieQuery(dbContext, criteria, queryMatch, genreName)
+                .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, genreName))
+                .Concat(BuildPersonQuery(dbContext, criteria, queryMatch))
         };
     }
 
@@ -180,13 +215,13 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                 .Where(item => item.ReleaseDate.HasValue),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                 .Where(item => item.ReleaseDate.HasValue),
-            _ => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+            _ => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                 .Where(item => item.ReleaseDate.HasValue)
-                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                     .Where(item => item.ReleaseDate.HasValue))
         };
     }
@@ -208,13 +243,13 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                 .Where(item => item.VoteCount > 0),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                 .Where(item => item.VoteCount > 0),
-            _ => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+            _ => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                 .Where(item => item.VoteCount > 0)
-                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
+                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
                     .Where(item => item.VoteCount > 0))
         };
     }
@@ -222,7 +257,7 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> ApplySort(
         IQueryable<SearchItemProjection> query,
         SearchSortOption sort,
-        SearchTextMatch textMatch)
+        SearchQueryMatch queryMatch)
     {
         var effectiveSort = sort == SearchSortOption.Rating ? SearchSortOption.RatingDesc : sort;
 
@@ -250,15 +285,15 @@ internal static class SearchQueryBuilder
                 query
                     .OrderByDescending(item => item.VoteCount)
                     .ThenByDescending(item => item.VoteAverage)),
-            _ => ApplyRelevanceSort(query, textMatch)
+            _ => ApplyRelevanceSort(query, queryMatch)
         };
     }
 
     public static IQueryable<SearchItemProjection> ApplyRelevanceSort(
         IQueryable<SearchItemProjection> query,
-        SearchTextMatch textMatch)
+        SearchQueryMatch queryMatch)
     {
-        if (textMatch.IsEmpty)
+        if (queryMatch.IsEmpty)
         {
             return ApplyDeterministicTieBreak(
                 query
@@ -266,7 +301,7 @@ internal static class SearchQueryBuilder
                     .ThenByDescending(item => item.VoteAverage));
         }
 
-        var ordered = SearchTitleFilter.OrderByRelevance(query, textMatch);
+        var ordered = SearchTitleFilter.OrderByRelevance(query, queryMatch);
         return ApplyDeterministicTieBreak(
             ordered
                 .ThenByDescending(item => item.VoteCount)

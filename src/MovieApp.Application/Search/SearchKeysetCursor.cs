@@ -57,14 +57,15 @@ public sealed class SearchKeysetCursor
         SearchCriteria criteria,
         string? normalizedQuery,
         int page,
-        int snapshotTotalCount)
+        int snapshotTotalCount,
+        int relevanceTier)
     {
         return new SearchKeysetCursor
         {
             Page = page,
             Fingerprint = ComputeFingerprint(criteria, normalizedQuery),
             SnapshotTotalCount = snapshotTotalCount,
-            RelevanceTier = ComputeRelevanceTier(item, normalizedQuery),
+            RelevanceTier = relevanceTier,
             VoteAverage = item.VoteAverage,
             VoteCount = item.VoteCount,
             Title = item.Title,

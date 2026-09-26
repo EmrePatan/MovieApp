@@ -27,4 +27,6 @@ internal sealed class SearchItemProjection
     public int? TmdbId { get; init; }
 
     public string? KnownForDepartment { get; init; }
+
+    public int RelevanceTier { get; init; }
 }

@@ -225,6 +225,7 @@ public sealed class SearchRepositoryIntegrationTests
 
     internal static async Task ClearSearchCatalogAsync(ApplicationDbContext context)
     {
+        context.ContentSearchTitles.RemoveRange(context.ContentSearchTitles);
         context.Movies.RemoveRange(context.Movies);
         context.TvShows.RemoveRange(context.TvShows);
         context.People.RemoveRange(context.People);

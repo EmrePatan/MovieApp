@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Persistence.Search;
 
 namespace MovieApp.Infrastructure.Persistence;
 
@@ -91,6 +92,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+        SearchPostgresFunctionMapping.MapSearchPostgresFunctions(modelBuilder);
+
         base.OnModelCreating(modelBuilder);
     }
 

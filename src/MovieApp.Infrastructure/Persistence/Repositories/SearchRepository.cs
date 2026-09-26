@@ -25,10 +25,10 @@ public sealed class SearchRepository(
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
-        var textMatch = SearchTextMatch.FromQuery(criteria.Query);
-        var normalizedQuery = textMatch.IsEmpty ? null : textMatch.Primary;
+        var queryMatch = SearchQueryMatch.FromQuery(criteria.Query);
+        var normalizedQuery = queryMatch.IsEmpty ? null : queryMatch.Primary;
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, criteria, textMatch);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, criteria, queryMatch);
 
         var page = criteria.Page;
         SearchKeysetCursor? keysetCursor = null;
@@ -62,9 +62,9 @@ public sealed class SearchRepository(
             countExecuted = true;
         }
 
-        var sortedQuery = SearchQueryBuilder.ApplySort(combinedQuery, criteria.Sort, textMatch);
+        var sortedQuery = SearchQueryBuilder.ApplySort(combinedQuery, criteria.Sort, queryMatch);
         var pageQuery = keysetCursor is not null
-            ? SearchKeysetPagination.ApplyAfterCursor(sortedQuery, keysetCursor, criteria.Sort, textMatch)
+            ? SearchKeysetPagination.ApplyAfterCursor(sortedQuery, keysetCursor, criteria.Sort, queryMatch)
             : sortedQuery.Skip((page - 1) * criteria.PageSize);
 
         var pageFetchStopwatch = Stopwatch.StartNew();
@@ -79,9 +79,16 @@ public sealed class SearchRepository(
         string? nextCursor = null;
         if (hasNextPage)
         {
-            var lastItem = ToSearchItem(items[^1]);
+            var lastProjection = items[^1];
+            var lastItem = ToSearchItem(lastProjection);
             nextCursor = SearchKeysetCursor.Encode(
-                SearchKeysetCursor.CreateFromItem(lastItem, criteria, normalizedQuery, page, totalCount));
+                SearchKeysetCursor.CreateFromItem(
+                    lastItem,
+                    criteria,
+                    normalizedQuery,
+                    page,
+                    totalCount,
+                    lastProjection.RelevanceTier));
         }
 
         var mode = isCursorContinuation
@@ -115,7 +122,7 @@ public sealed class SearchRepository(
         int limit,
         CancellationToken cancellationToken = default)
     {
-        var textMatch = SearchTextMatch.FromQuery(query);
+        var queryMatch = SearchQueryMatch.FromQuery(query);
         var searchCriteria = new SearchCriteria(
             query,
             SearchContentType.All,
@@ -127,10 +134,10 @@ public sealed class SearchRepository(
             1,
             limit);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, textMatch);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, queryMatch);
 
         var projections = await SearchQueryBuilder
-            .ApplyRelevanceSort(combinedQuery, textMatch)
+            .ApplyRelevanceSort(combinedQuery, queryMatch)
             .Take(limit)
             .ToListAsync(cancellationToken);
 
@@ -160,11 +167,11 @@ public sealed class SearchRepository(
             criteria.Page,
             criteria.PageSize);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchTextMatch.Empty);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchQueryMatch.Empty);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder
-            .ApplySort(combinedQuery, SearchSortOption.Popular, SearchTextMatch.Empty)
+            .ApplySort(combinedQuery, SearchSortOption.Popular, SearchQueryMatch.Empty)
             .Skip((criteria.Page - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
             .ToListAsync(cancellationToken);
@@ -187,7 +194,7 @@ public sealed class SearchRepository(
             criteria.Page,
             criteria.PageSize);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchTextMatch.Empty);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchQueryMatch.Empty);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder
@@ -430,11 +437,11 @@ public sealed class SearchRepository(
             criteria.Page,
             criteria.PageSize);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchTextMatch.Empty, genreName);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchQueryMatch.Empty, genreName);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder
-            .ApplySort(combinedQuery, SearchSortOption.Popular, SearchTextMatch.Empty)
+            .ApplySort(combinedQuery, SearchSortOption.Popular, SearchQueryMatch.Empty)
             .Skip((criteria.Page - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
             .ToListAsync(cancellationToken);
