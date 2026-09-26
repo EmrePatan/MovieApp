@@ -20,7 +20,7 @@ public sealed class AiRecommendationOptions
 
     public int ExternalLlmChainBudgetSeconds { get; set; } = 20;
 
-    public int DefaultProviderRequestTimeoutSeconds { get; set; } = 6;
+    public int DefaultProviderRequestTimeoutSeconds { get; set; } = 8;
 
     public GeminiAiRecommendationOptions Gemini { get; set; } = new();
 
