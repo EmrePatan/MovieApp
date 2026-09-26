@@ -1,6 +1,6 @@
 #pragma warning disable CA1309, CA2251
 
-using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Common;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Search;
 
@@ -12,7 +12,7 @@ internal static class SearchKeysetPagination
         IQueryable<SearchItemProjection> query,
         SearchKeysetCursor cursor,
         SearchSortOption sort,
-        string? normalizedQuery)
+        SearchTextMatch textMatch)
     {
         var effectiveSort = sort == SearchSortOption.Rating ? SearchSortOption.RatingDesc : sort;
 
@@ -25,7 +25,7 @@ internal static class SearchKeysetPagination
             SearchSortOption.TitleAsc => ApplyAfterTitleAsc(query, cursor),
             SearchSortOption.TitleDesc => ApplyAfterTitleDesc(query, cursor),
             SearchSortOption.Popular => ApplyAfterPopular(query, cursor),
-            _ => ApplyAfterRelevance(query, cursor, normalizedQuery)
+            _ => ApplyAfterRelevance(query, cursor, textMatch)
         };
     }
 
@@ -126,49 +126,14 @@ internal static class SearchKeysetPagination
     private static IQueryable<SearchItemProjection> ApplyAfterRelevance(
         IQueryable<SearchItemProjection> query,
         SearchKeysetCursor cursor,
-        string? normalizedQuery)
+        SearchTextMatch textMatch)
     {
-        if (string.IsNullOrWhiteSpace(normalizedQuery))
+        if (textMatch.IsEmpty)
         {
             return ApplyAfterPopular(query, cursor);
         }
 
-        return query.Where(item =>
-            (EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                ? 0
-                : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                    ? 1
-                    : 2) > cursor.RelevanceTier
-            || ((EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                    ? 0
-                    : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                        ? 1
-                        : 2) == cursor.RelevanceTier
-                && item.VoteCount < cursor.VoteCount)
-            || ((EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                    ? 0
-                    : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                        ? 1
-                        : 2) == cursor.RelevanceTier
-                && item.VoteCount == cursor.VoteCount
-                && item.VoteAverage < cursor.VoteAverage)
-            || ((EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                    ? 0
-                    : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                        ? 1
-                        : 2) == cursor.RelevanceTier
-                && item.VoteCount == cursor.VoteCount
-                && item.VoteAverage == cursor.VoteAverage
-                && item.Type.CompareTo(cursor.Type) > 0)
-            || ((EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                    ? 0
-                    : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                        ? 1
-                        : 2) == cursor.RelevanceTier
-                && item.VoteCount == cursor.VoteCount
-                && item.VoteAverage == cursor.VoteAverage
-                && item.Type == cursor.Type
-                && item.Id.CompareTo(cursor.Id) > 0));
+        return SearchTitleFilter.WhereAfterRelevanceCursor(query, cursor, textMatch);
     }
 
     private static DateOnly ParseReleaseDate(string? releaseDateIso) =>

@@ -15,7 +15,7 @@ public sealed class SearchHistoryTests
 
         Assert.Equal(userId, history.UserId);
         Assert.Equal("Batman", history.Query);
-        Assert.Equal("batman", history.NormalizedQuery);
+        Assert.Equal("Batman", history.NormalizedQuery);
         Assert.Equal(utcNow, history.SearchedAt);
     }
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Common;
 using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 
@@ -9,17 +10,12 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> BuildMovieQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        string? normalizedQuery,
+        SearchTextMatch textMatch,
         string? genreName = null)
     {
         var query = dbContext.Movies.AsNoTracking().AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            query = query.Where(movie =>
-                EF.Functions.ILike(movie.Title, $"%{normalizedQuery}%") ||
-                (movie.OriginalTitle != null && EF.Functions.ILike(movie.OriginalTitle, $"%{normalizedQuery}%")));
-        }
+        query = SearchTitleFilter.WhereMovieTitleContains(query, textMatch);
 
         if (criteria.GenreId.HasValue)
         {
@@ -70,15 +66,11 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> BuildPersonQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        string? normalizedQuery)
+        SearchTextMatch textMatch)
     {
         var query = dbContext.People.AsNoTracking().AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            query = query.Where(person =>
-                EF.Functions.ILike(person.Name, $"%{normalizedQuery}%"));
-        }
+        query = SearchTitleFilter.WherePersonNameContains(query, textMatch);
 
         return query.Select(person => new SearchItemProjection
         {
@@ -101,17 +93,12 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> BuildTvShowQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        string? normalizedQuery,
+        SearchTextMatch textMatch,
         string? genreName = null)
     {
         var query = dbContext.TvShows.AsNoTracking().AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            query = query.Where(tvShow =>
-                EF.Functions.ILike(tvShow.Title, $"%{normalizedQuery}%") ||
-                (tvShow.OriginalTitle != null && EF.Functions.ILike(tvShow.OriginalTitle, $"%{normalizedQuery}%")));
-        }
+        query = SearchTitleFilter.WhereTvShowTitleContains(query, textMatch);
 
         if (criteria.GenreId.HasValue)
         {
@@ -162,17 +149,17 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> BuildCombinedQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
-        string? normalizedQuery,
+        SearchTextMatch textMatch,
         string? genreName = null)
     {
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, normalizedQuery, genreName),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, normalizedQuery, genreName),
-            SearchContentType.Person => BuildPersonQuery(dbContext, criteria, normalizedQuery),
-            _ => BuildMovieQuery(dbContext, criteria, normalizedQuery, genreName)
-                .Concat(BuildTvShowQuery(dbContext, criteria, normalizedQuery, genreName))
-                .Concat(BuildPersonQuery(dbContext, criteria, normalizedQuery))
+            SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, textMatch, genreName),
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, textMatch, genreName),
+            SearchContentType.Person => BuildPersonQuery(dbContext, criteria, textMatch),
+            _ => BuildMovieQuery(dbContext, criteria, textMatch, genreName)
+                .Concat(BuildTvShowQuery(dbContext, criteria, textMatch, genreName))
+                .Concat(BuildPersonQuery(dbContext, criteria, textMatch))
         };
     }
 
@@ -193,13 +180,13 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, null)
+            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                 .Where(item => item.ReleaseDate.HasValue),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, null)
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                 .Where(item => item.ReleaseDate.HasValue),
-            _ => BuildMovieQuery(dbContext, searchCriteria, null)
+            _ => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                 .Where(item => item.ReleaseDate.HasValue)
-                .Concat(BuildTvShowQuery(dbContext, searchCriteria, null)
+                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                     .Where(item => item.ReleaseDate.HasValue))
         };
     }
@@ -221,13 +208,13 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, null)
+            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                 .Where(item => item.VoteCount > 0),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, null)
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                 .Where(item => item.VoteCount > 0),
-            _ => BuildMovieQuery(dbContext, searchCriteria, null)
+            _ => BuildMovieQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                 .Where(item => item.VoteCount > 0)
-                .Concat(BuildTvShowQuery(dbContext, searchCriteria, null)
+                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchTextMatch.Empty)
                     .Where(item => item.VoteCount > 0))
         };
     }
@@ -235,7 +222,7 @@ internal static class SearchQueryBuilder
     public static IQueryable<SearchItemProjection> ApplySort(
         IQueryable<SearchItemProjection> query,
         SearchSortOption sort,
-        string? normalizedQuery)
+        SearchTextMatch textMatch)
     {
         var effectiveSort = sort == SearchSortOption.Rating ? SearchSortOption.RatingDesc : sort;
 
@@ -263,15 +250,15 @@ internal static class SearchQueryBuilder
                 query
                     .OrderByDescending(item => item.VoteCount)
                     .ThenByDescending(item => item.VoteAverage)),
-            _ => ApplyRelevanceSort(query, normalizedQuery)
+            _ => ApplyRelevanceSort(query, textMatch)
         };
     }
 
     public static IQueryable<SearchItemProjection> ApplyRelevanceSort(
         IQueryable<SearchItemProjection> query,
-        string? normalizedQuery)
+        SearchTextMatch textMatch)
     {
-        if (string.IsNullOrWhiteSpace(normalizedQuery))
+        if (textMatch.IsEmpty)
         {
             return ApplyDeterministicTieBreak(
                 query
@@ -279,14 +266,9 @@ internal static class SearchQueryBuilder
                     .ThenByDescending(item => item.VoteAverage));
         }
 
+        var ordered = SearchTitleFilter.OrderByRelevance(query, textMatch);
         return ApplyDeterministicTieBreak(
-            query
-                .OrderBy(item =>
-                    EF.Functions.ILike(item.Title, normalizedQuery) && item.Title.Length == normalizedQuery.Length
-                        ? 0
-                        : EF.Functions.ILike(item.Title, normalizedQuery + "%")
-                            ? 1
-                            : 2)
+            ordered
                 .ThenByDescending(item => item.VoteCount)
                 .ThenByDescending(item => item.VoteAverage));
     }

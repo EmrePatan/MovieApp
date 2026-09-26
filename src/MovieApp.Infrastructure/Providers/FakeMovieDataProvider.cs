@@ -181,7 +181,7 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
 
     private static bool MatchesCatalogTitle(string normalizedQuery, string normalizedTitle) =>
         normalizedQuery.Length >= AdvancedSearchValidator.MinimumQueryLength &&
-        normalizedTitle.Contains(normalizedQuery, StringComparison.Ordinal);
+        normalizedTitle.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
 
     private static MovieProviderSummary ToSummary(MovieProviderDetails details) =>
         new(

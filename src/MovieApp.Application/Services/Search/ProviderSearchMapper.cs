@@ -526,13 +526,13 @@ internal static class ProviderSearchMapper
 
         foreach (var normalizedTitle in EnumerateNormalizedNames(title, alternateTitle))
         {
-            if (normalizedTitle == normalizedQuery)
+            if (SearchTitleMatching.TitleEqualsQuery(normalizedTitle, normalizedQuery))
             {
                 bestTier = Math.Min(bestTier, 0);
                 continue;
             }
 
-            if (normalizedTitle.StartsWith(normalizedQuery, StringComparison.Ordinal))
+            if (SearchTitleMatching.TitleStartsWithQuery(normalizedTitle, normalizedQuery))
             {
                 bestTier = Math.Min(bestTier, 1);
                 continue;
@@ -551,12 +551,12 @@ internal static class ProviderSearchMapper
     {
         foreach (var normalizedTitle in EnumerateNormalizedNames(title, alternateTitle))
         {
-            if (normalizedTitle == normalizedQuery)
+            if (SearchTitleMatching.TitleEqualsQuery(normalizedTitle, normalizedQuery))
             {
                 return true;
             }
 
-            if (normalizedTitle.StartsWith(normalizedQuery + " and ", StringComparison.Ordinal))
+            if (normalizedTitle.StartsWith(normalizedQuery + " and ", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -586,7 +586,7 @@ internal static class ProviderSearchMapper
             return false;
         }
 
-        return queryTokens.All(token => normalizedTitle.Contains(token, StringComparison.Ordinal));
+        return queryTokens.All(token => normalizedTitle.Contains(token, StringComparison.OrdinalIgnoreCase));
     }
 
     private static int CountQueryTokens(string normalizedQuery) =>

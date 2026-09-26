@@ -223,7 +223,7 @@ public sealed class SearchRepositoryIntegrationTests
         Assert.Contains(result.Items, item => item.Type == "person" && item.Title == "Trending Person");
     }
 
-    private static async Task ClearSearchCatalogAsync(ApplicationDbContext context)
+    internal static async Task ClearSearchCatalogAsync(ApplicationDbContext context)
     {
         context.Movies.RemoveRange(context.Movies);
         context.TvShows.RemoveRange(context.TvShows);

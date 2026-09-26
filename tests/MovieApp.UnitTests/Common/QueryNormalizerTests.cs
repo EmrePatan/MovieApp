@@ -5,10 +5,11 @@ namespace MovieApp.UnitTests.Common;
 public sealed class QueryNormalizerTests
 {
     [Theory]
-    [InlineData("Interstellar", "interstellar")]
-    [InlineData(" INTERSTELLAR ", "interstellar")]
-    [InlineData("InTeRsTeLLaR", "interstellar")]
-    public void NormalizeTrimsAndLowercasesQuery(string input, string expected)
+    [InlineData("Interstellar", "Interstellar")]
+    [InlineData(" INTERSTELLAR ", "INTERSTELLAR")]
+    [InlineData("InTeRsTeLLaR", "InTeRsTeLLaR")]
+    [InlineData("  çok   güzel  ", "çok güzel")]
+    public void NormalizeTrimsCollapsesWhitespaceAndAppliesNfcWithoutChangingCase(string input, string expected)
     {
         Assert.Equal(expected, QueryNormalizer.Normalize(input));
     }

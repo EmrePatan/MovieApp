@@ -81,18 +81,9 @@ public sealed class SearchKeysetCursor
             return 0;
         }
 
-        if (item.Title.Length == normalizedQuery.Length
-            && item.Title.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
-        {
-            return 0;
-        }
-
-        if (item.Title.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase))
-        {
-            return 1;
-        }
-
-        return 2;
+        return SearchTitleMatching.ComputeRelevanceTier(
+            item.Title,
+            new SearchTextMatch(normalizedQuery, SearchTurkishCaseFolder.TryCreateAlternate(normalizedQuery)));
     }
 
     public static string Encode(SearchKeysetCursor cursor)

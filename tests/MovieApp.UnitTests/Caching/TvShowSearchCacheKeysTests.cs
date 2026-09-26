@@ -10,7 +10,7 @@ public sealed class TvShowSearchCacheKeysTests
     {
         var key = TvShowSearchCacheKeys.Create(" Breaking Bad ", 1, 20);
 
-        Assert.Equal("tvshow-search:breaking bad:page:1:size:20", key);
+        Assert.Equal("tvshow-search:Breaking Bad:page:1:size:20", key);
     }
 
     [Fact]

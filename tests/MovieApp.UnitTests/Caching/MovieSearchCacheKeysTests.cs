@@ -6,9 +6,9 @@ namespace MovieApp.UnitTests.Caching;
 public sealed class MovieSearchCacheKeysTests
 {
     [Theory]
-    [InlineData("Interstellar", 1, 20, "movie-search:interstellar:page:1:size:20")]
-    [InlineData(" INTERSTELLAR ", 1, 20, "movie-search:interstellar:page:1:size:20")]
-    [InlineData("InTeRsTeLLaR", 2, 10, "movie-search:interstellar:page:2:size:10")]
+    [InlineData("Interstellar", 1, 20, "movie-search:Interstellar:page:1:size:20")]
+    [InlineData(" INTERSTELLAR ", 1, 20, "movie-search:INTERSTELLAR:page:1:size:20")]
+    [InlineData("InTeRsTeLLaR", 2, 10, "movie-search:InTeRsTeLLaR:page:2:size:10")]
     public void CreateProducesNormalizedCacheKeyWithPagination(
         string query,
         int page,
