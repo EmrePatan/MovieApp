@@ -7,6 +7,7 @@ namespace MovieApp.Application.Services.AiRecommendations;
 public sealed class AiMovieRecommendationValidator(
     IMovieIdentityResolver identityResolver,
     IAiTasteProfileDataSource tasteProfileDataSource,
+    IAiRequestedPersonFilmographyResolver requestedPersonFilmographyResolver,
     IAiRecommendationPerfContext perfContext) : IAiMovieRecommendationValidator
 {
     public async Task<AiValidationResult> ValidateAsync(
@@ -15,13 +16,23 @@ public sealed class AiMovieRecommendationValidator(
         AiRecommendationSessionState session,
         int maxReturnedCount,
         string? searchLanguage = null,
+        string? userMessage = null,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
 
         var watchedIdsStopwatch = Stopwatch.StartNew();
-        var watchedMovieIds = await tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
-        var watchedTvShowIds = await tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
+        var watchedMovieIdsTask = tasteProfileDataSource.GetWatchedMovieIdsAsync(userId, cancellationToken);
+        var watchedTvShowIdsTask = tasteProfileDataSource.GetWatchedTvShowIdsAsync(userId, cancellationToken);
+        var personConstraintTask = string.IsNullOrWhiteSpace(userMessage)
+            ? Task.FromResult<PersonFilmographyConstraint?>(null)
+            : requestedPersonFilmographyResolver.TryResolveAsync(userMessage, searchLanguage, cancellationToken);
+
+        await Task.WhenAll(watchedMovieIdsTask, watchedTvShowIdsTask, personConstraintTask);
+
+        var watchedMovieIds = await watchedMovieIdsTask;
+        var watchedTvShowIds = await watchedTvShowIdsTask;
+        var personConstraint = await personConstraintTask;
         watchedIdsStopwatch.Stop();
 
         var accepted = new List<AiValidatedRecommendation>();
@@ -43,6 +54,13 @@ public sealed class AiMovieRecommendationValidator(
             {
                 rejectedCount++;
                 perfContext.RecordValidationResolutionFailureRejection();
+                continue;
+            }
+
+            if (personConstraint is not null && !personConstraint.Contains(resolved))
+            {
+                rejectedCount++;
+                perfContext.RecordValidationRequestedPersonCastRejection();
                 continue;
             }
 

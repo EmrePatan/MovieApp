@@ -89,6 +89,10 @@ public sealed class NullAiRecommendationPerfContext : IAiRecommendationPerfConte
     {
     }
 
+    public void RecordValidationRequestedPersonCastRejection()
+    {
+    }
+
     public void RecordTmdbResolutionCall()
     {
     }

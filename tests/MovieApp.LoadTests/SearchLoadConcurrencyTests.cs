@@ -698,4 +698,10 @@ internal sealed class LoadTestSummaryLocalizationOverlayService : ISummaryLocali
         string contentLocale,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(canonical);
+
+    public Task<IReadOnlyList<MovieApp.Application.Models.AiRecommendations.AiValidatedRecommendation>> ApplyToAiValidatedRecommendationsAsync(
+        IReadOnlyList<MovieApp.Application.Models.AiRecommendations.AiValidatedRecommendation> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(canonical);
 }

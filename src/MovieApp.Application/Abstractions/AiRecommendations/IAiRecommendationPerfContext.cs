@@ -48,6 +48,8 @@ public interface IAiRecommendationPerfContext
 
     void RecordValidationYearRejection();
 
+    void RecordValidationRequestedPersonCastRejection();
+
     void RecordTmdbResolutionCall();
 
     void RecordSessionSaveMs(long milliseconds);

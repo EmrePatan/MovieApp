@@ -214,6 +214,11 @@ public sealed class SearchService(
             return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
         }
 
+        var localizedProviderResult = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+            ingestionResult.Result,
+            contentLocale,
+            cancellationToken);
+
         var normalizedQuery = GetNormalizedQuery(criteria);
         if (normalizedQuery is not null)
         {
@@ -227,11 +232,11 @@ public sealed class SearchService(
 
         await cacheService.SetAsync(
             cacheKey,
-            new UnifiedSearchCacheEntry { Result = ingestionResult.Result },
+            new UnifiedSearchCacheEntry { Result = localizedProviderResult },
             options.CacheDuration,
             cancellationToken);
 
-        return ingestionResult.Result;
+        return localizedProviderResult;
     }
 
     private async Task<PaginatedResult<SearchItem>> FallbackToDatabaseAsync(

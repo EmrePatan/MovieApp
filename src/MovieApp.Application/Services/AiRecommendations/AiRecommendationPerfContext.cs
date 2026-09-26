@@ -112,6 +112,9 @@ public sealed class AiRecommendationPerfContext : IAiRecommendationPerfContext
     public void RecordValidationYearRejection() =>
         Metrics.ValidationRejectedYear++;
 
+    public void RecordValidationRequestedPersonCastRejection() =>
+        Metrics.ValidationRejectedRequestedPersonCast++;
+
     public void RecordTmdbResolutionCall() =>
         Metrics.TmdbResolutionCalls++;
 

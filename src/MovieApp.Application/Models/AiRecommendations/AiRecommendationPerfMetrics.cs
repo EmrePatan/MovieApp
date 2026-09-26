@@ -68,6 +68,8 @@ public sealed class AiRecommendationPerfMetrics
 
     public int ValidationRejectedYear { get; set; }
 
+    public int ValidationRejectedRequestedPersonCast { get; set; }
+
     public int TmdbResolutionCalls { get; set; }
 
     public long SessionSaveMs { get; set; }

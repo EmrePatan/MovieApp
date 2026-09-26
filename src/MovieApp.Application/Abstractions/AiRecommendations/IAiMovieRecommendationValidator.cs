@@ -10,5 +10,6 @@ public interface IAiMovieRecommendationValidator
         AiRecommendationSessionState session,
         int maxReturnedCount,
         string? searchLanguage = null,
+        string? userMessage = null,
         CancellationToken cancellationToken = default);
 }

@@ -491,5 +491,64 @@ internal static class SearchTestDoubles
             string contentLocale,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<Application.Models.AiRecommendations.AiValidatedRecommendation>> ApplyToAiValidatedRecommendationsAsync(
+            IReadOnlyList<Application.Models.AiRecommendations.AiValidatedRecommendation> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+    }
+
+    internal sealed class RecordingSummaryLocalizationOverlayService : ISummaryLocalizationOverlayService
+    {
+        public int ApplyToSearchItemsCount { get; private set; }
+
+        public string? LastContentLocale { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+            PaginatedResult<SearchItem> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            ApplyToSearchItemsCount++;
+            LastContentLocale = contentLocale;
+            return Task.FromResult(canonical);
+        }
+
+        public Task<IReadOnlyList<SearchSuggestion>> ApplyToSearchSuggestionsAsync(
+            IReadOnlyList<SearchSuggestion> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<PaginatedResult<RecommendationItem>> ApplyToRecommendationItemsAsync(
+            PaginatedResult<RecommendationItem> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<HomeResult> ApplyToHomeResultAsync(
+            HomeResult canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<RecommendationSection>> ApplyToRecommendationSectionsAsync(
+            IReadOnlyList<RecommendationSection> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<CatalogUpcomingItemResult>> ApplyToUpcomingItemsAsync(
+            IReadOnlyList<CatalogUpcomingItemResult> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<Application.Models.AiRecommendations.AiValidatedRecommendation>> ApplyToAiValidatedRecommendationsAsync(
+            IReadOnlyList<Application.Models.AiRecommendations.AiValidatedRecommendation> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
     }
 }

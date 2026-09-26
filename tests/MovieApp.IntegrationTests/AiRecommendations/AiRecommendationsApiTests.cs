@@ -315,6 +315,7 @@ public sealed class AiRecommendationsWebApplicationFactory : WebApplicationFacto
             AiRecommendationSessionState session,
             int maxReturnedCount,
             string? searchLanguage = null,
+            string? userMessage = null,
             CancellationToken cancellationToken = default)
         {
             if (factory.ValidatorShouldThrow)

@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.AiRecommendations;
+using MovieApp.Application.Services.Localization;
 using Microsoft.Extensions.Options;
 
 namespace MovieApp.Application.Services.AiRecommendations;
@@ -15,6 +16,7 @@ public sealed class AiMovieRecommendationService(
     IAiRecommendationSessionStore sessionStore,
     IAiMovieRecommendationProvider provider,
     IAiMovieRecommendationValidator validator,
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     IOptions<AiRecommendationOptions> options,
     IAiRecommendationPerfContext perfContext,
     ILogger<AiMovieRecommendationService> logger) : IAiMovieRecommendationService
@@ -88,6 +90,7 @@ public sealed class AiMovieRecommendationService(
                     session,
                     settings.MaxReturnedCount,
                     responseLanguage,
+                    message,
                     cancellationToken);
 
                 UpdateSessionAfterValidation(session, message, validation.Recommendations);
@@ -117,6 +120,12 @@ public sealed class AiMovieRecommendationService(
                 completionIsAiGenerated = generationOutcome.IsAiGenerated;
                 completionReturnedCount = validation.ValidatedCount;
 
+                var localizedRecommendations =
+                    await summaryLocalizationOverlayService.ApplyToAiValidatedRecommendationsAsync(
+                        validation.Recommendations,
+                        responseLanguage,
+                        cancellationToken);
+
                 return new AiRecommendationServiceResult(
                     session.SessionId,
                     generationOutcome.IsAiGenerated,
@@ -124,7 +133,7 @@ public sealed class AiMovieRecommendationService(
                     settings.MaxReturnedCount,
                     validation.ValidatedCount,
                     quotaRemaining,
-                    validation.Recommendations,
+                    localizedRecommendations,
                     validation);
             }
             catch (AiRecommendationQuotaExceededException)

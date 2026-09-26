@@ -17,6 +17,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid> { _movie2 }, new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         var session = new AiRecommendationSessionState
@@ -68,6 +69,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
         var suggestions = new[]
         {
@@ -95,6 +97,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             new FakeIdentityResolver(),
             new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
@@ -115,6 +118,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
@@ -139,6 +143,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         const string reason = "Bensu Soral'ın başrolünde yer aldığı dizi.";
@@ -162,6 +167,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid> { _movie2 }, new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             perfContext);
 
         var session = new AiRecommendationSessionState
@@ -220,6 +226,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
@@ -260,6 +267,7 @@ public sealed class AiMovieRecommendationValidatorTests
             new FakeTasteDataSource(
                 new HashSet<Guid> { watchedMovieId },
                 new HashSet<Guid> { watchedTvShowId }),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
@@ -294,6 +302,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             tasteDataSource,
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         await validator.ValidateAsync(
@@ -303,7 +312,7 @@ public sealed class AiMovieRecommendationValidatorTests
             5,
             cancellationToken: CancellationToken.None);
 
-        Assert.Equal(1, tasteDataSource.MaxConcurrentCalls);
+        Assert.Equal(2, tasteDataSource.MaxConcurrentCalls);
         Assert.Equal(["GetWatchedMovieIdsAsync", "GetWatchedTvShowIdsAsync"], tasteDataSource.CallOrder);
     }
 
@@ -319,6 +328,7 @@ public sealed class AiMovieRecommendationValidatorTests
         var validator = new AiMovieRecommendationValidator(
             resolver,
             new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid> { tvShowId }),
+            NullPersonFilmographyResolver.Instance,
             NullAiRecommendationPerfContext.Instance);
 
         var result = await validator.ValidateAsync(
@@ -331,13 +341,56 @@ public sealed class AiMovieRecommendationValidatorTests
         Assert.Empty(result.Recommendations);
     }
 
+    [Fact]
+    public async Task ValidateAsyncRejectsResolvedTitleOutsideRequestedPersonFilmography()
+    {
+        var icindeTmdbId = 67750;
+        var fuoriTmdbId = 1310830;
+        var personConstraint = new PersonFilmographyConstraint(
+            1584271,
+            "Bensu Soral",
+            new HashSet<PersonFilmographyCreditKey>
+            {
+                new("tv", icindeTmdbId)
+            });
+
+        var resolver = new FakeIdentityResolver();
+        resolver.SetResolver(
+            "İçerde",
+            CreateContent("tv", Guid.NewGuid(), "İçerde", 2016, null, ["Drama"], icindeTmdbId));
+        resolver.SetResolver(
+            "Fuori",
+            CreateContent("movie", Guid.NewGuid(), "Fuori", 2025, 117, ["Drama"], fuoriTmdbId));
+
+        var validator = new AiMovieRecommendationValidator(
+            resolver,
+            new FakeTasteDataSource(new HashSet<Guid>(), new HashSet<Guid>()),
+            new FixedPersonFilmographyResolver(personConstraint),
+            NullAiRecommendationPerfContext.Instance);
+
+        var result = await validator.ValidateAsync(
+            Guid.NewGuid(),
+            [
+                new AiProviderSuggestion("İçerde", 2016, "tv", icindeTmdbId, "valid"),
+                new AiProviderSuggestion("Fuori", 2025, "movie", fuoriTmdbId, "invalid cast claim")
+            ],
+            new AiRecommendationSessionState { SessionId = Guid.NewGuid() },
+            5,
+            userMessage: "Bensu Soral dizisi veya filmini öner",
+            cancellationToken: CancellationToken.None);
+
+        Assert.Single(result.Recommendations);
+        Assert.Equal("İçerde", result.Recommendations[0].Movie.Title);
+        Assert.Equal(1, result.RejectedCount);
+    }
+
     private static ResolvedMovieIdentity CreateMovie(
         Guid id,
         string title,
         int year,
         int runtime,
         IReadOnlyList<string> genres) =>
-        CreateContent("movie", id, title, year, runtime, genres);
+        CreateContent("movie", id, title, year, runtime, genres, 100);
 
     private static ResolvedMovieIdentity CreateContent(
         string mediaType,
@@ -345,11 +398,12 @@ public sealed class AiMovieRecommendationValidatorTests
         string title,
         int year,
         int? runtime,
-        IReadOnlyList<string> genres) =>
+        IReadOnlyList<string> genres,
+        int? tmdbId = 100) =>
         new(
             mediaType,
             id,
-            100,
+            tmdbId,
             title,
             year,
             runtime,
@@ -445,5 +499,26 @@ public sealed class AiMovieRecommendationValidatorTests
             await Task.Delay(10, cancellationToken);
             Interlocked.Decrement(ref _activeCalls);
         }
+    }
+
+    private sealed class NullPersonFilmographyResolver : IAiRequestedPersonFilmographyResolver
+    {
+        public static NullPersonFilmographyResolver Instance { get; } = new();
+
+        public Task<PersonFilmographyConstraint?> TryResolveAsync(
+            string userMessage,
+            string? searchLanguage = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<PersonFilmographyConstraint?>(null);
+    }
+
+    private sealed class FixedPersonFilmographyResolver(PersonFilmographyConstraint? constraint)
+        : IAiRequestedPersonFilmographyResolver
+    {
+        public Task<PersonFilmographyConstraint?> TryResolveAsync(
+            string userMessage,
+            string? searchLanguage = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(constraint);
     }
 }

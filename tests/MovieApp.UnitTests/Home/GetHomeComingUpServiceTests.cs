@@ -128,6 +128,12 @@ public sealed class GetHomeComingUpServiceTests
             string contentLocale,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(canonical);
+
+        public Task<IReadOnlyList<Application.Models.AiRecommendations.AiValidatedRecommendation>> ApplyToAiValidatedRecommendationsAsync(
+            IReadOnlyList<Application.Models.AiRecommendations.AiValidatedRecommendation> canonical,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(canonical);
     }
 
     private sealed class FakeCurrentUser(bool isAuthenticated, Guid? userId) : ICurrentUser

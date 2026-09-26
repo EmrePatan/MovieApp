@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
@@ -35,6 +36,11 @@ public interface ISummaryLocalizationOverlayService
 
     Task<IReadOnlyList<CatalogUpcomingItemResult>> ApplyToUpcomingItemsAsync(
         IReadOnlyList<CatalogUpcomingItemResult> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AiValidatedRecommendation>> ApplyToAiValidatedRecommendationsAsync(
+        IReadOnlyList<AiValidatedRecommendation> canonical,
         string contentLocale,
         CancellationToken cancellationToken = default);
 }

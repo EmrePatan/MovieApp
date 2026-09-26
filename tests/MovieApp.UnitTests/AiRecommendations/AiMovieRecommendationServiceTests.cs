@@ -5,6 +5,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Application.Services.AiRecommendations;
+using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.AiRecommendations;
 
@@ -274,6 +275,7 @@ public sealed class AiMovieRecommendationServiceTests
             new FakeSessionStore(),
             provider,
             validator,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             Options.Create(new AiRecommendationOptions
             {
                 SuggestionCount = 10,
@@ -406,6 +408,7 @@ public sealed class AiMovieRecommendationServiceTests
             AiRecommendationSessionState session,
             int maxReturnedCount,
             string? searchLanguage = null,
+            string? userMessage = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(result ?? new AiValidationResult([], suggestions.Count, 0, suggestions.Count, false));
     }
@@ -418,6 +421,7 @@ public sealed class AiMovieRecommendationServiceTests
             AiRecommendationSessionState session,
             int maxReturnedCount,
             string? searchLanguage = null,
+            string? userMessage = null,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Validation failed.");
     }

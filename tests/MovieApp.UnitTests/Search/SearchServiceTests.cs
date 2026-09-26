@@ -74,6 +74,21 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
+    public async Task SearchAsyncAppliesLocalizationOverlayToProviderResults()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([], totalCount: 0);
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
+        var overlay = new SearchTestDoubles.RecordingSummaryLocalizationOverlayService();
+        var service = CreateService(repository, cache, providerIngestion, localizationOverlay: overlay);
+
+        await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(1, overlay.ApplyToSearchItemsCount);
+        Assert.Equal(ContentLocaleResolver.TurkishTurkey, overlay.LastContentLocale);
+    }
+
+    [Fact]
     public async Task SearchAsyncReturnsProviderResultsWhenDatabaseIsEmpty()
     {
         var cache = new FakeCacheService(null);
@@ -486,7 +501,8 @@ public sealed class SearchServiceTests
         SearchTestDoubles.FakeSearchProviderRefreshRepository? refreshRepository = null,
         ISearchRefreshLockService? lockService = null,
         ISearchRefreshCompletionSignal? completionSignal = null,
-        SearchOptions? options = null) =>
+        SearchOptions? options = null,
+        ISummaryLocalizationOverlayService? localizationOverlay = null) =>
         new(
             repository,
             new FakeSearchHistoryRepository(),
@@ -494,7 +510,7 @@ public sealed class SearchServiceTests
             new FakeCurrentUser(null),
             cache,
             providerIngestion,
-            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            localizationOverlay ?? new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             lockService ?? new SearchTestDoubles.InMemorySearchRefreshLockService(),
             completionSignal ?? SearchTestDoubles.CreateCompletionSignal(),
             SearchTestDoubles.CreateOptionsMonitor(options),

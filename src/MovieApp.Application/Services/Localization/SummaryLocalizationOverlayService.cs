@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
+using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Localization;
@@ -29,6 +30,23 @@ public sealed class SummaryLocalizationOverlayService(
             canonical.Items.Select(item => ApplyToSearchItemAsync(item, contentLocale, cancellationToken)));
 
         return canonical with { Items = localizedItems };
+    }
+
+    public async Task<IReadOnlyList<AiValidatedRecommendation>> ApplyToAiValidatedRecommendationsAsync(
+        IReadOnlyList<AiValidatedRecommendation> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || canonical.Count == 0)
+        {
+            return canonical;
+        }
+
+        var localizedRecommendations = await Task.WhenAll(
+            canonical.Select(recommendation =>
+                LocalizeAiValidatedRecommendationAsync(recommendation, contentLocale, cancellationToken)));
+
+        return localizedRecommendations;
     }
 
     public async Task<IReadOnlyList<SearchSuggestion>> ApplyToSearchSuggestionsAsync(
@@ -258,6 +276,34 @@ public sealed class SummaryLocalizationOverlayService(
         }
 
         return item;
+    }
+
+    private async Task<AiValidatedRecommendation> LocalizeAiValidatedRecommendationAsync(
+        AiValidatedRecommendation recommendation,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (recommendation.Movie.TmdbId is not int tmdbId || tmdbId <= 0)
+        {
+            return recommendation;
+        }
+
+        var localizedFields = await ResolveLocalizedFieldsAsync(
+            recommendation.Movie.MediaType,
+            tmdbId,
+            recommendation.Movie.Title,
+            recommendation.Movie.Overview,
+            contentLocale,
+            cancellationToken);
+
+        return recommendation with
+        {
+            Movie = recommendation.Movie with
+            {
+                Title = localizedFields.Title,
+                Overview = localizedFields.Overview
+            }
+        };
     }
 
     private async Task<SearchItem> ApplyToSearchItemAsync(

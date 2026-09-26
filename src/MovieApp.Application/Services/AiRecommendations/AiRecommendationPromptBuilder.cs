@@ -29,6 +29,8 @@ public static class AiRecommendationPromptBuilder
                 Write every reason in {writeReasonsIn}.
                 Reasons must be short, user-facing, and based only on supplied taste and request information.
                 Do not invent claims about the user.
+                When the user asks for a specific actor or cast member, suggest only movies or TV series that person actually appeared in.
+                Do not attribute cast membership you are not confident about.
                 Include tmdbId whenever you are confident it matches the suggested title and year.
                 """;
     }

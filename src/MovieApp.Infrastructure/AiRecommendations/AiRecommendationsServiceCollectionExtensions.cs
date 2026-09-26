@@ -19,6 +19,7 @@ public static class AiRecommendationsServiceCollectionExtensions
         services.AddScoped<IAiTasteProfileDataSource, AiTasteProfileDataSource>();
         services.AddScoped<IAiTasteProfileBuilder, AiTasteProfileBuilder>();
         services.AddScoped<IAiRecommendationTmdbSearch, AiRecommendationTmdbSearch>();
+        services.AddScoped<IAiRequestedPersonFilmographyResolver, AiRequestedPersonFilmographyResolver>();
         services.AddScoped<IMovieIdentityResolver, AiMovieIdentityResolver>();
         services.AddScoped<IAiMovieRecommendationValidator, AiMovieRecommendationValidator>();
         services.AddScoped<IAiMovieRecommendationService, AiMovieRecommendationService>();
