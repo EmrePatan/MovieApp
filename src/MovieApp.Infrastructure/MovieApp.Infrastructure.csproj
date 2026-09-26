@@ -38,6 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MovieApp.Api" />
     <InternalsVisibleTo Include="MovieApp.UnitTests" />
     <InternalsVisibleTo Include="MovieApp.IntegrationTests" />
   </ItemGroup>

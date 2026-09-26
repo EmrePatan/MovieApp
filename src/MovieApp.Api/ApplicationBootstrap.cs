@@ -79,6 +79,7 @@ public static class ApplicationBootstrap
         app.UseConfiguredCors();
         app.UseEmailAssetStaticFiles(app.Environment);
         app.UseMiddleware<WatchHistoryMutationHttpTimingMiddleware>();
+        app.UseMiddleware<HomeColdPerfMiddleware>();
         app.UseAuthentication();
         app.UseRateLimiter();
         app.UseAuthorization();

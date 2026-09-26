@@ -21,6 +21,7 @@ using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.MdbList;
 using MovieApp.Infrastructure.AiRecommendations;
 using MovieApp.Infrastructure.Providers.AzureTranslator;
+using MovieApp.Infrastructure.Performance;
 using MovieApp.Infrastructure.RateLimiting;
 using StackExchange.Redis;
 
@@ -172,16 +173,24 @@ public static class DependencyInjection
 
 
 
-        services.AddDbContext<ApplicationDbContext>(options =>
+        services.AddSingleton<HomeColdPerfDbTelemetryInterceptor>();
+        services.AddSingleton<HomeColdPerfConnectionInterceptor>();
 
+        services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
             options.UseNpgsql(
-                postgreSqlConnectionString,
-                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3)));
+                    postgreSqlConnectionString,
+                    npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
+                .AddInterceptors(
+                    serviceProvider.GetRequiredService<HomeColdPerfDbTelemetryInterceptor>(),
+                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>()));
 
-        services.AddDbContextFactory<ApplicationDbContext>(options =>
+        services.AddDbContextFactory<ApplicationDbContext>((serviceProvider, options) =>
             options.UseNpgsql(
-                postgreSqlConnectionString,
-                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3)));
+                    postgreSqlConnectionString,
+                    npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
+                .AddInterceptors(
+                    serviceProvider.GetRequiredService<HomeColdPerfDbTelemetryInterceptor>(),
+                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>()));
 
 
 
