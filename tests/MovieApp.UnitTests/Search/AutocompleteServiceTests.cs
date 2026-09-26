@@ -92,7 +92,7 @@ public sealed class AutocompleteServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.GetSuggestionsAsync("jimmy", ContentLocaleResolver.EnglishUnitedStates, cts.Token));
 
-        Assert.Equal(0, repository.AutocompleteCount);
+        Assert.Equal(1, repository.AutocompleteCount);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class AutocompleteServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.GetSuggestionsAsync("jimmy", ContentLocaleResolver.EnglishUnitedStates, cts.Token));
 
-        Assert.Equal(0, repository.AutocompleteCount);
+        Assert.Equal(1, repository.AutocompleteCount);
         Assert.Empty(logger.WarningMessages);
     }
 
@@ -141,6 +141,30 @@ public sealed class AutocompleteServiceTests
 
         Assert.Single(result);
         Assert.Equal(1, repository.AutocompleteCount);
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsyncMergesLocalSuggestionsWhenProviderReturnsEmpty()
+    {
+        var localId = Guid.NewGuid();
+        var repository = new FakeSearchRepository(
+        [
+            new SearchSuggestion(localId, "movie", "Dönersen ıslık", null),
+        ]);
+        var provider = new FakeProviderIngestionService { ReturnEmpty = true };
+        var service = new AutocompleteService(
+            repository,
+            provider,
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            new FakeCacheService(null),
+            NullLogger<AutocompleteService>.Instance);
+
+        var result = await service.GetSuggestionsAsync("dönersen ıs", ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Single(result);
+        Assert.Equal(localId, result[0].Id);
+        Assert.Equal(1, repository.AutocompleteCount);
+        Assert.Equal(1, provider.AutocompleteCount);
     }
 
     [Fact]
@@ -229,6 +253,8 @@ public sealed class AutocompleteServiceTests
 
         public bool ThrowTimeout { get; set; }
 
+        public bool ReturnEmpty { get; set; }
+
         public Task<UnifiedSearchProviderIngestionResult> IngestAsync(
             SearchCriteria criteria,
             string contentLocale,
@@ -256,6 +282,11 @@ public sealed class AutocompleteServiceTests
             if (ThrowOnAutocomplete)
             {
                 throw new InvalidOperationException("provider unavailable");
+            }
+
+            if (ReturnEmpty)
+            {
+                return Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
             }
 
             return Task.FromResult<IReadOnlyList<SearchSuggestion>>(

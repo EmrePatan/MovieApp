@@ -37,15 +37,29 @@ public sealed class AutocompleteService(
             return cachedEntry.Items;
         }
 
+        var localTask = searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+
         try
         {
-            var items = await providerIngestionService.GetAutocompleteSuggestionsAsync(
+            var providerTask = providerIngestionService.GetAutocompleteSuggestionsAsync(
                 query,
                 MaxSuggestions,
                 contentLocale,
                 cancellationToken);
 
+            await Task.WhenAll(providerTask, localTask);
+
             cancellationToken.ThrowIfCancellationRequested();
+
+            var merged = AutocompleteSuggestionMerger.Merge(
+                await providerTask,
+                await localTask,
+                MaxSuggestions);
+
+            var items = await summaryLocalizationOverlayService.ApplyToSearchSuggestionsAsync(
+                merged,
+                contentLocale,
+                cancellationToken);
 
             await cacheService.SetAsync(
                 cacheKey,
@@ -63,7 +77,16 @@ public sealed class AutocompleteService(
         {
             AutocompleteServiceLogMessages.LogDbFallback(logger, query, exception);
 
-            var fallbackItems = await searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+            IReadOnlyList<SearchSuggestion> fallbackItems;
+            if (localTask.IsCompletedSuccessfully)
+            {
+                fallbackItems = await localTask;
+            }
+            else
+            {
+                fallbackItems = await searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+            }
+
             return await summaryLocalizationOverlayService.ApplyToSearchSuggestionsAsync(
                 fallbackItems,
                 contentLocale,
