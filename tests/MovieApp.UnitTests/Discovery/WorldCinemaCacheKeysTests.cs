@@ -28,6 +28,6 @@ public sealed class WorldCinemaCacheKeysTests
         Assert.NotEqual(movieKr, movieKrRated);
         Assert.Contains("discovery-world-cinema", movieKr);
         Assert.Contains("KR", movieKr);
-        Assert.EndsWith(":v3", movieKr);
+        Assert.EndsWith(":v4", movieKr);
     }
 }

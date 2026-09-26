@@ -15,8 +15,8 @@ public sealed class WorldCinemaService(
     ICacheService cacheService) : IWorldCinemaService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
-    private const int TopRatedMovieMinimumVoteCount = 200;
-    private const int TopRatedTvMinimumVoteCount = 100;
+    private const int TopRatedMovieMinimumVoteCount = 25;
+    private const int TopRatedTvMinimumVoteCount = 20;
 
     public async Task<PaginatedResult<SearchItem>> GetWorldCinemaAsync(
         WorldCinemaCriteria criteria,

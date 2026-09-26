@@ -4,9 +4,11 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
+using MovieApp.Infrastructure.Providers.Tmdb;
 
 namespace MovieApp.UnitTests.Discovery;
 
@@ -64,7 +66,7 @@ public sealed class WorldCinemaServiceTests
             new WorldCinemaCriteria(SearchContentType.Movie, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(200, advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(25, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Movie, advancedDiscover.LastCriteria?.MediaType);
     }
 
@@ -78,8 +80,21 @@ public sealed class WorldCinemaServiceTests
             new WorldCinemaCriteria(SearchContentType.Tv, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(100, advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(20, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Tv, advancedDiscover.LastCriteria?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetWorldCinemaAsyncDoesNotApplyVoteCountGuardrailForTvPopularitySort()
+    {
+        var advancedDiscover = new RecordingAdvancedDiscoverService();
+        var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
+
+        await service.GetWorldCinemaAsync(
+            new WorldCinemaCriteria(SearchContentType.Tv, "IR", AdvancedDiscoverSort.PopularityDesc, 1, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Null(advancedDiscover.LastCriteria?.MinVoteCount);
     }
 
     [Theory]
@@ -139,8 +154,8 @@ public sealed class WorldCinemaServiceTests
     }
 
     [Theory]
-    [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.RatingDesc, 200)]
-    [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.RatingDesc, 100)]
+    [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.RatingDesc, 25)]
+    [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.RatingDesc, 20)]
     [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.PopularityDesc, null)]
     [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.Newest, null)]
     public void ResolveTopRatedMinimumVoteCountReturnsExpectedThreshold(
@@ -150,6 +165,101 @@ public sealed class WorldCinemaServiceTests
     {
         Assert.Equal(expected, WorldCinemaService.ResolveTopRatedMinimumVoteCount(mediaType, sort));
     }
+
+    [Fact]
+    public void ToAdvancedDiscoverCriteriaIrMovieRatingDescPreservesOriginAndSort()
+    {
+        var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
+            new WorldCinemaCriteria(SearchContentType.Movie, "ir", AdvancedDiscoverSort.RatingDesc, 1, 20));
+
+        Assert.Equal("IR", mapped.OriginCountry);
+        Assert.Equal(25, mapped.MinVoteCount);
+        Assert.Equal(AdvancedDiscoverSort.RatingDesc, mapped.Sort);
+    }
+
+    [Fact]
+    public void ToAdvancedDiscoverCriteriaIrMovieRatingDescBuildsExpectedTmdbMovieQuery()
+    {
+        var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
+            new WorldCinemaCriteria(SearchContentType.Movie, "IR", AdvancedDiscoverSort.RatingDesc, 1, 20));
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(ToProviderCriteria(mapped));
+
+        Assert.Contains("with_origin_country=IR", query);
+        Assert.Contains("sort_by=vote_average.desc", query);
+        Assert.Contains("vote_count.gte=25", query);
+        Assert.Contains("include_adult=false", query);
+    }
+
+    [Fact]
+    public void ToAdvancedDiscoverCriteriaIrTvRatingDescBuildsExpectedTmdbTvQuery()
+    {
+        var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
+            new WorldCinemaCriteria(SearchContentType.Tv, "IR", AdvancedDiscoverSort.RatingDesc, 1, 20));
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(ToProviderCriteria(mapped));
+
+        Assert.Contains("with_origin_country=IR", query);
+        Assert.Contains("sort_by=vote_average.desc", query);
+        Assert.Contains("vote_count.gte=20", query);
+        Assert.Contains("include_adult=false", query);
+    }
+
+    [Fact]
+    public void AdvancedDiscoverRatingDescAloneDoesNotInjectWorldCinemaVoteThresholds()
+    {
+        var advancedDiscoverOnly = new AdvancedDiscoverCriteria(
+            SearchContentType.Movie,
+            [],
+            GenreMatchMode.All,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "IR",
+            null,
+            null,
+            [],
+            null,
+            [],
+            [],
+            AdvancedDiscoverSort.RatingDesc,
+            1,
+            20);
+
+        Assert.Null(advancedDiscoverOnly.MinVoteCount);
+
+        var fromWorldCinema = WorldCinemaService.ToAdvancedDiscoverCriteria(
+            new WorldCinemaCriteria(SearchContentType.Movie, "IR", AdvancedDiscoverSort.RatingDesc, 1, 20));
+
+        Assert.Equal(25, fromWorldCinema.MinVoteCount);
+    }
+
+    private static AdvancedDiscoverProviderCriteria ToProviderCriteria(AdvancedDiscoverCriteria criteria) =>
+        new(
+            criteria.Page,
+            [],
+            GenreMatchMode.All,
+            null,
+            null,
+            null,
+            null,
+            null,
+            criteria.MinVoteCount,
+            null,
+            null,
+            null,
+            criteria.OriginCountry,
+            null,
+            null,
+            [],
+            null,
+            [],
+            [],
+            criteria.Sort);
 
     private static WorldCinemaService CreateService(
         IAdvancedDiscoverService advancedDiscover,
