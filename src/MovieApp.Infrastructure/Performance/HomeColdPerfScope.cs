@@ -14,8 +14,6 @@ internal sealed class HomeColdPerfScope : IDisposable
 
     internal static HomeColdPerfMetrics? Current => Active.Value;
 
-    internal static HomeColdPerfScope Begin(string operation) => new HomeColdPerfScope(operation);
-
     public void Dispose()
     {
         if (Active.Value == _metrics)
@@ -25,6 +23,15 @@ internal sealed class HomeColdPerfScope : IDisposable
     }
 
     internal HomeColdPerfMetrics Metrics => _metrics;
+
+    internal string? CorrelationId { get; private set; }
+
+    internal static HomeColdPerfScope Begin(string operation, string? correlationId)
+    {
+        var scope = new HomeColdPerfScope(operation);
+        scope.CorrelationId = correlationId;
+        return scope;
+    }
 }
 
 internal sealed class HomeColdPerfMetrics(string operation)
@@ -66,5 +73,37 @@ internal sealed class HomeColdPerfMetrics(string operation)
     public void RecordConnectionOpen(long elapsedMs)
     {
         ConnectionOpenMs += elapsedMs;
+    }
+
+    public int RedisGetCount { get; private set; }
+
+    public long RedisGetTransportMs { get; private set; }
+
+    public long RedisDeserializeMs { get; private set; }
+
+    public int RedisSetCount { get; private set; }
+
+    public long RedisSetTransportMs { get; private set; }
+
+    public long RedisSerializeMs { get; private set; }
+
+    public long RedisMaxSingleGetTransportMs { get; private set; }
+
+    public void RecordRedisGet(long transportMs, long deserializeMs)
+    {
+        RedisGetCount++;
+        RedisGetTransportMs += transportMs;
+        RedisDeserializeMs += deserializeMs;
+        if (transportMs > RedisMaxSingleGetTransportMs)
+        {
+            RedisMaxSingleGetTransportMs = transportMs;
+        }
+    }
+
+    public void RecordRedisSet(long serializeMs, long transportMs)
+    {
+        RedisSetCount++;
+        RedisSerializeMs += serializeMs;
+        RedisSetTransportMs += transportMs;
     }
 }

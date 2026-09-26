@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Infrastructure.Configuration;
+using MovieApp.Infrastructure.Performance;
 
 namespace MovieApp.Infrastructure.Caching;
 
@@ -24,14 +26,23 @@ public sealed class RedisCacheService(
 
         try
         {
+            var transportStopwatch = Stopwatch.StartNew();
             var cachedValue = await distributedCache.GetStringAsync(cacheKey, cancellationToken);
+            transportStopwatch.Stop();
 
             if (string.IsNullOrWhiteSpace(cachedValue))
             {
+                HomeColdPerfScope.Current?.RecordRedisGet(transportStopwatch.ElapsedMilliseconds, 0);
                 return null;
             }
 
-            return JsonSerializer.Deserialize<T>(cachedValue, SerializerOptions);
+            var deserializeStopwatch = Stopwatch.StartNew();
+            var result = JsonSerializer.Deserialize<T>(cachedValue, SerializerOptions);
+            deserializeStopwatch.Stop();
+            HomeColdPerfScope.Current?.RecordRedisGet(
+                transportStopwatch.ElapsedMilliseconds,
+                deserializeStopwatch.ElapsedMilliseconds);
+            return result;
         }
         catch (Exception exception) when (_useRedisBackend && RedisCacheExceptionClassifier.IsRedisInfrastructureFailure(exception))
         {
@@ -48,7 +59,9 @@ public sealed class RedisCacheService(
         where T : class
     {
         var cacheKey = BuildCacheKey(key);
+        var serializeStopwatch = Stopwatch.StartNew();
         var serializedValue = JsonSerializer.Serialize(value, SerializerOptions);
+        serializeStopwatch.Stop();
 
         var options = new DistributedCacheEntryOptions();
 
@@ -59,7 +72,12 @@ public sealed class RedisCacheService(
 
         try
         {
+            var transportStopwatch = Stopwatch.StartNew();
             await distributedCache.SetStringAsync(cacheKey, serializedValue, options, cancellationToken);
+            transportStopwatch.Stop();
+            HomeColdPerfScope.Current?.RecordRedisSet(
+                serializeStopwatch.ElapsedMilliseconds,
+                transportStopwatch.ElapsedMilliseconds);
         }
         catch (Exception exception) when (_useRedisBackend && RedisCacheExceptionClassifier.IsRedisInfrastructureFailure(exception))
         {
