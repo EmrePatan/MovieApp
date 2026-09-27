@@ -42,6 +42,13 @@ public static class LocalizedDisplayTitleSelector
             return canonical;
         }
 
+        if (ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
+                originalLanguage,
+                ContentLocaleResolver.EnglishUnitedStates))
+        {
+            return canonical;
+        }
+
         if (!string.IsNullOrEmpty(original))
         {
             return original;

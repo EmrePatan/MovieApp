@@ -83,4 +83,18 @@ public sealed class LocalizedDisplayTitleSelectorTests
 
         Assert.Equal("Family Guy", title);
     }
+
+    [Fact]
+    public void TurkishLocale_EnglishOriginalLanguage_PrefersCanonicalTitleWhenOriginalTitleIsLocalized()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Thor: Love and Thunder",
+            "Thor: Aşk ve Gök Gürültüsü",
+            "en",
+            "Thor: Aşk ve Gök Gürültüsü",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Thor: Love and Thunder", titles.Title);
+        Assert.Equal("Thor: Aşk ve Gök Gürültüsü", titles.OriginalTitle);
+    }
 }
