@@ -55,14 +55,17 @@ public sealed class DetailLocalizationOverlayService(
             };
         }
 
+        var displayTitles = ChooseDisplayTitles(
+            canonical.Title,
+            canonical.OriginalTitle,
+            canonical.OriginalLanguage,
+            overlay.Title,
+            contentLocale);
+
         return canonical with
         {
-            Title = ChooseDisplayTitle(
-                canonical.Title,
-                canonical.OriginalTitle,
-                canonical.OriginalLanguage,
-                overlay.Title,
-                contentLocale),
+            Title = displayTitles.Title,
+            OriginalTitle = displayTitles.OriginalTitle,
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
             Collection = collection
         };
@@ -122,14 +125,17 @@ public sealed class DetailLocalizationOverlayService(
             })
             .ToList();
 
+        var displayTitles = ChooseDisplayTitles(
+            canonical.Title,
+            canonical.OriginalTitle,
+            canonical.OriginalLanguage,
+            overlay.Title,
+            contentLocale);
+
         return canonical with
         {
-            Title = ChooseDisplayTitle(
-                canonical.Title,
-                canonical.OriginalTitle,
-                canonical.OriginalLanguage,
-                overlay.Title,
-                contentLocale),
+            Title = displayTitles.Title,
+            OriginalTitle = displayTitles.OriginalTitle,
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
             Status = LocalizationFieldFallback.Choose(canonical.Status, overlay.Status),
             Seasons = seasons
@@ -415,7 +421,22 @@ public sealed class DetailLocalizationOverlayService(
         string? contentLocale) =>
         contentLocale is null
             ? LocalizationFieldFallback.Choose(canonicalTitle, localizedTitle)
-            : LocalizedDisplayTitleSelector.Choose(
+            : LocalizedDisplayTitleSelector.ChoosePrimary(
+                canonicalTitle,
+                originalTitle,
+                originalLanguage,
+                localizedTitle,
+                contentLocale);
+
+    private static (string Title, string? OriginalTitle) ChooseDisplayTitles(
+        string canonicalTitle,
+        string? originalTitle,
+        string? originalLanguage,
+        string? localizedTitle,
+        string? contentLocale) =>
+        contentLocale is null
+            ? (LocalizationFieldFallback.Choose(canonicalTitle, localizedTitle), originalTitle)
+            : LocalizedDisplayTitleSelector.ChooseDisplayTitles(
                 canonicalTitle,
                 originalTitle,
                 originalLanguage,

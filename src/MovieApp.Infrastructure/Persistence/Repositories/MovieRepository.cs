@@ -79,6 +79,24 @@ public sealed class MovieRepository(
             .ToDictionary(movie => movie.Id, movie => movie.TmdbId!.Value);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, string?>();
+        }
+
+        var movies = await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => ids.Contains(movie.Id))
+            .Select(movie => new { movie.Id, movie.OriginalLanguage })
+            .ToListAsync(cancellationToken);
+
+        return movies.ToDictionary(movie => movie.Id, movie => movie.OriginalLanguage);
+    }
+
     public async Task<Movie> UpsertFromProviderAsync(
         MovieProviderDetails details,
         CancellationToken cancellationToken = default)

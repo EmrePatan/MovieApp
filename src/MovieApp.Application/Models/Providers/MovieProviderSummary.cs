@@ -12,4 +12,5 @@ public sealed record MovieProviderSummary(
     decimal VoteAverage,
     int VoteCount,
     string? OriginalTitle = null,
-    decimal Popularity = 0);
+    decimal Popularity = 0,
+    string? OriginalLanguage = null);

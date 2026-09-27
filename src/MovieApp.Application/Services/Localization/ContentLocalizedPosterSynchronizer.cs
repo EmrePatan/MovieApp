@@ -12,6 +12,7 @@ public sealed class ContentLocalizedPosterSynchronizer(
         Guid contentId,
         string? canonicalPosterPath,
         IReadOnlyList<ProviderImageResult>? providerPosters,
+        string? originalLanguage = null,
         CancellationToken cancellationToken = default)
     {
         var utcNow = DateTime.UtcNow;
@@ -28,7 +29,11 @@ public sealed class ContentLocalizedPosterSynchronizer(
 
         foreach (var languageKey in SupportedArtworkLanguageKeys.ForProviderEnrichment)
         {
-            var selection = LocalizedPosterSelector.Select(providerPosters, languageKey, canonicalPosterPath);
+            var selection = LocalizedPosterSelector.Select(
+                providerPosters,
+                languageKey,
+                canonicalPosterPath,
+                originalLanguage);
             if (selection.ShouldPersist && !string.IsNullOrWhiteSpace(selection.PosterPath))
             {
                 await repository.UpsertAsync(

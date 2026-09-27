@@ -7,7 +7,7 @@ public sealed class LocalizedDisplayTitleSelectorTests
     [Fact]
     public void EnglishLocale_ReturnsCanonicalTitle()
     {
-        var title = LocalizedDisplayTitleSelector.Choose(
+        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
             "Flames of Fate",
             "Alev Alev",
             "tr",
@@ -18,65 +18,67 @@ public sealed class LocalizedDisplayTitleSelectorTests
     }
 
     [Fact]
-    public void TurkishLocale_PrefersLocalizedTitle_WhenDifferentFromCanonical()
+    public void TurkishLocale_TurkishProduction_UsesTurkishPrimaryAndEnglishSubtitle()
     {
-        var title = LocalizedDisplayTitleSelector.Choose(
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
             "Flames of Fate",
             "Alev Alev",
             "tr",
             "Alev Alev",
             ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal("Alev Alev", title);
+        Assert.Equal("Alev Alev", titles.Title);
+        Assert.Equal("Flames of Fate", titles.OriginalTitle);
     }
 
     [Fact]
-    public void TurkishLocale_PrefersOriginalTitle_WhenLocalizedMissingAndOriginalDiffers()
+    public void TurkishLocale_ForeignProduction_ShowsTurkishSubtitleWhenLocalizedTitleExists()
     {
-        var title = LocalizedDisplayTitleSelector.Choose(
-            "Flames of Fate",
-            "Alev Alev",
-            "tr",
-            localizedTitle: null,
-            ContentLocaleResolver.TurkishTurkey);
-
-        Assert.Equal("Alev Alev", title);
-    }
-
-    [Fact]
-    public void TurkishLocale_PrefersOriginalTitle_WhenLocalizedEqualsCanonical()
-    {
-        var title = LocalizedDisplayTitleSelector.Choose(
-            "Flames of Fate",
-            "Alev Alev",
-            "tr",
-            "Flames of Fate",
-            ContentLocaleResolver.TurkishTurkey);
-
-        Assert.Equal("Alev Alev", title);
-    }
-
-    [Fact]
-    public void TurkishLocale_FallsBackToCanonical_WhenNoLocalizedOrOriginalSignal()
-    {
-        var title = LocalizedDisplayTitleSelector.Choose(
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
             "Interstellar",
-            originalTitle: null,
-            originalLanguage: null,
-            localizedTitle: null,
+            "Interstellar",
+            "en",
+            "Yıldızlararası",
             ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal("Interstellar", title);
+        Assert.Equal("Interstellar", titles.Title);
+        Assert.Equal("Yıldızlararası", titles.OriginalTitle);
     }
 
     [Fact]
-    public void TurkishLocale_RetainsCanonicalEnglishOverviewFallbackSemantics_UnchangedForTitle()
+    public void TurkishLocale_ForeignProduction_IgnoresLocalizedTurkishTitle()
     {
-        var title = LocalizedDisplayTitleSelector.Choose(
-            "Family Guy",
-            "Family Guy",
+        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
+            "Resident Evil",
+            "Resident Evil",
             "en",
+            "Ölümcül Deney",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Resident Evil", title);
+    }
+
+    [Fact]
+    public void TurkishLocale_TurkishProduction_FallsBackToOriginalWhenLocalizedMissing()
+    {
+        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
+            "Flames of Fate",
+            "Alev Alev",
+            "tr",
             localizedTitle: null,
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Alev Alev", title);
+    }
+
+    [Fact]
+    public void TurkishLocale_ForeignProduction_FallsBackToCanonicalWhenOriginalMissing()
+    {
+        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
+            "Family Guy",
+            originalTitle: null,
+            originalLanguage: "en",
+            localizedTitle: "Family Guy TR",
             ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal("Family Guy", title);

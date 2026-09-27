@@ -141,7 +141,9 @@ public sealed class GetTvShowByIdService(
         var posterPath = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             result.PosterPath,
             key,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            result.OriginalLanguage);
 
         return result with { PosterPath = posterPath };
     }
@@ -195,6 +197,7 @@ public sealed class GetTvShowByIdService(
             tvShowId,
             providerDetails.PosterPath ?? canonicalPosterPath,
             providerDetails.ProviderPosters,
+            providerDetails.OriginalLanguage,
             cancellationToken);
     }
 }

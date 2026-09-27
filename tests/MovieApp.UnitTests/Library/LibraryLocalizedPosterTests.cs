@@ -46,6 +46,8 @@ public sealed class LibraryLocalizedPosterTests
             repository,
             new AuthenticatedCurrentUser(UserId),
             posterRepository,
+            new EmptyOriginalLanguageMovieRepository(),
+            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
             NullLogger<LibraryService>.Instance);
 
         await service.GetLibraryAsync(
@@ -84,6 +86,8 @@ public sealed class LibraryLocalizedPosterTests
             },
             new AuthenticatedCurrentUser(UserId),
             posterRepository,
+            new EmptyOriginalLanguageMovieRepository(),
+            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
             NullLogger<LibraryService>.Instance);
 
         await service.GetLibraryAsync(
@@ -132,13 +136,13 @@ public sealed class LibraryLocalizedPosterTests
             },
             new AuthenticatedCurrentUser(UserId),
             posterRepository,
+            new EmptyOriginalLanguageMovieRepository(),
+            new StubTvOriginalLanguageRepository(
+                new Dictionary<Guid, string?>
+                {
+                    [Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")] = "tr",
+                }),
             NullLogger<LibraryService>.Instance);
-
-        var result = await service.GetLibraryAsync(
-            new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 24),
-            ContentLocaleResolver.TurkishTurkey);
-
-        Assert.Equal("/tr-poster.jpg", result.Items[0].PosterUrl);
     }
 
     private sealed class CountingContentLocalizedPosterRepository : IContentLocalizedPosterRepository

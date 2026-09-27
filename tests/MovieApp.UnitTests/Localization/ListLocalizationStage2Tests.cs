@@ -120,7 +120,8 @@ public sealed class ListLocalizationStage2Tests
             canonical,
             ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal("Yıldızlararası", result.Items[0].Title);
+        Assert.Equal("Interstellar", result.Items[0].Title);
+        Assert.Equal("Yıldızlararası", result.Items[0].OriginalTitle);
         Assert.Equal("English overview", result.Items[0].Overview);
     }
 
@@ -141,7 +142,7 @@ public sealed class ListLocalizationStage2Tests
         var result = await service.ApplyToSearchItemsAsync(canonical, ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal(1, cache.GetCallCount);
-        Assert.Equal("Yıldızlararası", result.Items[0].Title);
+        Assert.Equal("Interstellar", result.Items[0].Title);
         Assert.Equal("Turkish overview", result.Items[0].Overview);
     }
 
@@ -175,8 +176,8 @@ public sealed class ListLocalizationStage2Tests
 
         var result = await service.ApplyToSearchItemsAsync(canonical, ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal("Bir", result.Items[0].Title);
-        Assert.Equal("İki", result.Items[1].Title);
+        Assert.Equal("One", result.Items[0].Title);
+        Assert.Equal("Two", result.Items[1].Title);
         Assert.True(cache.MaxInFlight >= 2);
     }
 
@@ -209,7 +210,8 @@ public sealed class ListLocalizationStage2Tests
             ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal(1, provider.MovieCalls);
-        Assert.Equal("Yıldızlararası", result.Items[0].Title);
+        Assert.Equal("Interstellar", result.Items[0].Title);
+        Assert.Equal("Yıldızlararası", result.Items[0].OriginalTitle);
         Assert.Equal("Turkish overview", result.Items[0].Overview);
     }
 
@@ -243,7 +245,7 @@ public sealed class ListLocalizationStage2Tests
 
         Assert.True(result.IsFullySuccessful);
         Assert.NotNull(result.Result);
-        Assert.Equal("Yıldızlararası", result.Result!.Items[0].Title);
+        Assert.Equal("Interstellar", result.Result!.Items[0].Title);
         Assert.Single(movieRepository.IngestedTitles);
         Assert.Equal("Interstellar", movieRepository.IngestedTitles[0]);
     }
@@ -411,6 +413,12 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
+        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+            IReadOnlyList<Guid> ids,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
+                ids.ToDictionary(id => id, static _ => (string?)"en"));
+
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<MovieProviderSummary> summaries,
             CancellationToken cancellationToken = default) =>
@@ -439,6 +447,12 @@ public sealed class ListLocalizationStage2Tests
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
+
+        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+            IReadOnlyList<Guid> ids,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
+                ids.ToDictionary(id => id, static _ => (string?)"en"));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<TvShowProviderSummary> summaries,
@@ -470,6 +484,12 @@ public sealed class ListLocalizationStage2Tests
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
+
+        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+            IReadOnlyList<Guid> ids,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
+                ids.ToDictionary(id => id, static _ => (string?)"en"));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<MovieProviderSummary> summaries,
@@ -506,6 +526,12 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
+        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+            IReadOnlyList<Guid> ids,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
+                ids.ToDictionary(id => id, static _ => (string?)"en"));
+
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<MovieProviderSummary> summaries,
             CancellationToken cancellationToken = default) =>
@@ -537,6 +563,12 @@ public sealed class ListLocalizationStage2Tests
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
+
+        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+            IReadOnlyList<Guid> ids,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
+                ids.ToDictionary(id => id, static _ => (string?)"en"));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<TvShowProviderSummary> summaries,

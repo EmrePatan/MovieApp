@@ -19,6 +19,8 @@ internal sealed class TmdbMovieSearchResultJson
 
     public string? OriginalTitle { get; set; }
 
+    public string? OriginalLanguage { get; set; }
+
     public string? Overview { get; set; }
 
     public string? ReleaseDate { get; set; }

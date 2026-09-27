@@ -45,8 +45,8 @@ public sealed class DetailLocalizationOverlayServiceTests
             canonical,
             ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal("Yıldızlararası", result.Title);
-        Assert.Equal("Interstellar", result.OriginalTitle);
+        Assert.Equal("Interstellar", result.Title);
+        Assert.Equal("Yıldızlararası", result.OriginalTitle);
         Assert.Equal("English overview", result.Overview);
         Assert.Equal(1, provider.MovieCalls);
         Assert.Contains(
@@ -155,7 +155,7 @@ public sealed class DetailLocalizationOverlayServiceTests
             ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal("Alev Alev", result.Title);
-        Assert.Equal("Alev Alev", result.OriginalTitle);
+        Assert.Equal("Flames of Fate", result.OriginalTitle);
         Assert.Equal("Turkish overview from overlay", result.Overview);
     }
 

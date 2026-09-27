@@ -7,6 +7,14 @@ public static class LocalizedDisplayTitleSelector
         string? originalTitle,
         string? originalLanguage,
         string? localizedTitle,
+        string contentLocale) =>
+        ChoosePrimary(canonicalTitle, originalTitle, originalLanguage, localizedTitle, contentLocale);
+
+    public static string ChoosePrimary(
+        string canonicalTitle,
+        string? originalTitle,
+        string? originalLanguage,
+        string? localizedTitle,
         string contentLocale)
     {
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
@@ -18,62 +26,97 @@ public static class LocalizedDisplayTitleSelector
         var original = TrimOptional(originalTitle);
         var localized = TrimOptional(localizedTitle);
 
-        if (!string.IsNullOrEmpty(localized) &&
-            !string.Equals(localized, canonical, StringComparison.OrdinalIgnoreCase))
+        if (IsTurkishProduction(originalLanguage))
         {
-            return localized;
-        }
+            if (!string.IsNullOrEmpty(localized) &&
+                !string.Equals(localized, canonical, StringComparison.OrdinalIgnoreCase))
+            {
+                return localized;
+            }
 
-        if (ShouldPreferOriginalTitle(canonical, original, localized, originalLanguage, contentLocale))
-        {
-            return original!;
-        }
+            if (!string.IsNullOrEmpty(original))
+            {
+                return original;
+            }
 
-        if (!string.IsNullOrEmpty(localized))
-        {
-            return localized;
-        }
-
-        if (!string.IsNullOrEmpty(canonical))
-        {
             return canonical;
         }
 
-        return original ?? string.Empty;
+        if (!string.IsNullOrEmpty(original))
+        {
+            return original;
+        }
+
+        return canonical;
     }
 
-    private static bool ShouldPreferOriginalTitle(
-        string canonical,
-        string? original,
-        string? localized,
+    /// <summary>
+    /// Secondary line under the primary title in tr-TR: export English for Turkish productions,
+    /// TMDB Turkish title for imported titles when available.
+    /// </summary>
+    public static string? ChooseSubtitle(
+        string primaryTitle,
+        string canonicalTitle,
         string? originalLanguage,
+        string? localizedTitle,
         string contentLocale)
     {
-        if (string.IsNullOrEmpty(original))
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
-            return false;
+            return null;
         }
 
-        if (string.Equals(original, canonical, StringComparison.OrdinalIgnoreCase))
+        if (IsTurkishProduction(originalLanguage))
         {
-            return false;
+            var exportTitle = TrimOptional(canonicalTitle);
+            if (string.IsNullOrEmpty(exportTitle) ||
+                string.Equals(exportTitle, primaryTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return exportTitle;
         }
 
-        var localizedIneffective = string.IsNullOrEmpty(localized) ||
-            string.Equals(localized, canonical, StringComparison.OrdinalIgnoreCase);
-
-        if (!localizedIneffective)
+        var turkishTitle = TrimOptional(localizedTitle);
+        if (string.IsNullOrEmpty(turkishTitle) ||
+            string.Equals(turkishTitle, primaryTitle, StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return null;
         }
 
-        if (ContentLocaleLanguageMatcher.MatchesOriginalLanguage(originalLanguage, contentLocale))
-        {
-            return true;
-        }
-
-        return originalLanguage is null;
+        return turkishTitle;
     }
+
+    public static (string Title, string? OriginalTitle) ChooseDisplayTitles(
+        string canonicalTitle,
+        string? originalTitle,
+        string? originalLanguage,
+        string? localizedTitle,
+        string contentLocale)
+    {
+        var primary = ChoosePrimary(
+            canonicalTitle,
+            originalTitle,
+            originalLanguage,
+            localizedTitle,
+            contentLocale);
+        var subtitle = ChooseSubtitle(
+            primary,
+            canonicalTitle,
+            originalLanguage,
+            localizedTitle,
+            contentLocale);
+
+        return subtitle is not null
+            ? (primary, subtitle)
+            : (primary, originalTitle);
+    }
+
+    internal static bool IsTurkishProduction(string? originalLanguage) =>
+        ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
+            originalLanguage,
+            ContentLocaleResolver.TurkishTurkey);
 
     private static string TrimRequired(string value) => value.Trim();
 

@@ -108,6 +108,24 @@ public sealed class TvShowRepository(
             .ToDictionary(tvShow => tvShow.Id, tvShow => tvShow.TmdbId!.Value);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, string?>();
+        }
+
+        var tvShows = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => ids.Contains(tvShow.Id))
+            .Select(tvShow => new { tvShow.Id, tvShow.OriginalLanguage })
+            .ToListAsync(cancellationToken);
+
+        return tvShows.ToDictionary(tvShow => tvShow.Id, tvShow => tvShow.OriginalLanguage);
+    }
+
     public async Task<TvShow> UpsertFromProviderAsync(
         TvShowProviderDetails details,
         CancellationToken cancellationToken = default)

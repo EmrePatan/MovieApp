@@ -41,6 +41,11 @@ public interface IMovieRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
         IReadOnlyList<int> tmdbIds,
         CancellationToken cancellationToken = default) =>

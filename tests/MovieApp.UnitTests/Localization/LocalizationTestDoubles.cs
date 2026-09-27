@@ -1,5 +1,7 @@
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Images;
+using MovieApp.Application.Models.Providers;
+using MovieApp.Domain.Entities;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Enums;
 
@@ -88,6 +90,56 @@ public sealed class NoOpContentLocalizedPosterSynchronizer : IContentLocalizedPo
         Guid contentId,
         string? canonicalPosterPath,
         IReadOnlyList<ProviderImageResult>? providerPosters,
+        string? originalLanguage = null,
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
+}
+
+public sealed class EmptyOriginalLanguageMovieRepository : IMovieRepository
+{
+    public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, string?>>(new Dictionary<Guid, string?>());
+
+    public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<Movie> UpsertFromProviderAsync(
+        MovieProviderDetails details,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
+
+public sealed class StubTvOriginalLanguageRepository(IReadOnlyDictionary<Guid, string?> languages) : ITvShowRepository
+{
+    public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<Guid, string?>();
+        foreach (var id in ids)
+        {
+            if (languages.TryGetValue(id, out var language))
+            {
+                result[id] = language;
+            }
+        }
+
+        return Task.FromResult<IReadOnlyDictionary<Guid, string?>>(result);
+    }
+
+    public Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<TvShow> UpsertFromProviderAsync(
+        TvShowProviderDetails details,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

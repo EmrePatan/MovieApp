@@ -9,16 +9,44 @@ public sealed class LocalizedPosterSelectorTests
     private const string TurkishPoster = "/tr-alev-alev.jpg";
     private const string NeutralPoster = "/neutral.jpg";
     private const string FrenchPoster = "/fr.jpg";
+    private const string TurkishFanPoster = "/tr-fan.jpg";
 
     [Fact]
-    public void SelectPrefersTurkishPosterForAlevAlevScenario()
+    public void SelectPrefersTurkishPosterForTurkishOriginal()
     {
         var posters = CreateAlevAlevPosters();
 
-        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster);
+        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster, originalLanguage: "tr");
 
         Assert.True(selection.ShouldPersist);
         Assert.Equal(TurkishPoster, selection.PosterPath);
+    }
+
+    [Fact]
+    public void SelectKeepsCanonicalPosterForImportedTitleWithTurkishArtwork()
+    {
+        var posters = new List<ProviderImageResult>
+        {
+            CreatePoster(CanonicalEnglishPoster, "en", 8m, 100),
+            CreatePoster(TurkishFanPoster, "tr", 9m, 200),
+        };
+
+        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster, originalLanguage: "en");
+
+        Assert.False(selection.ShouldPersist);
+        Assert.Equal(CanonicalEnglishPoster, selection.PosterPath);
+    }
+
+    [Fact]
+    public void ShouldUseStoredLocalizedPoster_ReturnsFalseForImportedTitleWithDifferentArtwork()
+    {
+        var useLocalized = LocalizedPosterSelector.ShouldUseStoredLocalizedPoster(
+            CanonicalEnglishPoster,
+            TurkishFanPoster,
+            ContentLocaleResolver.TurkishTurkey,
+            originalLanguage: "en");
+
+        Assert.False(useLocalized);
     }
 
     [Fact]
@@ -41,7 +69,7 @@ public sealed class LocalizedPosterSelectorTests
             CreatePoster(NeutralPoster, null, 7m, 50),
         };
 
-        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster);
+        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster, originalLanguage: "tr");
 
         Assert.True(selection.ShouldPersist);
         Assert.Equal(NeutralPoster, selection.PosterPath);
@@ -56,7 +84,7 @@ public sealed class LocalizedPosterSelectorTests
             CreatePoster(CanonicalEnglishPoster, "en", 8m, 100),
         };
 
-        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster);
+        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster, originalLanguage: "en");
 
         Assert.False(selection.ShouldPersist);
         Assert.Equal(CanonicalEnglishPoster, selection.PosterPath);
@@ -71,7 +99,7 @@ public sealed class LocalizedPosterSelectorTests
             CreatePoster(TurkishPoster, "tr", 8m, 20),
         };
 
-        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster);
+        var selection = LocalizedPosterSelector.Select(posters, "tr", CanonicalEnglishPoster, originalLanguage: "tr");
 
         Assert.Equal(TurkishPoster, selection.PosterPath);
     }

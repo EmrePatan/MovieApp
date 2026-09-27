@@ -1,0 +1,123 @@
+using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
+
+namespace MovieApp.Application.Services.Search;
+
+internal static class LocalizedCatalogDisplayPolicy
+{
+    internal static PaginatedResult<SearchItem> ApplyToSearchResults(
+        PaginatedResult<SearchItem> page,
+        string contentLocale,
+        MovieProviderSearchResult? localizedMovies,
+        MovieProviderSearchResult? canonicalMovies,
+        TvShowProviderSearchResult? localizedTv,
+        TvShowProviderSearchResult? canonicalTv)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || page.Items.Count == 0)
+        {
+            return page;
+        }
+
+        var canonicalMovieLookup = BuildMovieLookup(canonicalMovies);
+        var localizedMovieLookup = BuildMovieLookup(localizedMovies);
+        var canonicalTvLookup = BuildTvLookup(canonicalTv);
+        var localizedTvLookup = BuildTvLookup(localizedTv);
+
+        var items = page.Items
+            .Select(item => ApplyItem(
+                item,
+                contentLocale,
+                canonicalMovieLookup,
+                localizedMovieLookup,
+                canonicalTvLookup,
+                localizedTvLookup))
+            .ToList();
+
+        return page with { Items = items };
+    }
+
+    private static SearchItem ApplyItem(
+        SearchItem item,
+        string contentLocale,
+        IReadOnlyDictionary<int, MovieProviderSummary> canonicalMovies,
+        IReadOnlyDictionary<int, MovieProviderSummary> localizedMovies,
+        IReadOnlyDictionary<int, TvShowProviderSummary> canonicalTv,
+        IReadOnlyDictionary<int, TvShowProviderSummary> localizedTv)
+    {
+        if (string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase) &&
+            item.TmdbId is int movieTmdbId &&
+            canonicalMovies.TryGetValue(movieTmdbId, out var canonicalMovie))
+        {
+            localizedMovies.TryGetValue(movieTmdbId, out var localizedMovie);
+            localizedMovie ??= canonicalMovie;
+
+            var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+                canonicalMovie.Title,
+                canonicalMovie.OriginalTitle,
+                canonicalMovie.OriginalLanguage,
+                string.Equals(localizedMovie.Title, canonicalMovie.Title, StringComparison.Ordinal)
+                    ? null
+                    : localizedMovie.Title,
+                contentLocale);
+
+            var posterUrl = LocalizedDisplayTitleSelector.IsTurkishProduction(canonicalMovie.OriginalLanguage)
+                ? item.PosterUrl
+                : canonicalMovie.PosterPath ?? item.PosterUrl;
+
+            return item with
+            {
+                Title = titles.Title,
+                OriginalTitle = titles.OriginalTitle,
+                PosterUrl = posterUrl,
+            };
+        }
+
+        if (string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase) &&
+            item.TmdbId is int tvTmdbId &&
+            canonicalTv.TryGetValue(tvTmdbId, out var canonicalShow))
+        {
+            localizedTv.TryGetValue(tvTmdbId, out var localizedShow);
+            localizedShow ??= canonicalShow;
+
+            var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+                canonicalShow.Title,
+                canonicalShow.OriginalTitle,
+                canonicalShow.OriginalLanguage,
+                string.Equals(localizedShow.Title, canonicalShow.Title, StringComparison.Ordinal)
+                    ? null
+                    : localizedShow.Title,
+                contentLocale);
+
+            var posterUrl = LocalizedDisplayTitleSelector.IsTurkishProduction(canonicalShow.OriginalLanguage)
+                ? item.PosterUrl
+                : canonicalShow.PosterPath ?? item.PosterUrl;
+
+            return item with
+            {
+                Title = titles.Title,
+                OriginalTitle = titles.OriginalTitle,
+                PosterUrl = posterUrl,
+            };
+        }
+
+        return item;
+    }
+
+    private static IReadOnlyDictionary<int, MovieProviderSummary> BuildMovieLookup(
+        MovieProviderSearchResult? result) =>
+        result?.Results
+            .Where(summary => summary.TmdbId is > 0)
+            .GroupBy(summary => summary.TmdbId!.Value)
+            .ToDictionary(group => group.Key, group => group.Last())
+        ?? new Dictionary<int, MovieProviderSummary>();
+
+    private static IReadOnlyDictionary<int, TvShowProviderSummary> BuildTvLookup(
+        TvShowProviderSearchResult? result) =>
+        result?.Results
+            .Where(summary => summary.TmdbId is > 0)
+            .GroupBy(summary => summary.TmdbId!.Value)
+            .ToDictionary(group => group.Key, group => group.Last())
+        ?? new Dictionary<int, TvShowProviderSummary>();
+}

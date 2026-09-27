@@ -19,6 +19,8 @@ public sealed class LibraryService(
     ILibraryRepository libraryRepository,
     ICurrentUser currentUser,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
+    IMovieRepository movieRepository,
+    ITvShowRepository tvShowRepository,
     ILogger<LibraryService> logger) : ILibraryService
 {
     public async Task<PaginatedResult<LibraryItemResult>> GetLibraryAsync(
@@ -140,6 +142,17 @@ public sealed class LibraryService(
                 item.Id))
             .ToList();
 
+        var movieIds = items
+            .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var tvIds = items
+            .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
+        var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
+
         var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
             contentLocalizedPosterRepository,
             keys,
@@ -159,7 +172,11 @@ public sealed class LibraryService(
                     PosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
                         item.PosterUrl,
                         key,
-                        localizedPosters)
+                        localizedPosters,
+                        contentLocale,
+                        string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+                            ? tvOriginalLanguages.GetValueOrDefault(item.Id)
+                            : movieOriginalLanguages.GetValueOrDefault(item.Id))
                 };
             })
             .ToList();

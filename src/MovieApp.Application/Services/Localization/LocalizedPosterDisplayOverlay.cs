@@ -22,8 +22,22 @@ public static class LocalizedPosterDisplayOverlay
     public static string? ChooseDisplayPosterUrl(
         string? canonicalPosterUrl,
         ContentLocalizedPosterKey key,
-        IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters) =>
-        localizedPosters.TryGetValue(key, out var localizedPoster) && !string.IsNullOrWhiteSpace(localizedPoster)
+        IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        string contentLocale,
+        string? originalLanguage = null)
+    {
+        if (!localizedPosters.TryGetValue(key, out var localizedPoster) ||
+            string.IsNullOrWhiteSpace(localizedPoster))
+        {
+            return canonicalPosterUrl;
+        }
+
+        return LocalizedPosterSelector.ShouldUseStoredLocalizedPoster(
+                canonicalPosterUrl,
+                localizedPoster,
+                contentLocale,
+                originalLanguage)
             ? localizedPoster
             : canonicalPosterUrl;
+    }
 }

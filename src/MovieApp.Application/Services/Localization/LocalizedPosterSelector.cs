@@ -13,7 +13,8 @@ public static class LocalizedPosterSelector
     public static Selection Select(
         IReadOnlyList<ProviderImageResult> posters,
         string languageKey,
-        string? canonicalPosterPath)
+        string? canonicalPosterPath,
+        string? originalLanguage = null)
     {
         if (posters.Count == 0)
         {
@@ -21,24 +22,71 @@ public static class LocalizedPosterSelector
         }
 
         var normalizedLanguage = NormalizeLanguageKey(languageKey);
+        var isTurkishArtworkRequest = string.Equals(
+            normalizedLanguage,
+            SupportedArtworkLanguageKeys.Turkish,
+            StringComparison.Ordinal);
+        var isTurkishProduction = ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
+            originalLanguage,
+            ContentLocaleResolver.TurkishTurkey);
+
+        if (isTurkishArtworkRequest && !isTurkishProduction)
+        {
+            return new Selection(canonicalPosterPath, ShouldPersist: false);
+        }
 
         var languageMatch = SelectBestInTier(
             posters,
             image => string.Equals(NormalizeLanguageKey(image.Language), normalizedLanguage, StringComparison.Ordinal));
         if (languageMatch is not null)
         {
+            if (isTurkishArtworkRequest && !isTurkishProduction)
+            {
+                return new Selection(canonicalPosterPath, ShouldPersist: false);
+            }
+
             return new Selection(languageMatch.FilePath, ShouldPersist: true);
         }
 
-        var neutralMatch = SelectBestInTier(
-            posters,
-            image => string.IsNullOrWhiteSpace(image.Language));
-        if (neutralMatch is not null)
+        if (isTurkishProduction)
         {
-            return new Selection(neutralMatch.FilePath, ShouldPersist: true);
+            var neutralMatch = SelectBestInTier(
+                posters,
+                image => string.IsNullOrWhiteSpace(image.Language));
+            if (neutralMatch is not null)
+            {
+                return new Selection(neutralMatch.FilePath, ShouldPersist: true);
+            }
         }
 
         return new Selection(canonicalPosterPath, ShouldPersist: false);
+    }
+
+    internal static bool ShouldUseStoredLocalizedPoster(
+        string? canonicalPosterPath,
+        string localizedPosterPath,
+        string contentLocale,
+        string? originalLanguage)
+    {
+        if (string.Equals(localizedPosterPath, canonicalPosterPath, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
+        {
+            return true;
+        }
+
+        if (!string.Equals(
+                SupportedArtworkLanguageKeys.ResolvePosterLanguageKey(contentLocale),
+                SupportedArtworkLanguageKeys.Turkish,
+                StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return LocalizedDisplayTitleSelector.IsTurkishProduction(originalLanguage);
     }
 
     private static ProviderImageResult? SelectBestInTier(

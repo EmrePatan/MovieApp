@@ -147,7 +147,9 @@ public sealed class GetMovieByIdService(
         var posterPath = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             result.PosterPath,
             key,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            result.OriginalLanguage);
 
         return result with { PosterPath = posterPath };
     }

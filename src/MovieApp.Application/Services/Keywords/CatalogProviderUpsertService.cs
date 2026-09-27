@@ -36,6 +36,7 @@ public sealed class CatalogProviderUpsertService(
             movie.Id,
             details.PosterPath,
             details.ProviderPosters,
+            details.OriginalLanguage,
             cancellationToken);
 
         if (enrichKeywords)
@@ -75,6 +76,7 @@ public sealed class CatalogProviderUpsertService(
                 movie.Id,
                 detail.PosterPath,
                 detail.ProviderPosters,
+                detail.OriginalLanguage,
                 cancellationToken);
         }
 
@@ -117,6 +119,7 @@ public sealed class CatalogProviderUpsertService(
             tvShow.Id,
             details.PosterPath,
             details.ProviderPosters,
+            details.OriginalLanguage,
             cancellationToken);
 
         if (enrichKeywords)
@@ -154,6 +157,7 @@ public sealed class CatalogProviderUpsertService(
                 tvShows[index].Id,
                 detail.PosterPath,
                 detail.ProviderPosters,
+                detail.OriginalLanguage,
                 cancellationToken);
         }
 

@@ -187,6 +187,14 @@ public sealed class UnifiedSearchProviderIngestionService(
             tvIds,
             personIds);
 
+        result = LocalizedCatalogDisplayPolicy.ApplyToSearchResults(
+            result,
+            contentLocale,
+            movieSearchResult,
+            movieIngestResult ?? movieSearchResult,
+            tvSearchResult,
+            tvIngestResult ?? tvSearchResult);
+
         UnifiedSearchProviderIngestionLogMessages.LogProviderSearchSucceeded(
             logger,
             query,

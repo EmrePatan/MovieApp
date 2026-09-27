@@ -228,6 +228,7 @@ public sealed class ContentSearchTitleProviderEnrichmentIntegrationTests
             Guid contentId,
             string? canonicalPosterPath,
             IReadOnlyList<ProviderImageResult>? providerPosters,
+            string? originalLanguage = null,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }

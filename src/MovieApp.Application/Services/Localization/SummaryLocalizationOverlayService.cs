@@ -26,6 +26,16 @@ public sealed class SummaryLocalizationOverlayService(
             return canonical;
         }
 
+        var movieIds = canonical.Items
+            .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var tvIds = canonical.Items
+            .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
+        var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
         var localizedPosters = await LoadLocalizedPostersForSearchItemsAsync(
             canonical.Items,
             contentLocale,
@@ -36,6 +46,8 @@ public sealed class SummaryLocalizationOverlayService(
                 item,
                 contentLocale,
                 localizedPosters,
+                movieOriginalLanguages,
+                tvOriginalLanguages,
                 cancellationToken)));
 
         return canonical with { Items = localizedItems };
@@ -51,6 +63,12 @@ public sealed class SummaryLocalizationOverlayService(
             return canonical;
         }
 
+        var movieIds = canonical
+            .Select(item => item.Movie.MovieId)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
         var localizedPosters = await LoadLocalizedPostersForAiRecommendationsAsync(
             canonical,
             contentLocale,
@@ -62,6 +80,7 @@ public sealed class SummaryLocalizationOverlayService(
                     recommendation,
                     contentLocale,
                     localizedPosters,
+                    movieOriginalLanguages,
                     cancellationToken)));
 
         return localizedRecommendations;
@@ -94,6 +113,16 @@ public sealed class SummaryLocalizationOverlayService(
         }
 
         var tmdbIdsByContentId = await ResolveTmdbIdsByContentIdsAsync(canonical.Items, cancellationToken);
+        var movieIds = canonical.Items
+            .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var tvIds = canonical.Items
+            .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
+        var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
         var localizedPosters = await LoadLocalizedPostersForRecommendationItemsAsync(
             canonical.Items,
             contentLocale,
@@ -104,6 +133,8 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbIdsByContentId,
                 contentLocale,
                 localizedPosters,
+                movieOriginalLanguages,
+                tvOriginalLanguages,
                 cancellationToken)));
 
         return canonical with { Items = localizedItems };
@@ -143,6 +174,16 @@ public sealed class SummaryLocalizationOverlayService(
         foreach (var section in canonical)
         {
             var tmdbIdsByContentId = await ResolveTmdbIdsByContentIdsAsync(section.Items, cancellationToken);
+            var movieIds = section.Items
+                .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.Id)
+                .ToList();
+            var tvIds = section.Items
+                .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.Id)
+                .ToList();
+            var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
+            var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
             var localizedPosters = await LoadLocalizedPostersForRecommendationItemsAsync(
                 section.Items,
                 contentLocale,
@@ -153,6 +194,8 @@ public sealed class SummaryLocalizationOverlayService(
                     tmdbIdsByContentId,
                     contentLocale,
                     localizedPosters,
+                    movieOriginalLanguages,
+                    tvOriginalLanguages,
                     cancellationToken)));
 
             localizedSections.Add(section with { Items = localizedItems });
@@ -182,6 +225,8 @@ public sealed class SummaryLocalizationOverlayService(
 
         var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
         var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
+        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
+        var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
         var localizedPosters = await LoadLocalizedPostersForHomeItemsAsync(items, contentLocale, cancellationToken);
 
         return await Task.WhenAll(
@@ -191,6 +236,8 @@ public sealed class SummaryLocalizationOverlayService(
                 tvTmdbIds,
                 contentLocale,
                 localizedPosters,
+                movieOriginalLanguages,
+                tvOriginalLanguages,
                 cancellationToken)));
     }
 
@@ -213,7 +260,7 @@ public sealed class SummaryLocalizationOverlayService(
             contentLocale,
             cancellationToken);
 
-        return suggestion with { Title = localizedTitle };
+        return suggestion with { Title = localizedTitle.Title };
     }
 
     private async Task<RecommendationItem> LocalizeRecommendationItemAsync(
@@ -221,13 +268,22 @@ public sealed class SummaryLocalizationOverlayService(
         IReadOnlyDictionary<Guid, int> tmdbIdsByContentId,
         string contentLocale,
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        IReadOnlyDictionary<Guid, string?> movieOriginalLanguages,
+        IReadOnlyDictionary<Guid, string?> tvOriginalLanguages,
         CancellationToken cancellationToken)
     {
         var posterKey = CreatePosterKey(item.Type, item.Id);
+        var originalLanguage = ResolveOriginalLanguage(
+            item.Id,
+            item.Type,
+            movieOriginalLanguages,
+            tvOriginalLanguages);
         var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             item.PosterUrl,
             posterKey,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            originalLanguage);
 
         if (!tmdbIdsByContentId.TryGetValue(item.Id, out var tmdbId))
         {
@@ -239,7 +295,7 @@ public sealed class SummaryLocalizationOverlayService(
             tmdbId,
             item.Title,
             item.OriginalTitle,
-            originalLanguage: null,
+            originalLanguage,
             item.Overview,
             contentLocale,
             cancellationToken);
@@ -247,6 +303,7 @@ public sealed class SummaryLocalizationOverlayService(
         return item with
         {
             Title = localizedFields.Title,
+            OriginalTitle = localizedFields.OriginalTitle,
             Overview = localizedFields.Overview,
             PosterUrl = posterUrl
         };
@@ -258,13 +315,22 @@ public sealed class SummaryLocalizationOverlayService(
         IReadOnlyDictionary<Guid, int> tvTmdbIds,
         string contentLocale,
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        IReadOnlyDictionary<Guid, string?> movieOriginalLanguages,
+        IReadOnlyDictionary<Guid, string?> tvOriginalLanguages,
         CancellationToken cancellationToken)
     {
         var posterKey = CreatePosterKey(item.ContentType, item.Id);
+        var originalLanguage = ResolveOriginalLanguage(
+            item.Id,
+            item.ContentType,
+            movieOriginalLanguages,
+            tvOriginalLanguages);
         var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             item.PosterUrl,
             posterKey,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            originalLanguage);
 
         if (string.Equals(item.ContentType, "movie", StringComparison.OrdinalIgnoreCase) &&
             movieTmdbIds.TryGetValue(item.Id, out var movieTmdbId))
@@ -274,10 +340,15 @@ public sealed class SummaryLocalizationOverlayService(
                 movieTmdbId,
                 item.Title,
                 item.OriginalTitle,
-                originalLanguage: null,
+                originalLanguage,
                 contentLocale,
                 cancellationToken);
-            return item with { Title = localizedTitle, PosterUrl = posterUrl };
+            return item with
+            {
+                Title = localizedTitle.Title,
+                OriginalTitle = localizedTitle.OriginalTitle,
+                PosterUrl = posterUrl,
+            };
         }
 
         if (string.Equals(item.ContentType, "tv", StringComparison.OrdinalIgnoreCase) &&
@@ -288,10 +359,15 @@ public sealed class SummaryLocalizationOverlayService(
                 tvTmdbId,
                 item.Title,
                 item.OriginalTitle,
-                originalLanguage: null,
+                originalLanguage,
                 contentLocale,
                 cancellationToken);
-            return item with { Title = localizedTitle, PosterUrl = posterUrl };
+            return item with
+            {
+                Title = localizedTitle.Title,
+                OriginalTitle = localizedTitle.OriginalTitle,
+                PosterUrl = posterUrl,
+            };
         }
 
         return item with { PosterUrl = posterUrl };
@@ -303,13 +379,22 @@ public sealed class SummaryLocalizationOverlayService(
         IReadOnlyDictionary<Guid, int> tvTmdbIds,
         string contentLocale,
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        IReadOnlyDictionary<Guid, string?> movieOriginalLanguages,
+        IReadOnlyDictionary<Guid, string?> tvOriginalLanguages,
         CancellationToken cancellationToken)
     {
         var posterKey = CreatePosterKey(item.ContentType, item.ContentId);
+        var originalLanguage = ResolveOriginalLanguage(
+            item.ContentId,
+            item.ContentType == CatalogContentType.Tv ? "tv" : "movie",
+            movieOriginalLanguages,
+            tvOriginalLanguages);
         var posterPath = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             item.PosterPath,
             posterKey,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            originalLanguage);
 
         if (item.ContentType == Domain.Enums.CatalogContentType.Movie &&
             movieTmdbIds.TryGetValue(item.ContentId, out var movieTmdbId))
@@ -319,10 +404,10 @@ public sealed class SummaryLocalizationOverlayService(
                 movieTmdbId,
                 item.Title,
                 originalTitle: null,
-                originalLanguage: null,
+                originalLanguage,
                 contentLocale,
                 cancellationToken);
-            return item with { Title = localizedTitle, PosterPath = posterPath };
+            return item with { Title = localizedTitle.Title, PosterPath = posterPath };
         }
 
         if (item.ContentType == Domain.Enums.CatalogContentType.Tv &&
@@ -333,10 +418,10 @@ public sealed class SummaryLocalizationOverlayService(
                 tvTmdbId,
                 item.Title,
                 originalTitle: null,
-                originalLanguage: null,
+                originalLanguage,
                 contentLocale,
                 cancellationToken);
-            return item with { Title = localizedTitle, PosterPath = posterPath };
+            return item with { Title = localizedTitle.Title, PosterPath = posterPath };
         }
 
         return item with { PosterPath = posterPath };
@@ -346,13 +431,17 @@ public sealed class SummaryLocalizationOverlayService(
         AiValidatedRecommendation recommendation,
         string contentLocale,
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        IReadOnlyDictionary<Guid, string?> movieOriginalLanguages,
         CancellationToken cancellationToken)
     {
         var posterKey = CreatePosterKey(recommendation.Movie.MediaType, recommendation.Movie.MovieId);
+        movieOriginalLanguages.TryGetValue(recommendation.Movie.MovieId, out var originalLanguage);
         var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             recommendation.Movie.PosterUrl,
             posterKey,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            originalLanguage);
 
         if (recommendation.Movie.TmdbId is not int tmdbId || tmdbId <= 0)
         {
@@ -366,8 +455,8 @@ public sealed class SummaryLocalizationOverlayService(
             recommendation.Movie.MediaType,
             tmdbId,
             recommendation.Movie.Title,
-            originalTitle: null,
-            originalLanguage: null,
+            recommendation.Movie.OriginalTitle,
+            originalLanguage,
             recommendation.Movie.Overview,
             contentLocale,
             cancellationToken);
@@ -377,6 +466,7 @@ public sealed class SummaryLocalizationOverlayService(
             Movie = recommendation.Movie with
             {
                 Title = localizedFields.Title,
+                OriginalTitle = localizedFields.OriginalTitle,
                 Overview = localizedFields.Overview,
                 PosterUrl = posterUrl
             }
@@ -387,13 +477,22 @@ public sealed class SummaryLocalizationOverlayService(
         SearchItem item,
         string contentLocale,
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        IReadOnlyDictionary<Guid, string?> movieOriginalLanguages,
+        IReadOnlyDictionary<Guid, string?> tvOriginalLanguages,
         CancellationToken cancellationToken)
     {
         var posterKey = CreatePosterKey(item.Type, item.Id);
+        var originalLanguage = ResolveOriginalLanguage(
+            item.Id,
+            item.Type,
+            movieOriginalLanguages,
+            tvOriginalLanguages);
         var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
             item.PosterUrl,
             posterKey,
-            localizedPosters);
+            localizedPosters,
+            contentLocale,
+            originalLanguage);
 
         if (item.TmdbId is not > 0)
         {
@@ -405,7 +504,7 @@ public sealed class SummaryLocalizationOverlayService(
             item.TmdbId.Value,
             item.Title,
             item.OriginalTitle,
-            originalLanguage: null,
+            originalLanguage,
             item.Overview,
             contentLocale,
             cancellationToken);
@@ -413,12 +512,13 @@ public sealed class SummaryLocalizationOverlayService(
         return item with
         {
             Title = localizedFields.Title,
+            OriginalTitle = localizedFields.OriginalTitle,
             Overview = localizedFields.Overview,
             PosterUrl = posterUrl
         };
     }
 
-    private async Task<(string Title, string? Overview)> ResolveLocalizedFieldsAsync(
+    private async Task<(string Title, string? OriginalTitle, string? Overview)> ResolveLocalizedFieldsAsync(
         string contentType,
         int tmdbId,
         string canonicalTitle,
@@ -434,13 +534,15 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
+            var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+                canonicalTitle,
+                originalTitle,
+                originalLanguage,
+                overlay?.Title,
+                contentLocale);
             return (
-                LocalizedDisplayTitleSelector.Choose(
-                    canonicalTitle,
-                    originalTitle,
-                    originalLanguage,
-                    overlay?.Title,
-                    contentLocale),
+                titles.Title,
+                titles.OriginalTitle,
                 LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
         }
 
@@ -450,20 +552,22 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
+            var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+                canonicalTitle,
+                originalTitle,
+                originalLanguage,
+                overlay?.Title,
+                contentLocale);
             return (
-                LocalizedDisplayTitleSelector.Choose(
-                    canonicalTitle,
-                    originalTitle,
-                    originalLanguage,
-                    overlay?.Title,
-                    contentLocale),
+                titles.Title,
+                titles.OriginalTitle,
                 LocalizationFieldFallback.ChooseNullable(canonicalOverview, overlay?.Overview));
         }
 
-        return (canonicalTitle, canonicalOverview);
+        return (canonicalTitle, originalTitle, canonicalOverview);
     }
 
-    private async Task<string> ResolveLocalizedTitleAsync(
+    private async Task<(string Title, string? OriginalTitle)> ResolveLocalizedTitleAsync(
         string contentType,
         int tmdbId,
         string canonicalTitle,
@@ -478,7 +582,7 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
-            return LocalizedDisplayTitleSelector.Choose(
+            return LocalizedDisplayTitleSelector.ChooseDisplayTitles(
                 canonicalTitle,
                 originalTitle,
                 originalLanguage,
@@ -492,7 +596,7 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
-            return LocalizedDisplayTitleSelector.Choose(
+            return LocalizedDisplayTitleSelector.ChooseDisplayTitles(
                 canonicalTitle,
                 originalTitle,
                 originalLanguage,
@@ -500,7 +604,7 @@ public sealed class SummaryLocalizationOverlayService(
                 contentLocale);
         }
 
-        return canonicalTitle;
+        return (canonicalTitle, originalTitle);
     }
 
     private async Task<IReadOnlyDictionary<Guid, int>> ResolveTmdbIdsByContentIdsAsync(
@@ -554,6 +658,8 @@ public sealed class SummaryLocalizationOverlayService(
 
         var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
         var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
+        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
+        var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
         var localizedPosters = await LoadLocalizedPostersForUpcomingItemsAsync(
             canonical,
             contentLocale,
@@ -566,6 +672,8 @@ public sealed class SummaryLocalizationOverlayService(
                 tvTmdbIds,
                 contentLocale,
                 localizedPosters,
+                movieOriginalLanguages,
+                tvOriginalLanguages,
                 cancellationToken)));
     }
 
@@ -576,6 +684,20 @@ public sealed class SummaryLocalizationOverlayService(
 
     private static ContentLocalizedPosterKey CreatePosterKey(CatalogContentType contentType, Guid contentId) =>
         new(contentType, contentId);
+
+    private static string? ResolveOriginalLanguage(
+        Guid contentId,
+        string contentType,
+        IReadOnlyDictionary<Guid, string?> movieOriginalLanguages,
+        IReadOnlyDictionary<Guid, string?> tvOriginalLanguages)
+    {
+        if (string.Equals(contentType, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return tvOriginalLanguages.TryGetValue(contentId, out var tvLanguage) ? tvLanguage : null;
+        }
+
+        return movieOriginalLanguages.TryGetValue(contentId, out var movieLanguage) ? movieLanguage : null;
+    }
 
     private async Task<IReadOnlyDictionary<ContentLocalizedPosterKey, string>> LoadLocalizedPostersAsync(
         IReadOnlyList<ContentLocalizedPosterKey> keys,

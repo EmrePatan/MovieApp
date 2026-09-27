@@ -10,5 +10,6 @@ public interface IContentLocalizedPosterSynchronizer
         Guid contentId,
         string? canonicalPosterPath,
         IReadOnlyList<ProviderImageResult>? providerPosters,
+        string? originalLanguage = null,
         CancellationToken cancellationToken = default);
 }
