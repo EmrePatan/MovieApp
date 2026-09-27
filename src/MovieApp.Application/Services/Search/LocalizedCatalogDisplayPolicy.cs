@@ -41,10 +41,10 @@ internal static class LocalizedCatalogDisplayPolicy
     private static SearchItem ApplyItem(
         SearchItem item,
         string contentLocale,
-        IReadOnlyDictionary<int, MovieProviderSummary> canonicalMovies,
-        IReadOnlyDictionary<int, MovieProviderSummary> localizedMovies,
-        IReadOnlyDictionary<int, TvShowProviderSummary> canonicalTv,
-        IReadOnlyDictionary<int, TvShowProviderSummary> localizedTv)
+        Dictionary<int, MovieProviderSummary> canonicalMovies,
+        Dictionary<int, MovieProviderSummary> localizedMovies,
+        Dictionary<int, TvShowProviderSummary> canonicalTv,
+        Dictionary<int, TvShowProviderSummary> localizedTv)
     {
         if (string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase) &&
             item.TmdbId is int movieTmdbId &&
@@ -105,7 +105,7 @@ internal static class LocalizedCatalogDisplayPolicy
         return item;
     }
 
-    private static IReadOnlyDictionary<int, MovieProviderSummary> BuildMovieLookup(
+    private static Dictionary<int, MovieProviderSummary> BuildMovieLookup(
         MovieProviderSearchResult? result) =>
         result?.Results
             .Where(summary => summary.TmdbId is > 0)
@@ -113,7 +113,7 @@ internal static class LocalizedCatalogDisplayPolicy
             .ToDictionary(group => group.Key, group => group.Last())
         ?? new Dictionary<int, MovieProviderSummary>();
 
-    private static IReadOnlyDictionary<int, TvShowProviderSummary> BuildTvLookup(
+    private static Dictionary<int, TvShowProviderSummary> BuildTvLookup(
         TvShowProviderSearchResult? result) =>
         result?.Results
             .Where(summary => summary.TmdbId is > 0)
