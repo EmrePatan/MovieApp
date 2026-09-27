@@ -68,6 +68,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             syncState,
             new NoOpCacheService(),
             new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository(),
+            GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
+            GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
             GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
 
@@ -119,6 +121,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             syncState,
             cache,
             new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository(),
+            GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
+            GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
             GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
 

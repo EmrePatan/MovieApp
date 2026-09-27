@@ -1,5 +1,7 @@
+using System.Globalization;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Mapping;
@@ -15,6 +17,8 @@ public sealed class GetTvShowByIdService(
     ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
+    IContentLocalizedPosterSynchronizer contentLocalizedPosterSynchronizer,
+    ITvShowDataProvider tvShowDataProvider,
     ITvShowExternalIdLookup externalIdLookup,
     IDetailLocalizationOverlayService detailLocalizationOverlayService) : IGetTvShowByIdService
 {
@@ -121,6 +125,13 @@ public sealed class GetTvShowByIdService(
         }
 
         var key = new ContentLocalizedPosterKey(CatalogContentType.Tv, tvShowId);
+        await EnsureLocalizedPosterPersistedAsync(
+            tvShowId,
+            result.TmdbId,
+            result.PosterPath,
+            contentLocale,
+            cancellationToken);
+
         var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
             contentLocalizedPosterRepository,
             [key],
@@ -133,5 +144,57 @@ public sealed class GetTvShowByIdService(
             localizedPosters);
 
         return result with { PosterPath = posterPath };
+    }
+
+    private async Task EnsureLocalizedPosterPersistedAsync(
+        Guid tvShowId,
+        int? tmdbId,
+        string? canonicalPosterPath,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        var languageKey = SupportedArtworkLanguageKeys.ResolvePosterLanguageKey(contentLocale);
+        if (languageKey is null)
+        {
+            return;
+        }
+
+        var key = new ContentLocalizedPosterKey(CatalogContentType.Tv, tvShowId);
+        var existing = await contentLocalizedPosterRepository.GetPosterPathsAsync(
+            [key],
+            languageKey,
+            cancellationToken);
+        if (existing.Count > 0)
+        {
+            return;
+        }
+
+        var resolvedTmdbId = tmdbId;
+        if (resolvedTmdbId is not > 0)
+        {
+            var identity = await externalIdLookup.GetAsync(tvShowId, cancellationToken);
+            resolvedTmdbId = identity?.TmdbId;
+        }
+
+        if (resolvedTmdbId is not > 0)
+        {
+            return;
+        }
+
+        var providerDetails = await tvShowDataProvider.GetTvShowAsync(
+            resolvedTmdbId.Value.ToString(CultureInfo.InvariantCulture),
+            includeKeywords: false,
+            cancellationToken);
+        if (providerDetails is null)
+        {
+            return;
+        }
+
+        await contentLocalizedPosterSynchronizer.SyncFromProviderPostersAsync(
+            CatalogContentType.Tv,
+            tvShowId,
+            providerDetails.PosterPath ?? canonicalPosterPath,
+            providerDetails.ProviderPosters,
+            cancellationToken);
     }
 }

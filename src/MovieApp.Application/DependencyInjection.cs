@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Services.Home;
@@ -66,6 +67,8 @@ public static class DependencyInjection
             sp.GetRequiredService<ITvShowCatalogSyncStateService>(),
             sp.GetRequiredService<ICacheService>(),
             sp.GetRequiredService<IContentLocalizedPosterRepository>(),
+            sp.GetRequiredService<IContentLocalizedPosterSynchronizer>(),
+            sp.GetRequiredService<ITvShowDataProvider>(),
             sp.GetRequiredService<ITvShowExternalIdLookup>(),
             sp.GetRequiredService<IDetailLocalizationOverlayService>()));
         services.AddScoped<ITvShowExternalIdLookup, TvShowExternalIdLookup>();

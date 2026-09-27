@@ -36,6 +36,8 @@ public sealed class GetTvShowByIdServiceActionEligibilityTests
             new NoOpCatalogSyncStateService(),
             new NoOpCacheService(),
             new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository(),
+            GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
+            GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
             GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
 

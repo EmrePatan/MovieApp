@@ -1,11 +1,14 @@
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Collections;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.TvShows;
 using MovieApp.Application.Models.Localization;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.People;
 using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Services.Localization;
+using MovieApp.UnitTests.Localization;
 
 namespace MovieApp.UnitTests.TvShows;
 
@@ -16,6 +19,46 @@ internal static class GetTvShowByIdServiceTestSupport
 
     internal static readonly IDetailLocalizationOverlayService NoOpDetailLocalizationOverlay =
         new NoOpDetailLocalizationOverlayService();
+
+    internal static readonly IContentLocalizedPosterSynchronizer NoOpContentLocalizedPosterSynchronizer =
+        new NoOpContentLocalizedPosterSynchronizer();
+
+    internal static readonly ITvShowDataProvider NoOpTvShowDataProvider =
+        new StubTvShowDataProvider();
+
+    private sealed class StubTvShowDataProvider : ITvShowDataProvider
+    {
+        public Task<TvShowProviderSearchResult> SearchTvShowsAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderDetails?> GetTvShowAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TvShowProviderDetails?>(null);
+
+        public Task<SeasonProviderDetails?> GetSeasonAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EpisodeProviderDetails?> GetEpisodeAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            int episodeNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class NoOpTvShowExternalIdLookup : ITvShowExternalIdLookup
     {
