@@ -229,6 +229,7 @@ public sealed class ContentSearchTitleProviderEnrichmentIntegrationTests
             string? canonicalPosterPath,
             IReadOnlyList<ProviderImageResult>? providerPosters,
             string? originalLanguage = null,
+            string? primaryOriginCountryCode = null,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }

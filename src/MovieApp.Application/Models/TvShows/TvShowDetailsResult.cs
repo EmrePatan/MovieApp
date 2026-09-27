@@ -18,4 +18,5 @@ public sealed record TvShowDetailsResult(
     string Status,
     IReadOnlyList<string> Genres,
     IReadOnlyList<SeasonSummaryResult> Seasons,
-    bool CanFollow);
+    bool CanFollow,
+    string? PrimaryOriginCountryCode = null);

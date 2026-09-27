@@ -20,6 +20,8 @@ internal sealed class TmdbTvDetailsResponseJson
 
     public string? OriginalLanguage { get; set; }
 
+    public List<string> OriginCountry { get; set; } = [];
+
     public decimal VoteAverage { get; set; }
 
     public int VoteCount { get; set; }

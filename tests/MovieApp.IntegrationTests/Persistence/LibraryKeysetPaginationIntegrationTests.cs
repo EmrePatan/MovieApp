@@ -3,12 +3,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Library;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Library;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -215,6 +218,8 @@ public sealed class LibraryKeysetPaginationIntegrationTests
             new LibraryRepository(context),
             new FixedCurrentUser(userId),
             new ContentLocalizedPosterRepository(context),
+            new MovieRepository(context, new NoOpContentSearchTitleSynchronizer()),
+            new TvShowRepository(context, new NoOpContentSearchTitleSynchronizer()),
             NullLogger<LibraryService>.Instance);
 
     private static async Task<Guid> SeedUserAsync(ApplicationDbContext context, string userName)
@@ -293,5 +298,32 @@ public sealed class LibraryKeysetPaginationIntegrationTests
 
         private static bool IsCountQuery(string commandText) =>
             commandText.Contains("count(", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class NoOpContentSearchTitleSynchronizer : IContentSearchTitleSynchronizer
+    {
+        public Task SyncCatalogTitlesAsync(
+            CatalogContentType contentType,
+            Guid contentId,
+            string title,
+            string? originalTitle,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task SyncFromProviderDetailAsync(
+            CatalogContentType contentType,
+            Guid contentId,
+            string title,
+            string? originalTitle,
+            IReadOnlyList<ProviderSearchTitleEntry>? providerSearchTitles,
+            DateTime? providerUpdatedAtUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteAllForContentAsync(
+            CatalogContentType contentType,
+            Guid contentId,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

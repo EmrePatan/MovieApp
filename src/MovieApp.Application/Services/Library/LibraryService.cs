@@ -150,8 +150,8 @@ public sealed class LibraryService(
             .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
             .Select(item => item.Id)
             .ToList();
-        var movieOriginalLanguages = await movieRepository.GetOriginalLanguagesByIdsAsync(movieIds, cancellationToken);
-        var tvOriginalLanguages = await tvShowRepository.GetOriginalLanguagesByIdsAsync(tvIds, cancellationToken);
+        var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
+        var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
 
         var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
             contentLocalizedPosterRepository,
@@ -167,6 +167,9 @@ public sealed class LibraryService(
                         ? CatalogContentType.Tv
                         : CatalogContentType.Movie,
                     item.Id);
+                var productionContext = string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+                    ? tvProductionContexts.GetValueOrDefault(item.Id)
+                    : movieProductionContexts.GetValueOrDefault(item.Id);
                 return item with
                 {
                     PosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
@@ -174,9 +177,7 @@ public sealed class LibraryService(
                         key,
                         localizedPosters,
                         contentLocale,
-                        string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
-                            ? tvOriginalLanguages.GetValueOrDefault(item.Id)
-                            : movieOriginalLanguages.GetValueOrDefault(item.Id))
+                        productionContext)
                 };
             })
             .ToList();

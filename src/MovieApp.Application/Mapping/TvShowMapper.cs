@@ -48,7 +48,8 @@ public static class TvShowMapper
                 .OrderBy(season => season.SeasonNumber)
                 .Select(ToSeasonSummaryResult)
                 .ToList(),
-            TvShowFollowActionEligibility.CanFollow(tvShow.Status));
+            TvShowFollowActionEligibility.CanFollow(tvShow.Status),
+            PrimaryOriginCountryCode: tvShow.PrimaryOriginCountryCode);
 
     public static SeasonSummaryResult ToSeasonSummaryResult(Season season) =>
         new(

@@ -104,6 +104,26 @@ public sealed class LocalizedPosterSelectorTests
         Assert.Equal(TurkishPoster, selection.PosterPath);
     }
 
+    [Fact]
+    public void SelectPrefersCanonicalPosterPathWithinLanguageTier()
+    {
+        const string canonicalTurkishPoster = "/tr-main.jpg";
+        var posters = new List<ProviderImageResult>
+        {
+            CreatePoster("/tr-scene.jpg", "tr", 9m, 500, width: 500, aspectRatio: 0.667m),
+            CreatePoster(canonicalTurkishPoster, "tr", 6m, 10, width: 500, aspectRatio: 0.667m),
+        };
+
+        var selection = LocalizedPosterSelector.Select(
+            posters,
+            "tr",
+            canonicalTurkishPoster,
+            originalLanguage: "tr",
+            primaryOriginCountryCode: "TR");
+
+        Assert.Equal(canonicalTurkishPoster, selection.PosterPath);
+    }
+
     private static List<ProviderImageResult> CreateAlevAlevPosters() =>
     [
         CreatePoster(CanonicalEnglishPoster, "en", 8m, 100, width: 500, aspectRatio: 0.667m),

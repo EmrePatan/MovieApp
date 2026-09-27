@@ -21,4 +21,5 @@ public sealed record MovieDetailsResult(
     MovieCollectionSummaryResult? Collection,
     bool IsReleased,
     bool CanFollowForRelease,
-    bool CanSetReleaseAlert);
+    bool CanSetReleaseAlert,
+    string? PrimaryOriginCountryCode = null);

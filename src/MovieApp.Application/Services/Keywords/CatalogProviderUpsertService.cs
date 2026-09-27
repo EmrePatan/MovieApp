@@ -37,6 +37,7 @@ public sealed class CatalogProviderUpsertService(
             details.PosterPath,
             details.ProviderPosters,
             details.OriginalLanguage,
+            details.PrimaryOriginCountryCode,
             cancellationToken);
 
         if (enrichKeywords)
@@ -77,6 +78,7 @@ public sealed class CatalogProviderUpsertService(
                 detail.PosterPath,
                 detail.ProviderPosters,
                 detail.OriginalLanguage,
+                detail.PrimaryOriginCountryCode,
                 cancellationToken);
         }
 
@@ -120,6 +122,7 @@ public sealed class CatalogProviderUpsertService(
             details.PosterPath,
             details.ProviderPosters,
             details.OriginalLanguage,
+            details.PrimaryOriginCountryCode,
             cancellationToken);
 
         if (enrichKeywords)
@@ -158,6 +161,7 @@ public sealed class CatalogProviderUpsertService(
                 detail.PosterPath,
                 detail.ProviderPosters,
                 detail.OriginalLanguage,
+                detail.PrimaryOriginCountryCode,
                 cancellationToken);
         }
 

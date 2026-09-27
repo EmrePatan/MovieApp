@@ -4,6 +4,7 @@ using MovieApp.Application.Common;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -79,22 +80,24 @@ public sealed class MovieRepository(
             .ToDictionary(movie => movie.Id, movie => movie.TmdbId!.Value);
     }
 
-    public async Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+    public async Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default)
     {
         if (ids.Count == 0)
         {
-            return new Dictionary<Guid, string?>();
+            return new Dictionary<Guid, ContentProductionContext>();
         }
 
         var movies = await dbContext.Movies
             .AsNoTracking()
             .Where(movie => ids.Contains(movie.Id))
-            .Select(movie => new { movie.Id, movie.OriginalLanguage })
+            .Select(movie => new { movie.Id, movie.OriginalLanguage, movie.PrimaryOriginCountryCode })
             .ToListAsync(cancellationToken);
 
-        return movies.ToDictionary(movie => movie.Id, movie => movie.OriginalLanguage);
+        return movies.ToDictionary(
+            movie => movie.Id,
+            movie => new ContentProductionContext(movie.OriginalLanguage, movie.PrimaryOriginCountryCode));
     }
 
     public async Task<Movie> UpsertFromProviderAsync(
@@ -284,9 +287,12 @@ public sealed class MovieRepository(
                 TvdbId = summary.TvdbId,
                 ImdbId = ImdbIdNormalizer.Normalize(summary.ImdbId),
                 Title = summary.Title,
+                OriginalTitle = summary.OriginalTitle,
                 Overview = summary.Overview,
                 ReleaseDate = summary.ReleaseDate,
                 PosterPath = summary.PosterPath,
+                OriginalLanguage = summary.OriginalLanguage,
+                PrimaryOriginCountryCode = summary.PrimaryOriginCountryCode,
                 VoteAverage = summary.VoteAverage,
                 VoteCount = summary.VoteCount,
                 CreatedAt = utcNow,
@@ -372,6 +378,7 @@ public sealed class MovieRepository(
         movie.PosterPath = details.PosterPath;
         movie.BackdropPath = details.BackdropPath;
         movie.OriginalLanguage = details.OriginalLanguage;
+        movie.PrimaryOriginCountryCode = details.PrimaryOriginCountryCode;
         movie.VoteAverage = details.VoteAverage;
         movie.VoteCount = details.VoteCount;
 

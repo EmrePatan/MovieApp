@@ -26,6 +26,8 @@ public sealed class Movie
 
     public string? OriginalLanguage { get; set; }
 
+    public string? PrimaryOriginCountryCode { get; set; }
+
     public decimal VoteAverage { get; set; }
 
     public int VoteCount { get; set; }

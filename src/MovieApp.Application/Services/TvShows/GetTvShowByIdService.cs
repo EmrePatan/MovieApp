@@ -143,7 +143,7 @@ public sealed class GetTvShowByIdService(
             key,
             localizedPosters,
             contentLocale,
-            result.OriginalLanguage);
+            new ContentProductionContext(result.OriginalLanguage, result.PrimaryOriginCountryCode));
 
         return result with { PosterPath = posterPath };
     }
@@ -198,6 +198,7 @@ public sealed class GetTvShowByIdService(
             providerDetails.PosterPath ?? canonicalPosterPath,
             providerDetails.ProviderPosters,
             providerDetails.OriginalLanguage,
+            providerDetails.PrimaryOriginCountryCode,
             cancellationToken);
     }
 }

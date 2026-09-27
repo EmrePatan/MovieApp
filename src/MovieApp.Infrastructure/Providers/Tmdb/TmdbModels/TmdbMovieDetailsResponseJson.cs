@@ -18,6 +18,8 @@ internal sealed class TmdbMovieDetailsResponseJson
 
     public string? BackdropPath { get; set; }
 
+    public List<TmdbProductionCountryJson> ProductionCountries { get; set; } = [];
+
     public string? OriginalLanguage { get; set; }
 
     public decimal VoteAverage { get; set; }

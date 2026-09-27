@@ -13,4 +13,5 @@ public sealed record MovieProviderSummary(
     int VoteCount,
     string? OriginalTitle = null,
     decimal Popularity = 0,
-    string? OriginalLanguage = null);
+    string? OriginalLanguage = null,
+    string? PrimaryOriginCountryCode = null);

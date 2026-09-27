@@ -24,7 +24,22 @@ public static class LocalizedPosterDisplayOverlay
         ContentLocalizedPosterKey key,
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
         string contentLocale,
-        string? originalLanguage = null)
+        ContentProductionContext productionContext) =>
+        ChooseDisplayPosterUrl(
+            canonicalPosterUrl,
+            key,
+            localizedPosters,
+            contentLocale,
+            productionContext.OriginalLanguage,
+            productionContext.PrimaryOriginCountryCode);
+
+    public static string? ChooseDisplayPosterUrl(
+        string? canonicalPosterUrl,
+        ContentLocalizedPosterKey key,
+        IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        string contentLocale,
+        string? originalLanguage = null,
+        string? primaryOriginCountryCode = null)
     {
         if (!localizedPosters.TryGetValue(key, out var localizedPoster) ||
             string.IsNullOrWhiteSpace(localizedPoster))
@@ -36,7 +51,8 @@ public static class LocalizedPosterDisplayOverlay
                 canonicalPosterUrl,
                 localizedPoster,
                 contentLocale,
-                originalLanguage)
+                originalLanguage,
+                primaryOriginCountryCode)
             ? localizedPoster
             : canonicalPosterUrl;
     }

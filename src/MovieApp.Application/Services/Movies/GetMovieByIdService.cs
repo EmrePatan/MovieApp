@@ -149,7 +149,7 @@ public sealed class GetMovieByIdService(
             key,
             localizedPosters,
             contentLocale,
-            result.OriginalLanguage);
+            new ContentProductionContext(result.OriginalLanguage, result.PrimaryOriginCountryCode));
 
         return result with { PosterPath = posterPath };
     }

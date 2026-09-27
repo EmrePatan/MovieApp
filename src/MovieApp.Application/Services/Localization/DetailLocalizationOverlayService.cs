@@ -60,7 +60,8 @@ public sealed class DetailLocalizationOverlayService(
             canonical.OriginalTitle,
             canonical.OriginalLanguage,
             overlay.Title,
-            contentLocale);
+            contentLocale,
+            canonical.PrimaryOriginCountryCode);
 
         return canonical with
         {
@@ -130,7 +131,8 @@ public sealed class DetailLocalizationOverlayService(
             canonical.OriginalTitle,
             canonical.OriginalLanguage,
             overlay.Title,
-            contentLocale);
+            contentLocale,
+            canonical.PrimaryOriginCountryCode);
 
         return canonical with
         {
@@ -432,7 +434,8 @@ public sealed class DetailLocalizationOverlayService(
         string? originalTitle,
         string? originalLanguage,
         string? localizedTitle,
-        string? contentLocale) =>
+        string? contentLocale,
+        string? primaryOriginCountryCode = null) =>
         contentLocale is null
             ? (LocalizationFieldFallback.Choose(canonicalTitle, localizedTitle), originalTitle)
             : LocalizedDisplayTitleSelector.ChooseDisplayTitles(
@@ -440,5 +443,6 @@ public sealed class DetailLocalizationOverlayService(
                 originalTitle,
                 originalLanguage,
                 localizedTitle,
-                contentLocale);
+                contentLocale,
+                primaryOriginCountryCode);
 }

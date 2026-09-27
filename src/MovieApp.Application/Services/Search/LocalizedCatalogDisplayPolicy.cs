@@ -60,11 +60,13 @@ internal static class LocalizedCatalogDisplayPolicy
                 string.Equals(localizedMovie.Title, canonicalMovie.Title, StringComparison.Ordinal)
                     ? null
                     : localizedMovie.Title,
-                contentLocale);
+                contentLocale,
+                canonicalMovie.PrimaryOriginCountryCode);
 
-            var posterUrl = LocalizedDisplayTitleSelector.IsTurkishProduction(canonicalMovie.OriginalLanguage)
-                ? item.PosterUrl
-                : canonicalMovie.PosterPath ?? item.PosterUrl;
+            var posterUrl = ResolveTurkishProductionPosterUrl(
+                canonicalMovie,
+                localizedMovie,
+                item.PosterUrl);
 
             return item with
             {
@@ -88,11 +90,13 @@ internal static class LocalizedCatalogDisplayPolicy
                 string.Equals(localizedShow.Title, canonicalShow.Title, StringComparison.Ordinal)
                     ? null
                     : localizedShow.Title,
-                contentLocale);
+                contentLocale,
+                canonicalShow.PrimaryOriginCountryCode);
 
-            var posterUrl = LocalizedDisplayTitleSelector.IsTurkishProduction(canonicalShow.OriginalLanguage)
-                ? item.PosterUrl
-                : canonicalShow.PosterPath ?? item.PosterUrl;
+            var posterUrl = ResolveTurkishProductionPosterUrl(
+                canonicalShow,
+                localizedShow,
+                item.PosterUrl);
 
             return item with
             {
@@ -103,6 +107,49 @@ internal static class LocalizedCatalogDisplayPolicy
         }
 
         return item;
+    }
+
+    private static string? ResolveTurkishProductionPosterUrl(
+        MovieProviderSummary canonical,
+        MovieProviderSummary localized,
+        string? fallbackPosterUrl) =>
+        ResolveTurkishProductionPosterUrl(
+            canonical.OriginalLanguage,
+            canonical.PrimaryOriginCountryCode,
+            canonical.OriginalTitle,
+            localized.PosterPath,
+            canonical.PosterPath,
+            fallbackPosterUrl);
+
+    private static string? ResolveTurkishProductionPosterUrl(
+        TvShowProviderSummary canonical,
+        TvShowProviderSummary localized,
+        string? fallbackPosterUrl) =>
+        ResolveTurkishProductionPosterUrl(
+            canonical.OriginalLanguage,
+            canonical.PrimaryOriginCountryCode,
+            canonical.OriginalTitle,
+            localized.PosterPath,
+            canonical.PosterPath,
+            fallbackPosterUrl);
+
+    private static string? ResolveTurkishProductionPosterUrl(
+        string? originalLanguage,
+        string? primaryOriginCountryCode,
+        string? originalTitle,
+        string? localizedPosterPath,
+        string? canonicalPosterPath,
+        string? fallbackPosterUrl)
+    {
+        if (!LocalizedDisplayTitleSelector.IsTurkishProduction(
+                originalLanguage,
+                primaryOriginCountryCode,
+                originalTitle))
+        {
+            return canonicalPosterPath ?? fallbackPosterUrl;
+        }
+
+        return localizedPosterPath ?? canonicalPosterPath ?? fallbackPosterUrl;
     }
 
     private static Dictionary<int, MovieProviderSummary> BuildMovieLookup(

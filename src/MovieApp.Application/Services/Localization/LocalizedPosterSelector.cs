@@ -7,6 +7,7 @@ public static class LocalizedPosterSelector
     private const decimal MinimumPosterWidth = 200m;
     private const decimal MinimumPosterAspectRatio = 0.55m;
     private const decimal MaximumPosterAspectRatio = 0.85m;
+    private const int MinimumTrustedVoteCount = 5;
 
     public readonly record struct Selection(string? PosterPath, bool ShouldPersist);
 
@@ -14,7 +15,8 @@ public static class LocalizedPosterSelector
         IReadOnlyList<ProviderImageResult> posters,
         string languageKey,
         string? canonicalPosterPath,
-        string? originalLanguage = null)
+        string? originalLanguage = null,
+        string? primaryOriginCountryCode = null)
     {
         if (posters.Count == 0)
         {
@@ -26,9 +28,9 @@ public static class LocalizedPosterSelector
             normalizedLanguage,
             SupportedArtworkLanguageKeys.Turkish,
             StringComparison.Ordinal);
-        var isTurkishProduction = ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
+        var isTurkishProduction = LocalizedDisplayTitleSelector.IsTurkishProduction(
             originalLanguage,
-            ContentLocaleResolver.TurkishTurkey);
+            primaryOriginCountryCode);
 
         if (isTurkishArtworkRequest && !isTurkishProduction)
         {
@@ -37,7 +39,8 @@ public static class LocalizedPosterSelector
 
         var languageMatch = SelectBestInTier(
             posters,
-            image => string.Equals(NormalizeLanguageKey(image.Language), normalizedLanguage, StringComparison.Ordinal));
+            image => string.Equals(NormalizeLanguageKey(image.Language), normalizedLanguage, StringComparison.Ordinal),
+            canonicalPosterPath);
         if (languageMatch is not null)
         {
             if (isTurkishArtworkRequest && !isTurkishProduction)
@@ -52,7 +55,8 @@ public static class LocalizedPosterSelector
         {
             var neutralMatch = SelectBestInTier(
                 posters,
-                image => string.IsNullOrWhiteSpace(image.Language));
+                image => string.IsNullOrWhiteSpace(image.Language),
+                canonicalPosterPath);
             if (neutralMatch is not null)
             {
                 return new Selection(neutralMatch.FilePath, ShouldPersist: true);
@@ -66,7 +70,8 @@ public static class LocalizedPosterSelector
         string? canonicalPosterPath,
         string localizedPosterPath,
         string contentLocale,
-        string? originalLanguage)
+        string? originalLanguage,
+        string? primaryOriginCountryCode = null)
     {
         if (string.Equals(localizedPosterPath, canonicalPosterPath, StringComparison.Ordinal))
         {
@@ -86,22 +91,29 @@ public static class LocalizedPosterSelector
             return true;
         }
 
-        return LocalizedDisplayTitleSelector.IsTurkishProduction(originalLanguage);
+        return LocalizedDisplayTitleSelector.IsTurkishProduction(originalLanguage, primaryOriginCountryCode);
     }
 
     private static ProviderImageResult? SelectBestInTier(
         IReadOnlyList<ProviderImageResult> posters,
-        Func<ProviderImageResult, bool> predicate)
+        Func<ProviderImageResult, bool> predicate,
+        string? canonicalPosterPath)
     {
         return posters
             .Where(image => !string.IsNullOrWhiteSpace(image.FilePath))
             .Where(IsCardSuitablePoster)
             .Where(predicate)
-            .OrderByDescending(image => image.VoteAverage)
+            .OrderByDescending(image => MatchesCanonicalPoster(image, canonicalPosterPath))
+            .ThenByDescending(image => image.VoteCount >= MinimumTrustedVoteCount)
+            .ThenByDescending(image => image.VoteAverage)
             .ThenByDescending(image => image.VoteCount)
             .ThenBy(image => image.FilePath, StringComparer.Ordinal)
             .FirstOrDefault();
     }
+
+    private static bool MatchesCanonicalPoster(ProviderImageResult image, string? canonicalPosterPath) =>
+        !string.IsNullOrWhiteSpace(canonicalPosterPath) &&
+        string.Equals(image.FilePath, canonicalPosterPath, StringComparison.Ordinal);
 
     internal static bool IsCardSuitablePoster(ProviderImageResult image)
     {

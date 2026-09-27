@@ -33,6 +33,9 @@ internal sealed class TvShowConfiguration : IEntityTypeConfiguration<TvShow>
         builder.Property(tvShow => tvShow.OriginalLanguage)
             .HasMaxLength(ConfigurationConstants.LanguageMaxLength);
 
+        builder.Property(tvShow => tvShow.PrimaryOriginCountryCode)
+            .HasMaxLength(ConfigurationConstants.CountryCodeMaxLength);
+
         builder.Property(tvShow => tvShow.ImdbId)
             .HasMaxLength(ConfigurationConstants.ImdbIdMaxLength);
 

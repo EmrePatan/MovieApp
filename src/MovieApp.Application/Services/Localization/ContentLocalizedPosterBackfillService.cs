@@ -67,6 +67,7 @@ public sealed class ContentLocalizedPosterBackfillService(
                             details.PosterPath,
                             details.ProviderPosters,
                             details.OriginalLanguage,
+                            details.PrimaryOriginCountryCode,
                             cancellationToken);
                     }
                     else
@@ -85,6 +86,7 @@ public sealed class ContentLocalizedPosterBackfillService(
                             details.PosterPath,
                             details.ProviderPosters,
                             details.OriginalLanguage,
+                            details.PrimaryOriginCountryCode,
                             cancellationToken);
                     }
 

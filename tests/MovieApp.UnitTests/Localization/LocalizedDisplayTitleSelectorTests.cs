@@ -97,4 +97,30 @@ public sealed class LocalizedDisplayTitleSelectorTests
         Assert.Equal("Thor: Love and Thunder", titles.Title);
         Assert.Equal("Thor: Aşk ve Gök Gürültüsü", titles.OriginalTitle);
     }
+
+    [Fact]
+    public void TurkishLocale_TurkishOriginCountry_UsesTurkishPrimaryAndEnglishSubtitle()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Not a Stranger",
+            "Not a Stranger",
+            "en",
+            "Seni Tanıyorum",
+            ContentLocaleResolver.TurkishTurkey,
+            primaryOriginCountryCode: "TR");
+
+        Assert.Equal("Seni Tanıyorum", titles.Title);
+        Assert.Equal("Not a Stranger", titles.OriginalTitle);
+    }
+
+    [Fact]
+    public void IsTurkishProduction_TreatsTurkishOriginalTitleAsDomesticWhenLanguageMissing()
+    {
+        var isTurkish = LocalizedDisplayTitleSelector.IsTurkishProduction(
+            originalLanguage: null,
+            primaryOriginCountryCode: null,
+            originalTitle: "Hababam Sınıfı");
+
+        Assert.True(isTurkish);
+    }
 }

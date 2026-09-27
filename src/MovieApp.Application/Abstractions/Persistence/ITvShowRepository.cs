@@ -1,5 +1,6 @@
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -53,7 +54,7 @@ public interface ITvShowRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
-    Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+    Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();

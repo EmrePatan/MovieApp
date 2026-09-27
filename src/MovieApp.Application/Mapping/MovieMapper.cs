@@ -42,7 +42,8 @@ public static class MovieMapper
             ToCollectionSummary(movie),
             IsReleased: true,
             CanFollowForRelease: true,
-            CanSetReleaseAlert: true);
+            CanSetReleaseAlert: true,
+            PrimaryOriginCountryCode: movie.PrimaryOriginCountryCode);
 
     private static MovieCollectionSummaryResult? ToCollectionSummary(Movie movie)
     {

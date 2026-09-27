@@ -54,7 +54,8 @@ internal static class TmdbMovieMapper
                 ? null
                 : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Keywords),
             ProviderSearchTitles: TmdbContentSearchTitleMapper.MapMovie(details),
-            ProviderPosters: MapProviderPosters(details.Images));
+            ProviderPosters: MapProviderPosters(details.Images),
+            PrimaryOriginCountryCode: TmdbOriginCountryMapper.ResolvePrimaryOriginCountryCode(details.ProductionCountries));
     }
 
     private static IReadOnlyList<ProviderImageResult>? MapProviderPosters(TmdbImagesResponseJson? images) =>

@@ -15,7 +15,8 @@ public static class LocalizedDisplayTitleSelector
         string? originalTitle,
         string? originalLanguage,
         string? localizedTitle,
-        string contentLocale)
+        string contentLocale,
+        string? primaryOriginCountryCode = null)
     {
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
@@ -26,7 +27,7 @@ public static class LocalizedDisplayTitleSelector
         var original = TrimOptional(originalTitle);
         var localized = TrimOptional(localizedTitle);
 
-        if (IsTurkishProduction(originalLanguage))
+        if (IsTurkishProduction(originalLanguage, primaryOriginCountryCode, original))
         {
             if (!string.IsNullOrEmpty(localized) &&
                 !string.Equals(localized, canonical, StringComparison.OrdinalIgnoreCase))
@@ -66,14 +67,16 @@ public static class LocalizedDisplayTitleSelector
         string canonicalTitle,
         string? originalLanguage,
         string? localizedTitle,
-        string contentLocale)
+        string contentLocale,
+        string? primaryOriginCountryCode = null,
+        string? originalTitle = null)
     {
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
             return null;
         }
 
-        if (IsTurkishProduction(originalLanguage))
+        if (IsTurkishProduction(originalLanguage, primaryOriginCountryCode, originalTitle))
         {
             var exportTitle = TrimOptional(canonicalTitle);
             if (string.IsNullOrEmpty(exportTitle) ||
@@ -100,30 +103,79 @@ public static class LocalizedDisplayTitleSelector
         string? originalTitle,
         string? originalLanguage,
         string? localizedTitle,
-        string contentLocale)
+        string contentLocale,
+        string? primaryOriginCountryCode = null)
     {
         var primary = ChoosePrimary(
             canonicalTitle,
             originalTitle,
             originalLanguage,
             localizedTitle,
-            contentLocale);
+            contentLocale,
+            primaryOriginCountryCode);
         var subtitle = ChooseSubtitle(
             primary,
             canonicalTitle,
             originalLanguage,
             localizedTitle,
-            contentLocale);
+            contentLocale,
+            primaryOriginCountryCode,
+            originalTitle);
 
         return subtitle is not null
             ? (primary, subtitle)
             : (primary, originalTitle);
     }
 
-    internal static bool IsTurkishProduction(string? originalLanguage) =>
-        ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
-            originalLanguage,
-            ContentLocaleResolver.TurkishTurkey);
+    internal static bool IsTurkishProduction(
+        string? originalLanguage,
+        string? primaryOriginCountryCode = null,
+        string? originalTitle = null)
+    {
+        if (ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
+                originalLanguage,
+                ContentLocaleResolver.TurkishTurkey))
+        {
+            return true;
+        }
+
+        if (IsTurkeyOriginCountry(primaryOriginCountryCode))
+        {
+            return true;
+        }
+
+        if (ContainsTurkishScript(originalTitle) &&
+            !ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
+                originalLanguage,
+                ContentLocaleResolver.EnglishUnitedStates))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsTurkeyOriginCountry(string? primaryOriginCountryCode) =>
+        string.Equals(primaryOriginCountryCode?.Trim(), "TR", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ContainsTurkishScript(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case 'ç' or 'Ç' or 'ğ' or 'Ğ' or 'ı' or 'İ' or 'ö' or 'Ö' or 'ş' or 'Ş' or 'ü' or 'Ü':
+                    return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string TrimRequired(string value) => value.Trim();
 

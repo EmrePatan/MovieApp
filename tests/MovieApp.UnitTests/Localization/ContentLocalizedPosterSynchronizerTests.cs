@@ -26,6 +26,7 @@ public sealed class ContentLocalizedPosterSynchronizerTests
             "/canonical-en.jpg",
             [new ProviderImageResult("/canonical-en.jpg", "en", 0.667m, 500, 750, 8m, 100)],
             originalLanguage: "en",
+            primaryOriginCountryCode: null,
             CancellationToken.None);
 
         var paths = await repository.GetPosterPathsAsync(

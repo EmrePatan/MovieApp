@@ -34,6 +34,9 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(movie => movie.OriginalLanguage)
             .HasMaxLength(ConfigurationConstants.LanguageMaxLength);
 
+        builder.Property(movie => movie.PrimaryOriginCountryCode)
+            .HasMaxLength(ConfigurationConstants.CountryCodeMaxLength);
+
         builder.Property(movie => movie.ImdbId)
             .HasMaxLength(ConfigurationConstants.ImdbIdMaxLength);
 

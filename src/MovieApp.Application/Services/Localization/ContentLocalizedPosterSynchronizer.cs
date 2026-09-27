@@ -13,6 +13,7 @@ public sealed class ContentLocalizedPosterSynchronizer(
         string? canonicalPosterPath,
         IReadOnlyList<ProviderImageResult>? providerPosters,
         string? originalLanguage = null,
+        string? primaryOriginCountryCode = null,
         CancellationToken cancellationToken = default)
     {
         var utcNow = DateTime.UtcNow;
@@ -33,7 +34,8 @@ public sealed class ContentLocalizedPosterSynchronizer(
                 providerPosters,
                 languageKey,
                 canonicalPosterPath,
-                originalLanguage);
+                originalLanguage,
+                primaryOriginCountryCode);
             if (selection.ShouldPersist && !string.IsNullOrWhiteSpace(selection.PosterPath))
             {
                 await repository.UpsertAsync(

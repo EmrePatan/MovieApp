@@ -91,16 +91,18 @@ public sealed class NoOpContentLocalizedPosterSynchronizer : IContentLocalizedPo
         string? canonicalPosterPath,
         IReadOnlyList<ProviderImageResult>? providerPosters,
         string? originalLanguage = null,
+        string? primaryOriginCountryCode = null,
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 }
 
 public sealed class EmptyOriginalLanguageMovieRepository : IMovieRepository
 {
-    public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+    public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyDictionary<Guid, string?>>(new Dictionary<Guid, string?>());
+        Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
+            new Dictionary<Guid, ContentProductionContext>());
 
     public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
@@ -116,20 +118,20 @@ public sealed class EmptyOriginalLanguageMovieRepository : IMovieRepository
 
 public sealed class StubTvOriginalLanguageRepository(IReadOnlyDictionary<Guid, string?> languages) : ITvShowRepository
 {
-    public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+    public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default)
     {
-        var result = new Dictionary<Guid, string?>();
+        var result = new Dictionary<Guid, ContentProductionContext>();
         foreach (var id in ids)
         {
             if (languages.TryGetValue(id, out var language))
             {
-                result[id] = language;
+                result[id] = new ContentProductionContext(language);
             }
         }
 
-        return Task.FromResult<IReadOnlyDictionary<Guid, string?>>(result);
+        return Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(result);
     }
 
     public Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>

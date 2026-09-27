@@ -23,4 +23,5 @@ public sealed record TvShowProviderDetails(
     NextEpisodeToAirProviderSummary? NextEpisodeToAir = null,
     IReadOnlyList<ProviderKeywordSummary>? Keywords = null,
     IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null,
-    IReadOnlyList<ProviderImageResult>? ProviderPosters = null);
+    IReadOnlyList<ProviderImageResult>? ProviderPosters = null,
+    string? PrimaryOriginCountryCode = null);

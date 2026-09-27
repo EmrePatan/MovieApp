@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -108,22 +109,24 @@ public sealed class TvShowRepository(
             .ToDictionary(tvShow => tvShow.Id, tvShow => tvShow.TmdbId!.Value);
     }
 
-    public async Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+    public async Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
         IReadOnlyList<Guid> ids,
         CancellationToken cancellationToken = default)
     {
         if (ids.Count == 0)
         {
-            return new Dictionary<Guid, string?>();
+            return new Dictionary<Guid, ContentProductionContext>();
         }
 
         var tvShows = await dbContext.TvShows
             .AsNoTracking()
             .Where(tvShow => ids.Contains(tvShow.Id))
-            .Select(tvShow => new { tvShow.Id, tvShow.OriginalLanguage })
+            .Select(tvShow => new { tvShow.Id, tvShow.OriginalLanguage, tvShow.PrimaryOriginCountryCode })
             .ToListAsync(cancellationToken);
 
-        return tvShows.ToDictionary(tvShow => tvShow.Id, tvShow => tvShow.OriginalLanguage);
+        return tvShows.ToDictionary(
+            tvShow => tvShow.Id,
+            tvShow => new ContentProductionContext(tvShow.OriginalLanguage, tvShow.PrimaryOriginCountryCode));
     }
 
     public async Task<TvShow> UpsertFromProviderAsync(
@@ -391,6 +394,7 @@ public sealed class TvShowRepository(
         tvShow.PosterPath = details.PosterPath;
         tvShow.BackdropPath = details.BackdropPath;
         tvShow.OriginalLanguage = details.OriginalLanguage;
+        tvShow.PrimaryOriginCountryCode = details.PrimaryOriginCountryCode;
         tvShow.VoteAverage = details.VoteAverage;
         tvShow.VoteCount = details.VoteCount;
         tvShow.Status = TvShowStatusParser.Parse(details.Status);

@@ -413,11 +413,11 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
-        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
-                ids.ToDictionary(id => id, static _ => (string?)"en"));
+            Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
+                ids.ToDictionary(id => id, static _ => new ContentProductionContext("en")));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<MovieProviderSummary> summaries,
@@ -448,11 +448,11 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
-        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
-                ids.ToDictionary(id => id, static _ => (string?)"en"));
+            Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
+                ids.ToDictionary(id => id, static _ => new ContentProductionContext("en")));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<TvShowProviderSummary> summaries,
@@ -485,11 +485,11 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
-        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
-                ids.ToDictionary(id => id, static _ => (string?)"en"));
+            Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
+                ids.ToDictionary(id => id, static _ => new ContentProductionContext("en")));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<MovieProviderSummary> summaries,
@@ -526,11 +526,11 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
-        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
-                ids.ToDictionary(id => id, static _ => (string?)"en"));
+            Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
+                ids.ToDictionary(id => id, static _ => new ContentProductionContext("en")));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<MovieProviderSummary> summaries,
@@ -564,11 +564,11 @@ public sealed class ListLocalizationStage2Tests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
 
-        public Task<IReadOnlyDictionary<Guid, string?>> GetOriginalLanguagesByIdsAsync(
+        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
             IReadOnlyList<Guid> ids,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, string?>>(
-                ids.ToDictionary(id => id, static _ => (string?)"en"));
+            Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
+                ids.ToDictionary(id => id, static _ => new ContentProductionContext("en")));
 
         public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
             IReadOnlyList<TvShowProviderSummary> summaries,
