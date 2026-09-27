@@ -127,7 +127,8 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
             scheduler ?? new NoOpCatalogKeywordReadPathScheduler(),
             movieDataProvider,
             catalogProviderUpsertService,
-            cacheService ?? new NoOpCacheService());
+            cacheService ?? new NoOpCacheService(),
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
 
     private static Movie CreateMovie(int? tmdbCollectionId, string? collectionName = null) =>
         new()

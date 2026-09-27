@@ -25,8 +25,8 @@ public sealed class GetMovieByIdService(
     IMovieDataProvider movieDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService,
-    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null,
-    IContentLocalizedPosterRepository? contentLocalizedPosterRepository = null) : IGetMovieByIdService
+    IContentLocalizedPosterRepository contentLocalizedPosterRepository,
+    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan CollectionProbeTtl = TimeSpan.FromHours(24);
@@ -131,8 +131,7 @@ public sealed class GetMovieByIdService(
         string? contentLocale,
         CancellationToken cancellationToken)
     {
-        if (contentLocalizedPosterRepository is null ||
-            contentLocale is null ||
+        if (contentLocale is null ||
             !ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
             return result;

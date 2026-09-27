@@ -14,9 +14,9 @@ public sealed class GetTvShowByIdService(
     ITvShowSeasonSummaryHydrator seasonSummaryHydrator,
     ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService,
+    IContentLocalizedPosterRepository contentLocalizedPosterRepository,
     ITvShowExternalIdLookup? externalIdLookup = null,
-    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null,
-    IContentLocalizedPosterRepository? contentLocalizedPosterRepository = null) : IGetTvShowByIdService
+    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetTvShowByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
 
@@ -116,8 +116,7 @@ public sealed class GetTvShowByIdService(
         string? contentLocale,
         CancellationToken cancellationToken)
     {
-        if (contentLocalizedPosterRepository is null ||
-            contentLocale is null ||
+        if (contentLocale is null ||
             !ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
             return result;

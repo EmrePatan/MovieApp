@@ -102,7 +102,8 @@ public sealed class GetMovieByIdServiceReleaseGuardrailTests
             new NoOpCatalogKeywordReadPathScheduler(),
             new NullMovieDataProvider(),
             new NoOpCatalogProviderUpsertService(),
-            new NoOpCacheService());
+            new NoOpCacheService(),
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
 
     private static Movie CreateMovie(DateOnly? releaseDate) =>
         new()

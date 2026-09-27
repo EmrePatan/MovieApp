@@ -46,7 +46,8 @@ public sealed class MovieDetailsCacheTests
             new NoOpCatalogKeywordReadPathScheduler(),
             new NullMovieDataProvider(),
             new NoOpCatalogProviderUpsertService(),
-            cache);
+            cache,
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
 
     private static Movie CreateMovie() =>
         new()

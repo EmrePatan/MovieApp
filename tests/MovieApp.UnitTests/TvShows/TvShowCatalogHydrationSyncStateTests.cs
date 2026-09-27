@@ -66,7 +66,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
         var service = new GetTvShowByIdService(
             new FakeSeasonSummaryHydrator(providerCatalogRefreshed: true),
             syncState,
-            new NoOpCacheService());
+            new NoOpCacheService(),
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
 
         await service.GetByIdAsync(TvShowId);
 
@@ -114,7 +115,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
         var service = new GetTvShowByIdService(
             new FakeSeasonSummaryHydrator(providerCatalogRefreshed: true),
             syncState,
-            cache);
+            cache,
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
 
         await service.GetByIdAsync(TvShowId);
 

@@ -34,7 +34,8 @@ public sealed class GetTvShowByIdServiceActionEligibilityTests
         new(
             new FakeSeasonSummaryHydrator(status),
             new NoOpCatalogSyncStateService(),
-            new NoOpCacheService());
+            new NoOpCacheService(),
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
 
     private sealed class FakeSeasonSummaryHydrator(TvShowStatus status) : ITvShowSeasonSummaryHydrator
     {
