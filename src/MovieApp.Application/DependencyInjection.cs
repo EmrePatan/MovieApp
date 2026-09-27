@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Services.Home;
@@ -60,7 +61,13 @@ public static class DependencyInjection
         services.AddScoped<IContentLocalizedPosterBackfillService, ContentLocalizedPosterBackfillService>();
 
         services.AddScoped<ISearchTvShowsService, SearchTvShowsService>();
-        services.AddScoped<IGetTvShowByIdService, GetTvShowByIdService>();
+        services.AddScoped<IGetTvShowByIdService>(static sp => new GetTvShowByIdService(
+            sp.GetRequiredService<ITvShowSeasonSummaryHydrator>(),
+            sp.GetRequiredService<ITvShowCatalogSyncStateService>(),
+            sp.GetRequiredService<ICacheService>(),
+            sp.GetRequiredService<IContentLocalizedPosterRepository>(),
+            sp.GetRequiredService<ITvShowExternalIdLookup>(),
+            sp.GetRequiredService<IDetailLocalizationOverlayService>()));
         services.AddScoped<ITvShowExternalIdLookup, TvShowExternalIdLookup>();
         services.AddScoped<IGetTvShowByTmdbIdService, GetTvShowByTmdbIdService>();
         services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();

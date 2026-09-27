@@ -15,8 +15,8 @@ public sealed class GetTvShowByIdService(
     ITvShowCatalogSyncStateService catalogSyncStateService,
     ICacheService cacheService,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
-    ITvShowExternalIdLookup? externalIdLookup = null,
-    IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetTvShowByIdService
+    ITvShowExternalIdLookup externalIdLookup,
+    IDetailLocalizationOverlayService detailLocalizationOverlayService) : IGetTvShowByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
 
@@ -62,7 +62,7 @@ public sealed class GetTvShowByIdService(
             DetailsCacheTtl,
             cancellationToken);
 
-        if (overlayTask is null || detailLocalizationOverlayService is null)
+        if (overlayTask is null)
         {
             return await ApplyOverlayAsync(id, result, contentLocale, cancellationToken);
         }
@@ -79,9 +79,7 @@ public sealed class GetTvShowByIdService(
         string? contentLocale,
         CancellationToken cancellationToken)
     {
-        if (detailLocalizationOverlayService is null ||
-            externalIdLookup is null ||
-            contentLocale is null)
+        if (contentLocale is null)
         {
             return null;
         }
@@ -99,7 +97,7 @@ public sealed class GetTvShowByIdService(
         string? contentLocale,
         CancellationToken cancellationToken)
     {
-        if (detailLocalizationOverlayService is not null && contentLocale is not null)
+        if (contentLocale is not null)
         {
             result = await detailLocalizationOverlayService.ApplyTvShowOverlayAsync(
                 result,
