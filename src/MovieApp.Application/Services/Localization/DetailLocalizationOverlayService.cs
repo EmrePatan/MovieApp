@@ -137,7 +137,6 @@ public sealed class DetailLocalizationOverlayService(
             Title = displayTitles.Title,
             OriginalTitle = displayTitles.OriginalTitle,
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
-            Status = LocalizationFieldFallback.Choose(canonical.Status, overlay.Status),
             Seasons = seasons
         };
     }
