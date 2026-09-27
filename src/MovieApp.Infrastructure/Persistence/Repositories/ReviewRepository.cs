@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -307,5 +308,77 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 review.Content,
                 review.UpdatedAt))
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<UserReviewCatalogListItem> Reviews, int TotalCount)> GetUserReviewsAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        SearchContentType contentType,
+        CancellationToken cancellationToken = default)
+    {
+        var reviewsQuery = dbContext.Reviews
+            .AsNoTracking()
+            .Where(review => review.UserId == userId);
+
+        if (contentType == SearchContentType.Movie)
+        {
+            reviewsQuery = reviewsQuery.Where(review => review.MovieId != null);
+        }
+        else if (contentType == SearchContentType.Tv)
+        {
+            reviewsQuery = reviewsQuery.Where(review => review.TvShowId != null);
+        }
+
+        var totalCount = await reviewsQuery.CountAsync(cancellationToken);
+
+        var reviews = await reviewsQuery
+            .Include(review => review.Movie)
+            .Include(review => review.TvShow)
+            .OrderByDescending(review => review.UpdatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        if (reviews.Count == 0)
+        {
+            return (Array.Empty<UserReviewCatalogListItem>(), totalCount);
+        }
+
+        var movieIds = reviews
+            .Where(review => review.MovieId != null)
+            .Select(review => review.MovieId!.Value)
+            .ToList();
+        var tvShowIds = reviews
+            .Where(review => review.TvShowId != null)
+            .Select(review => review.TvShowId!.Value)
+            .ToList();
+
+        var ratings = await dbContext.Ratings
+            .AsNoTracking()
+            .Where(rating =>
+                rating.UserId == userId &&
+                ((rating.MovieId != null && movieIds.Contains(rating.MovieId.Value)) ||
+                 (rating.TvShowId != null && tvShowIds.Contains(rating.TvShowId.Value))))
+            .ToListAsync(cancellationToken);
+
+        var items = reviews
+            .Select(review =>
+            {
+                int? userRating = null;
+                if (review.MovieId is Guid movieId)
+                {
+                    userRating = ratings.FirstOrDefault(rating => rating.MovieId == movieId)?.Score;
+                }
+                else if (review.TvShowId is Guid tvShowId)
+                {
+                    userRating = ratings.FirstOrDefault(rating => rating.TvShowId == tvShowId)?.Score;
+                }
+
+                return new UserReviewCatalogListItem(review, userRating);
+            })
+            .ToList();
+
+        return (items, totalCount);
     }
 }

@@ -85,6 +85,49 @@ public sealed class RatingsReviewsApiTests(RatingsReviewsApiFixture fixture)
     }
 
     [Fact]
+    public async Task UserCanListOwnReviewsWithCatalogMetadata()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("my-reviews-user");
+        var movieId = await SeedMovieAsync();
+        var tvShowId = await SeedTvShowAsync();
+
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/movies/{movieId}",
+            token,
+            new CreateReviewRequest("A thoughtful movie review."));
+
+        await SendAuthorizedPostAsync(
+            $"/api/reviews/tvshows/{tvShowId}",
+            token,
+            new CreateReviewRequest("A thoughtful TV review."));
+
+        var allReviewsResponse = await SendAuthorizedGetAsync(
+            "/api/reviews/me?page=1&pageSize=20",
+            token);
+        Assert.Equal(HttpStatusCode.OK, allReviewsResponse.StatusCode);
+
+        var allReviews = await allReviewsResponse.Content.ReadFromJsonAsync<UserReviewListResponse>();
+        Assert.NotNull(allReviews);
+        Assert.Equal(2, allReviews.Items.Count);
+        Assert.Contains(allReviews.Items, item => item.ContentType == "movie" && item.ContentId == movieId);
+        Assert.Contains(allReviews.Items, item => item.ContentType == "tv" && item.ContentId == tvShowId);
+        Assert.All(allReviews.Items, item => Assert.False(string.IsNullOrWhiteSpace(item.Title)));
+
+        var movieOnlyResponse = await SendAuthorizedGetAsync(
+            "/api/reviews/me?page=1&pageSize=20&type=movie",
+            token);
+        Assert.Equal(HttpStatusCode.OK, movieOnlyResponse.StatusCode);
+
+        var movieOnly = await movieOnlyResponse.Content.ReadFromJsonAsync<UserReviewListResponse>();
+        Assert.NotNull(movieOnly);
+        Assert.Single(movieOnly.Items);
+        Assert.Equal("movie", movieOnly.Items[0].ContentType);
+        Assert.Equal("A thoughtful movie review.", movieOnly.Items[0].Content);
+    }
+
+    [Fact]
     public async Task PublicReviewsCanFilterByRatingStars()
     {
         await fixture.ResetAsync();

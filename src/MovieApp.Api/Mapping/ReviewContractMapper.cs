@@ -33,4 +33,27 @@ public static class ReviewContractMapper
             result.Page.HasNextPage,
             result.Page.HasPreviousPage,
             result.ReviewScoreDistribution);
+
+    public static UserReviewListItemResponse ToUserReviewListItemResponse(UserReviewListItemResult result) =>
+        new(
+            result.Id,
+            result.ContentType,
+            result.ContentId,
+            result.Title,
+            result.PosterPath,
+            result.ReleaseDate,
+            result.Content,
+            result.CreatedAt,
+            result.UpdatedAt,
+            result.UserRating);
+
+    public static UserReviewListResponse ToUserReviewListResponse(UserReviewListPageResult result) =>
+        new(
+            result.Page.Items.Select(ToUserReviewListItemResponse).ToList(),
+            result.Page.Page,
+            result.Page.PageSize,
+            result.Page.TotalCount,
+            result.Page.TotalPages,
+            result.Page.HasNextPage,
+            result.Page.HasPreviousPage);
 }

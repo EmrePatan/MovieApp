@@ -6,6 +6,7 @@ using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 
@@ -188,6 +189,31 @@ public sealed class ReviewService(
             reviewScoreDistribution);
     }
 
+    public async Task<UserReviewListPageResult> GetCurrentUserReviewsAsync(
+        int page,
+        int pageSize,
+        SearchContentType contentType,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        ValidatePagination(page, pageSize);
+
+        if (contentType is SearchContentType.Person)
+        {
+            throw new ValidationException("Invalid content type filter.");
+        }
+
+        var (reviews, totalCount) = await reviewRepository.GetUserReviewsAsync(
+            userId,
+            page,
+            pageSize,
+            contentType,
+            cancellationToken);
+
+        return new UserReviewListPageResult(
+            ToUserReviewPaginatedResult(reviews, page, pageSize, totalCount));
+    }
+
     public async Task<ReviewListPageResult> GetTvShowReviewsAsync(
         Guid tvShowId,
         int page,
@@ -270,5 +296,19 @@ public sealed class ReviewService(
             .Select(item => ReviewMapper.ToResult(item.Review, item.UserRating))
             .ToList();
         return new PaginatedResult<ReviewResult>(items, page, pageSize, totalCount, totalPages);
+    }
+
+    private static PaginatedResult<UserReviewListItemResult> ToUserReviewPaginatedResult(
+        IReadOnlyList<UserReviewCatalogListItem> reviews,
+        int page,
+        int pageSize,
+        int totalCount)
+    {
+        var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
+        var items = reviews
+            .Select(ReviewMapper.ToUserReviewListItemResult)
+            .ToList();
+
+        return new PaginatedResult<UserReviewListItemResult>(items, page, pageSize, totalCount, totalPages);
     }
 }

@@ -8,6 +8,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Application.Validation;
 using MovieApp.Contracts.Reviews;
@@ -324,6 +325,51 @@ public sealed class ReviewsController(
             return NotFound(CreateProblemDetails(
                 StatusCodes.Status404NotFound,
                 "Review not found.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(UserReviewListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<UserReviewListResponse>> GetCurrentUserReviews(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? type,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var mediaTypeValidation = LibraryValidator.ValidateMediaType(type);
+            if (!mediaTypeValidation.IsValid)
+            {
+                throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+            }
+
+            _ = AdvancedSearchValidator.TryParseType(type, out var contentType);
+
+            var result = await reviewService.GetCurrentUserReviewsAsync(
+                page ?? SearchPaginationDefaults.DefaultPage,
+                pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                contentType,
+                cancellationToken);
+
+            return Ok(ReviewContractMapper.ToUserReviewListResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid review list request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
                 exception.Message));
         }
     }

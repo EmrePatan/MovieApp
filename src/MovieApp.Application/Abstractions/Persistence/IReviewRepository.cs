@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Abstractions.Persistence;
@@ -75,5 +76,12 @@ public interface IReviewRepository
 
     Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(
         Guid reviewId,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<UserReviewCatalogListItem> Reviews, int TotalCount)> GetUserReviewsAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        SearchContentType contentType,
         CancellationToken cancellationToken = default);
 }

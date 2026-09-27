@@ -1,5 +1,6 @@
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Services.Reviews;
 
@@ -55,5 +56,11 @@ public interface IReviewService
         int pageSize,
         ReviewListSort sort,
         int? ratingStars = null,
+        CancellationToken cancellationToken = default);
+
+    Task<UserReviewListPageResult> GetCurrentUserReviewsAsync(
+        int page,
+        int pageSize,
+        SearchContentType contentType,
         CancellationToken cancellationToken = default);
 }
