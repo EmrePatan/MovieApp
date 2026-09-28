@@ -7,6 +7,7 @@ using MovieApp.Api.Identity;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Swagger;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Configuration;
 using MovieApp.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -40,6 +41,12 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services.AddSingleton<IValidateOptions<AppOptions>, AppOptionsValidator>();
+
+        services.AddOptions<CatalogShareOptions>()
+            .Bind(configuration.GetSection(CatalogShareOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<CatalogShareOptions>, CatalogShareOptionsValidator>();
 
         return services;
     }

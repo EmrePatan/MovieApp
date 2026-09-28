@@ -21,6 +21,8 @@ public static class ProductMetricNames
     public const string LibraryOpened = "library_opened";
     public const string LibraryFilterSelected = "library_filter_selected";
     public const string InsightsOpened = "insights_opened";
+    public const string DetailShareOpened = "detail_share_opened";
+    public const string SharedContentLinkOpened = "shared_content_link_opened";
 
     /// <summary>Legacy mobile metric retained for backward-compatible increments.</summary>
     public const string PickSomethingUsed = "pick_something_used";
@@ -48,6 +50,8 @@ public static class ProductMetricNames
         LibraryOpened,
         LibraryFilterSelected,
         InsightsOpened,
+        DetailShareOpened,
+        SharedContentLinkOpened,
         PickSomethingUsed,
         AiRecommendationsUsed,
     };

@@ -39,6 +39,7 @@ using MovieApp.Application.Services.ProductMetrics;
 using MovieApp.Application.Services.Insights;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.ExternalRatings;
+using MovieApp.Application.Services.CatalogShare;
 
 namespace MovieApp.Application;
 
@@ -198,6 +199,8 @@ public static class DependencyInjection
         services.AddScoped<IDeleteNotificationService, DeleteNotificationService>();
         services.AddScoped<INotificationInboxCleanupService, NotificationInboxCleanupService>();
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
+        services.AddScoped<ICatalogPublicSharePageService, CatalogPublicSharePageService>();
+        services.AddSingleton<CatalogPublicSharePageRenderer>();
         services.AddScoped<ILibraryService, LibraryService>();
         services.AddScoped<ILibraryActionStatusService, LibraryActionStatusService>();
 

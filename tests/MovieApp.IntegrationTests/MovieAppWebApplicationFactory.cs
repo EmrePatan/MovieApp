@@ -14,6 +14,8 @@ public sealed class MovieAppWebApplicationFactory : WebApplicationFactory<Progra
         {
             var configuration = IntegrationTestJwtSettings.CreateConfiguration();
             configuration["MovieProviders:Provider"] = "Fake";
+            configuration["CatalogShare:PublicWebBaseUrl"] = "https://moviecaveapp.test";
+            configuration["CatalogShare:CustomUrlScheme"] = "movieapp";
             configurationBuilder.AddInMemoryCollection(configuration);
         });
     }

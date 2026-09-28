@@ -8,6 +8,7 @@ using MovieApp.Api.Errors;
 using MovieApp.Api.ForwardedHeaders;
 using MovieApp.Api.Health;
 using MovieApp.Api.Observability;
+using MovieApp.Api.CatalogShare;
 using MovieApp.Api.Security;
 using MovieApp.Application;
 using MovieApp.Infrastructure;
@@ -84,6 +85,7 @@ public static class ApplicationBootstrap
         app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapCatalogShareEndpoints();
         app.MapHealthChecks(
             "/health/ready",
             new HealthCheckOptions

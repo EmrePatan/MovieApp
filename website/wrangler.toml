@@ -1,7 +1,14 @@
 # Worker name must match the Cloudflare dashboard project name exactly.
 name = "moviecaveapp"
 compatibility_date = "2026-09-21"
+main = "src/worker.mjs"
 
 [assets]
 directory = "./dist"
 html_handling = "auto-trailing-slash"
+binding = "ASSETS"
+
+# Set in Cloudflare dashboard for production (public API origin, no trailing slash).
+# Example: https://movieapp-fpkg.onrender.com
+[vars]
+CATALOG_SHARE_API_ORIGIN = ""
