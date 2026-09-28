@@ -23,6 +23,16 @@ public sealed class UserWatchlistShareRepository(ApplicationDbContext dbContext)
                 share => share.IsActive && share.TokenHash == tokenHash,
                 cancellationToken);
 
+    public async Task<IReadOnlyList<UserWatchlistShare>> ListActiveByUserIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.UserWatchlistShares
+            .AsNoTracking()
+            .Include(share => share.Watchlist)
+            .Where(share => share.UserId == userId && share.IsActive)
+            .OrderBy(share => share.Watchlist!.Name)
+            .ToListAsync(cancellationToken);
+
     public async Task<UserWatchlistShare> AddAsync(
         UserWatchlistShare share,
         CancellationToken cancellationToken = default)

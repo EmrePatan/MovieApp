@@ -41,6 +41,24 @@ public sealed class WatchlistShareServiceTests
     }
 
     [Fact]
+    public async Task ListActiveSharesForUserAsync_ReturnsOnlyActiveSharesForCurrentUser()
+    {
+        var repo = new FakeShareRepository();
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
+
+        await service.EnableAsync(WatchlistA);
+        await service.EnableAsync(WatchlistB);
+        await service.DisableAsync(WatchlistA);
+
+        var active = await service.ListActiveSharesForUserAsync();
+
+        Assert.Single(active);
+        Assert.Equal(WatchlistB, active[0].WatchlistId);
+        Assert.Equal("Work", active[0].WatchlistName);
+    }
+
+    [Fact]
     public async Task DisableAsync_OnlyAffectsRequestedWatchlist()
     {
         var repo = new FakeShareRepository();
@@ -217,6 +235,27 @@ public sealed class WatchlistShareServiceTests
             Guid watchlistId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_byWatchlistId.TryGetValue(watchlistId, out var share) ? share : null);
+
+        public Task<IReadOnlyList<UserWatchlistShare>> ListActiveByUserIdAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var shares = _byWatchlistId.Values
+                .Where(entry => entry.UserId == userId && entry.IsActive)
+                .Select(entry =>
+                {
+                    entry.Watchlist = new Watchlist
+                    {
+                        Id = entry.WatchlistId,
+                        UserId = entry.UserId,
+                        Name = entry.WatchlistId == WatchlistA ? "Weekend" : "Work",
+                    };
+                    return entry;
+                })
+                .OrderBy(entry => entry.Watchlist!.Name)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<UserWatchlistShare>>(shares);
+        }
 
         public Task<UserWatchlistShare?> GetActiveByTokenHashAsync(
             string tokenHash,

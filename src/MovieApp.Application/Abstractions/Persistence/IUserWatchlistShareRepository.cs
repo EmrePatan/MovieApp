@@ -12,6 +12,10 @@ public interface IUserWatchlistShareRepository
         string tokenHash,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<UserWatchlistShare>> ListActiveByUserIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<UserWatchlistShare> AddAsync(UserWatchlistShare share, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(UserWatchlistShare share, CancellationToken cancellationToken = default);

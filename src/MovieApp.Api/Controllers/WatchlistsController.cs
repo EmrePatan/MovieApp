@@ -5,8 +5,10 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Models.Watchlists;
+using MovieApp.Application.Services.WatchlistShare;
 using MovieApp.Application.Services.Watchlists;
 using MovieApp.Application.Validation;
+using MovieApp.Contracts.WatchlistShare;
 using ContractsCreateWatchlistRequest = MovieApp.Contracts.Watchlists.CreateWatchlistRequest;
 using ContractsUpdateWatchlistRequest = MovieApp.Contracts.Watchlists.UpdateWatchlistRequest;
 using MovieApp.Contracts.Watchlists;
@@ -27,7 +29,8 @@ public sealed class WatchlistsController(
     IAddTvShowToWatchlistService addTvShowToWatchlistService,
     IRemoveTvShowFromWatchlistService removeTvShowFromWatchlistService,
     IGetWatchlistItemsService getWatchlistItemsService,
-    IGetWatchlistMembershipService getWatchlistMembershipService) : ControllerBase
+    IGetWatchlistMembershipService getWatchlistMembershipService,
+    IWatchlistShareService watchlistShareService) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(WatchlistSummaryResponse), StatusCodes.Status201Created)]
@@ -94,6 +97,26 @@ public sealed class WatchlistsController(
                 StatusCodes.Status400BadRequest,
                 "Invalid membership request.",
                 exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+    }
+
+    [HttpGet("shares")]
+    [ProducesResponseType(typeof(WatchlistShareListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<WatchlistShareListResponse>> GetActiveShares(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var items = await watchlistShareService.ListActiveSharesForUserAsync(cancellationToken);
+            return Ok(new WatchlistShareListResponse(
+                items.Select(item => new WatchlistShareSummaryResponse(item.WatchlistId, item.WatchlistName)).ToList()));
         }
         catch (AuthenticationException exception)
         {

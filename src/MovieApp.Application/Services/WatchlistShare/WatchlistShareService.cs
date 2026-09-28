@@ -111,6 +111,19 @@ public sealed class WatchlistShareService(
         return new WatchlistShareRotateResult(shareUrl);
     }
 
+    public async Task<IReadOnlyList<WatchlistShareSummaryResult>> ListActiveSharesForUserAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        var shares = await shareRepository.ListActiveByUserIdAsync(userId, cancellationToken);
+
+        return shares
+            .Select(share => new WatchlistShareSummaryResult(
+                share.WatchlistId,
+                share.Watchlist?.Name ?? string.Empty))
+            .ToList();
+    }
+
     public async Task<PublicWatchlistShareResult?> TryGetPublicByTokenAsync(
         string rawToken,
         CancellationToken cancellationToken = default)

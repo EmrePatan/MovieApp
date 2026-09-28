@@ -6,6 +6,10 @@ public sealed record WatchlistShareEnableResponse(string? ShareUrl, bool Created
 
 public sealed record WatchlistShareRotateResponse(string ShareUrl);
 
+public sealed record WatchlistShareSummaryResponse(Guid WatchlistId, string WatchlistName);
+
+public sealed record WatchlistShareListResponse(IReadOnlyList<WatchlistShareSummaryResponse> Items);
+
 public sealed record PublicWatchlistShareItemResponse(
     string ContentType,
     Guid ContentId,

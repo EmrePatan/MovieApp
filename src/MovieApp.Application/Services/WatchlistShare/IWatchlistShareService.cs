@@ -14,6 +14,9 @@ public interface IWatchlistShareService
 
     Task<WatchlistShareRotateResult> RotateAsync(Guid watchlistId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<WatchlistShareSummaryResult>> ListActiveSharesForUserAsync(
+        CancellationToken cancellationToken = default);
+
     Task<PublicWatchlistShareResult?> TryGetPublicByTokenAsync(
         string rawToken,
         CancellationToken cancellationToken = default);
