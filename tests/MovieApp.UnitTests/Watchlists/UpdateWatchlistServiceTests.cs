@@ -175,5 +175,11 @@ public sealed class UpdateWatchlistServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<WatchlistItem>> GetDistinctItemsForUserAsync(
+            Guid userId,
+            int maxItems,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<WatchlistItem>>([]);
     }
 }

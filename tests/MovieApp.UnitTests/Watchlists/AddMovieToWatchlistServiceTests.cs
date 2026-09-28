@@ -182,6 +182,12 @@ public sealed class AddMovieToWatchlistServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<WatchlistItem>> GetDistinctItemsForUserAsync(
+            Guid userId,
+            int maxItems,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<WatchlistItem>>([]);
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository

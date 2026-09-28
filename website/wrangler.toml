@@ -18,6 +18,10 @@ pattern = "moviecaveapp.com/tv/*"
 zone_name = "moviecaveapp.com"
 
 [[routes]]
+pattern = "moviecaveapp.com/watchlist/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
 pattern = "moviecaveapp.com/.well-known/*"
 zone_name = "moviecaveapp.com"
 
@@ -27,6 +31,10 @@ zone_name = "moviecaveapp.com"
 
 [[routes]]
 pattern = "open.moviecaveapp.com/tv/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
+pattern = "open.moviecaveapp.com/watchlist/*"
 zone_name = "moviecaveapp.com"
 
 [[routes]]

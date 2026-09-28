@@ -49,6 +49,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<WatchlistItem> WatchlistItems => Set<WatchlistItem>();
 
+    public DbSet<UserWatchlistShare> UserWatchlistShares => Set<UserWatchlistShare>();
+
     public DbSet<Rating> Ratings => Set<Rating>();
 
     public DbSet<Review> Reviews => Set<Review>();

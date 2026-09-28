@@ -5,6 +5,7 @@
  * open.moviecaveapp.com catalog paths redirect to canonical moviecaveapp.com (no duplicate HTML).
  */
 const CATALOG_PATH_PATTERN = /^\/(movie|tv)\/([^/?#]+)/;
+const WATCHLIST_PATH_PATTERN = /^\/watchlist\/([^/?#]+)/;
 const WELL_KNOWN_PATHS = new Set([
   "/.well-known/apple-app-site-association",
   "/.well-known/assetlinks.json",
@@ -32,12 +33,17 @@ function isCatalogPath(pathname) {
   return CATALOG_PATH_PATTERN.test(pathname);
 }
 
+function isWatchlistPath(pathname) {
+  return WATCHLIST_PATH_PATTERN.test(pathname);
+}
+
 const PUBLIC_WEB_PATHS = new Set(["/", "/movies", "/tv"]);
 
 function shouldProxyToApi(pathname) {
   return (
     PUBLIC_WEB_PATHS.has(pathname) ||
     isCatalogPath(pathname) ||
+    isWatchlistPath(pathname) ||
     WELL_KNOWN_PATHS.has(pathname)
   );
 }
@@ -50,7 +56,7 @@ export default {
     const appOpenHost = resolveAppOpenHost(env);
     const canonicalOrigin = resolveCanonicalOrigin(env);
 
-    if (host === appOpenHost && isCatalogPath(pathname)) {
+    if (host === appOpenHost && (isCatalogPath(pathname) || isWatchlistPath(pathname))) {
       const canonicalUrl = `${canonicalOrigin}${pathname}${url.search}`;
       return Response.redirect(canonicalUrl, 302);
     }

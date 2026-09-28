@@ -30,6 +30,7 @@ using MovieApp.Application.Services.MovieFollows;
 using MovieApp.Application.Services.CatalogFollows;
 using MovieApp.Application.Services.MovieRelease;
 using MovieApp.Application.Services.Watchlists;
+using MovieApp.Application.Services.WatchlistShare;
 using MovieApp.Application.Services.Collections;
 using MovieApp.Application.Services.Notifications;
 using MovieApp.Application.Services.Keywords;
@@ -155,6 +156,7 @@ public static class DependencyInjection
         services.AddScoped<IRemoveTvShowFromWatchlistService, RemoveTvShowFromWatchlistService>();
         services.AddScoped<IGetWatchlistItemsService, GetWatchlistItemsService>();
         services.AddScoped<IGetWatchlistMembershipService, GetWatchlistMembershipService>();
+        services.AddScoped<IWatchlistShareService, WatchlistShareService>();
 
         services.AddScoped<IRatingService, RatingService>();
         services.AddScoped<IReviewService, ReviewService>();
@@ -201,6 +203,7 @@ public static class DependencyInjection
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
         services.AddScoped<ICatalogPublicSharePageService, CatalogPublicSharePageService>();
         services.AddScoped<IPublicWebLandingService, PublicWebLandingService>();
+        services.AddScoped<IPublicWatchlistSharePageService, PublicWatchlistSharePageService>();
         services.AddSingleton<PublicWebSiteRenderer>();
         services.AddSingleton<CatalogPublicSharePageRenderer>();
         services.AddScoped<ILibraryService, LibraryService>();

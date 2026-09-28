@@ -277,6 +277,7 @@ public static class DependencyInjection
         services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 
         services.AddScoped<IWatchlistItemRepository, WatchlistItemRepository>();
+        services.AddScoped<IUserWatchlistShareRepository, UserWatchlistShareRepository>();
 
         services.AddScoped<IRatingRepository, RatingRepository>();
 

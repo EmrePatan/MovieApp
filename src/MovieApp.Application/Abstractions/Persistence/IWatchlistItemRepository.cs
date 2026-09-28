@@ -55,4 +55,9 @@ public interface IWatchlistItemRepository
         Guid userId,
         Guid tvShowId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<WatchlistItem>> GetDistinctItemsForUserAsync(
+        Guid userId,
+        int maxItems,
+        CancellationToken cancellationToken = default);
 }

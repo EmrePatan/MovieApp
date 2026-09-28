@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Services.CatalogShare;
+using MovieApp.Application.Services.WatchlistShare;
+
 namespace MovieApp.Api.CatalogShare;
 
 public static class CatalogShareEndpointRouteBuilderExtensions
@@ -17,6 +19,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         endpoints.MapGet("/tv", HandleTvListingAsync);
         endpoints.MapGet("/movie/{id:guid}", HandleMoviePageAsync);
         endpoints.MapGet("/tv/{id:guid}", HandleTvPageAsync);
+        endpoints.MapGet("/watchlist/{token}", HandleWatchlistSharePageAsync);
         endpoints.MapGet(AppleAppSiteAssociationPath, HandleAppleAppSiteAssociation);
         endpoints.MapGet(AssetLinksPath, HandleAssetLinks);
 
@@ -114,6 +117,51 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         return HtmlResult(renderer.RenderContentPage(model, locale));
     }
 
+    private static async Task<IResult> HandleWatchlistSharePageAsync(
+        string token,
+        HttpContext httpContext,
+        [FromServices] IPublicWatchlistSharePageService pageService,
+        [FromServices] PublicWebSiteRenderer renderer,
+        [FromServices] IOptions<CatalogShareOptions> catalogShareOptions,
+        CancellationToken cancellationToken)
+    {
+        if (!WatchlistShareTokenParser.IsValidPublicToken(token))
+        {
+            return await WatchlistShareUnavailableAsync(pageService, renderer, token, cancellationToken);
+        }
+
+        var openRedirect = TryRedirectAppOpenHostToWatchlistCanonical(httpContext, catalogShareOptions.Value, token);
+        if (openRedirect is not null)
+        {
+            return openRedirect;
+        }
+
+        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var model = await pageService.BuildPageAsync(token, locale, cancellationToken);
+        var openAppUrl = CatalogShareWebUrls.BuildWatchlistAppOpenUrl(catalogShareOptions.Value, token);
+        var statusCode = model.IsUnavailable
+            ? StatusCodes.Status404NotFound
+            : StatusCodes.Status200OK;
+
+        return Results.Content(
+            renderer.RenderWatchlistSharePage(model, locale, openAppUrl),
+            "text/html; charset=utf-8",
+            statusCode: statusCode);
+    }
+
+    private static async Task<IResult> WatchlistShareUnavailableAsync(
+        IPublicWatchlistSharePageService pageService,
+        PublicWebSiteRenderer renderer,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var model = await pageService.BuildPageAsync(token, acceptLanguageHeader: null, cancellationToken);
+        return Results.Content(
+            renderer.RenderWatchlistSharePage(model, acceptLanguageHeader: null, openAppUrl: "/"),
+            "text/html; charset=utf-8",
+            statusCode: StatusCodes.Status404NotFound);
+    }
+
     private static IResult HandleAppleAppSiteAssociation([FromServices] IOptions<CatalogShareOptions> options)
     {
         var teamId = options.Value.IosTeamId?.Trim();
@@ -129,7 +177,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
                         new Dictionary<string, object>
                         {
                             ["appID"] = $"{teamId}.com.movieapp.mobile",
-                            ["paths"] = new[] { "/movie/*", "/tv/*" },
+                            ["paths"] = new[] { "/movie/*", "/tv/*", "/watchlist/*" },
                         },
                     },
             },
@@ -177,6 +225,20 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         }
 
         var canonicalUrl = CatalogShareWebUrls.BuildCanonicalUrl(options, segment, id);
+        return Results.Redirect(canonicalUrl, permanent: false);
+    }
+
+    private static IResult? TryRedirectAppOpenHostToWatchlistCanonical(
+        HttpContext httpContext,
+        CatalogShareOptions options,
+        string token)
+    {
+        if (!CatalogShareWebUrls.IsAppOpenRequestHost(httpContext.Request.Host.Host, options))
+        {
+            return null;
+        }
+
+        var canonicalUrl = CatalogShareWebUrls.BuildWatchlistCanonicalUrl(options, token);
         return Results.Redirect(canonicalUrl, permanent: false);
     }
 

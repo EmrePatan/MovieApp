@@ -196,4 +196,57 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
             .Distinct()
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<WatchlistItem>> GetDistinctItemsForUserAsync(
+        Guid userId,
+        int maxItems,
+        CancellationToken cancellationToken = default)
+    {
+        if (maxItems <= 0)
+        {
+            return [];
+        }
+
+        var items = await dbContext.WatchlistItems
+            .AsNoTracking()
+            .Where(item => item.Watchlist.UserId == userId)
+            .Include(item => item.Movie)
+            .Include(item => item.TvShow)
+            .OrderByDescending(item => item.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var seenMovies = new HashSet<Guid>();
+        var seenTv = new HashSet<Guid>();
+        var distinct = new List<WatchlistItem>(Math.Min(maxItems, items.Count));
+
+        foreach (var item in items)
+        {
+            if (item.MovieId is not null)
+            {
+                if (!seenMovies.Add(item.MovieId.Value))
+                {
+                    continue;
+                }
+            }
+            else if (item.TvShowId is not null)
+            {
+                if (!seenTv.Add(item.TvShowId.Value))
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                continue;
+            }
+
+            distinct.Add(item);
+            if (distinct.Count >= maxItems)
+            {
+                break;
+            }
+        }
+
+        return distinct;
+    }
 }

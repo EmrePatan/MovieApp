@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 // Mirrors worker redirect rules for focused validation.
 const CATALOG_PATH_PATTERN = /^\/(movie|tv)\/([^/?#]+)/;
+const WATCHLIST_PATH_PATTERN = /^\/watchlist\/([^/?#]+)/;
 
 function shouldRedirectOpenHostToCanonical(hostname, pathname) {
   return hostname === "open.moviecaveapp.com" && CATALOG_PATH_PATTERN.test(pathname);
@@ -35,6 +36,7 @@ function shouldProxyToApi(pathname) {
   return (
     PUBLIC_WEB_PATHS.has(pathname) ||
     CATALOG_PATH_PATTERN.test(pathname) ||
+    WATCHLIST_PATH_PATTERN.test(pathname) ||
     WELL_KNOWN_PATHS.has(pathname)
   );
 }
@@ -43,6 +45,7 @@ test("public landing paths proxy to API when configured", () => {
   assert.equal(shouldProxyToApi("/"), true);
   assert.equal(shouldProxyToApi("/movies"), true);
   assert.equal(shouldProxyToApi("/tv"), true);
+  assert.equal(shouldProxyToApi("/watchlist/abc123token"), true);
   assert.equal(shouldProxyToApi("/delete-account"), false);
 });
 

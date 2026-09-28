@@ -130,6 +130,47 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         return builder.ToString();
     }
 
+    public string RenderWatchlistSharePage(
+        PublicWatchlistSharePageModel model,
+        string? acceptLanguageHeader,
+        string openAppUrl)
+    {
+        var site = PublicWebSiteCopy.Resolve(acceptLanguageHeader);
+        var language = CatalogShareWebCopy.HtmlLang(CatalogShareWebCopy.ResolveLanguageCode(acceptLanguageHeader));
+        var shareOptions = catalogShareOptions.Value;
+        var ogImage = $"{shareOptions.PublicWebBaseUrl.TrimEnd('/')}/assets/images/movie-cave-logo.png";
+
+        var builder = new StringBuilder();
+        AppendHead(builder, model.PageTitle, model.PageDescription, model.CanonicalPageUrl, ogImage, language);
+        builder.Append("<body><div class=\"site\">");
+        AppendHeader(builder, site, openAppUrl);
+        builder.Append("<section class=\"section\"><h1>").Append(Encode(model.Heading)).Append("</h1>");
+        if (!string.IsNullOrEmpty(model.ItemCountLabel))
+        {
+            builder.Append("<p class=\"muted\">").Append(Encode(model.ItemCountLabel)).Append("</p>");
+        }
+
+        builder.Append("</section>");
+        if (model.IsUnavailable)
+        {
+            builder.Append("<p>").Append(Encode(model.PageDescription)).Append("</p>");
+        }
+        else
+        {
+            builder.Append("<section class=\"section\"><div class=\"grid\">");
+            foreach (var card in model.Items)
+            {
+                AppendGridCard(builder, card, site, shareOptions);
+            }
+
+            builder.Append("</div></section>");
+        }
+
+        AppendFooter(builder);
+        builder.Append("</div></body></html>");
+        return builder.ToString();
+    }
+
     public string RenderNotFoundPage(string? acceptLanguageHeader)
     {
         var copy = CatalogShareWebCopy.Resolve(acceptLanguageHeader);

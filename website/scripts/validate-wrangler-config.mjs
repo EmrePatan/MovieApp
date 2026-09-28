@@ -18,9 +18,11 @@ if (config.includes('CATALOG_SHARE_API_ORIGIN = ""')) {
 const requiredPatterns = [
   "moviecaveapp.com/movie/*",
   "moviecaveapp.com/tv/*",
+  "moviecaveapp.com/watchlist/*",
   "moviecaveapp.com/.well-known/*",
   "open.moviecaveapp.com/movie/*",
   "open.moviecaveapp.com/tv/*",
+  "open.moviecaveapp.com/watchlist/*",
   "open.moviecaveapp.com/.well-known/*",
 ];
 

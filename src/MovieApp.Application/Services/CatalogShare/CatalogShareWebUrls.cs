@@ -32,6 +32,18 @@ public static class CatalogShareWebUrls
         return $"{baseUrl}/{segment}/{id:D}";
     }
 
+    public static string BuildWatchlistCanonicalUrl(CatalogShareOptions options, string token)
+    {
+        var baseUrl = options.PublicWebBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/watchlist/{token}";
+    }
+
+    public static string BuildWatchlistAppOpenUrl(CatalogShareOptions options, string token)
+    {
+        var baseUrl = ResolveAppOpenWebBaseUrl(options);
+        return $"{baseUrl}/watchlist/{token}";
+    }
+
     public static bool IsAppOpenRequestHost(string? requestHost, CatalogShareOptions options)
     {
         if (string.IsNullOrWhiteSpace(requestHost))

@@ -117,5 +117,11 @@ public sealed class GetWatchlistMembershipServiceTests
             IReadOnlyCollection<Guid> watchlistIds,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, int>>(new Dictionary<Guid, int>());
+
+        public Task<IReadOnlyList<WatchlistItem>> GetDistinctItemsForUserAsync(
+            Guid userId,
+            int maxItems,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<WatchlistItem>>([]);
     }
 }
