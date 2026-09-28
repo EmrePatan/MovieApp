@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace MovieApp.Application.Services.CatalogShare;
 
 internal static class WatchlistShareWebCopy
@@ -91,5 +93,5 @@ internal static class WatchlistShareWebCopy
             : $"{displayName}'s Watchlist";
 
     internal static string FormatItemCount(int count, Copy copy) =>
-        count == 1 ? copy.ItemCountOne : string.Format(copy.ItemCountMany, count);
+        count == 1 ? copy.ItemCountOne : string.Format(CultureInfo.InvariantCulture, copy.ItemCountMany, count);
 }

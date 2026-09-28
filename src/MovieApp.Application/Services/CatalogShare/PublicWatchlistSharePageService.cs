@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Services.WatchlistShare;
@@ -30,7 +31,10 @@ public sealed class PublicWatchlistSharePageService(
 
         var heading = WatchlistShareWebCopy.FormatOwnerTitle(publicData.OwnerDisplayName, copy);
         var itemCountLabel = WatchlistShareWebCopy.FormatItemCount(publicData.Items.Count, copy);
-        var description = string.Format(copy.OgDescriptionMany, publicData.Items.Count);
+        var description = string.Format(
+            CultureInfo.InvariantCulture,
+            copy.OgDescriptionMany,
+            publicData.Items.Count);
         var options = catalogShareOptions.Value;
 
         var cards = publicData.Items
