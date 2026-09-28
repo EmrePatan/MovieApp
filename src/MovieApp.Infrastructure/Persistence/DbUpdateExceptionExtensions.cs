@@ -15,4 +15,9 @@ internal static class DbUpdateExceptionExtensions
         exception.InnerException is PostgresException postgresException &&
         postgresException.SqlState == PostgresErrorCodes.UniqueViolation &&
         string.Equals(postgresException.ConstraintName, constraintName, StringComparison.Ordinal);
+
+    internal static bool IsUserWatchlistShareUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is PostgresException postgresException &&
+        postgresException.SqlState == PostgresErrorCodes.UniqueViolation &&
+        string.Equals(postgresException.TableName, "user_watchlist_shares", StringComparison.Ordinal);
 }

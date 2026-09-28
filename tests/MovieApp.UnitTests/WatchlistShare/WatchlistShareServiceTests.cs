@@ -97,6 +97,26 @@ public sealed class WatchlistShareServiceTests
     }
 
     [Fact]
+    public async Task EnableAsync_LegacyUserIdUniqueConstraint_ReassignsShareToSecondWatchlist()
+    {
+        var repo = new LegacyUserIdUniqueFakeShareRepository();
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
+
+        var enabledA = await service.EnableAsync(WatchlistA);
+        var tokenA = TokenFromUrl(enabledA.ShareUrl);
+
+        var enabledB = await service.EnableAsync(WatchlistB);
+        var tokenB = TokenFromUrl(enabledB.ShareUrl);
+
+        Assert.NotEqual(tokenA, tokenB);
+        Assert.Equal(1, repo.StoredShareCount);
+        Assert.Null(await service.TryGetPublicByTokenAsync(tokenA));
+        Assert.NotNull(await service.TryGetPublicByTokenAsync(tokenB));
+        Assert.Equal("Work", (await service.TryGetPublicByTokenAsync(tokenB))!.WatchlistName);
+    }
+
+    [Fact]
     public async Task EnableAsync_SecondList_DoesNotRepointFirstToken()
     {
         var repo = new FakeShareRepository();
@@ -225,22 +245,27 @@ public sealed class WatchlistShareServiceTests
             Task.CompletedTask;
     }
 
-    private sealed class FakeShareRepository : IUserWatchlistShareRepository
+    private class FakeShareRepository : IUserWatchlistShareRepository
     {
-        private readonly Dictionary<Guid, UserWatchlistShare> _byWatchlistId = new();
+        protected readonly Dictionary<Guid, UserWatchlistShare> ByWatchlistId = new();
 
-        public int ActiveShareCount => _byWatchlistId.Count;
+        public int ActiveShareCount => ByWatchlistId.Count;
 
         public Task<UserWatchlistShare?> GetByWatchlistIdAsync(
             Guid watchlistId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(_byWatchlistId.TryGetValue(watchlistId, out var share) ? share : null);
+            Task.FromResult(ByWatchlistId.TryGetValue(watchlistId, out var share) ? share : null);
+
+        public Task<UserWatchlistShare?> GetByUserIdAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ByWatchlistId.Values.FirstOrDefault(share => share.UserId == userId));
 
         public Task<IReadOnlyList<UserWatchlistShare>> ListActiveByUserIdAsync(
             Guid userId,
             CancellationToken cancellationToken = default)
         {
-            var shares = _byWatchlistId.Values
+            var shares = ByWatchlistId.Values
                 .Where(entry => entry.UserId == userId && entry.IsActive)
                 .Select(entry =>
                 {
@@ -261,7 +286,7 @@ public sealed class WatchlistShareServiceTests
             string tokenHash,
             CancellationToken cancellationToken = default)
         {
-            var share = _byWatchlistId.Values.FirstOrDefault(
+            var share = ByWatchlistId.Values.FirstOrDefault(
                 entry => entry.IsActive && entry.TokenHash == tokenHash);
             if (share is null)
             {
@@ -278,16 +303,43 @@ public sealed class WatchlistShareServiceTests
             return Task.FromResult<UserWatchlistShare?>(share);
         }
 
-        public Task<UserWatchlistShare> AddAsync(UserWatchlistShare share, CancellationToken cancellationToken = default)
+        public virtual Task<UserWatchlistShare> AddAsync(
+            UserWatchlistShare share,
+            CancellationToken cancellationToken = default)
         {
-            _byWatchlistId[share.WatchlistId] = share;
+            ByWatchlistId[share.WatchlistId] = share;
             return Task.FromResult(share);
         }
 
         public Task UpdateAsync(UserWatchlistShare share, CancellationToken cancellationToken = default)
         {
-            _byWatchlistId[share.WatchlistId] = share;
+            foreach (var key in ByWatchlistId
+                         .Where(entry => entry.Value.Id == share.Id && entry.Key != share.WatchlistId)
+                         .Select(entry => entry.Key)
+                         .ToList())
+            {
+                ByWatchlistId.Remove(key);
+            }
+
+            ByWatchlistId[share.WatchlistId] = share;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class LegacyUserIdUniqueFakeShareRepository : FakeShareRepository
+    {
+        public int StoredShareCount => ActiveShareCount;
+
+        public override Task<UserWatchlistShare> AddAsync(
+            UserWatchlistShare share,
+            CancellationToken cancellationToken = default)
+        {
+            if (ByWatchlistId.Values.Any(entry => entry.UserId == share.UserId))
+            {
+                throw new ConflictException("Legacy unique UserId index.");
+            }
+
+            return base.AddAsync(share, cancellationToken);
         }
     }
 

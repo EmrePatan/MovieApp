@@ -8,6 +8,10 @@ public interface IUserWatchlistShareRepository
         Guid watchlistId,
         CancellationToken cancellationToken = default);
 
+    Task<UserWatchlistShare?> GetByUserIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<UserWatchlistShare?> GetActiveByTokenHashAsync(
         string tokenHash,
         CancellationToken cancellationToken = default);

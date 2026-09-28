@@ -13,6 +13,12 @@ public sealed class UserWatchlistShareRepository(ApplicationDbContext dbContext)
         await dbContext.UserWatchlistShares
             .FirstOrDefaultAsync(share => share.WatchlistId == watchlistId, cancellationToken);
 
+    public async Task<UserWatchlistShare?> GetByUserIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.UserWatchlistShares
+            .FirstOrDefaultAsync(share => share.UserId == userId, cancellationToken);
+
     public async Task<UserWatchlistShare?> GetActiveByTokenHashAsync(
         string tokenHash,
         CancellationToken cancellationToken = default) =>
@@ -44,13 +50,13 @@ public sealed class UserWatchlistShareRepository(ApplicationDbContext dbContext)
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (
+            DbUpdateExceptionExtensions.IsUserWatchlistShareUniqueViolation(exception) ||
             DbUpdateExceptionExtensions.IsUniqueConstraintViolation(
                 exception,
                 "IX_user_watchlist_shares_UserId"))
         {
             throw new ConflictException(
-                "Watchlist sharing requires a pending database migration (non-unique UserId index). " +
-                "Run the Production Database Migrate workflow, then retry.");
+                "Watchlist share could not be created because of a legacy unique index on UserId.");
         }
 
         return share;
