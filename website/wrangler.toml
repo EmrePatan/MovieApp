@@ -37,6 +37,8 @@ zone_name = "moviecaveapp.com"
 directory = "./dist"
 html_handling = "auto-trailing-slash"
 binding = "ASSETS"
+# dist/index.html exists; without this, `/` is served from ASSETS before worker.mjs runs.
+run_worker_first = ["/"]
 
 [vars]
 CATALOG_SHARE_API_ORIGIN = "https://movieapp-fpkg.onrender.com"

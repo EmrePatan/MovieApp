@@ -45,3 +45,39 @@ test("public landing paths proxy to API when configured", () => {
   assert.equal(shouldProxyToApi("/tv"), true);
   assert.equal(shouldProxyToApi("/delete-account"), false);
 });
+
+/** Mirrors wrangler.toml assets.run_worker_first = ["/"] */
+const RUN_WORKER_FIRST_PATHS = ["/"];
+
+function invokesWorkerBeforeAssets(pathname) {
+  return RUN_WORKER_FIRST_PATHS.includes(pathname);
+}
+
+function resolveCanonicalHostRouting(pathname, apiOrigin) {
+  if (invokesWorkerBeforeAssets(pathname) && shouldProxyToApi(pathname) && apiOrigin) {
+    return { action: "proxy", target: `${apiOrigin.replace(/\/$/, "")}${pathname}` };
+  }
+
+  if (shouldProxyToApi(pathname) && apiOrigin) {
+    return { action: "proxy", target: `${apiOrigin.replace(/\/$/, "")}${pathname}` };
+  }
+
+  return { action: "assets" };
+}
+
+test("root / proxies to API even when dist/index.html exists (run_worker_first)", () => {
+  const apiOrigin = "https://movieapp-fpkg.onrender.com";
+  assert.equal(invokesWorkerBeforeAssets("/"), true);
+  const routing = resolveCanonicalHostRouting("/", apiOrigin);
+  assert.equal(routing.action, "proxy");
+  assert.equal(routing.target, "https://movieapp-fpkg.onrender.com/");
+});
+
+test("static legal pages still use ASSETS (no API proxy)", () => {
+  const apiOrigin = "https://movieapp-fpkg.onrender.com";
+  for (const pathname of ["/privacy", "/terms", "/delete-account", "/auth/verify-email"]) {
+    assert.equal(shouldProxyToApi(pathname), false);
+    assert.equal(invokesWorkerBeforeAssets(pathname), false);
+    assert.equal(resolveCanonicalHostRouting(pathname, apiOrigin).action, "assets");
+  }
+});

@@ -42,6 +42,10 @@ if (!config.includes('CATALOG_SHARE_APP_OPEN_HOST = "open.moviecaveapp.com"')) {
   errors.push("CATALOG_SHARE_APP_OPEN_HOST must be open.moviecaveapp.com");
 }
 
+if (!config.includes('run_worker_first = ["/"]')) {
+  errors.push('assets.run_worker_first must include "/" so the API landing wins over dist/index.html');
+}
+
 if (errors.length > 0) {
   console.error("Wrangler config validation failed:");
   for (const message of errors) {
