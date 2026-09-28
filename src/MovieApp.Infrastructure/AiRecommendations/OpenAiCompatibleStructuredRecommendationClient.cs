@@ -22,20 +22,25 @@ internal sealed class OpenAiCompatibleStructuredRecommendationClient(
         string apiKey,
         string modelId,
         AiProviderRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        OpenAiStructuredRecommendationRequestOptions? options = null)
     {
+        options ??= new OpenAiStructuredRecommendationRequestOptions();
         var systemInstruction = AiRecommendationPromptBuilder.BuildSystemInstruction(request.ResponseLanguage);
         var userPrompt = AiRecommendationPromptBuilder.BuildUserPrompt(request);
         var schemaHint = AiRecommendationPromptBuilder.BuildJsonSchemaDescription(request.SuggestionCount);
+        var systemContent = options.OutputMode == OpenAiStructuredOutputMode.JsonSchemaBestEffort
+            ? systemInstruction + "\n\n" + schemaHint
+            : systemInstruction + "\n\nJSON output rules:\n" + schemaHint;
 
         var payload = new
         {
             model = modelId,
-            temperature = 0.7,
-            response_format = new { type = "json_object" },
+            temperature = options.Temperature,
+            response_format = BuildResponseFormat(request.SuggestionCount, options.OutputMode),
             messages = new object[]
             {
-                new { role = "system", content = systemInstruction + "\n\nJSON schema:\n" + schemaHint },
+                new { role = "system", content = systemContent },
                 new { role = "user", content = userPrompt }
             }
         };
@@ -88,6 +93,22 @@ internal sealed class OpenAiCompatibleStructuredRecommendationClient(
 
     private static string TruncateBody(string body) =>
         body.Length <= 500 ? body : body[..500];
+
+    private static object BuildResponseFormat(int suggestionCount, OpenAiStructuredOutputMode outputMode) =>
+        outputMode switch
+        {
+            OpenAiStructuredOutputMode.JsonSchemaBestEffort => new
+            {
+                type = "json_schema",
+                json_schema = new
+                {
+                    name = "movie_recommendations",
+                    strict = false,
+                    schema = AiRecommendationResponseSchemaBuilder.BuildOpenAiJsonSchema(suggestionCount)
+                }
+            },
+            _ => new { type = "json_object" }
+        };
 }
 
 internal sealed class AiRecommendationProviderHttpException(HttpStatusCode statusCode) : Exception

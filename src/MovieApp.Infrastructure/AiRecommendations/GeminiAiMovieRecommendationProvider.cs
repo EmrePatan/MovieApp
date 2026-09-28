@@ -98,45 +98,7 @@ internal sealed class GeminiAiMovieRecommendationProvider(
             {
                 responseMimeType = "application/json",
                 temperature = 0.7,
-                responseSchema = new
-                {
-                    type = "object",
-                    properties = new
-                    {
-                        suggestions = new
-                        {
-                            type = "array",
-                            maxItems = request.SuggestionCount,
-                            items = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    title = new { type = "string" },
-                                    year = new { type = "integer" },
-                                    mediaType = new { type = "string" },
-                                    tmdbId = new { type = "integer" },
-                                    reason = new { type = "string" }
-                                },
-                                required = new[] { "title", "year", "mediaType", "reason" }
-                            }
-                        },
-                        constraintUpdates = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                desiredGenres = new { type = "array", items = new { type = "string" } },
-                                excludedGenres = new { type = "array", items = new { type = "string" } },
-                                maxRuntimeMinutes = new { type = "integer" },
-                                minYear = new { type = "integer" },
-                                maxYear = new { type = "integer" },
-                                moodKeywords = new { type = "array", items = new { type = "string" } }
-                            }
-                        }
-                    },
-                    required = new[] { "suggestions" }
-                }
+                responseSchema = AiRecommendationResponseSchemaBuilder.BuildGeminiResponseSchema(request.SuggestionCount)
             }
         };
 

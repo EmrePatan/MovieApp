@@ -53,26 +53,28 @@ public static class AiRecommendationPromptBuilder
 
     public static string BuildJsonSchemaDescription(int suggestionCount) =>
         $$"""
+        Return a single JSON object (no markdown fences). Example shape:
         {
           "suggestions": [
             {
-              "title": "string",
-              "year": 0,
-              "mediaType": "movie|tv",
-              "tmdbId": 0,
-              "reason": "string"
+              "title": "Arrival",
+              "year": 2016,
+              "mediaType": "movie",
+              "tmdbId": 329996,
+              "reason": "Short reason in the requested language."
             }
           ],
           "constraintUpdates": {
-            "desiredGenres": ["string"],
-            "excludedGenres": ["string"],
-            "maxRuntimeMinutes": 0,
-            "minYear": 0,
-            "maxYear": 0,
-            "moodKeywords": ["string"]
+            "desiredGenres": [],
+            "excludedGenres": [],
+            "moodKeywords": []
           }
         }
-        Return at most {{suggestionCount}} suggestions. The suggestions array is required.
+        Rules:
+        - Include between 1 and {{suggestionCount}} suggestions.
+        - mediaType must be exactly "movie" or "tv".
+        - Omit tmdbId when unsure; never guess.
+        - constraintUpdates is optional; use empty arrays when unused.
         """;
 
     private static void AppendTasteProfile(StringBuilder builder, AiTasteProfile profile)
