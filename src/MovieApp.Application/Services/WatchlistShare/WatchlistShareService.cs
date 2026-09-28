@@ -18,10 +18,14 @@ public sealed class WatchlistShareService(
 {
     private const int PublicItemLimit = 250;
 
-    public async Task<WatchlistShareStatusResult> GetStatusAsync(CancellationToken cancellationToken = default)
+    public async Task<WatchlistShareStatusResult> GetStatusAsync(
+        Guid watchlistId,
+        CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        var share = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
+        await EnsureOwnedWatchlistAsync(userId, watchlistId, cancellationToken);
+
+        var share = await shareRepository.GetByWatchlistIdAsync(watchlistId, cancellationToken);
         return new WatchlistShareStatusResult(share is { IsActive: true });
     }
 
@@ -32,16 +36,9 @@ public sealed class WatchlistShareService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await EnsureOwnedWatchlistAsync(userId, watchlistId, cancellationToken);
 
-        var existing = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
+        var existing = await shareRepository.GetByWatchlistIdAsync(watchlistId, cancellationToken);
         if (existing is { IsActive: true })
         {
-            if (existing.WatchlistId == watchlistId)
-            {
-                return new WatchlistShareEnableResult(string.Empty, CreatedNewLink: false);
-            }
-
-            existing.WatchlistId = watchlistId;
-            await shareRepository.UpdateAsync(existing, cancellationToken);
             return new WatchlistShareEnableResult(string.Empty, CreatedNewLink: false);
         }
 
@@ -65,7 +62,6 @@ public sealed class WatchlistShareService(
         }
         else
         {
-            existing.WatchlistId = watchlistId;
             existing.TokenHash = tokenHash;
             existing.IsActive = true;
             existing.DeactivatedAtUtc = null;
@@ -77,10 +73,12 @@ public sealed class WatchlistShareService(
         return new WatchlistShareEnableResult(shareUrl, CreatedNewLink: true);
     }
 
-    public async Task DisableAsync(CancellationToken cancellationToken = default)
+    public async Task DisableAsync(Guid watchlistId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        var existing = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
+        await EnsureOwnedWatchlistAsync(userId, watchlistId, cancellationToken);
+
+        var existing = await shareRepository.GetByWatchlistIdAsync(watchlistId, cancellationToken);
         if (existing is null || !existing.IsActive)
         {
             return;
@@ -98,14 +96,13 @@ public sealed class WatchlistShareService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await EnsureOwnedWatchlistAsync(userId, watchlistId, cancellationToken);
 
-        var existing = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
+        var existing = await shareRepository.GetByWatchlistIdAsync(watchlistId, cancellationToken);
         if (existing is null || !existing.IsActive)
         {
             throw new NotFoundException("Watchlist sharing is not enabled.");
         }
 
         var rawToken = PasswordResetTokenGenerator.GenerateToken();
-        existing.WatchlistId = watchlistId;
         existing.TokenHash = PasswordResetTokenHasher.HashToken(rawToken);
         existing.RotatedAtUtc = DateTime.UtcNow;
         await shareRepository.UpdateAsync(existing, cancellationToken);
@@ -140,7 +137,8 @@ public sealed class WatchlistShareService(
             .ToList();
 
         var displayName = WatchlistShareDisplayName.ResolvePublicDisplayName(share.User);
-        return new PublicWatchlistShareResult(displayName, mapped);
+        var watchlistName = share.Watchlist?.Name;
+        return new PublicWatchlistShareResult(displayName, watchlistName, mapped);
     }
 
     private static PublicWatchlistShareItemResult? MapPublicItem(WatchlistItem item)

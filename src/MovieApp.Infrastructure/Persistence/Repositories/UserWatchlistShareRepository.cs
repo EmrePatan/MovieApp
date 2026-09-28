@@ -6,11 +6,11 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class UserWatchlistShareRepository(ApplicationDbContext dbContext) : IUserWatchlistShareRepository
 {
-    public async Task<UserWatchlistShare?> GetByUserIdAsync(
-        Guid userId,
+    public async Task<UserWatchlistShare?> GetByWatchlistIdAsync(
+        Guid watchlistId,
         CancellationToken cancellationToken = default) =>
         await dbContext.UserWatchlistShares
-            .FirstOrDefaultAsync(share => share.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(share => share.WatchlistId == watchlistId, cancellationToken);
 
     public async Task<UserWatchlistShare?> GetActiveByTokenHashAsync(
         string tokenHash,
@@ -18,6 +18,7 @@ public sealed class UserWatchlistShareRepository(ApplicationDbContext dbContext)
         await dbContext.UserWatchlistShares
             .AsNoTracking()
             .Include(share => share.User)
+            .Include(share => share.Watchlist)
             .FirstOrDefaultAsync(
                 share => share.IsActive && share.TokenHash == tokenHash,
                 cancellationToken);

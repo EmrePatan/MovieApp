@@ -25,6 +25,7 @@ public sealed class PublicWatchlistShareController(IWatchlistShareService watchl
 
         return Ok(new PublicWatchlistShareResponse(
             result.OwnerDisplayName,
+            result.WatchlistName,
             result.Items.Select(item => new PublicWatchlistShareItemResponse(
                 item.ContentType,
                 item.ContentId,

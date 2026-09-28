@@ -2,6 +2,8 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Exceptions;
+using MovieApp.Application.Identity;
 using MovieApp.Application.Services.WatchlistShare;
 using MovieApp.Domain.Entities;
 
@@ -10,101 +12,131 @@ namespace MovieApp.UnitTests.WatchlistShare;
 public sealed class WatchlistShareServiceTests
 {
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid WatchlistId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    private static readonly Guid OtherWatchlistId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    private static readonly Guid WatchlistA = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid WatchlistB = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     [Fact]
-    public async Task EnableAsync_CreatesActiveShareWithUrl()
+    public async Task EnableAsync_MultipleLists_ProducesIndependentTokens()
     {
         var repo = new FakeShareRepository();
-        var items = new FakeWatchlistItemRepository(WatchlistId);
-        var service = CreateService(repo, items, UserId);
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
 
-        var result = await service.EnableAsync(WatchlistId);
+        var enabledA = await service.EnableAsync(WatchlistA);
+        var enabledB = await service.EnableAsync(WatchlistB);
 
-        Assert.True(result.CreatedNewLink);
-        Assert.Contains("/watchlist/", result.ShareUrl, StringComparison.Ordinal);
-        Assert.True(repo.Share is { IsActive: true, WatchlistId: var id } && id == WatchlistId);
+        var tokenA = TokenFromUrl(enabledA.ShareUrl);
+        var tokenB = TokenFromUrl(enabledB.ShareUrl);
+
+        Assert.NotEqual(tokenA, tokenB);
+        Assert.Equal(2, repo.ActiveShareCount);
+
+        var publicA = await service.TryGetPublicByTokenAsync(tokenA);
+        var publicB = await service.TryGetPublicByTokenAsync(tokenB);
+
+        Assert.NotNull(publicA);
+        Assert.NotNull(publicB);
+        Assert.Equal("Weekend", publicA!.WatchlistName);
+        Assert.Equal("Work", publicB!.WatchlistName);
     }
 
     [Fact]
-    public async Task DisableAsync_DeactivatesShare()
+    public async Task DisableAsync_OnlyAffectsRequestedWatchlist()
     {
         var repo = new FakeShareRepository();
-        var items = new FakeWatchlistItemRepository(WatchlistId);
-        var service = CreateService(repo, items, UserId);
-        var enabled = await service.EnableAsync(WatchlistId);
-        var token = enabled.ShareUrl.Split("/watchlist/", StringSplitOptions.None)[1];
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
 
-        await service.DisableAsync();
-        var publicResult = await service.TryGetPublicByTokenAsync(token);
+        var enabledA = await service.EnableAsync(WatchlistA);
+        var enabledB = await service.EnableAsync(WatchlistB);
+        var tokenA = TokenFromUrl(enabledA.ShareUrl);
+        var tokenB = TokenFromUrl(enabledB.ShareUrl);
 
-        Assert.Null(publicResult);
-        Assert.False(repo.Share!.IsActive);
+        await service.DisableAsync(WatchlistA);
+
+        Assert.Null(await service.TryGetPublicByTokenAsync(tokenA));
+        Assert.NotNull(await service.TryGetPublicByTokenAsync(tokenB));
     }
 
     [Fact]
-    public async Task RotateAsync_InvalidatesOldToken()
+    public async Task RotateAsync_OnlyInvalidatesRotatedWatchlistToken()
     {
         var repo = new FakeShareRepository();
-        var items = new FakeWatchlistItemRepository(WatchlistId);
-        var service = CreateService(repo, items, UserId);
-        var enabled = await service.EnableAsync(WatchlistId);
-        var oldToken = enabled.ShareUrl.Split("/watchlist/", StringSplitOptions.None)[1];
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
 
-        var rotated = await service.RotateAsync(WatchlistId);
-        var oldPublic = await service.TryGetPublicByTokenAsync(oldToken);
-        var newToken = rotated.ShareUrl.Split("/watchlist/", StringSplitOptions.None)[1];
-        var newPublic = await service.TryGetPublicByTokenAsync(newToken);
+        var enabledA = await service.EnableAsync(WatchlistA);
+        var enabledB = await service.EnableAsync(WatchlistB);
+        var oldTokenA = TokenFromUrl(enabledA.ShareUrl);
+        var tokenB = TokenFromUrl(enabledB.ShareUrl);
 
-        Assert.Null(oldPublic);
-        Assert.NotNull(newPublic);
+        var rotatedA = await service.RotateAsync(WatchlistA);
+        var newTokenA = TokenFromUrl(rotatedA.ShareUrl);
+
+        Assert.Null(await service.TryGetPublicByTokenAsync(oldTokenA));
+        Assert.NotNull(await service.TryGetPublicByTokenAsync(newTokenA));
+        Assert.NotNull(await service.TryGetPublicByTokenAsync(tokenB));
     }
 
     [Fact]
-    public async Task TryGetPublicByTokenAsync_ReflectsLiveWatchlistChanges()
+    public async Task EnableAsync_SecondList_DoesNotRepointFirstToken()
     {
         var repo = new FakeShareRepository();
-        var items = new FakeWatchlistItemRepository(WatchlistId);
-        var service = CreateService(repo, items, UserId);
-        var enabled = await service.EnableAsync(WatchlistId);
-        var token = enabled.ShareUrl.Split("/watchlist/", StringSplitOptions.None)[1];
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
 
-        var first = await service.TryGetPublicByTokenAsync(token);
-        items.AddSecondMovie();
-        var second = await service.TryGetPublicByTokenAsync(token);
+        var enabledA = await service.EnableAsync(WatchlistA);
+        var tokenA = TokenFromUrl(enabledA.ShareUrl);
+        var before = await service.TryGetPublicByTokenAsync(tokenA);
 
-        Assert.NotNull(first);
-        Assert.NotNull(second);
-        Assert.Single(first!.Items);
-        Assert.Equal(2, second!.Items.Count);
+        await service.EnableAsync(WatchlistB);
+        var after = await service.TryGetPublicByTokenAsync(tokenA);
+
+        Assert.NotNull(before);
+        Assert.NotNull(after);
+        Assert.Equal("Weekend", before!.WatchlistName);
+        Assert.Equal("Weekend", after!.WatchlistName);
     }
 
     [Fact]
-    public async Task TryGetPublicByTokenAsync_UsesSharedWatchlistOnly_NotOtherLists()
+    public async Task TryGetPublicByTokenAsync_ReflectsLiveItemsForThatWatchlistOnly()
     {
         var repo = new FakeShareRepository();
-        var items = new FakeWatchlistItemRepository(WatchlistId);
-        items.AddMovieToOtherWatchlist(OtherWatchlistId);
-        var service = CreateService(repo, items, UserId);
-        var enabled = await service.EnableAsync(WatchlistId);
-        var token = enabled.ShareUrl.Split("/watchlist/", StringSplitOptions.None)[1];
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA, WatchlistB]);
 
-        var publicResult = await service.TryGetPublicByTokenAsync(token);
+        var enabledA = await service.EnableAsync(WatchlistA);
+        var enabledB = await service.EnableAsync(WatchlistB);
+        var tokenA = TokenFromUrl(enabledA.ShareUrl);
+        var tokenB = TokenFromUrl(enabledB.ShareUrl);
 
-        Assert.NotNull(publicResult);
-        Assert.Single(publicResult!.Items);
-        Assert.Equal("Inception", publicResult.Items[0].Title);
+        items.AddSecondMovieTo(WatchlistA);
+
+        var publicA = await service.TryGetPublicByTokenAsync(tokenA);
+        var publicB = await service.TryGetPublicByTokenAsync(tokenB);
+
+        Assert.Equal(2, publicA!.Items.Count);
+        Assert.Single(publicB!.Items);
+    }
+
+    [Fact]
+    public async Task EnableAsync_OtherUsersWatchlist_ThrowsNotFound()
+    {
+        var repo = new FakeShareRepository();
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA]);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.EnableAsync(WatchlistB));
     }
 
     [Fact]
     public async Task TryGetPublicByTokenAsync_DoesNotExposeUserId()
     {
         var repo = new FakeShareRepository();
-        var items = new FakeWatchlistItemRepository(WatchlistId);
-        var service = CreateService(repo, items, UserId);
-        var enabled = await service.EnableAsync(WatchlistId);
-        var token = enabled.ShareUrl.Split("/watchlist/", StringSplitOptions.None)[1];
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA]);
+        var enabled = await service.EnableAsync(WatchlistA);
+        var token = TokenFromUrl(enabled.ShareUrl);
 
         var publicResult = await service.TryGetPublicByTokenAsync(token);
 
@@ -113,14 +145,18 @@ public sealed class WatchlistShareServiceTests
         Assert.Single(publicResult.Items);
     }
 
+    private static string TokenFromUrl(string url) =>
+        url.Split("/watchlist/", StringSplitOptions.None)[1];
+
     private static WatchlistShareService CreateService(
         FakeShareRepository repo,
         FakeWatchlistItemRepository items,
-        Guid userId) =>
+        Guid userId,
+        IReadOnlyCollection<Guid> ownedWatchlistIds) =>
         new(
             new FakeCurrentUser(userId),
             repo,
-            new FakeWatchlistRepository(userId, WatchlistId),
+            new FakeWatchlistRepository(userId, ownedWatchlistIds),
             items,
             Options.Create(new CatalogShareOptions { PublicWebBaseUrl = "https://moviecaveapp.com" }));
 
@@ -130,12 +166,19 @@ public sealed class WatchlistShareServiceTests
         public Guid? UserId => userId;
     }
 
-    private sealed class FakeWatchlistRepository(Guid ownerId, Guid ownedWatchlistId) : IWatchlistRepository
+    private sealed class FakeWatchlistRepository(Guid ownerId, IReadOnlyCollection<Guid> ownedWatchlistIds)
+        : IWatchlistRepository
     {
+        private static readonly Dictionary<Guid, string> Names = new()
+        {
+            [WatchlistA] = "Weekend",
+            [WatchlistB] = "Work",
+        };
+
         public Task<Watchlist?> GetByIdForUserAsync(Guid userId, Guid watchlistId, CancellationToken cancellationToken = default) =>
             Task.FromResult(
-                userId == ownerId && watchlistId == ownedWatchlistId
-                    ? new Watchlist { Id = ownedWatchlistId, UserId = ownerId, Name = "Main" }
+                userId == ownerId && ownedWatchlistIds.Contains(watchlistId)
+                    ? new Watchlist { Id = watchlistId, UserId = ownerId, Name = Names.GetValueOrDefault(watchlistId, "List") }
                     : null);
 
         public Task<Watchlist?> GetTrackedByIdForUserAsync(Guid userId, Guid watchlistId, CancellationToken cancellationToken = default) =>
@@ -166,56 +209,72 @@ public sealed class WatchlistShareServiceTests
 
     private sealed class FakeShareRepository : IUserWatchlistShareRepository
     {
-        public UserWatchlistShare? Share { get; private set; }
+        private readonly Dictionary<Guid, UserWatchlistShare> _byWatchlistId = new();
 
-        public Task<UserWatchlistShare?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Share);
+        public int ActiveShareCount => _byWatchlistId.Count;
+
+        public Task<UserWatchlistShare?> GetByWatchlistIdAsync(
+            Guid watchlistId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_byWatchlistId.TryGetValue(watchlistId, out var share) ? share : null);
 
         public Task<UserWatchlistShare?> GetActiveByTokenHashAsync(
             string tokenHash,
             CancellationToken cancellationToken = default)
         {
-            if (Share is null || !Share.IsActive || Share.TokenHash != tokenHash)
+            var share = _byWatchlistId.Values.FirstOrDefault(
+                entry => entry.IsActive && entry.TokenHash == tokenHash);
+            if (share is null)
             {
                 return Task.FromResult<UserWatchlistShare?>(null);
             }
 
-            return Task.FromResult<UserWatchlistShare?>(Share);
+            share.User = new User { Id = share.UserId, DisplayName = "Emre", Email = "emre@example.com" };
+            share.Watchlist = new Watchlist
+            {
+                Id = share.WatchlistId,
+                UserId = share.UserId,
+                Name = share.WatchlistId == WatchlistA ? "Weekend" : "Work",
+            };
+            return Task.FromResult<UserWatchlistShare?>(share);
         }
 
         public Task<UserWatchlistShare> AddAsync(UserWatchlistShare share, CancellationToken cancellationToken = default)
         {
-            Share = share;
-            Share.User = new User { Id = share.UserId, DisplayName = "Emre", Email = "emre@example.com" };
+            _byWatchlistId[share.WatchlistId] = share;
             return Task.FromResult(share);
         }
 
         public Task UpdateAsync(UserWatchlistShare share, CancellationToken cancellationToken = default)
         {
-            Share = share;
+            _byWatchlistId[share.WatchlistId] = share;
             return Task.CompletedTask;
         }
     }
 
     private sealed class FakeWatchlistItemRepository : IWatchlistItemRepository
     {
-        private readonly Guid _sharedWatchlistId;
         private readonly Dictionary<Guid, List<WatchlistItem>> _itemsByWatchlist = new();
 
-        public FakeWatchlistItemRepository(Guid sharedWatchlistId)
+        public FakeWatchlistItemRepository()
         {
-            _sharedWatchlistId = sharedWatchlistId;
+            Seed(WatchlistA, "Inception");
+            Seed(WatchlistB, "Arrival");
+        }
+
+        private void Seed(Guid watchlistId, string title)
+        {
             var movie = new Movie
             {
-                Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                Title = "Inception",
-                VoteAverage = 8.8m,
+                Id = Guid.NewGuid(),
+                Title = title,
+                VoteAverage = 8m,
             };
-            _itemsByWatchlist[sharedWatchlistId] =
+            _itemsByWatchlist[watchlistId] =
             [
                 new WatchlistItem
                 {
-                    WatchlistId = sharedWatchlistId,
+                    WatchlistId = watchlistId,
                     MovieId = movie.Id,
                     Movie = movie,
                     CreatedAt = DateTime.UtcNow,
@@ -223,41 +282,21 @@ public sealed class WatchlistShareServiceTests
             ];
         }
 
-        public void AddSecondMovie()
+        public void AddSecondMovieTo(Guid watchlistId)
         {
             var movie = new Movie
             {
-                Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                Title = "Arrival",
-                VoteAverage = 7.9m,
+                Id = Guid.NewGuid(),
+                Title = "Extra",
+                VoteAverage = 7m,
             };
-            _itemsByWatchlist[_sharedWatchlistId].Add(new WatchlistItem
+            _itemsByWatchlist[watchlistId].Add(new WatchlistItem
             {
-                WatchlistId = _sharedWatchlistId,
+                WatchlistId = watchlistId,
                 MovieId = movie.Id,
                 Movie = movie,
                 CreatedAt = DateTime.UtcNow,
             });
-        }
-
-        public void AddMovieToOtherWatchlist(Guid otherWatchlistId)
-        {
-            var movie = new Movie
-            {
-                Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-                Title = "Other List Title",
-                VoteAverage = 6m,
-            };
-            _itemsByWatchlist[otherWatchlistId] =
-            [
-                new WatchlistItem
-                {
-                    WatchlistId = otherWatchlistId,
-                    MovieId = movie.Id,
-                    Movie = movie,
-                    CreatedAt = DateTime.UtcNow,
-                },
-            ];
         }
 
         public Task<IReadOnlyList<WatchlistItem>> GetAllItemsAsync(Guid watchlistId, CancellationToken cancellationToken = default) =>

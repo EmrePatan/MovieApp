@@ -29,7 +29,10 @@ public sealed class PublicWatchlistSharePageService(
             return Unavailable(copy, canonical);
         }
 
-        var heading = WatchlistShareWebCopy.FormatOwnerTitle(publicData.OwnerDisplayName, copy);
+        var heading = WatchlistShareWebCopy.FormatPageHeading(
+            publicData.WatchlistName,
+            publicData.OwnerDisplayName,
+            copy);
         var itemCountLabel = WatchlistShareWebCopy.FormatItemCount(publicData.Items.Count, copy);
         var description = string.Format(
             CultureInfo.InvariantCulture,

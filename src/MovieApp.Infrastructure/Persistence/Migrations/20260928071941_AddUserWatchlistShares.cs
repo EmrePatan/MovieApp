@@ -17,6 +17,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    WatchlistId = table.Column<Guid>(type: "uuid", nullable: false),
                     TokenHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -32,6 +33,12 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         principalTable: "users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_user_watchlist_shares_watchlists_WatchlistId",
+                        column: x => x.WatchlistId,
+                        principalTable: "watchlists",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(
@@ -43,7 +50,12 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_user_watchlist_shares_UserId",
                 table: "user_watchlist_shares",
-                column: "UserId",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_user_watchlist_shares_WatchlistId",
+                table: "user_watchlist_shares",
+                column: "WatchlistId",
                 unique: true);
         }
 

@@ -4,7 +4,9 @@ namespace MovieApp.Application.Abstractions.Persistence;
 
 public interface IUserWatchlistShareRepository
 {
-    Task<UserWatchlistShare?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserWatchlistShare?> GetByWatchlistIdAsync(
+        Guid watchlistId,
+        CancellationToken cancellationToken = default);
 
     Task<UserWatchlistShare?> GetActiveByTokenHashAsync(
         string tokenHash,

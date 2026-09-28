@@ -92,6 +92,16 @@ internal static class WatchlistShareWebCopy
             ? copy.GenericTitle
             : $"{displayName}'s Watchlist";
 
+    internal static string FormatPageHeading(string? watchlistName, string? ownerDisplayName, Copy copy)
+    {
+        if (!string.IsNullOrWhiteSpace(watchlistName))
+        {
+            return watchlistName.Trim();
+        }
+
+        return FormatOwnerTitle(ownerDisplayName, copy);
+    }
+
     internal static string FormatItemCount(int count, Copy copy) =>
         count == 1 ? copy.ItemCountOne : string.Format(CultureInfo.InvariantCulture, copy.ItemCountMany, count);
 }

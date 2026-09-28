@@ -16,7 +16,9 @@ public sealed class UserWatchlistShareConfiguration : IEntityTypeConfiguration<U
             .HasMaxLength(64)
             .IsRequired();
 
-        builder.HasIndex(share => share.UserId)
+        builder.HasIndex(share => share.UserId);
+
+        builder.HasIndex(share => share.WatchlistId)
             .IsUnique();
 
         builder.HasIndex(share => share.TokenHash)
@@ -27,7 +29,7 @@ public sealed class UserWatchlistShareConfiguration : IEntityTypeConfiguration<U
             .HasForeignKey(share => share.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne<Watchlist>()
+        builder.HasOne(share => share.Watchlist)
             .WithMany()
             .HasForeignKey(share => share.WatchlistId)
             .OnDelete(DeleteBehavior.Cascade);

@@ -19,4 +19,6 @@ public sealed class UserWatchlistShare
     public DateTime? RotatedAtUtc { get; set; }
 
     public User User { get; set; } = null!;
+
+    public Watchlist Watchlist { get; set; } = null!;
 }

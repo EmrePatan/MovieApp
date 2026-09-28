@@ -1603,10 +1603,10 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
+                    b.HasIndex("UserId");
 
-                    b.HasIndex("WatchlistId");
+                    b.HasIndex("WatchlistId")
+                        .IsUnique();
 
                     b.ToTable("user_watchlist_shares", (string)null);
                 });
@@ -2160,13 +2160,15 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("MovieApp.Domain.Entities.Watchlist", null)
+                    b.HasOne("MovieApp.Domain.Entities.Watchlist", "Watchlist")
                         .WithMany()
                         .HasForeignKey("WatchlistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
+
+                    b.Navigation("Watchlist");
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.WatchedEpisode", b =>

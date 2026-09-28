@@ -8,17 +8,24 @@ namespace MovieApp.Api.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/watchlists/share")]
+[Route("api/watchlists/{watchlistId:guid}/share")]
 public sealed class WatchlistShareController(IWatchlistShareService watchlistShareService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(WatchlistShareStatusResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<WatchlistShareStatusResponse>> GetStatus(CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WatchlistShareStatusResponse>> GetStatus(
+        Guid watchlistId,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var result = await watchlistShareService.GetStatusAsync(cancellationToken);
+            var result = await watchlistShareService.GetStatusAsync(watchlistId, cancellationToken);
             return Ok(new WatchlistShareStatusResponse(result.IsSharingEnabled));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(Problem(StatusCodes.Status404NotFound, exception.Message));
         }
         catch (AuthenticationException exception)
         {
@@ -26,15 +33,16 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
         }
     }
 
-    [HttpPost("enable")]
+    [HttpPost]
     [ProducesResponseType(typeof(WatchlistShareEnableResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WatchlistShareEnableResponse>> Enable(
-        [FromBody] WatchlistShareEnableRequest request,
+        Guid watchlistId,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await watchlistShareService.EnableAsync(request.WatchlistId, cancellationToken);
+            var result = await watchlistShareService.EnableAsync(watchlistId, cancellationToken);
             return Ok(new WatchlistShareEnableResponse(
                 string.IsNullOrEmpty(result.ShareUrl) ? null : result.ShareUrl,
                 result.CreatedNewLink));
@@ -51,12 +59,17 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
 
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> Disable(CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Disable(Guid watchlistId, CancellationToken cancellationToken)
     {
         try
         {
-            await watchlistShareService.DisableAsync(cancellationToken);
+            await watchlistShareService.DisableAsync(watchlistId, cancellationToken);
             return NoContent();
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(Problem(StatusCodes.Status404NotFound, exception.Message));
         }
         catch (AuthenticationException exception)
         {
@@ -66,14 +79,14 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
 
     [HttpPost("rotate")]
     [ProducesResponseType(typeof(WatchlistShareRotateResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WatchlistShareRotateResponse>> Rotate(
-        [FromBody] WatchlistShareRotateRequest request,
+        Guid watchlistId,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await watchlistShareService.RotateAsync(request.WatchlistId, cancellationToken);
+            var result = await watchlistShareService.RotateAsync(watchlistId, cancellationToken);
             return Ok(new WatchlistShareRotateResponse(result.ShareUrl));
         }
         catch (NotFoundException exception)
