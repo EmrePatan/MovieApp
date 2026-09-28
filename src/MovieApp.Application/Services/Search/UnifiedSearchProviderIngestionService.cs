@@ -94,9 +94,26 @@ public sealed class UnifiedSearchProviderIngestionService(
 
             if (useLocalizedDisplay)
             {
-                (movieIngestResult, _) = await movieCanonicalTask!;
-                (tvIngestResult, _) = await tvCanonicalTask!;
-                (personIngestResult, _) = await personCanonicalTask!;
+                bool movieCanonicalSucceeded;
+                bool tvCanonicalSucceeded;
+                bool personCanonicalSucceeded;
+                (movieIngestResult, movieCanonicalSucceeded) = await movieCanonicalTask!;
+                (tvIngestResult, tvCanonicalSucceeded) = await tvCanonicalTask!;
+                (personIngestResult, personCanonicalSucceeded) = await personCanonicalTask!;
+                if (!movieCanonicalSucceeded)
+                {
+                    movieSucceeded = false;
+                }
+
+                if (!tvCanonicalSucceeded)
+                {
+                    tvSucceeded = false;
+                }
+
+                if (personRequired && !personCanonicalSucceeded)
+                {
+                    personSucceeded = false;
+                }
             }
         }
         else if (movieRequired)
@@ -107,8 +124,13 @@ public sealed class UnifiedSearchProviderIngestionService(
                 var localizedTask = SearchMoviesLocalizedSafeAsync(query, criteria, contentLocale, cancellationToken);
                 var canonicalTask = SearchMoviesSafeAsync(query, criteria, cancellationToken);
                 await Task.WhenAll(localizedTask, canonicalTask);
+                bool movieCanonicalSucceeded;
                 (movieSearchResult, movieSucceeded) = await localizedTask;
-                (movieIngestResult, _) = await canonicalTask;
+                (movieIngestResult, movieCanonicalSucceeded) = await canonicalTask;
+                if (!movieCanonicalSucceeded)
+                {
+                    movieSucceeded = false;
+                }
             }
             else
             {
@@ -123,8 +145,13 @@ public sealed class UnifiedSearchProviderIngestionService(
                 var localizedTask = SearchTvShowsLocalizedSafeAsync(query, criteria, contentLocale, cancellationToken);
                 var canonicalTask = SearchTvShowsSafeAsync(query, criteria, cancellationToken);
                 await Task.WhenAll(localizedTask, canonicalTask);
+                bool tvCanonicalSucceeded;
                 (tvSearchResult, tvSucceeded) = await localizedTask;
-                (tvIngestResult, _) = await canonicalTask;
+                (tvIngestResult, tvCanonicalSucceeded) = await canonicalTask;
+                if (!tvCanonicalSucceeded)
+                {
+                    tvSucceeded = false;
+                }
             }
             else
             {
@@ -139,8 +166,13 @@ public sealed class UnifiedSearchProviderIngestionService(
                 var localizedTask = SearchPersonsLocalizedSafeAsync(query, criteria, contentLocale, cancellationToken);
                 var canonicalTask = SearchPersonsSafeAsync(query, criteria, cancellationToken);
                 await Task.WhenAll(localizedTask, canonicalTask);
+                bool personCanonicalSucceeded;
                 (personSearchResult, personSucceeded) = await localizedTask;
-                (personIngestResult, _) = await canonicalTask;
+                (personIngestResult, personCanonicalSucceeded) = await canonicalTask;
+                if (!personCanonicalSucceeded)
+                {
+                    personSucceeded = false;
+                }
             }
             else
             {
@@ -168,9 +200,9 @@ public sealed class UnifiedSearchProviderIngestionService(
         IReadOnlyDictionary<int, Guid> tvIds = new Dictionary<int, Guid>();
         IReadOnlyDictionary<int, Guid> personIds = new Dictionary<int, Guid>();
 
-        var movieSummariesForIngest = movieIngestResult ?? movieSearchResult;
-        var tvSummariesForIngest = tvIngestResult ?? tvSearchResult;
-        var personSummariesForIngest = personIngestResult ?? personSearchResult;
+        var movieSummariesForIngest = useLocalizedDisplay ? movieIngestResult : movieSearchResult;
+        var tvSummariesForIngest = useLocalizedDisplay ? tvIngestResult : tvSearchResult;
+        var personSummariesForIngest = useLocalizedDisplay ? personIngestResult : personSearchResult;
 
         (movieIds, tvIds, personIds) = await EnsureCatalogIdsAsync(
             movieSummariesForIngest?.Results,

@@ -332,24 +332,34 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
 
         var totalCount = await reviewsQuery.CountAsync(cancellationToken);
 
-        var reviews = await reviewsQuery
-            .Include(review => review.Movie)
-            .Include(review => review.TvShow)
+        var rows = await reviewsQuery
             .OrderByDescending(review => review.UpdatedAt)
+            .ThenByDescending(review => review.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(review => new UserReviewPageRow(
+                review.Id,
+                review.UserId,
+                review.MovieId,
+                review.TvShowId,
+                review.Content,
+                review.CreatedAt,
+                review.UpdatedAt,
+                review.Movie != null ? review.Movie.Title : review.TvShow!.Title,
+                review.Movie != null ? review.Movie.PosterPath : review.TvShow!.PosterPath,
+                review.Movie != null ? review.Movie.ReleaseDate : review.TvShow!.FirstAirDate))
             .ToListAsync(cancellationToken);
 
-        if (reviews.Count == 0)
+        if (rows.Count == 0)
         {
             return (Array.Empty<UserReviewCatalogListItem>(), totalCount);
         }
 
-        var movieIds = reviews
+        var movieIds = rows
             .Where(review => review.MovieId != null)
             .Select(review => review.MovieId!.Value)
             .ToList();
-        var tvShowIds = reviews
+        var tvShowIds = rows
             .Where(review => review.TvShowId != null)
             .Select(review => review.TvShowId!.Value)
             .ToList();
@@ -360,25 +370,76 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 rating.UserId == userId &&
                 ((rating.MovieId != null && movieIds.Contains(rating.MovieId.Value)) ||
                  (rating.TvShowId != null && tvShowIds.Contains(rating.TvShowId.Value))))
+            .Select(rating => new { rating.MovieId, rating.TvShowId, rating.Score })
             .ToListAsync(cancellationToken);
 
-        var items = reviews
-            .Select(review =>
+        var items = rows
+            .Select(row =>
             {
                 int? userRating = null;
-                if (review.MovieId is Guid movieId)
+                if (row.MovieId is Guid movieId)
                 {
                     userRating = ratings.FirstOrDefault(rating => rating.MovieId == movieId)?.Score;
                 }
-                else if (review.TvShowId is Guid tvShowId)
+                else if (row.TvShowId is Guid tvShowId)
                 {
                     userRating = ratings.FirstOrDefault(rating => rating.TvShowId == tvShowId)?.Score;
                 }
 
-                return new UserReviewCatalogListItem(review, userRating);
+                return new UserReviewCatalogListItem(row.ToReview(), userRating);
             })
             .ToList();
 
         return (items, totalCount);
+    }
+
+    private sealed record UserReviewPageRow(
+        Guid Id,
+        Guid UserId,
+        Guid? MovieId,
+        Guid? TvShowId,
+        string Content,
+        DateTime CreatedAt,
+        DateTime UpdatedAt,
+        string Title,
+        string? PosterPath,
+        DateOnly? ReleaseDate)
+    {
+        public Review ToReview()
+        {
+            var review = new Review
+            {
+                Id = Id,
+                UserId = UserId,
+                MovieId = MovieId,
+                TvShowId = TvShowId,
+                Content = Content,
+                CreatedAt = CreatedAt,
+                UpdatedAt = UpdatedAt
+            };
+
+            if (MovieId is Guid movieId)
+            {
+                review.Movie = new Movie
+                {
+                    Id = movieId,
+                    Title = Title,
+                    PosterPath = PosterPath,
+                    ReleaseDate = ReleaseDate
+                };
+            }
+            else if (TvShowId is Guid tvShowId)
+            {
+                review.TvShow = new TvShow
+                {
+                    Id = tvShowId,
+                    Title = Title,
+                    PosterPath = PosterPath,
+                    FirstAirDate = ReleaseDate
+                };
+            }
+
+            return review;
+        }
     }
 }

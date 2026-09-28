@@ -64,6 +64,19 @@ public sealed class GetFavoriteStatusServiceTests
     }
 
     [Fact]
+    public async Task GetBatchStatusAsyncRejectsUnknownContentType()
+    {
+        var service = new GetFavoriteStatusService(
+            new FakeCurrentUser(Guid.NewGuid()),
+            new FakeFavoriteRepository());
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.GetBatchStatusAsync(
+        [
+            new FavoriteContentReference("person", Guid.NewGuid()),
+        ]));
+    }
+
+    [Fact]
     public async Task GetBatchStatusAsyncRejectsTooManyItems()
     {
         var service = new GetFavoriteStatusService(

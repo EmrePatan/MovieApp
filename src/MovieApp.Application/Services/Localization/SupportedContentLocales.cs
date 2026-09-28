@@ -91,14 +91,41 @@ public static class SupportedContentLocales
 
         foreach (var candidate in candidates)
         {
-            var normalized = Normalize(candidate.Language);
-            if (IsSupported(normalized))
+            if (TryNormalizeToSupported(candidate.Language, out var normalized))
             {
                 return normalized;
             }
         }
 
         return Default;
+    }
+
+    internal static bool TryNormalizeToSupported(string? locale, out string normalized)
+    {
+        normalized = Default;
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            return false;
+        }
+
+        var trimmed = locale.Trim();
+        if (ExactLocaleMap.TryGetValue(trimmed, out var exact))
+        {
+            normalized = exact;
+            return true;
+        }
+
+        var languagePrefix = trimmed.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(languagePrefix) &&
+            ExactLocaleMap.TryGetValue(languagePrefix, out var prefixMatch))
+        {
+            normalized = prefixMatch;
+            return true;
+        }
+
+        return false;
     }
 
     public static bool IsSupported(string contentLocale) =>

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Services.CatalogShare;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.WatchlistShare;
 
 namespace MovieApp.Api.CatalogShare;
@@ -32,7 +33,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         [FromServices] PublicWebSiteRenderer renderer,
         CancellationToken cancellationToken)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await landingService.GetHomeAsync(locale, cancellationToken);
         return HtmlResult(renderer.RenderLanding(model, locale));
     }
@@ -43,7 +44,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         [FromServices] PublicWebSiteRenderer renderer,
         CancellationToken cancellationToken)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await landingService.GetMoviesListingAsync(locale, cancellationToken);
         return HtmlResult(renderer.RenderListing(model, locale));
     }
@@ -54,7 +55,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         [FromServices] PublicWebSiteRenderer renderer,
         CancellationToken cancellationToken)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await landingService.GetTvListingAsync(locale, cancellationToken);
         return HtmlResult(renderer.RenderListing(model, locale));
     }
@@ -78,7 +79,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
             return openRedirect;
         }
 
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await pageService.TryGetMoviePageAsync(id, locale, cancellationToken);
         if (model is null)
         {
@@ -107,7 +108,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
             return openRedirect;
         }
 
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await pageService.TryGetTvShowPageAsync(id, locale, cancellationToken);
         if (model is null)
         {
@@ -136,17 +137,16 @@ public static class CatalogShareEndpointRouteBuilderExtensions
             return openRedirect;
         }
 
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await pageService.BuildPageAsync(token, locale, cancellationToken);
         var openAppUrl = CatalogShareWebUrls.BuildWatchlistAppOpenUrl(catalogShareOptions.Value, token);
         var statusCode = model.IsUnavailable
             ? StatusCodes.Status404NotFound
             : StatusCodes.Status200OK;
 
-        return Results.Content(
+        return WatchlistHtmlResult(
             renderer.RenderWatchlistSharePage(model, locale, openAppUrl),
-            "text/html; charset=utf-8",
-            statusCode: statusCode);
+            statusCode);
     }
 
     private static async Task<IResult> WatchlistShareUnavailableAsync(
@@ -156,10 +156,9 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var model = await pageService.BuildPageAsync(token, acceptLanguageHeader: null, cancellationToken);
-        return Results.Content(
+        return WatchlistHtmlResult(
             renderer.RenderWatchlistSharePage(model, acceptLanguageHeader: null, openAppUrl: "/"),
-            "text/html; charset=utf-8",
-            statusCode: StatusCodes.Status404NotFound);
+            StatusCodes.Status404NotFound);
     }
 
     private static IResult HandleAppleAppSiteAssociation([FromServices] IOptions<CatalogShareOptions> options)
@@ -242,12 +241,43 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         return Results.Redirect(canonicalUrl, permanent: false);
     }
 
-    private static IResult NotFoundHtml(HttpContext httpContext, CatalogPublicSharePageRenderer renderer)
+    private static PublicCatalogHtmlResult NotFoundHtml(HttpContext httpContext, CatalogPublicSharePageRenderer renderer)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
-        return Results.Content(renderer.RenderNotFoundPage(locale), "text/html; charset=utf-8", statusCode: StatusCodes.Status404NotFound);
+        var locale = ResolveContentLocale(httpContext);
+        return HtmlResult(renderer.RenderNotFoundPage(locale), StatusCodes.Status404NotFound, cacheSeconds: 60);
     }
 
-    private static IResult HtmlResult(string html) =>
-        Results.Content(html, "text/html; charset=utf-8");
+    private static string ResolveContentLocale(HttpContext httpContext) =>
+        ContentLocaleResolver.ResolveFromAcceptLanguage(httpContext.Request.Headers.AcceptLanguage.ToString());
+
+    private static PublicCatalogHtmlResult HtmlResult(string html, int statusCode = StatusCodes.Status200OK, int cacheSeconds = 300) =>
+        new(html, statusCode, cacheSeconds);
+
+    private static WatchlistShareHtmlResult WatchlistHtmlResult(string html, int statusCode) =>
+        new(html, statusCode);
+
+    private sealed class PublicCatalogHtmlResult(string html, int statusCode, int cacheSeconds) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            httpContext.Response.StatusCode = statusCode;
+            httpContext.Response.ContentType = "text/html; charset=utf-8";
+            httpContext.Response.Headers.CacheControl = $"public, max-age={cacheSeconds}";
+            httpContext.Response.Headers.Vary = "Accept-Language";
+            await httpContext.Response.WriteAsync(html);
+        }
+    }
+
+    private sealed class WatchlistShareHtmlResult(string html, int statusCode) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            httpContext.Response.StatusCode = statusCode;
+            httpContext.Response.ContentType = "text/html; charset=utf-8";
+            httpContext.Response.Headers.CacheControl = "no-store";
+            httpContext.Response.Headers.Pragma = "no-cache";
+            httpContext.Response.Headers.Vary = "Accept-Language";
+            await httpContext.Response.WriteAsync(html);
+        }
+    }
 }

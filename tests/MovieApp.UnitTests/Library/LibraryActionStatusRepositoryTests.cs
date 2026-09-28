@@ -41,7 +41,35 @@ public sealed class LibraryActionStatusRepositoryTests
     public async Task GetTvShowAsyncUsesFollowDefaultsAndEpisodeWatchedState()
     {
         await using var context = CreateContext();
+        var tvShow = new TvShow
+        {
+            Id = TvShowId,
+            Title = "Test Show",
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow,
+        };
+        var season = new Season
+        {
+            Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+            TvShowId = TvShowId,
+            TvShow = tvShow,
+            SeasonNumber = 1,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow,
+        };
+        var episode = new Episode
+        {
+            Id = EpisodeId,
+            SeasonId = season.Id,
+            Season = season,
+            EpisodeNumber = 1,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow,
+        };
+        season.Episodes.Add(episode);
+        tvShow.Seasons.Add(season);
         var follow = CatalogFollow.CreateTvFollow(UserId, TvShowId, notifyNewSeasons: false, notifyNewEpisodes: true, UtcNow);
+        context.Add(tvShow);
         context.Add(follow);
         context.Add(WatchedEpisode.Create(UserId, EpisodeId, UtcNow));
         await context.SaveChangesAsync();

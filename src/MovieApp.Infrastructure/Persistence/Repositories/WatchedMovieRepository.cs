@@ -41,6 +41,8 @@ public sealed class WatchedMovieRepository(ApplicationDbContext dbContext) : IWa
         }
         catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
         {
+            dbContext.Entry(watchedMovie).State = EntityState.Detached;
+
             var raced = await dbContext.WatchedMovies
                 .FirstAsync(
                     item => item.UserId == watchedMovie.UserId && item.MovieId == watchedMovie.MovieId,

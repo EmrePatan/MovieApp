@@ -74,7 +74,7 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsyncAppliesLocalizationOverlayToProviderResults()
+    public async Task SearchAsyncDoesNotReapplyLocalizationOverlayToProviderResults()
     {
         var cache = new FakeCacheService(null);
         var repository = new FakeSearchRepository([], totalCount: 0);
@@ -84,8 +84,7 @@ public sealed class SearchServiceTests
 
         await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal(1, overlay.ApplyToSearchItemsCount);
-        Assert.Equal(ContentLocaleResolver.TurkishTurkey, overlay.LastContentLocale);
+        Assert.Equal(0, overlay.ApplyToSearchItemsCount);
     }
 
     [Fact]

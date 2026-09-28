@@ -12,13 +12,18 @@ public sealed class SecurityStampCache
 {
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(5);
 
-    private readonly ConcurrentDictionary<Guid, Lazy<Task<Guid?>>> _inflight = new();
+    private static readonly ConcurrentDictionary<Guid, PerUserStampLoadState> PerUser = new();
 
     public static string Key(Guid userId) => $"auth:security-stamp:{userId:N}";
 
-    public static void Invalidate(IMemoryCache cache, Guid userId) =>
+    public static void Invalidate(IMemoryCache cache, Guid userId)
+    {
         cache.Remove(Key(userId));
+        var state = PerUser.GetOrAdd(userId, static _ => new PerUserStampLoadState());
+        Interlocked.Increment(ref state.Generation);
+    }
 
+#pragma warning disable CA1822 // Registered as singleton; coalescing state is process-wide.
     public async Task<Guid?> GetOrLoadAsync(
         IMemoryCache cache,
         Guid userId,
@@ -30,25 +35,38 @@ public sealed class SecurityStampCache
             return cached.Stamp;
         }
 
-        var lazy = _inflight.GetOrAdd(
-            userId,
+        var state = PerUser.GetOrAdd(userId, static _ => new PerUserStampLoadState());
+        var generation = Volatile.Read(ref state.Generation);
+        var lazy = state.InflightByGeneration.GetOrAdd(
+            generation,
             static (_, loadStamp) => new Lazy<Task<Guid?>>(() => loadStamp(CancellationToken.None)),
             load);
 
         try
         {
             var stamp = await lazy.Value.WaitAsync(cancellationToken);
-            cache.Set(
-                Key(userId),
-                new SecurityStampCacheEntry(stamp),
-                new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = Ttl });
+            if (Volatile.Read(ref state.Generation) == generation)
+            {
+                cache.Set(
+                    Key(userId),
+                    new SecurityStampCacheEntry(stamp),
+                    new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = Ttl });
+            }
+
             return stamp;
         }
         finally
         {
-            _inflight.TryRemove(userId, out _);
+            state.InflightByGeneration.TryRemove(new KeyValuePair<long, Lazy<Task<Guid?>>>(generation, lazy));
         }
     }
+#pragma warning restore CA1822
 
     public sealed record SecurityStampCacheEntry(Guid? Stamp);
+
+    private sealed class PerUserStampLoadState
+    {
+        internal long Generation;
+        internal readonly ConcurrentDictionary<long, Lazy<Task<Guid?>>> InflightByGeneration = new();
+    }
 }

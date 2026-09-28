@@ -378,7 +378,10 @@ public sealed class MovieRepository(
         movie.PosterPath = details.PosterPath;
         movie.BackdropPath = details.BackdropPath;
         movie.OriginalLanguage = details.OriginalLanguage;
-        movie.PrimaryOriginCountryCode = details.PrimaryOriginCountryCode;
+        if (IsPersistableCountryCode(details.PrimaryOriginCountryCode))
+        {
+            movie.PrimaryOriginCountryCode = details.PrimaryOriginCountryCode;
+        }
         movie.VoteAverage = details.VoteAverage;
         movie.VoteCount = details.VoteCount;
 
@@ -453,4 +456,7 @@ public sealed class MovieRepository(
             movie.MovieGenres.Remove(movieGenre);
         }
     }
+
+    private static bool IsPersistableCountryCode(string? value) =>
+        value is { Length: 2 } && char.IsLetter(value[0]) && char.IsLetter(value[1]);
 }

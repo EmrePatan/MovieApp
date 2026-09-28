@@ -55,7 +55,8 @@ internal static class TmdbMovieMapper
                 : TmdbKeywordsMapper.ToProviderKeywords(details.Keywords.Keywords),
             ProviderSearchTitles: TmdbContentSearchTitleMapper.MapMovie(details),
             ProviderPosters: MapProviderPosters(details.Images),
-            PrimaryOriginCountryCode: TmdbOriginCountryMapper.ResolvePrimaryOriginCountryCode(details.ProductionCountries));
+            PrimaryOriginCountryCode: TmdbOriginCountryMapper.ResolvePrimaryOriginCountryCode(details.OriginCountry)
+                ?? TmdbOriginCountryMapper.ResolvePrimaryOriginCountryCode(details.ProductionCountries));
     }
 
     private static IReadOnlyList<ProviderImageResult>? MapProviderPosters(TmdbImagesResponseJson? images) =>
