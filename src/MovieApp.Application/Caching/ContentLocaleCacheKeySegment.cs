@@ -15,5 +15,5 @@ public static class ContentLocaleCacheKeySegment
     }
 
     public static string Normalize(string contentLocale) =>
-        contentLocale.Trim().ToLowerInvariant();
+        SupportedContentLocales.Normalize(contentLocale).ToLowerInvariant();
 }

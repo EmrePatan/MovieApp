@@ -28,9 +28,10 @@ public sealed class ExternalRatingsRefreshService(
         }
 
         var coalesceKey = ExternalRatingsRefreshKeys.Build(mediaType, tmdbId);
-        return refreshCoalescer.CoalesceAsync(
+        var refresh = refreshCoalescer.CoalesceAsync(
             coalesceKey,
-            () => RefreshInternalAsync(mediaType, tmdbId, cancellationToken));
+            () => RefreshInternalAsync(mediaType, tmdbId, CancellationToken.None));
+        return refresh.WaitAsync(cancellationToken);
     }
 
     private async Task RefreshInternalAsync(

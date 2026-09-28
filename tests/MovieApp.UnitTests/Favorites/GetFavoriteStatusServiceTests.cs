@@ -77,6 +77,24 @@ public sealed class GetFavoriteStatusServiceTests
         await Assert.ThrowsAsync<ValidationException>(() => service.GetBatchStatusAsync(items));
     }
 
+    [Fact]
+    public async Task GetBatchStatusAsyncRejectsUnknownContentType()
+    {
+        var service = new GetFavoriteStatusService(
+            new FakeCurrentUser(Guid.NewGuid()),
+            new FakeFavoriteRepository
+            {
+                FavoritedMovieIds = new HashSet<Guid> { Guid.NewGuid() }
+            });
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.GetBatchStatusAsync(
+        [
+            new FavoriteContentReference("movies", Guid.NewGuid())
+        ]));
+
+        Assert.Contains("movie", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
         public bool IsAuthenticated => true;

@@ -11,32 +11,52 @@ internal static class TmdbOriginCountryMapper
             return null;
         }
 
-        foreach (var country in productionCountries)
-        {
-            if (string.Equals(country.Iso31661, "TR", StringComparison.OrdinalIgnoreCase))
-            {
-                return "TR";
-            }
-        }
-
-        return productionCountries[0].Iso31661?.Trim().ToUpperInvariant();
+        return ResolvePrimaryOriginCountryCode(productionCountries.Select(country => country.Iso31661));
     }
 
-    internal static string? ResolvePrimaryOriginCountryCode(IReadOnlyList<string>? originCountries)
+    internal static string? ResolvePrimaryOriginCountryCode(IEnumerable<string?>? originCountries)
     {
-        if (originCountries is null || originCountries.Count == 0)
+        if (originCountries is null)
         {
             return null;
         }
 
+        string? firstValid = null;
         foreach (var country in originCountries)
         {
-            if (string.Equals(country, "TR", StringComparison.OrdinalIgnoreCase))
+            var normalized = NormalizeCountryCode(country);
+            if (normalized is null)
+            {
+                continue;
+            }
+
+            if (firstValid is null)
+            {
+                firstValid = normalized;
+            }
+
+            if (normalized == "TR")
             {
                 return "TR";
             }
         }
 
-        return originCountries[0].Trim().ToUpperInvariant();
+        return firstValid;
+    }
+
+    internal static string? NormalizeCountryCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length != 2 || !char.IsLetter(trimmed[0]) || !char.IsLetter(trimmed[1]))
+        {
+            return null;
+        }
+
+        return trimmed.ToUpperInvariant();
     }
 }

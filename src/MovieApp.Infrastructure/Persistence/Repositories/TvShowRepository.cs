@@ -394,7 +394,10 @@ public sealed class TvShowRepository(
         tvShow.PosterPath = details.PosterPath;
         tvShow.BackdropPath = details.BackdropPath;
         tvShow.OriginalLanguage = details.OriginalLanguage;
-        tvShow.PrimaryOriginCountryCode = details.PrimaryOriginCountryCode;
+        if (IsPersistableCountryCode(details.PrimaryOriginCountryCode))
+        {
+            tvShow.PrimaryOriginCountryCode = details.PrimaryOriginCountryCode;
+        }
         tvShow.VoteAverage = details.VoteAverage;
         tvShow.VoteCount = details.VoteCount;
         tvShow.Status = TvShowStatusParser.Parse(details.Status);
@@ -514,4 +517,7 @@ public sealed class TvShowRepository(
             season.UpdatedAt = utcNow;
         }
     }
+
+    private static bool IsPersistableCountryCode(string? value) =>
+        value is { Length: 2 } && char.IsLetter(value[0]) && char.IsLetter(value[1]);
 }

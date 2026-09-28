@@ -75,7 +75,7 @@ public sealed class GetTvShowByIdService(
             result,
             await overlayTask,
             contentLocale);
-        return await ApplyOverlayAsync(id, localized, contentLocale, cancellationToken);
+        return await ApplyLocalizedPosterOverlayAsync(id, localized, contentLocale, cancellationToken);
     }
 
     private async Task<Task<TvShowDetailLocalizationData?>?> StartTvShowOverlayAsync(
@@ -130,6 +130,9 @@ public sealed class GetTvShowByIdService(
             result.TmdbId,
             result.PosterPath,
             contentLocale,
+            result.OriginalLanguage,
+            result.PrimaryOriginCountryCode,
+            result.OriginalTitle,
             cancellationToken);
 
         var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
@@ -153,6 +156,9 @@ public sealed class GetTvShowByIdService(
         int? tmdbId,
         string? canonicalPosterPath,
         string contentLocale,
+        string? originalLanguage,
+        string? primaryOriginCountryCode,
+        string? originalTitle,
         CancellationToken cancellationToken)
     {
         var languageKey = SupportedArtworkLanguageKeys.ResolvePosterLanguageKey(contentLocale);
@@ -167,6 +173,20 @@ public sealed class GetTvShowByIdService(
             languageKey,
             cancellationToken);
         if (existing.Count > 0)
+        {
+            return;
+        }
+
+        if (!LocalizedDisplayTitleSelector.IsTurkishProduction(
+                originalLanguage,
+                primaryOriginCountryCode,
+                originalTitle))
+        {
+            return;
+        }
+
+        var missKey = TvLocalizedPosterMissCacheKeys.Create(tvShowId, languageKey);
+        if (await cacheService.GetAsync<TvLocalizedPosterMissCacheEntry>(missKey, cancellationToken) is not null)
         {
             return;
         }
@@ -189,6 +209,7 @@ public sealed class GetTvShowByIdService(
             cancellationToken);
         if (providerDetails is null)
         {
+            await RememberLocalizedPosterMissAsync(missKey, cancellationToken);
             return;
         }
 
@@ -200,5 +221,21 @@ public sealed class GetTvShowByIdService(
             providerDetails.OriginalLanguage,
             providerDetails.PrimaryOriginCountryCode,
             cancellationToken);
+
+        var persisted = await contentLocalizedPosterRepository.GetPosterPathsAsync(
+            [key],
+            languageKey,
+            cancellationToken);
+        if (persisted.Count == 0)
+        {
+            await RememberLocalizedPosterMissAsync(missKey, cancellationToken);
+        }
     }
+
+    private Task RememberLocalizedPosterMissAsync(string missKey, CancellationToken cancellationToken) =>
+        cacheService.SetAsync(
+            missKey,
+            new TvLocalizedPosterMissCacheEntry(),
+            TvLocalizedPosterMissCacheKeys.Ttl,
+            cancellationToken);
 }

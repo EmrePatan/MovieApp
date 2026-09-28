@@ -214,10 +214,10 @@ public sealed class SearchService(
             return await FallbackToDatabaseAsync(criteria, contentLocale, cancellationToken);
         }
 
-        var localizedProviderResult = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
-            ingestionResult.Result,
-            contentLocale,
-            cancellationToken);
+        // IngestAsync already applied canonical-vs-localized display titles and posters.
+        // A second pass treats those display strings as catalog titles and issues one
+        // TMDB detail call per row.
+        var localizedProviderResult = ingestionResult.Result;
 
         var normalizedQuery = GetNormalizedQuery(criteria);
         if (normalizedQuery is not null)

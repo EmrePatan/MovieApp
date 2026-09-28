@@ -13,11 +13,15 @@ public sealed class SecurityStampCache
     public static readonly TimeSpan Ttl = TimeSpan.FromSeconds(5);
 
     private readonly ConcurrentDictionary<Guid, Lazy<Task<Guid?>>> _inflight = new();
+    private static int _generation;
 
     public static string Key(Guid userId) => $"auth:security-stamp:{userId:N}";
 
-    public static void Invalidate(IMemoryCache cache, Guid userId) =>
+    public static void Invalidate(IMemoryCache cache, Guid userId)
+    {
+        Interlocked.Increment(ref _generation);
         cache.Remove(Key(userId));
+    }
 
     public async Task<Guid?> GetOrLoadAsync(
         IMemoryCache cache,
@@ -30,6 +34,7 @@ public sealed class SecurityStampCache
             return cached.Stamp;
         }
 
+        var generation = Volatile.Read(ref _generation);
         var lazy = _inflight.GetOrAdd(
             userId,
             static (_, loadStamp) => new Lazy<Task<Guid?>>(() => loadStamp(CancellationToken.None)),
@@ -38,15 +43,19 @@ public sealed class SecurityStampCache
         try
         {
             var stamp = await lazy.Value.WaitAsync(cancellationToken);
-            cache.Set(
-                Key(userId),
-                new SecurityStampCacheEntry(stamp),
-                new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = Ttl });
+            if (Volatile.Read(ref _generation) == generation)
+            {
+                cache.Set(
+                    Key(userId),
+                    new SecurityStampCacheEntry(stamp),
+                    new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = Ttl });
+            }
+
             return stamp;
         }
         finally
         {
-            _inflight.TryRemove(userId, out _);
+            _inflight.TryRemove(new KeyValuePair<Guid, Lazy<Task<Guid?>>>(userId, lazy));
         }
     }
 

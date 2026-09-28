@@ -4,7 +4,7 @@
  *
  * open.moviecaveapp.com catalog paths redirect to canonical moviecaveapp.com (no duplicate HTML).
  */
-const CATALOG_PATH_PATTERN = /^\/(movie|tv)\/([^/?#]+)/;
+const CATALOG_PATH_PATTERN = /^\/(movie|tv)\/([^/?#]+)$/;
 const WELL_KNOWN_PATHS = new Set([
   "/.well-known/apple-app-site-association",
   "/.well-known/assetlinks.json",
@@ -28,13 +28,21 @@ function resolveAppOpenHost(env) {
   return "open.moviecaveapp.com";
 }
 
-function isCatalogPath(pathname) {
+export function normalizePublicPath(pathname) {
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    return pathname.replace(/\/+$/, "");
+  }
+
+  return pathname;
+}
+
+export function isCatalogPath(pathname) {
   return CATALOG_PATH_PATTERN.test(pathname);
 }
 
 const PUBLIC_WEB_PATHS = new Set(["/", "/movies", "/tv"]);
 
-function shouldProxyToApi(pathname) {
+export function shouldProxyToApi(pathname) {
   return (
     PUBLIC_WEB_PATHS.has(pathname) ||
     isCatalogPath(pathname) ||
@@ -42,10 +50,29 @@ function shouldProxyToApi(pathname) {
   );
 }
 
+export function canProxyPublicMethod(method) {
+  return method === "GET" || method === "HEAD";
+}
+
+export function buildProxyHeaders(requestHeaders) {
+  const headers = new Headers();
+  const acceptLanguage = requestHeaders.get("Accept-Language");
+  if (acceptLanguage) {
+    headers.set("Accept-Language", acceptLanguage);
+  }
+
+  const accept = requestHeaders.get("Accept");
+  if (accept) {
+    headers.set("Accept", accept);
+  }
+
+  return headers;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const pathname = url.pathname;
+    const pathname = normalizePublicPath(url.pathname);
     const host = url.hostname.toLowerCase();
     const appOpenHost = resolveAppOpenHost(env);
     const canonicalOrigin = resolveCanonicalOrigin(env);
@@ -57,10 +84,14 @@ export default {
 
     const apiOrigin = env.CATALOG_SHARE_API_ORIGIN?.trim();
     if (shouldProxyToApi(pathname) && apiOrigin) {
+      if (!canProxyPublicMethod(request.method)) {
+        return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+      }
+
       const target = new URL(`${pathname}${url.search}`, apiOrigin.replace(/\/$/, ""));
       const proxied = new Request(target.toString(), {
         method: request.method,
-        headers: request.headers,
+        headers: buildProxyHeaders(request.headers),
         redirect: "manual",
       });
       return fetch(proxied);

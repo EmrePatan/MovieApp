@@ -20,6 +20,8 @@ internal sealed class TmdbMovieDetailsResponseJson
 
     public List<TmdbProductionCountryJson> ProductionCountries { get; set; } = [];
 
+    public List<string> OriginCountry { get; set; } = [];
+
     public string? OriginalLanguage { get; set; }
 
     public decimal VoteAverage { get; set; }

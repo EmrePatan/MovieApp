@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.TvShows;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.TvShows;
@@ -43,6 +45,52 @@ public sealed class GetTvShowByIdLocalizedPosterTests
 
         Assert.Equal(TurkishPoster, result.PosterPath);
     }
+
+    [Fact]
+    public async Task GetByIdAsync_SkipsProviderPosterFetch_ForNonTurkishShow()
+    {
+        var provider = new CountingTvShowDataProvider();
+        var cache = new SeedTvShowDetailsCacheService(CreateCachedDetails() with
+        {
+            Title = "Interstellar",
+            OriginalTitle = "Interstellar",
+            OriginalLanguage = "en",
+            PrimaryOriginCountryCode = "US"
+        });
+        var service = CreateService(cache, provider, new InMemoryContentLocalizedPosterRepository());
+
+        var result = await service.GetByIdAsync(TvShowId, ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(0, provider.GetTvShowCallCount);
+        Assert.Equal(CanonicalPoster, result.PosterPath);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_FetchesProviderPosterOnce_ForTurkishShowMissingArtwork()
+    {
+        var provider = new CountingTvShowDataProvider();
+        var cache = new MemoryPosterCache(CreateCachedDetails());
+        var service = CreateService(cache, provider, new InMemoryContentLocalizedPosterRepository());
+
+        await service.GetByIdAsync(TvShowId, ContentLocaleResolver.TurkishTurkey);
+        await service.GetByIdAsync(TvShowId, ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(1, provider.GetTvShowCallCount);
+    }
+
+    private static GetTvShowByIdService CreateService(
+        ICacheService cache,
+        ITvShowDataProvider provider,
+        IContentLocalizedPosterRepository posterRepository) =>
+        new(
+            new NoOpSeasonSummaryHydrator(),
+            new NoOpCatalogSyncStateService(),
+            cache,
+            posterRepository,
+            GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
+            provider,
+            GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
+            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
 
     [Fact]
     public void DependencyInjection_ResolvesGetTvShowByIdService_WithPosterRepository()
@@ -216,5 +264,83 @@ public sealed class GetTvShowByIdLocalizedPosterTests
             string languageKey,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class CountingTvShowDataProvider : ITvShowDataProvider
+    {
+        public int GetTvShowCallCount { get; private set; }
+
+        public Task<TvShowProviderSearchResult> SearchTvShowsAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderDetails?> GetTvShowAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default)
+        {
+            GetTvShowCallCount++;
+            return Task.FromResult<TvShowProviderDetails?>(null);
+        }
+
+        public Task<SeasonProviderDetails?> GetSeasonAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EpisodeProviderDetails?> GetEpisodeAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            int episodeNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class MemoryPosterCache(TvShowDetailsResult details) : ICacheService
+    {
+        private readonly Dictionary<string, object> _values = new(StringComparer.Ordinal);
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            if (typeof(T) == typeof(TvShowDetailsCacheEntry) &&
+                key == TvShowDetailsCacheKeys.Create(TvShowId))
+            {
+                return Task.FromResult(new TvShowDetailsCacheEntry { Result = details } as T);
+            }
+
+            if (_values.TryGetValue(key, out var value) && value is T typed)
+            {
+                return Task.FromResult<T?>(typed);
+            }
+
+            return Task.FromResult<T?>(null);
+        }
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _values[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _values.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 }

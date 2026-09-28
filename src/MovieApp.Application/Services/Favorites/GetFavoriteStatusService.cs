@@ -33,6 +33,15 @@ public sealed class GetFavoriteStatusService(
             throw new ValidationException($"A maximum of {MaxBatchItems} favorite status items is allowed.");
         }
 
+        foreach (var item in items)
+        {
+            if (!string.Equals(item.ContentType, "movie", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(item.ContentType, "tv", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ValidationException("Favorite status items must use content type 'movie' or 'tv'.");
+            }
+        }
+
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
         var movieIds = items

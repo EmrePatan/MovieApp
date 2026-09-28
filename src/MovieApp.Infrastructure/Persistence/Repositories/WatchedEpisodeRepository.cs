@@ -48,6 +48,8 @@ public sealed class WatchedEpisodeRepository(
         }
         catch (DbUpdateException exception) when (DbUpdateExceptionExtensions.IsUniqueConstraintViolation(exception))
         {
+            dbContext.Entry(watchedEpisode).State = EntityState.Detached;
+
             var raced = await dbContext.WatchedEpisodes
                 .FirstAsync(
                     item => item.UserId == watchedEpisode.UserId && item.EpisodeId == watchedEpisode.EpisodeId,

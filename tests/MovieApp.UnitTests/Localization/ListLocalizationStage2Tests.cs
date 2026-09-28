@@ -83,6 +83,9 @@ public sealed class ListLocalizationStage2Tests
 
         Assert.EndsWith(":loc:tr-tr", searchKey);
         Assert.EndsWith(":loc:tr-tr", homeKey);
+        Assert.Equal(
+            searchKey,
+            UnifiedSearchCacheKeys.Create(criteria, "tr-TR,tr;q=0.9,en-US;q=0.8"));
         Assert.NotEqual(
             UnifiedSearchCacheKeys.Create(criteria, ContentLocaleResolver.EnglishUnitedStates),
             searchKey);

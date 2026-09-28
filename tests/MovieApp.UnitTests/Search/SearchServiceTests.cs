@@ -74,11 +74,29 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsyncAppliesLocalizationOverlayToProviderResults()
+    public async Task SearchAsyncDoesNotReapplyLocalizationOverlayToProviderResults()
     {
         var cache = new FakeCacheService(null);
         var repository = new FakeSearchRepository([], totalCount: 0);
         var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService();
+        var overlay = new SearchTestDoubles.RecordingSummaryLocalizationOverlayService();
+        var service = CreateService(repository, cache, providerIngestion, localizationOverlay: overlay);
+
+        await service.SearchAsync(CreateCriteria("inception"), ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(0, overlay.ApplyToSearchItemsCount);
+    }
+
+    [Fact]
+    public async Task SearchAsyncAppliesLocalizationOverlayWhenProviderFallsBackToDatabase()
+    {
+        var cache = new FakeCacheService(null);
+        var repository = new FakeSearchRepository([MovieItem], totalCount: 1);
+        var providerIngestion = new SearchTestDoubles.FakeProviderIngestionService
+        {
+            MovieSucceeds = false,
+            TvSucceeds = false
+        };
         var overlay = new SearchTestDoubles.RecordingSummaryLocalizationOverlayService();
         var service = CreateService(repository, cache, providerIngestion, localizationOverlay: overlay);
 

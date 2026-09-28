@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Services.CatalogShare;
+using MovieApp.Application.Services.Localization;
 namespace MovieApp.Api.CatalogShare;
 
 public static class CatalogShareEndpointRouteBuilderExtensions
@@ -29,7 +30,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         [FromServices] PublicWebSiteRenderer renderer,
         CancellationToken cancellationToken)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await landingService.GetHomeAsync(locale, cancellationToken);
         return HtmlResult(renderer.RenderLanding(model, locale));
     }
@@ -40,7 +41,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         [FromServices] PublicWebSiteRenderer renderer,
         CancellationToken cancellationToken)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await landingService.GetMoviesListingAsync(locale, cancellationToken);
         return HtmlResult(renderer.RenderListing(model, locale));
     }
@@ -51,7 +52,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         [FromServices] PublicWebSiteRenderer renderer,
         CancellationToken cancellationToken)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await landingService.GetTvListingAsync(locale, cancellationToken);
         return HtmlResult(renderer.RenderListing(model, locale));
     }
@@ -75,7 +76,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
             return openRedirect;
         }
 
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await pageService.TryGetMoviePageAsync(id, locale, cancellationToken);
         if (model is null)
         {
@@ -104,7 +105,7 @@ public static class CatalogShareEndpointRouteBuilderExtensions
             return openRedirect;
         }
 
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var locale = ResolveContentLocale(httpContext);
         var model = await pageService.TryGetTvShowPageAsync(id, locale, cancellationToken);
         if (model is null)
         {
@@ -180,12 +181,27 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         return Results.Redirect(canonicalUrl, permanent: false);
     }
 
-    private static IResult NotFoundHtml(HttpContext httpContext, CatalogPublicSharePageRenderer renderer)
+    private static PublicCatalogHtmlResult NotFoundHtml(HttpContext httpContext, CatalogPublicSharePageRenderer renderer)
     {
-        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
-        return Results.Content(renderer.RenderNotFoundPage(locale), "text/html; charset=utf-8", statusCode: StatusCodes.Status404NotFound);
+        var locale = ResolveContentLocale(httpContext);
+        return HtmlResult(renderer.RenderNotFoundPage(locale), StatusCodes.Status404NotFound, cacheSeconds: 60);
     }
 
-    private static IResult HtmlResult(string html) =>
-        Results.Content(html, "text/html; charset=utf-8");
+    private static string ResolveContentLocale(HttpContext httpContext) =>
+        ContentLocaleResolver.ResolveFromAcceptLanguage(httpContext.Request.Headers.AcceptLanguage.ToString());
+
+    private static PublicCatalogHtmlResult HtmlResult(string html, int statusCode = StatusCodes.Status200OK, int cacheSeconds = 300) =>
+        new(html, statusCode, cacheSeconds);
+
+    private sealed class PublicCatalogHtmlResult(string html, int statusCode, int cacheSeconds) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            httpContext.Response.StatusCode = statusCode;
+            httpContext.Response.ContentType = "text/html; charset=utf-8";
+            httpContext.Response.Headers.CacheControl = $"public, max-age={cacheSeconds}";
+            httpContext.Response.Headers.Vary = "Accept-Language";
+            await httpContext.Response.WriteAsync(html);
+        }
+    }
 }

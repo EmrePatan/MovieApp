@@ -92,7 +92,7 @@ public sealed class GetMovieByIdService(
             result,
             await overlayTask,
             contentLocale);
-        return await ApplyOverlayAsync(id, localized, contentLocale, cancellationToken);
+        return await ApplyLocalizedPosterOverlayAsync(id, localized, contentLocale, cancellationToken);
     }
 
     private Task<Models.Localization.MovieDetailLocalizationData?>? StartMovieOverlay(

@@ -92,6 +92,9 @@ public sealed class LibraryActionStatusRepository(ApplicationDbContext dbContext
             watchedAt = await dbContext.WatchedEpisodes
                 .AsNoTracking()
                 .Where(item => item.UserId == userId && item.EpisodeId == episode)
+                .Where(item => dbContext.Episodes.Any(episodeRow =>
+                    episodeRow.Id == item.EpisodeId &&
+                    episodeRow.Season.TvShowId == tvShowId))
                 .Select(item => (DateTime?)item.WatchedAt)
                 .FirstOrDefaultAsync(cancellationToken);
             isWatched = watchedAt is not null;

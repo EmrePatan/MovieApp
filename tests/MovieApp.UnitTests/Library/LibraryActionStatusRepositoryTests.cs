@@ -43,6 +43,24 @@ public sealed class LibraryActionStatusRepositoryTests
         await using var context = CreateContext();
         var follow = CatalogFollow.CreateTvFollow(UserId, TvShowId, notifyNewSeasons: false, notifyNewEpisodes: true, UtcNow);
         context.Add(follow);
+        context.Add(new TvShow { Id = TvShowId, Title = "Show", CreatedAt = UtcNow, UpdatedAt = UtcNow });
+        var season = new Season
+        {
+            Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+            TvShowId = TvShowId,
+            SeasonNumber = 1,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        };
+        context.Add(season);
+        context.Add(new Episode
+        {
+            Id = EpisodeId,
+            SeasonId = season.Id,
+            EpisodeNumber = 1,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        });
         context.Add(WatchedEpisode.Create(UserId, EpisodeId, UtcNow));
         await context.SaveChangesAsync();
 
@@ -61,6 +79,38 @@ public sealed class LibraryActionStatusRepositoryTests
         Assert.True(withoutEpisode.NotifyNewSeasons);
         Assert.True(withoutEpisode.NotifyNewEpisodes);
         Assert.Null(withoutEpisode.IsWatched);
+    }
+
+    [Fact]
+    public async Task GetTvShowAsync_DoesNotMarkWatched_WhenEpisodeBelongsToAnotherShow()
+    {
+        await using var context = CreateContext();
+        var otherShowId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        context.Add(new TvShow { Id = otherShowId, Title = "Other", CreatedAt = UtcNow, UpdatedAt = UtcNow });
+        var season = new Season
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = otherShowId,
+            SeasonNumber = 1,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        };
+        context.Add(season);
+        context.Add(new Episode
+        {
+            Id = EpisodeId,
+            SeasonId = season.Id,
+            EpisodeNumber = 1,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        });
+        context.Add(WatchedEpisode.Create(UserId, EpisodeId, UtcNow));
+        await context.SaveChangesAsync();
+
+        var snapshot = await new LibraryActionStatusRepository(context).GetTvShowAsync(UserId, TvShowId, EpisodeId);
+
+        Assert.False(snapshot.IsWatched);
+        Assert.Null(snapshot.WatchedAt);
     }
 
     private static ApplicationDbContext CreateContext()

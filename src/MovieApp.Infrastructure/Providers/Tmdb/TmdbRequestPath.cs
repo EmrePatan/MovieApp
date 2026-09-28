@@ -1,3 +1,5 @@
+using MovieApp.Application.Services.Localization;
+
 namespace MovieApp.Infrastructure.Providers.Tmdb;
 
 internal static class TmdbRequestPath
@@ -7,9 +9,10 @@ internal static class TmdbRequestPath
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(language);
 
+        var normalizedLanguage = SupportedContentLocales.Normalize(language);
         var pathWithoutLanguage = StripLanguageQueryParameter(relativePath);
         var separator = pathWithoutLanguage.Contains('?', StringComparison.Ordinal) ? '&' : '?';
-        return $"{pathWithoutLanguage}{separator}language={Uri.EscapeDataString(language.Trim())}";
+        return $"{pathWithoutLanguage}{separator}language={Uri.EscapeDataString(normalizedLanguage)}";
     }
 
     internal static string StripLanguageQueryParameter(string relativePath)

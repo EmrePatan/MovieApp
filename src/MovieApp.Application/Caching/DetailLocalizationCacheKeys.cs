@@ -1,3 +1,5 @@
+using MovieApp.Application.Services.Localization;
+
 namespace MovieApp.Application.Caching;
 
 public static class DetailLocalizationCacheKeys
@@ -20,5 +22,5 @@ public static class DetailLocalizationCacheKeys
         $"collection-detail-loc:{tmdbCollectionId}:{NormalizeLocale(contentLocale)}:{Version}";
 
     private static string NormalizeLocale(string contentLocale) =>
-        contentLocale.Trim().ToLowerInvariant();
+        SupportedContentLocales.Normalize(contentLocale).ToLowerInvariant();
 }
