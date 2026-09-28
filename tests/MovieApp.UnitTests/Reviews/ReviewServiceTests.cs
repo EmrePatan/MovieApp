@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Ratings;
@@ -251,6 +252,14 @@ public sealed class ReviewServiceTests
             Guid reviewId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<ReviewTranslationSource?>(null);
+
+        public Task<(IReadOnlyList<UserReviewCatalogListItem> Reviews, int TotalCount)> GetUserReviewsAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            SearchContentType contentType,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<(IReadOnlyList<UserReviewCatalogListItem>, int)>(([], 0));
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository

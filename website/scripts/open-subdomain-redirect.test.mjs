@@ -24,3 +24,24 @@ test("canonical host does not redirect to open", () => {
   const pathname = "/movie/3fa85f64-5717-4562-b3fc-2c963f66afa6";
   assert.equal(shouldRedirectOpenHostToCanonical("moviecaveapp.com", pathname), false);
 });
+
+const PUBLIC_WEB_PATHS = new Set(["/", "/movies", "/tv"]);
+const WELL_KNOWN_PATHS = new Set([
+  "/.well-known/apple-app-site-association",
+  "/.well-known/assetlinks.json",
+]);
+
+function shouldProxyToApi(pathname) {
+  return (
+    PUBLIC_WEB_PATHS.has(pathname) ||
+    CATALOG_PATH_PATTERN.test(pathname) ||
+    WELL_KNOWN_PATHS.has(pathname)
+  );
+}
+
+test("public landing paths proxy to API when configured", () => {
+  assert.equal(shouldProxyToApi("/"), true);
+  assert.equal(shouldProxyToApi("/movies"), true);
+  assert.equal(shouldProxyToApi("/tv"), true);
+  assert.equal(shouldProxyToApi("/delete-account"), false);
+});

@@ -32,8 +32,14 @@ function isCatalogPath(pathname) {
   return CATALOG_PATH_PATTERN.test(pathname);
 }
 
+const PUBLIC_WEB_PATHS = new Set(["/", "/movies", "/tv"]);
+
 function shouldProxyToApi(pathname) {
-  return isCatalogPath(pathname) || WELL_KNOWN_PATHS.has(pathname);
+  return (
+    PUBLIC_WEB_PATHS.has(pathname) ||
+    isCatalogPath(pathname) ||
+    WELL_KNOWN_PATHS.has(pathname)
+  );
 }
 
 export default {

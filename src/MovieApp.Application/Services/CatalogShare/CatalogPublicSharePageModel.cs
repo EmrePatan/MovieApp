@@ -14,5 +14,6 @@ public sealed record CatalogPublicSharePageModel(
     int? Year,
     IReadOnlyList<string> Genres,
     string? PosterPath,
+    decimal? VoteAverage,
     string CanonicalPageUrl,
     string OpenInAppUrl);

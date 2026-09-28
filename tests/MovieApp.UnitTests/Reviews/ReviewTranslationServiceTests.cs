@@ -4,6 +4,7 @@ using MovieApp.Application.Abstractions.Reviews;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Reviews;
+using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
 
@@ -258,5 +259,13 @@ public sealed class ReviewTranslationServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<(IReadOnlyList<UserReviewCatalogListItem> Reviews, int TotalCount)> GetUserReviewsAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            SearchContentType contentType,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<(IReadOnlyList<UserReviewCatalogListItem>, int)>(([], 0));
     }
 }

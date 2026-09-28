@@ -200,6 +200,8 @@ public static class DependencyInjection
         services.AddScoped<INotificationInboxCleanupService, NotificationInboxCleanupService>();
         services.AddScoped<IIncrementProductMetricService, IncrementProductMetricService>();
         services.AddScoped<ICatalogPublicSharePageService, CatalogPublicSharePageService>();
+        services.AddScoped<IPublicWebLandingService, PublicWebLandingService>();
+        services.AddSingleton<PublicWebSiteRenderer>();
         services.AddSingleton<CatalogPublicSharePageRenderer>();
         services.AddScoped<ILibraryService, LibraryService>();
         services.AddScoped<ILibraryActionStatusService, LibraryActionStatusService>();

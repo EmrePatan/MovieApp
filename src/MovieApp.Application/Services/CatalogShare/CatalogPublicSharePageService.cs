@@ -32,6 +32,7 @@ public sealed class CatalogPublicSharePageService(
                 movie.ReleaseDate?.Year,
                 movie.Genres,
                 movie.PosterPath,
+                movie.VoteAverage,
                 pageUrl,
                 openInAppUrl);
         }
@@ -62,6 +63,7 @@ public sealed class CatalogPublicSharePageService(
                 show.FirstAirDate?.Year,
                 show.Genres,
                 show.PosterPath,
+                show.VoteAverage,
                 pageUrl,
                 openInAppUrl);
         }

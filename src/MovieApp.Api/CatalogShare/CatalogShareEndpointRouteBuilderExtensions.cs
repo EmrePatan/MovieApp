@@ -12,12 +12,48 @@ public static class CatalogShareEndpointRouteBuilderExtensions
 
     public static IEndpointRouteBuilder MapCatalogShareEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/", HandleHomePageAsync);
+        endpoints.MapGet("/movies", HandleMoviesListingAsync);
+        endpoints.MapGet("/tv", HandleTvListingAsync);
         endpoints.MapGet("/movie/{id:guid}", HandleMoviePageAsync);
         endpoints.MapGet("/tv/{id:guid}", HandleTvPageAsync);
         endpoints.MapGet(AppleAppSiteAssociationPath, HandleAppleAppSiteAssociation);
         endpoints.MapGet(AssetLinksPath, HandleAssetLinks);
 
         return endpoints;
+    }
+
+    private static async Task<IResult> HandleHomePageAsync(
+        HttpContext httpContext,
+        [FromServices] IPublicWebLandingService landingService,
+        [FromServices] PublicWebSiteRenderer renderer,
+        CancellationToken cancellationToken)
+    {
+        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var model = await landingService.GetHomeAsync(locale, cancellationToken);
+        return HtmlResult(renderer.RenderLanding(model, locale));
+    }
+
+    private static async Task<IResult> HandleMoviesListingAsync(
+        HttpContext httpContext,
+        [FromServices] IPublicWebLandingService landingService,
+        [FromServices] PublicWebSiteRenderer renderer,
+        CancellationToken cancellationToken)
+    {
+        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var model = await landingService.GetMoviesListingAsync(locale, cancellationToken);
+        return HtmlResult(renderer.RenderListing(model, locale));
+    }
+
+    private static async Task<IResult> HandleTvListingAsync(
+        HttpContext httpContext,
+        [FromServices] IPublicWebLandingService landingService,
+        [FromServices] PublicWebSiteRenderer renderer,
+        CancellationToken cancellationToken)
+    {
+        var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
+        var model = await landingService.GetTvListingAsync(locale, cancellationToken);
+        return HtmlResult(renderer.RenderListing(model, locale));
     }
 
     private static async Task<IResult> HandleMoviePageAsync(

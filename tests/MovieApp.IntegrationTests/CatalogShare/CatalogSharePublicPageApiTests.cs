@@ -13,6 +13,50 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     private readonly HttpClient _client = fixture.Factory.CreateClient();
 
     [Fact]
+    public async Task GetHome_ReturnsHtml_WithCanonicalAndTrendingLinks()
+    {
+        await fixture.ResetAsync();
+        var response = await _client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/html; charset=utf-8", response.Content.Headers.ContentType?.ToString());
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<!DOCTYPE html>", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("rel=\"canonical\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("https://moviecaveapp.test/", html, StringComparison.Ordinal);
+        Assert.Contains("og:title", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/movies", html, StringComparison.Ordinal);
+        Assert.Contains("/tv", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"cta\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetMoviesListing_ReturnsHtml_WithMovieLinks()
+    {
+        await fixture.ResetAsync();
+        var response = await _client.GetAsync("/movies");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("rel=\"canonical\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("https://moviecaveapp.test/movies", html, StringComparison.Ordinal);
+        Assert.Contains("/movie/", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetTvListing_ReturnsHtml_WithTvLinks()
+    {
+        await fixture.ResetAsync();
+        var response = await _client.GetAsync("/tv");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("https://moviecaveapp.test/tv", html, StringComparison.Ordinal);
+        Assert.Contains("/tv/", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetMovie_ReturnsHtml_WithTitleAndOpenGraph()
     {
         await fixture.ResetAsync();
