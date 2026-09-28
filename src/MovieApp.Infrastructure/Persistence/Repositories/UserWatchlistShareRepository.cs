@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
-using MovieApp.Application.Exceptions;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -39,20 +38,7 @@ public sealed class UserWatchlistShareRepository(ApplicationDbContext dbContext)
         CancellationToken cancellationToken = default)
     {
         dbContext.UserWatchlistShares.Add(share);
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception) when (
-            DbUpdateExceptionExtensions.IsUniqueConstraintViolation(
-                exception,
-                "IX_user_watchlist_shares_UserId"))
-        {
-            throw new ConflictException(
-                "Watchlist sharing requires a pending database migration (non-unique UserId index). " +
-                "Run the Production Database Migrate workflow, then retry.");
-        }
-
+        await dbContext.SaveChangesAsync(cancellationToken);
         return share;
     }
 

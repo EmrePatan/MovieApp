@@ -13,12 +13,8 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
             // Early deploys used a unique UserId index (one share per user).
             migrationBuilder.Sql(
                 """
-                ALTER TABLE user_watchlist_shares
-                    DROP CONSTRAINT IF EXISTS "IX_user_watchlist_shares_UserId";
-
                 DROP INDEX IF EXISTS "IX_user_watchlist_shares_UserId";
-
-                CREATE INDEX IF NOT EXISTS "IX_user_watchlist_shares_UserId"
+                CREATE INDEX "IX_user_watchlist_shares_UserId"
                     ON user_watchlist_shares ("UserId");
                 """);
 
