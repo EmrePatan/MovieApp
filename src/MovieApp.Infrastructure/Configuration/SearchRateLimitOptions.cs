@@ -15,4 +15,8 @@ public sealed class SearchRateLimitOptions
     public int TvSearchPermitLimit { get; set; } = 20;
 
     public int TvSearchWindowMinutes { get; set; } = 1;
+
+    public int AutocompletePermitLimit { get; set; } = 90;
+
+    public int AutocompleteWindowMinutes { get; set; } = 1;
 }

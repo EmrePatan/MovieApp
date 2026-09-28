@@ -47,6 +47,14 @@ internal static class ProductionRateLimitPolicyRegistration
                 searchOptions.TvSearchWindowMinutes,
                 context => $"{ClientIpResolver.GetClientIpAddress(context)}:{SearchRateLimitPolicies.TvSearch}"));
 
+        rateLimiterOptions.AddPolicy(SearchRateLimitPolicies.Autocomplete, httpContext =>
+            DistributedRateLimitPolicyFactory.CreatePolicy(
+                httpContext,
+                SearchRateLimitPolicies.Autocomplete,
+                searchOptions.AutocompletePermitLimit,
+                searchOptions.AutocompleteWindowMinutes,
+                context => $"{ClientIpResolver.GetClientIpAddress(context)}:{SearchRateLimitPolicies.Autocomplete}"));
+
         rateLimiterOptions.AddPolicy(AccountRateLimitPolicies.ChangePassword, httpContext =>
             DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,

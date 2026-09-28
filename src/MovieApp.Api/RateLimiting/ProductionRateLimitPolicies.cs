@@ -7,6 +7,8 @@ public static class SearchRateLimitPolicies
     public const string MovieSearch = "search-movies";
 
     public const string TvSearch = "search-tvshows";
+
+    public const string Autocomplete = "search-autocomplete";
 }
 
 public static class AccountRateLimitPolicies

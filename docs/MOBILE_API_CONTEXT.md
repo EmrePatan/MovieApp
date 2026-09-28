@@ -278,9 +278,11 @@ Sensitive auth endpoints use ASP.NET Core fixed-window rate limiting partitioned
 
 Configuration section: `Authentication:RateLimit`
 
-When exceeded, the API returns `429 Too Many Requests` with ProblemDetails and optional `Retry-After` header.
+When exceeded, the API returns `429 Too Many Requests` with ProblemDetails (`code`: `TOO_MANY_REQUESTS`) and optional `Retry-After` header.
 
-**V1 decision:** IP + path partitioning is acceptable for launch. Shared NAT (corporate networks, mobile carriers) may cause unrelated clients to share a limit bucket. This is a deliberate V1 trade-off; account lockout and per-email throttling are not implemented to avoid enumeration. Do not enable forwarded headers unless trusted proxy networks are explicitly configured.
+**V1 decision:** IP + path partitioning is acceptable for launch. Shared NAT (corporate networks, mobile carriers) may cause unrelated clients to share a limit bucket. This is a deliberate V1 trade-off; account lockout and per-email throttling are not implemented to avoid enumeration.
+
+**Forwarded headers (production):** In Production, `ForwardedHeaders:Enabled` is `true` with `UseRenderProxyTrustDefaults` (see `appsettings.Production.json`). `UseForwardedHeaders` runs **before** `UseRateLimiter` in the middleware pipeline. When the immediate peer is a trusted proxy (Render, and typical Render→Cloudflare chains), `Connection.RemoteIpAddress` reflects the resolved **client IP** used for rate-limit partitions. `X-Forwarded-For` values from **untrusted** peers are ignored (the connection remote IP is used instead). Configure explicit `KnownProxies` / `KnownNetworks` if the deployment topology changes.
 
 ---
 
@@ -754,7 +756,7 @@ Queries the **local PostgreSQL catalog** (not external providers). Provider-back
 }
 ```
 
-**Status codes:** `200`, `400`
+**Status codes:** `200`, `400`, `429` (rate limit; see `Search:RateLimit` — default **30 requests / 1 minute** per client IP)
 
 ---
 
@@ -784,7 +786,7 @@ Returns a maximum of **10** suggestions.
 }
 ```
 
-**Status codes:** `200`, `400`
+**Status codes:** `200`, `400`, `429` (rate limit; see `Search:RateLimit` — default **90 requests / 1 minute** per client IP, policy `search-autocomplete`)
 
 ---
 

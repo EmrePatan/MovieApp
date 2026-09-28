@@ -63,8 +63,10 @@ public sealed class SearchController(
     }
 
     [HttpGet("autocomplete")]
+    [EnableRateLimiting(SearchRateLimitPolicies.Autocomplete)]
     [ProducesResponseType(typeof(SearchAutocompleteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SearchAutocompleteResponse>> Autocomplete(
         [FromQuery(Name = "q")] string? query,
         CancellationToken cancellationToken)
