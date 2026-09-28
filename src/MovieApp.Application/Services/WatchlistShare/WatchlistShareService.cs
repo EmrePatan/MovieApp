@@ -48,29 +48,17 @@ public sealed class WatchlistShareService(
 
         if (existing is null)
         {
-            try
-            {
-                await shareRepository.AddAsync(
-                    new UserWatchlistShare
-                    {
-                        Id = Guid.NewGuid(),
-                        UserId = userId,
-                        WatchlistId = watchlistId,
-                        TokenHash = tokenHash,
-                        IsActive = true,
-                        CreatedAtUtc = utcNow,
-                    },
-                    cancellationToken);
-            }
-            catch (ConflictException)
-            {
-                await RepurposeLegacyUserShareRowAsync(
-                    userId,
-                    watchlistId,
-                    tokenHash,
-                    utcNow,
-                    cancellationToken);
-            }
+            await shareRepository.AddAsync(
+                new UserWatchlistShare
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    WatchlistId = watchlistId,
+                    TokenHash = tokenHash,
+                    IsActive = true,
+                    CreatedAtUtc = utcNow,
+                },
+                cancellationToken);
         }
         else
         {
@@ -202,31 +190,5 @@ public sealed class WatchlistShareService(
         {
             throw new NotFoundException("The requested watchlist was not found.");
         }
-    }
-
-    /// <summary>
-    /// Pre-migration databases allow only one share row per user (unique UserId).
-    /// Re-point that row to the requested watchlist instead of inserting a second row.
-    /// </summary>
-    private async Task RepurposeLegacyUserShareRowAsync(
-        Guid userId,
-        Guid watchlistId,
-        string tokenHash,
-        DateTime utcNow,
-        CancellationToken cancellationToken)
-    {
-        var userShare = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
-        if (userShare is null)
-        {
-            throw new ConflictException(
-                "Watchlist share could not be created. Run pending database migrations and retry.");
-        }
-
-        userShare.WatchlistId = watchlistId;
-        userShare.TokenHash = tokenHash;
-        userShare.IsActive = true;
-        userShare.DeactivatedAtUtc = null;
-        userShare.RotatedAtUtc = utcNow;
-        await shareRepository.UpdateAsync(userShare, cancellationToken);
     }
 }
