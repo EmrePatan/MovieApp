@@ -138,10 +138,19 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         var site = PublicWebSiteCopy.Resolve(acceptLanguageHeader);
         var language = CatalogShareWebCopy.HtmlLang(CatalogShareWebCopy.ResolveLanguageCode(acceptLanguageHeader));
         var shareOptions = catalogShareOptions.Value;
-        var ogImage = $"{shareOptions.PublicWebBaseUrl.TrimEnd('/')}/assets/images/movie-cave-logo.png";
+        var ogImage = CatalogShareWebUrls.BuildPublicAppIconImageUrl(shareOptions);
 
         var builder = new StringBuilder();
-        AppendHead(builder, model.PageTitle, model.PageDescription, model.CanonicalPageUrl, ogImage, language);
+        AppendHead(
+            builder,
+            model.PageTitle,
+            model.PageDescription,
+            model.CanonicalPageUrl,
+            ogImage,
+            language,
+            ogImageWidth: 1024,
+            ogImageHeight: 1024,
+            twitterCard: "summary");
         builder.Append("<body><div class=\"site\">");
         AppendHeader(builder, site, openAppUrl);
         builder.Append("<section class=\"section\"><h1>").Append(Encode(model.Heading)).Append("</h1>");
@@ -200,7 +209,10 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         string canonicalUrl,
         string? ogImage,
         string language,
-        string ogType = "website")
+        string ogType = "website",
+        int? ogImageWidth = null,
+        int? ogImageHeight = null,
+        string twitterCard = "summary_large_image")
     {
         builder.Append("<!DOCTYPE html><html lang=\"").Append(language).Append("\"><head><meta charset=\"utf-8\" />")
             .Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />")
@@ -213,8 +225,18 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
             .Append("<meta property=\"og:type\" content=\"").Append(ogType).Append("\" />");
         if (!string.IsNullOrEmpty(ogImage))
         {
-            builder.Append("<meta property=\"og:image\" content=\"").Append(Encode(ogImage)).Append("\" />")
-                .Append("<meta name=\"twitter:card\" content=\"summary_large_image\" />")
+            builder.Append("<meta property=\"og:image\" content=\"").Append(Encode(ogImage)).Append("\" />");
+            if (ogImageWidth is > 0 && ogImageHeight is > 0)
+            {
+                builder.Append("<meta property=\"og:image:width\" content=\"")
+                    .Append(ogImageWidth.Value.ToString(CultureInfo.InvariantCulture))
+                    .Append("\" />")
+                    .Append("<meta property=\"og:image:height\" content=\"")
+                    .Append(ogImageHeight.Value.ToString(CultureInfo.InvariantCulture))
+                    .Append("\" />");
+            }
+
+            builder.Append("<meta name=\"twitter:card\" content=\"").Append(Encode(twitterCard)).Append("\" />")
                 .Append("<meta name=\"twitter:title\" content=\"").Append(Encode(title)).Append("\" />")
                 .Append("<meta name=\"twitter:description\" content=\"").Append(Encode(description)).Append("\" />")
                 .Append("<meta name=\"twitter:image\" content=\"").Append(Encode(ogImage)).Append("\" />");

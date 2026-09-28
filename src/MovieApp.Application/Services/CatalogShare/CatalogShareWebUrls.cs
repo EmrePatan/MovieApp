@@ -38,6 +38,15 @@ public static class CatalogShareWebUrls
         return $"{baseUrl}/watchlist/{token}";
     }
 
+    /// <summary>
+    /// Square app icon used for watchlist link previews (og:image). Kept in sync with mobile <c>assets/icon.png</c>.
+    /// </summary>
+    public static string BuildPublicAppIconImageUrl(CatalogShareOptions options)
+    {
+        var baseUrl = options.PublicWebBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/assets/images/movie-cave-app-icon.png";
+    }
+
     public static string BuildWatchlistAppOpenUrl(CatalogShareOptions options, string token)
     {
         var baseUrl = ResolveAppOpenWebBaseUrl(options);

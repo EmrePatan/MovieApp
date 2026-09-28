@@ -14,6 +14,7 @@ const requiredPaths = [
   "auth/reset-password/index.html",
   "assets/css/site.css",
   "assets/images/movie-cave-logo.png",
+  "assets/images/movie-cave-app-icon.png",
   "wrangler.toml",
 ];
 
