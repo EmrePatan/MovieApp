@@ -107,6 +107,10 @@ internal static class AuthRateLimitExtensions
                 ProductMetricsRateLimitPolicies.Increment,
                 httpContext => CreateInMemoryFixedWindowPolicy(httpContext, 120, 1));
 
+            rateLimiterOptions.AddPolicy(
+                MobileAppConfigRateLimitPolicies.Get,
+                httpContext => CreateInMemoryFixedWindowPolicy(httpContext, 120, 1));
+
             ProductionRateLimitPolicyRegistration.AddPolicies(rateLimiterOptions, configuration);
         });
 

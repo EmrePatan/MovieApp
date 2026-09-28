@@ -48,6 +48,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IValidateOptions<CatalogShareOptions>, CatalogShareOptionsValidator>();
 
+        services.AddOptions<MobileAppConfigOptions>()
+            .Bind(configuration.GetSection(MobileAppConfigOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<MobileAppConfigOptions>, MobileAppConfigOptionsValidator>();
+
         return services;
     }
 }
