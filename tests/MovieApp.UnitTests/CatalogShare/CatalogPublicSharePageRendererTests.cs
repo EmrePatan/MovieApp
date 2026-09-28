@@ -26,7 +26,7 @@ public sealed class CatalogPublicSharePageRendererTests
             ["Sci-Fi", "Thriller"],
             "/inception.jpg",
             "https://moviecaveapp.com/movie/3fa85f64-5717-4562-b3fc-2c963f66afa6",
-            "https://moviecaveapp.com/movie/3fa85f64-5717-4562-b3fc-2c963f66afa6");
+            "https://open.moviecaveapp.com/movie/3fa85f64-5717-4562-b3fc-2c963f66afa6");
 
         var html = _renderer.RenderContentPage(model, "en");
 
@@ -34,6 +34,11 @@ public sealed class CatalogPublicSharePageRendererTests
         Assert.Contains("og:image", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Inception", html, StringComparison.Ordinal);
         Assert.Contains("https://image.tmdb.org/t/p/w500/inception.jpg", html, StringComparison.Ordinal);
+        Assert.Contains("og:url\" content=\"https://moviecaveapp.com/movie/", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "class=\"button button-primary\" href=\"https://open.moviecaveapp.com/movie/",
+            html,
+            StringComparison.Ordinal);
     }
 
     [Fact]

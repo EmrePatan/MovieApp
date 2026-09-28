@@ -22,7 +22,8 @@ public sealed class CatalogPublicSharePageService(
                 ? await getMovieByIdService.GetByIdAsync(movieId, cancellationToken)
                 : await getMovieByIdService.GetByIdAsync(movieId, contentLocale, cancellationToken);
             var options = catalogShareOptions.Value;
-            var pageUrl = BuildCanonicalUrl(options, "movie", movieId);
+            var pageUrl = CatalogShareWebUrls.BuildCanonicalUrl(options, "movie", movieId);
+            var openInAppUrl = CatalogShareWebUrls.BuildAppOpenUrl(options, "movie", movieId);
             return new CatalogPublicSharePageModel(
                 CatalogShareContentKind.Movie,
                 movieId,
@@ -32,7 +33,7 @@ public sealed class CatalogPublicSharePageService(
                 movie.Genres,
                 movie.PosterPath,
                 pageUrl,
-                pageUrl);
+                openInAppUrl);
         }
         catch (NotFoundException)
         {
@@ -51,7 +52,8 @@ public sealed class CatalogPublicSharePageService(
                 ? await getTvShowByIdService.GetByIdAsync(tvShowId, cancellationToken)
                 : await getTvShowByIdService.GetByIdAsync(tvShowId, contentLocale, cancellationToken);
             var options = catalogShareOptions.Value;
-            var pageUrl = BuildCanonicalUrl(options, "tv", tvShowId);
+            var pageUrl = CatalogShareWebUrls.BuildCanonicalUrl(options, "tv", tvShowId);
+            var openInAppUrl = CatalogShareWebUrls.BuildAppOpenUrl(options, "tv", tvShowId);
             return new CatalogPublicSharePageModel(
                 CatalogShareContentKind.TvShow,
                 tvShowId,
@@ -61,7 +63,7 @@ public sealed class CatalogPublicSharePageService(
                 show.Genres,
                 show.PosterPath,
                 pageUrl,
-                pageUrl);
+                openInAppUrl);
         }
         catch (NotFoundException)
         {
@@ -69,9 +71,4 @@ public sealed class CatalogPublicSharePageService(
         }
     }
 
-    private static string BuildCanonicalUrl(CatalogShareOptions options, string segment, Guid id)
-    {
-        var baseUrl = options.PublicWebBaseUrl.TrimEnd('/');
-        return $"{baseUrl}/{segment}/{id:D}";
-    }
 }

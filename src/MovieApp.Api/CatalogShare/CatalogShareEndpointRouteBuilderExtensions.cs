@@ -25,11 +25,18 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         HttpContext httpContext,
         [FromServices] ICatalogPublicSharePageService pageService,
         [FromServices] CatalogPublicSharePageRenderer renderer,
+        [FromServices] IOptions<CatalogShareOptions> catalogShareOptions,
         CancellationToken cancellationToken)
     {
         if (!IsValidCatalogId(id))
         {
             return NotFoundHtml(httpContext, renderer);
+        }
+
+        var openRedirect = TryRedirectAppOpenHostToCanonical(httpContext, catalogShareOptions.Value, "movie", id);
+        if (openRedirect is not null)
+        {
+            return openRedirect;
         }
 
         var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
@@ -47,11 +54,18 @@ public static class CatalogShareEndpointRouteBuilderExtensions
         HttpContext httpContext,
         [FromServices] ICatalogPublicSharePageService pageService,
         [FromServices] CatalogPublicSharePageRenderer renderer,
+        [FromServices] IOptions<CatalogShareOptions> catalogShareOptions,
         CancellationToken cancellationToken)
     {
         if (!IsValidCatalogId(id))
         {
             return NotFoundHtml(httpContext, renderer);
+        }
+
+        var openRedirect = TryRedirectAppOpenHostToCanonical(httpContext, catalogShareOptions.Value, "tv", id);
+        if (openRedirect is not null)
+        {
+            return openRedirect;
         }
 
         var locale = httpContext.Request.Headers.AcceptLanguage.ToString();
@@ -114,6 +128,21 @@ public static class CatalogShareEndpointRouteBuilderExtensions
     }
 
     private static bool IsValidCatalogId(Guid id) => id != Guid.Empty;
+
+    private static IResult? TryRedirectAppOpenHostToCanonical(
+        HttpContext httpContext,
+        CatalogShareOptions options,
+        string segment,
+        Guid id)
+    {
+        if (!CatalogShareWebUrls.IsAppOpenRequestHost(httpContext.Request.Host.Host, options))
+        {
+            return null;
+        }
+
+        var canonicalUrl = CatalogShareWebUrls.BuildCanonicalUrl(options, segment, id);
+        return Results.Redirect(canonicalUrl, permanent: false);
+    }
 
     private static IResult NotFoundHtml(HttpContext httpContext, CatalogPublicSharePageRenderer renderer)
     {

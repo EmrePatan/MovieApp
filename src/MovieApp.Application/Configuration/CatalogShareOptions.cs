@@ -10,6 +10,12 @@ public sealed class CatalogShareOptions
     public string PublicWebBaseUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// HTTPS origin used only for "Open in app" handoff (for example https://open.moviecaveapp.com).
+    /// When empty, derived as open.&lt;PublicWebBaseUrl host&gt;.
+    /// </summary>
+    public string PublicAppOpenWebBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>
     /// Apple Developer Team ID for Universal Links (for example ABCDE12345).
     /// </summary>
     public string IosTeamId { get; set; } = string.Empty;
