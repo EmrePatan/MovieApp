@@ -12,6 +12,7 @@ namespace MovieApp.Application.Services.WatchlistShare;
 public sealed class WatchlistShareService(
     ICurrentUser currentUser,
     IUserWatchlistShareRepository shareRepository,
+    IWatchlistRepository watchlistRepository,
     IWatchlistItemRepository watchlistItemRepository,
     IOptions<CatalogShareOptions> catalogShareOptions) : IWatchlistShareService
 {
@@ -24,12 +25,23 @@ public sealed class WatchlistShareService(
         return new WatchlistShareStatusResult(share is { IsActive: true });
     }
 
-    public async Task<WatchlistShareEnableResult> EnableAsync(CancellationToken cancellationToken = default)
+    public async Task<WatchlistShareEnableResult> EnableAsync(
+        Guid watchlistId,
+        CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureOwnedWatchlistAsync(userId, watchlistId, cancellationToken);
+
         var existing = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
         if (existing is { IsActive: true })
         {
+            if (existing.WatchlistId == watchlistId)
+            {
+                return new WatchlistShareEnableResult(string.Empty, CreatedNewLink: false);
+            }
+
+            existing.WatchlistId = watchlistId;
+            await shareRepository.UpdateAsync(existing, cancellationToken);
             return new WatchlistShareEnableResult(string.Empty, CreatedNewLink: false);
         }
 
@@ -44,6 +56,7 @@ public sealed class WatchlistShareService(
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
+                    WatchlistId = watchlistId,
                     TokenHash = tokenHash,
                     IsActive = true,
                     CreatedAtUtc = utcNow,
@@ -52,6 +65,7 @@ public sealed class WatchlistShareService(
         }
         else
         {
+            existing.WatchlistId = watchlistId;
             existing.TokenHash = tokenHash;
             existing.IsActive = true;
             existing.DeactivatedAtUtc = null;
@@ -77,9 +91,13 @@ public sealed class WatchlistShareService(
         await shareRepository.UpdateAsync(existing, cancellationToken);
     }
 
-    public async Task<WatchlistShareRotateResult> RotateAsync(CancellationToken cancellationToken = default)
+    public async Task<WatchlistShareRotateResult> RotateAsync(
+        Guid watchlistId,
+        CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
+        await EnsureOwnedWatchlistAsync(userId, watchlistId, cancellationToken);
+
         var existing = await shareRepository.GetByUserIdAsync(userId, cancellationToken);
         if (existing is null || !existing.IsActive)
         {
@@ -87,6 +105,7 @@ public sealed class WatchlistShareService(
         }
 
         var rawToken = PasswordResetTokenGenerator.GenerateToken();
+        existing.WatchlistId = watchlistId;
         existing.TokenHash = PasswordResetTokenHasher.HashToken(rawToken);
         existing.RotatedAtUtc = DateTime.UtcNow;
         await shareRepository.UpdateAsync(existing, cancellationToken);
@@ -111,10 +130,8 @@ public sealed class WatchlistShareService(
             return null;
         }
 
-        var items = await watchlistItemRepository.GetDistinctItemsForUserAsync(
-            share.UserId,
-            PublicItemLimit,
-            cancellationToken);
+        var allItems = await watchlistItemRepository.GetAllItemsAsync(share.WatchlistId, cancellationToken);
+        var items = allItems.Take(PublicItemLimit).ToList();
 
         var mapped = items
             .Select(MapPublicItem)
@@ -151,5 +168,16 @@ public sealed class WatchlistShareService(
         }
 
         return null;
+    }
+
+    private async Task EnsureOwnedWatchlistAsync(
+        Guid userId,
+        Guid watchlistId,
+        CancellationToken cancellationToken)
+    {
+        if (await watchlistRepository.GetByIdForUserAsync(userId, watchlistId, cancellationToken) is null)
+        {
+            throw new NotFoundException("The requested watchlist was not found.");
+        }
     }
 }

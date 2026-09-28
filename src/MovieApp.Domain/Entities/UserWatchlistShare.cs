@@ -6,6 +6,8 @@ public sealed class UserWatchlistShare
 
     public Guid UserId { get; set; }
 
+    public Guid WatchlistId { get; set; }
+
     public string TokenHash { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }

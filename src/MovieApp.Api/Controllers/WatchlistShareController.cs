@@ -28,14 +28,20 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
 
     [HttpPost("enable")]
     [ProducesResponseType(typeof(WatchlistShareEnableResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<WatchlistShareEnableResponse>> Enable(CancellationToken cancellationToken)
+    public async Task<ActionResult<WatchlistShareEnableResponse>> Enable(
+        [FromBody] WatchlistShareEnableRequest request,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var result = await watchlistShareService.EnableAsync(cancellationToken);
+            var result = await watchlistShareService.EnableAsync(request.WatchlistId, cancellationToken);
             return Ok(new WatchlistShareEnableResponse(
                 string.IsNullOrEmpty(result.ShareUrl) ? null : result.ShareUrl,
                 result.CreatedNewLink));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(Problem(StatusCodes.Status404NotFound, exception.Message));
         }
         catch (AuthenticationException exception)
         {
@@ -61,11 +67,13 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
     [HttpPost("rotate")]
     [ProducesResponseType(typeof(WatchlistShareRotateResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<WatchlistShareRotateResponse>> Rotate(CancellationToken cancellationToken)
+    public async Task<ActionResult<WatchlistShareRotateResponse>> Rotate(
+        [FromBody] WatchlistShareRotateRequest request,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var result = await watchlistShareService.RotateAsync(cancellationToken);
+            var result = await watchlistShareService.RotateAsync(request.WatchlistId, cancellationToken);
             return Ok(new WatchlistShareRotateResponse(result.ShareUrl));
         }
         catch (NotFoundException exception)

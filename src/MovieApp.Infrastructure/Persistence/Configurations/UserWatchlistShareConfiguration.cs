@@ -26,5 +26,10 @@ public sealed class UserWatchlistShareConfiguration : IEntityTypeConfiguration<U
             .WithMany()
             .HasForeignKey(share => share.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<Watchlist>()
+            .WithMany()
+            .HasForeignKey(share => share.WatchlistId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
