@@ -36,6 +36,7 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
     [HttpPost]
     [ProducesResponseType(typeof(WatchlistShareEnableResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<WatchlistShareEnableResponse>> Enable(
         Guid watchlistId,
         CancellationToken cancellationToken)
@@ -54,6 +55,10 @@ public sealed class WatchlistShareController(IWatchlistShareService watchlistSha
         catch (AuthenticationException exception)
         {
             return Unauthorized(Problem(StatusCodes.Status401Unauthorized, exception.Message));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(Problem(StatusCodes.Status409Conflict, exception.Message));
         }
     }
 

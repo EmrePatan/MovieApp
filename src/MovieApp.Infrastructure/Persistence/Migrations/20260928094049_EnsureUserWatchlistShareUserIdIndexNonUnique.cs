@@ -5,12 +5,12 @@
 namespace MovieApp.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class FixUserWatchlistShareUserIdIndex : Migration
+    public partial class EnsureUserWatchlistShareUserIdIndexNonUnique : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Early deploys used a unique UserId index (one share per user).
+            // Legacy deploys created UNIQUE on UserId (one share per user). Drop as constraint and index.
             migrationBuilder.Sql(
                 """
                 ALTER TABLE user_watchlist_shares
@@ -35,7 +35,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql(
                 """
                 DROP INDEX IF EXISTS "IX_user_watchlist_shares_UserId";
-                CREATE UNIQUE INDEX "IX_user_watchlist_shares_UserId"
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_user_watchlist_shares_UserId"
                     ON user_watchlist_shares ("UserId");
                 """);
         }
