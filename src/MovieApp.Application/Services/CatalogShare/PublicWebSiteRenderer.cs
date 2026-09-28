@@ -13,7 +13,7 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         + "body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}"
         + "a{color:inherit;text-decoration:none}.site{max-width:1100px;margin:0 auto;padding:20px 16px 48px}"
         + ".top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap}"
-        + ".logo{font-size:.9rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--accent)}"
+        + ".logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;height:36px;width:auto}"
         + ".nav{display:flex;gap:18px;font-size:.95rem}.nav a{color:var(--muted)}.nav a:hover{color:var(--text)}"
         + ".cta{display:inline-block;padding:10px 18px;border-radius:999px;background:var(--accent);color:#1a1408;font-weight:700}"
         + ".hero{margin-bottom:36px}.hero h1{font-size:clamp(1.6rem,4vw,2.4rem);margin:0 0 10px;line-height:1.15}"
@@ -195,7 +195,7 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
 
     private static void AppendHeader(StringBuilder builder, PublicWebSiteCopy.SiteCopy site, string openAppUrl)
     {
-        builder.Append("<header class=\"top\"><a class=\"logo\" href=\"/\">Movie Cave</a><nav class=\"nav\"><a href=\"/movies\">")
+        builder.Append("<header class=\"top\"><a class=\"logo\" href=\"/\"><img src=\"/assets/images/movie-cave-logo.png\" alt=\"Movie Cave\" width=\"148\" height=\"40\" loading=\"eager\" /></a><nav class=\"nav\"><a href=\"/movies\">")
             .Append(Encode(site.NavMovies)).Append("</a><a href=\"/tv\">").Append(Encode(site.NavTv))
             .Append("</a></nav><a class=\"cta\" href=\"").Append(Encode(openAppUrl)).Append("\">")
             .Append(Encode(site.OpenMovieCave)).Append("</a></header>");
