@@ -13,7 +13,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     private readonly HttpClient _client = fixture.Factory.CreateClient();
 
     [Fact]
-    public async Task GetHome_ReturnsHtml_WithCanonicalAndTrendingLinks()
+    public async Task GetHomeReturnsHtmlWithCanonicalAndTrendingLinks()
     {
         await fixture.ResetAsync();
         var response = await _client.GetAsync("/");
@@ -32,7 +32,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task GetMoviesListing_ReturnsHtml_WithMovieLinks()
+    public async Task GetMoviesListingReturnsHtmlWithMovieLinks()
     {
         await fixture.ResetAsync();
         var response = await _client.GetAsync("/movies");
@@ -45,7 +45,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task GetTvListing_ReturnsHtml_WithTvLinks()
+    public async Task GetTvListingReturnsHtmlWithTvLinks()
     {
         await fixture.ResetAsync();
         var response = await _client.GetAsync("/tv");
@@ -57,7 +57,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task GetMovie_ReturnsHtml_WithTitleAndOpenGraph()
+    public async Task GetMovieReturnsHtmlWithTitleAndOpenGraph()
     {
         await fixture.ResetAsync();
         var movieId = await SeedMovieIdAsync();
@@ -74,7 +74,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task GetTv_ReturnsHtml_WithTitleAndOpenGraph()
+    public async Task GetTvReturnsHtmlWithTitleAndOpenGraph()
     {
         await fixture.ResetAsync();
         var tvId = await SeedTvIdAsync();
@@ -87,7 +87,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task GetMovie_InvalidId_ReturnsSafeNotFoundHtml()
+    public async Task GetMovieInvalidIdReturnsSafeNotFoundHtml()
     {
         var response = await _client.GetAsync($"/movie/{Guid.Empty:D}");
 
@@ -98,7 +98,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task AppleAppSiteAssociation_ReturnsJson()
+    public async Task AppleAppSiteAssociationReturnsJson()
     {
         var response = await _client.GetAsync("/.well-known/apple-app-site-association");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -110,7 +110,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     }
 
     [Fact]
-    public async Task AssetLinks_ReturnsJsonArray()
+    public async Task AssetLinksReturnsJsonArray()
     {
         var response = await _client.GetAsync("/.well-known/assetlinks.json");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
