@@ -97,6 +97,26 @@ public sealed class WatchlistShareServiceTests
     }
 
     [Fact]
+    public async Task EnableAsync_WhenAlreadyActive_ReturnsShareUrl()
+    {
+        var repo = new FakeShareRepository();
+        var items = new FakeWatchlistItemRepository();
+        var service = CreateService(repo, items, UserId, [WatchlistA]);
+
+        var first = await service.EnableAsync(WatchlistA);
+        var second = await service.EnableAsync(WatchlistA);
+
+        Assert.False(second.CreatedNewLink);
+        Assert.False(string.IsNullOrWhiteSpace(second.ShareUrl));
+
+        var firstToken = TokenFromUrl(first.ShareUrl);
+        var secondToken = TokenFromUrl(second.ShareUrl);
+        Assert.NotEqual(firstToken, secondToken);
+        Assert.Null(await service.TryGetPublicByTokenAsync(firstToken));
+        Assert.NotNull(await service.TryGetPublicByTokenAsync(secondToken));
+    }
+
+    [Fact]
     public async Task EnableAsync_SecondList_DoesNotRepointFirstToken()
     {
         var repo = new FakeShareRepository();

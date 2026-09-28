@@ -39,7 +39,9 @@ public sealed class WatchlistShareService(
         var existing = await shareRepository.GetByWatchlistIdAsync(watchlistId, cancellationToken);
         if (existing is { IsActive: true })
         {
-            return new WatchlistShareEnableResult(string.Empty, CreatedNewLink: false);
+            // Client may call enable when opening the share sheet; return a usable link (token is only stored hashed).
+            var rotated = await RotateAsync(watchlistId, cancellationToken);
+            return new WatchlistShareEnableResult(rotated.ShareUrl, CreatedNewLink: false);
         }
 
         var rawToken = PasswordResetTokenGenerator.GenerateToken();
