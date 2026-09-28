@@ -3,7 +3,7 @@
   "private": true,
   "description": "Static public website for moviecaveapp.com",
   "scripts": {
-    "validate": "node scripts/validate.mjs",
+    "validate": "node scripts/validate.mjs && node scripts/validate-wrangler-config.mjs",
     "build": "node scripts/build.mjs",
     "deploy": "wrangler deploy",
     "preview": "wrangler dev"

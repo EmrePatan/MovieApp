@@ -16,7 +16,9 @@ This folder is a **static** site with no backend dependency. It is deployed with
 | `scripts/build.mjs` | Validates source files and stages public assets into `dist/` |
 | `package.json` | `npm run build` + Wrangler devDependency |
 
-There is **no** Worker `main` script. Wrangler serves files from this directory only.
+`src/worker.mjs` proxies catalog share, landing (`/`, `/movies`, `/tv`), and `.well-known` paths to `CATALOG_SHARE_API_ORIGIN`; other paths are served from static assets in `dist/`. Production routes and vars are defined in `wrangler.toml` (must stay aligned with the dashboard).
+
+For local preview without API proxy, copy `.dev.vars.example` to `.dev.vars` and leave `CATALOG_SHARE_API_ORIGIN` empty.
 
 ## Cloudflare dashboard — exact values
 

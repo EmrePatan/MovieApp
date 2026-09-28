@@ -1,0 +1,3 @@
+# Optional local overrides for `npm run preview` / `wrangler dev`.
+# Copy to `.dev.vars` (gitignored). Empty origin skips API proxy and serves static assets only.
+CATALOG_SHARE_API_ORIGIN=

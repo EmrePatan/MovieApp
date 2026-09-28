@@ -3,15 +3,42 @@ name = "moviecaveapp"
 compatibility_date = "2026-09-21"
 main = "src/worker.mjs"
 
+# Keep in sync with Cloudflare dashboard (Domains & Routes). Wrangler deploy
+# reconciles routes/vars from this file; omitting them removes production config.
+[[routes]]
+pattern = "moviecaveapp.com"
+custom_domain = true
+
+[[routes]]
+pattern = "moviecaveapp.com/movie/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
+pattern = "moviecaveapp.com/tv/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
+pattern = "moviecaveapp.com/.well-known/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
+pattern = "open.moviecaveapp.com/movie/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
+pattern = "open.moviecaveapp.com/tv/*"
+zone_name = "moviecaveapp.com"
+
+[[routes]]
+pattern = "open.moviecaveapp.com/.well-known/*"
+zone_name = "moviecaveapp.com"
+
 [assets]
 directory = "./dist"
 html_handling = "auto-trailing-slash"
 binding = "ASSETS"
 
-# Set in Cloudflare dashboard for production (public API origin, no trailing slash).
-# Example: https://movieapp-fpkg.onrender.com
-# Attach custom domain open.moviecaveapp.com to this worker (same worker as moviecaveapp.com).
 [vars]
-CATALOG_SHARE_API_ORIGIN = ""
+CATALOG_SHARE_API_ORIGIN = "https://movieapp-fpkg.onrender.com"
 CATALOG_SHARE_CANONICAL_ORIGIN = "https://moviecaveapp.com"
 CATALOG_SHARE_APP_OPEN_HOST = "open.moviecaveapp.com"
