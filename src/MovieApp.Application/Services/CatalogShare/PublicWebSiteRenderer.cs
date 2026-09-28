@@ -34,6 +34,7 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
 
     public string RenderLanding(PublicWebLandingPageModel model, string? acceptLanguageHeader)
     {
+        var shareOptions = catalogShareOptions.Value;
         var site = PublicWebSiteCopy.Resolve(acceptLanguageHeader);
         var language = CatalogShareWebCopy.HtmlLang(CatalogShareWebCopy.ResolveLanguageCode(acceptLanguageHeader));
         var canonical = model.CanonicalPageUrl;
@@ -44,8 +45,8 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         AppendHeader(builder, site, model.OpenAppUrl);
         builder.Append("<section class=\"hero\"><h1>").Append(Encode(site.SiteTitle)).Append("</h1><p>")
             .Append(Encode(site.SiteDescription)).Append("</p></section>");
-        AppendRailSection(builder, site.TrendingMovies, model.TrendingMovies, site);
-        AppendRailSection(builder, site.TrendingTv, model.TrendingTvShows, site);
+        AppendRailSection(builder, site.TrendingMovies, model.TrendingMovies, site, shareOptions);
+        AppendRailSection(builder, site.TrendingTv, model.TrendingTvShows, site, shareOptions);
         AppendValueSection(builder, site);
         AppendFooter(builder);
         builder.Append("</div></body></html>");
@@ -58,6 +59,7 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         var language = CatalogShareWebCopy.HtmlLang(CatalogShareWebCopy.ResolveLanguageCode(acceptLanguageHeader));
 
         var builder = new StringBuilder();
+        var shareOptions = catalogShareOptions.Value;
         var openAppUrl = ResolveListingOpenAppUrl(model);
         AppendHead(builder, model.PageTitle, model.PageDescription, model.CanonicalPageUrl, null, language);
         builder.Append("<body><div class=\"site\">");
@@ -67,7 +69,7 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         builder.Append("<section class=\"section\"><div class=\"grid\">");
         foreach (var card in model.Items)
         {
-            AppendGridCard(builder, card, site);
+            AppendGridCard(builder, card, site, shareOptions);
         }
 
         builder.Append("</div></section>");
@@ -150,7 +152,7 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         return builder.ToString();
     }
 
-    private void AppendHead(
+    private static void AppendHead(
         StringBuilder builder,
         string title,
         string description,
@@ -203,20 +205,25 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
         StringBuilder builder,
         string title,
         IReadOnlyList<PublicWebCatalogCard> cards,
-        PublicWebSiteCopy.SiteCopy site)
+        PublicWebSiteCopy.SiteCopy site,
+        CatalogShareOptions shareOptions)
     {
         builder.Append("<section class=\"section\"><h2>").Append(Encode(title)).Append("</h2><div class=\"rail\">");
         foreach (var card in cards)
         {
-            AppendRailCard(builder, card, site);
+            AppendRailCard(builder, card, site, shareOptions);
         }
 
         builder.Append("</div></section>");
     }
 
-    private static void AppendRailCard(StringBuilder builder, PublicWebCatalogCard card, PublicWebSiteCopy.SiteCopy site)
+    private static void AppendRailCard(
+        StringBuilder builder,
+        PublicWebCatalogCard card,
+        PublicWebSiteCopy.SiteCopy site,
+        CatalogShareOptions shareOptions)
     {
-        var poster = ResolvePosterUrlStatic(card.PosterPath);
+        var poster = ResolvePosterUrlStatic(card.PosterPath, shareOptions);
         builder.Append("<a class=\"card\" href=\"").Append(Encode(card.CanonicalDetailUrl)).Append("\">")
             .Append("<img src=\"").Append(Encode(poster)).Append("\" alt=\"").Append(Encode(card.Title))
             .Append("\" loading=\"lazy\" /><div class=\"card-body\"><p class=\"card-title\">").Append(Encode(card.Title))
@@ -224,9 +231,13 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
             .Append("</p></div></a>");
     }
 
-    private static void AppendGridCard(StringBuilder builder, PublicWebCatalogCard card, PublicWebSiteCopy.SiteCopy site)
+    private static void AppendGridCard(
+        StringBuilder builder,
+        PublicWebCatalogCard card,
+        PublicWebSiteCopy.SiteCopy site,
+        CatalogShareOptions shareOptions)
     {
-        AppendRailCard(builder, card, site);
+        AppendRailCard(builder, card, site, shareOptions);
     }
 
     private static void AppendValueSection(StringBuilder builder, PublicWebSiteCopy.SiteCopy site)
