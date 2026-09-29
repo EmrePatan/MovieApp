@@ -6,6 +6,7 @@ using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.WatchProviders;
 using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
@@ -151,6 +152,7 @@ public sealed class DiscoveryController(
     public async Task<ActionResult<DiscoveryWatchProvidersResponse>> GetWatchProviders(
         [FromQuery(Name = "mediaType")] string mediaType,
         [FromQuery] string watchRegion,
+        [FromQuery] string[]? watchMonetizationType,
         CancellationToken cancellationToken)
     {
         try
@@ -161,11 +163,22 @@ public sealed class DiscoveryController(
                 throw new ValidationException(mediaTypeValidation.ErrorMessage!);
             }
 
+            var monetizationValidation =
+                AdvancedDiscoverValidator.ValidateWatchMonetizationTypeValues(watchMonetizationType);
+            if (!monetizationValidation.IsValid)
+            {
+                throw new ValidationException(monetizationValidation.ErrorMessage!);
+            }
+
             _ = AdvancedSearchValidator.TryParseType(mediaType, out var contentType);
+            var monetizationTypes = AdvancedDiscoverValidator.ParseWatchMonetizationTypes(watchMonetizationType);
+            var includeTransactionalProviders =
+                TransactionalWatchProviderCatalog.IncludeInDiscoveryList(monetizationTypes);
 
             var providers = await discoveryWatchProvidersService.GetWatchProvidersAsync(
                 contentType,
                 watchRegion,
+                includeTransactionalProviders,
                 cancellationToken);
 
             var normalizedRegion = WatchProviderRegionValidator.Normalize(watchRegion);

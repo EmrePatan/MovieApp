@@ -1,5 +1,7 @@
 using System.Net;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
@@ -7,7 +9,9 @@ using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 namespace MovieApp.Infrastructure.Providers.Tmdb;
 
-public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDataProvider
+public sealed class TmdbTvShowDataProvider(
+    TmdbApiClient apiClient,
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : ITvShowDataProvider
 {
     public async Task<TvShowProviderSearchResult> SearchTvShowsAsync(
         string query,
@@ -77,7 +81,9 @@ public sealed class TmdbTvShowDataProvider(TmdbApiClient apiClient) : ITvShowDat
         AdvancedDiscoverProviderCriteria criteria,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(criteria);
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(
+            criteria,
+            TmdbAdvancedDiscoverVoteFloor.Resolve(advancedDiscoverOptions));
         var response = await apiClient.GetCanonicalAsync<TmdbTvSearchResponseJson>(
             $"discover/tv?{query}",
             cancellationToken);

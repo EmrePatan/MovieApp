@@ -39,7 +39,7 @@ public sealed class HomeTopRatedServiceTests
                 null,
                 null,
                 8m,
-                100,
+                1000,
                 null)
         ]);
         var genreRepository = new FakeGenreReadRepository(AnimationGenreId);
@@ -50,6 +50,45 @@ public sealed class HomeTopRatedServiceTests
 
         Assert.Equal("Animation", genreRepository.LastRequestedGenreName);
     }
+
+    [Fact]
+    public async Task GetItemsAsyncExcludesTitlesBelowHomeVoteFloors()
+    {
+        var lowMovie = CreateItem("movie", 11, 999);
+        var qualifiedMovie = CreateItem("movie", 12, 1000);
+        var lowTv = CreateItem("tv", 13, 499);
+        var qualifiedTv = CreateItem("tv", 14, 500);
+        var discovery = new RecordingDiscoveryService([lowMovie, qualifiedMovie, lowTv, qualifiedTv]);
+        var service = CreateService(discovery);
+
+        var result = await service.GetItemsAsync(SearchContentType.All, 10, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal([qualifiedMovie.Id, qualifiedTv.Id], result.Select(item => item.Id).ToArray());
+    }
+
+    [Fact]
+    public void TopRatedOptionsDefaultToHomeFloorsAndHigherBayesianConfidence()
+    {
+        var options = new TopRatedOptions();
+
+        Assert.Equal(300, options.MinimumVoteConfidence);
+        Assert.Equal(1000, options.MinVoteCountMovie);
+        Assert.Equal(500, options.MinVoteCountTv);
+    }
+
+    private static SearchItem CreateItem(string type, int seed, int voteCount) =>
+        new(
+            Guid.Parse($"dddddddd-dddd-dddd-dddd-{seed:D012}"),
+            type,
+            $"{type}-{seed}",
+            null,
+            null,
+            null,
+            null,
+            new DateOnly(2020, 1, 1),
+            8m,
+            voteCount,
+            2020);
 
     private static HomeTopRatedService CreateService(
         IDiscoveryService discovery,

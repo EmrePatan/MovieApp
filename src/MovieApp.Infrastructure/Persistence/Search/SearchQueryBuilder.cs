@@ -200,7 +200,9 @@ internal static class SearchQueryBuilder
 
     public static IQueryable<SearchItemProjection> BuildNewReleasesQuery(
         ApplicationDbContext dbContext,
-        DiscoveryCriteria criteria)
+        DiscoveryCriteria criteria,
+        DateOnly today,
+        int maxAgeDays)
     {
         var searchCriteria = new SearchCriteria(
             null,
@@ -215,15 +217,41 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.ReleaseDate.HasValue),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.ReleaseDate.HasValue),
-            _ => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.ReleaseDate.HasValue)
-                .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                    .Where(item => item.ReleaseDate.HasValue))
+            SearchContentType.Movie => ApplyNewReleaseWindow(
+                BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
+                today,
+                maxAgeDays),
+            SearchContentType.Tv => ApplyNewReleaseWindow(
+                BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
+                today,
+                maxAgeDays),
+            _ => ApplyNewReleaseWindow(
+                    BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
+                    today,
+                    maxAgeDays)
+                .Concat(ApplyNewReleaseWindow(
+                    BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
+                    today,
+                    maxAgeDays))
         };
+    }
+
+    private static IQueryable<SearchItemProjection> ApplyNewReleaseWindow(
+        IQueryable<SearchItemProjection> query,
+        DateOnly today,
+        int maxAgeDays)
+    {
+        var bounded = query.Where(item =>
+            item.ReleaseDate.HasValue &&
+            item.ReleaseDate <= today);
+
+        if (maxAgeDays <= 0)
+        {
+            return bounded;
+        }
+
+        var earliest = today.AddDays(-maxAgeDays);
+        return bounded.Where(item => item.ReleaseDate >= earliest);
     }
 
     public static IQueryable<SearchItemProjection> BuildTopRatedQuery(

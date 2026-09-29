@@ -17,7 +17,8 @@ public sealed class SearchRepository(
     ApplicationDbContext dbContext,
     IOptions<TopRatedOptions> topRatedOptions,
     ILogger<SearchRepository> logger,
-    IMemoryCache? memoryCache = null) : ISearchRepository
+    IMemoryCache? memoryCache = null,
+    IOptions<NewReleasesOptions>? newReleasesOptions = null) : ISearchRepository
 {
     private static readonly TimeSpan CatalogMeanCacheTtl = TimeSpan.FromMinutes(10);
     public async Task<PaginatedResult<SearchItem>> SearchAsync(
@@ -210,7 +211,15 @@ public sealed class SearchRepository(
         DiscoveryCriteria criteria,
         CancellationToken cancellationToken = default)
     {
-        var combinedQuery = SearchQueryBuilder.BuildNewReleasesQuery(dbContext, criteria);
+        var maxAgeDays = Math.Max(
+            0,
+            newReleasesOptions?.Value.MaxAgeDays ?? NewReleasesOptions.DefaultMaxAgeDays);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var combinedQuery = SearchQueryBuilder.BuildNewReleasesQuery(
+            dbContext,
+            criteria,
+            today,
+            maxAgeDays);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder

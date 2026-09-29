@@ -232,7 +232,7 @@ public sealed class HomeTopRatedServiceRegressionTests
             null,
             new DateOnly(2020, 1, 1),
             10m - (rank * 0.1m),
-            1000 - rank,
+            10_000 - rank,
             2020);
     }
 

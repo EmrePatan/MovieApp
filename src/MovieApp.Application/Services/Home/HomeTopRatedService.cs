@@ -31,7 +31,9 @@ public sealed class HomeTopRatedService(
             contentLocale,
             cancellationToken);
 
-        var rankedCandidates = discovery.Items;
+        var rankedCandidates = discovery.Items
+            .Where(MeetsHomeVoteFloor)
+            .ToList();
         if (rankedCandidates.Count == 0)
         {
             return rankedCandidates;
@@ -69,5 +71,14 @@ public sealed class HomeTopRatedService(
             animationContentKeys,
             _options.HomeRailMaxAnimationItems,
             sectionSize);
+    }
+
+    private bool MeetsHomeVoteFloor(SearchItem item)
+    {
+        var minimum = string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+            ? _options.MinVoteCountTv
+            : _options.MinVoteCountMovie;
+
+        return item.VoteCount >= minimum;
     }
 }

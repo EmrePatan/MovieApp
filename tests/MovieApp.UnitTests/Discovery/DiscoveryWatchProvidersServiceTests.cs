@@ -57,6 +57,31 @@ public sealed class DiscoveryWatchProvidersServiceTests
             () => service.GetWatchProvidersAsync(SearchContentType.Movie, "TR"));
     }
 
+    [Fact]
+    public async Task GetWatchProvidersAsyncOmitsTransactionalStoresFromStreamingCatalog()
+    {
+        var catalog = new RecordingDiscoveryWatchProviderCatalog
+        {
+            Providers =
+            [
+                new DiscoveryWatchProviderItem(8, "Netflix", "/logo.png", 1),
+                new DiscoveryWatchProviderItem(2, "Apple TV Store", "/logo.png", 2),
+                new DiscoveryWatchProviderItem(3, "Google Play Movies", "/logo.png", 3),
+                new DiscoveryWatchProviderItem(10, "Amazon Video", "/logo.png", 4),
+            ]
+        };
+        var service = new DiscoveryWatchProvidersService(catalog, new DiscoveryWatchProvidersFakeCache());
+
+        var streaming = await service.GetWatchProvidersAsync(SearchContentType.Movie, "TR");
+        var transactional = await service.GetWatchProvidersAsync(
+            SearchContentType.Movie,
+            "TR",
+            includeTransactionalProviders: true);
+
+        Assert.Equal([8], streaming.Select(provider => provider.ProviderId).ToArray());
+        Assert.Equal([8, 2, 3, 10], transactional.Select(provider => provider.ProviderId).ToArray());
+    }
+
     private sealed class RecordingDiscoveryWatchProviderCatalog : IDiscoveryWatchProviderCatalog
     {
         public int CallCount { get; private set; }
@@ -66,6 +91,8 @@ public sealed class DiscoveryWatchProvidersServiceTests
         public string LastRegion { get; private set; } = string.Empty;
 
         public bool ShouldThrow { get; init; }
+
+        public IReadOnlyList<DiscoveryWatchProviderItem>? Providers { get; init; }
 
         public Task<IReadOnlyList<DiscoveryWatchProviderItem>> GetWatchProvidersAsync(
             SearchContentType mediaType,
@@ -82,10 +109,11 @@ public sealed class DiscoveryWatchProvidersServiceTests
             }
 
             return Task.FromResult<IReadOnlyList<DiscoveryWatchProviderItem>>(
-            [
-                new DiscoveryWatchProviderItem(8, "Netflix", "/logo.png", 1),
-                new DiscoveryWatchProviderItem(337, "Disney Plus", "/logo.png", 2),
-            ]);
+                Providers ??
+                [
+                    new DiscoveryWatchProviderItem(8, "Netflix", "/logo.png", 1),
+                    new DiscoveryWatchProviderItem(337, "Disney Plus", "/logo.png", 2),
+                ]);
         }
     }
 

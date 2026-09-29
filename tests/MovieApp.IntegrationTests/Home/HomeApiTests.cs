@@ -7,6 +7,7 @@ using MovieApp.Contracts.Home;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.Ratings;
 using MovieApp.Contracts.TvShows;
+using MovieApp.Infrastructure.Providers;
 
 namespace MovieApp.IntegrationTests.Home;
 
@@ -303,6 +304,14 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
     {
         await SeedMovieAsync();
         await SeedTvShowAsync();
+        await SeedRecentReleaseAsync();
+    }
+
+    private async Task SeedRecentReleaseAsync()
+    {
+        var response = await _client.GetAsync(
+            $"/api/movies/search?q={FakeMovieDataProvider.RecentReleaseQueryToken}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private async Task<Guid> SeedMovieAsync()

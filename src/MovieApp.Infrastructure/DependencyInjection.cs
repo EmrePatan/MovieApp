@@ -72,7 +72,25 @@ public static class DependencyInjection
 
         services.Configure<InsightsOptions>(configuration.GetSection(InsightsOptions.SectionName));
 
-        services.Configure<TopRatedOptions>(configuration.GetSection(TopRatedOptions.SectionName));
+        services.AddOptions<TopRatedOptions>()
+            .Bind(configuration.GetSection(TopRatedOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<TopRatedOptions>, TopRatedOptionsValidator>();
+
+        services.AddOptions<AdvancedDiscoverOptions>()
+            .Bind(configuration.GetSection(AdvancedDiscoverOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AdvancedDiscoverOptions>, AdvancedDiscoverOptionsValidator>();
+
+        services.AddOptions<NewReleasesOptions>()
+            .Bind(configuration.GetSection(NewReleasesOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<NewReleasesOptions>, NewReleasesOptionsValidator>();
+
+        services.AddOptions<NowInTheatersOptions>()
+            .Bind(configuration.GetSection(NowInTheatersOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<NowInTheatersOptions>, NowInTheatersOptionsValidator>();
 
         services.Configure<PushNotificationsOptions>(configuration.GetSection(PushNotificationsOptions.SectionName));
 

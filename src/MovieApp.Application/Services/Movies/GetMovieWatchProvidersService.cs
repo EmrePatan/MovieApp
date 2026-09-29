@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Caching;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.WatchProviders;
 using MovieApp.Application.Validation;
@@ -11,7 +13,8 @@ namespace MovieApp.Application.Services.Movies;
 public sealed class GetMovieWatchProvidersService(
     IMovieRepository movieRepository,
     IWatchProviderService watchProviderService,
-    ICacheService cacheService) : IGetMovieWatchProvidersService
+    ICacheService cacheService,
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : IGetMovieWatchProvidersService
 {
     private static readonly TimeSpan WatchProvidersCacheTtl = TimeSpan.FromHours(6);
 
@@ -31,7 +34,7 @@ public sealed class GetMovieWatchProvidersService(
         var cached = await cacheService.GetAsync<WatchProvidersCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
-            return TitleWatchProvidersPresentationFilter.Apply(cached.Result);
+            return Present(cached.Result);
         }
 
         var lookup = await movieRepository.GetProviderLookupByIdAsync(movieId, cancellationToken);
@@ -45,7 +48,7 @@ public sealed class GetMovieWatchProvidersService(
             return new WatchProvidersResult(normalizedRegion, [], null);
         }
 
-        var providers = TitleWatchProvidersPresentationFilter.Apply(
+        var providers = Present(
             await watchProviderService.GetMovieWatchProvidersAsync(
                 lookup.TmdbId.Value,
                 normalizedRegion,
@@ -59,4 +62,10 @@ public sealed class GetMovieWatchProvidersService(
 
         return providers;
     }
+
+    private WatchProvidersResult Present(WatchProvidersResult result) =>
+        TitleWatchProvidersPresentationFilter.Apply(
+            result,
+            TransactionalWatchProviderCatalog.Resolve(
+                advancedDiscoverOptions?.Value.TransactionalWatchProviderIds));
 }

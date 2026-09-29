@@ -1,11 +1,15 @@
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 namespace MovieApp.Infrastructure.Providers.Tmdb;
 
-public sealed class TmdbLocalizedListDataProvider(TmdbApiClient apiClient) : ILocalizedListDataProvider
+public sealed class TmdbLocalizedListDataProvider(
+    TmdbApiClient apiClient,
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : ILocalizedListDataProvider
 {
     public async Task<MovieProviderSearchResult> SearchMoviesAsync(
         string query,
@@ -108,7 +112,9 @@ public sealed class TmdbLocalizedListDataProvider(TmdbApiClient apiClient) : ILo
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(criteria);
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(
+            criteria,
+            TmdbAdvancedDiscoverVoteFloor.Resolve(advancedDiscoverOptions));
         var response = await apiClient.GetLocalizedAsync<TmdbMovieSearchResponseJson>(
             $"discover/movie?{query}",
             contentLocale,
@@ -122,7 +128,9 @@ public sealed class TmdbLocalizedListDataProvider(TmdbApiClient apiClient) : ILo
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(criteria);
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(
+            criteria,
+            TmdbAdvancedDiscoverVoteFloor.Resolve(advancedDiscoverOptions));
         var response = await apiClient.GetLocalizedAsync<TmdbTvSearchResponseJson>(
             $"discover/tv?{query}",
             contentLocale,

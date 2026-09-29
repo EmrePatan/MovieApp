@@ -5,9 +5,14 @@ namespace MovieApp.Application.Models.WatchProviders;
 /// </summary>
 public static class TitleWatchProvidersPresentationFilter
 {
-    public static WatchProvidersResult Apply(WatchProvidersResult result)
+    public static WatchProvidersResult Apply(
+        WatchProvidersResult result,
+        IReadOnlySet<int>? transactionalProviderIds = null)
     {
+        var blockedProviderIds = transactionalProviderIds
+            ?? TransactionalWatchProviderCatalog.Resolve(null);
         var subscriptionProviders = result.Providers
+            .Where(provider => !blockedProviderIds.Contains(provider.ProviderId))
             .Where(provider => provider.AvailabilityTypes.Contains(WatchProviderAvailabilityType.Flatrate))
             .Select(NormalizeToSubscriptionOnly)
             .ToList();
