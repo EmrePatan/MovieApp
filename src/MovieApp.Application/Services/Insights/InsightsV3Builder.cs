@@ -11,7 +11,7 @@ public static class InsightsV3Builder
         DateTime utcNow)
     {
         var movieDna = InsightsV3MovieDnaBuilder.Build(raw, utcNow);
-        var yourYear = InsightsV3YourYearBuilder.Build(raw, timeZone, year);
+        var yourYear = InsightsV3YourYearBuilder.Build(raw, year);
         var yourTaste = InsightsV3TasteBuilder.Build(raw);
         var timeInStories = InsightsV3TimeInStoriesBuilder.Build(raw);
         var yourRatings = InsightsV3RatingsBuilder.Build(raw);

@@ -22,4 +22,5 @@ public sealed record InsightsAnalyticsRawData(
     DateTime? FiveHundredthEpisodeWatchedAtUtc,
     DateTime? TenthRatingAtUtc,
     DateTime? TwentyFifthRatingAtUtc,
-    DateTime? FiftiethRatingAtUtc);
+    DateTime? FiftiethRatingAtUtc,
+    int? DistinctGenreCount = null);

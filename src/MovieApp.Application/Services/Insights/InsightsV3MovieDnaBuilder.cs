@@ -8,25 +8,23 @@ public static class InsightsV3MovieDnaBuilder
 
     public static InsightsV3MovieDnaResult Build(InsightsV3RawData raw, DateTime utcNow)
     {
-        var summaryRaw = new InsightsSummaryRawData(
-            raw.MemberSinceUtc,
+        var labels = InsightsMovieDnaBuilder.BuildFromAggregates(
             raw.DistinctMovieCount,
-            raw.EpisodesWatched,
             raw.DistinctSeriesCount,
-            raw.RatingsCount,
-            raw.RatingScoreCounts,
-            raw.MovieTitles,
-            raw.TvShowTitles);
-
-        var labels = InsightsMovieDnaBuilder.Build(summaryRaw, utcNow);
-        var taste = InsightsTasteBuilder.Build(raw.MilestoneRaw);
+            raw.AllTimeGenreContributions,
+            raw.AllTimeTitlesWithGenres,
+            raw.AllTimeReleaseYears,
+            utcNow.Year);
+        var genres = InsightsTasteBuilder.BuildGenres(
+            raw.AllTimeGenreContributions,
+            raw.AllTimeTitlesWithGenres);
         var mix = BuildWatchingMix(raw.DistinctMovieCount, raw.DistinctSeriesCount);
 
         return new InsightsV3MovieDnaResult(
             BuildIdentityTitle(labels),
             labels.Select(label => label.Code).ToList(),
             labels,
-            taste.Genres,
+            genres,
             mix);
     }
 

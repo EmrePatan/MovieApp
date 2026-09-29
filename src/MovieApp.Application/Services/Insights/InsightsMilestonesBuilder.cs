@@ -60,6 +60,11 @@ public static class InsightsMilestonesBuilder
 
     public static int CountDistinctGenres(InsightsAnalyticsRawData raw)
     {
+        if (raw.DistinctGenreCount is int precomputed)
+        {
+            return precomputed;
+        }
+
         return raw.MovieTitles
             .SelectMany(title => title.Genres.Select(genre => genre.GenreId))
             .Concat(raw.TvShowTitles.SelectMany(title => title.Genres.Select(genre => genre.GenreId)))

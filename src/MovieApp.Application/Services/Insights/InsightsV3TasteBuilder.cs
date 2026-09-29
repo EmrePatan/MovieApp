@@ -9,12 +9,14 @@ public static class InsightsV3TasteBuilder
 
     public static InsightsV3TasteSectionResult Build(InsightsV3RawData raw)
     {
-        var genres = InsightsTasteBuilder.Build(raw.MilestoneRaw).Genres;
+        var genres = InsightsTasteBuilder.BuildGenres(
+            raw.AllTimeGenreContributions,
+            raw.AllTimeTitlesWithGenres);
         var risingGenre = TryBuildRisingGenre(
-            raw.CurrentYearMovieTitles,
-            raw.CurrentYearTvShowTitles,
-            raw.PreviousYearMovieTitles,
-            raw.PreviousYearTvShowTitles);
+            raw.CurrentYearGenreContributions,
+            raw.CurrentYearTitlesWithGenres,
+            raw.PreviousYearGenreContributions,
+            raw.PreviousYearTitlesWithGenres);
 
         return new InsightsV3TasteSectionResult(genres, risingGenre);
     }
@@ -32,13 +34,26 @@ public static class InsightsV3TasteBuilder
             .Where(title => title.Genres.Count > 0)
             .ToList();
 
-        if (currentTitles.Count < MinimumTitlesPerYear || previousTitles.Count < MinimumTitlesPerYear)
+        return TryBuildRisingGenre(
+            InsightsGenreContributions.FromTitles(currentTitles),
+            currentTitles.Count,
+            InsightsGenreContributions.FromTitles(previousTitles),
+            previousTitles.Count);
+    }
+
+    public static InsightsV3RisingGenreResult? TryBuildRisingGenre(
+        IReadOnlyList<InsightsV3GenreContribution> currentContributions,
+        int currentEligibleTitles,
+        IReadOnlyList<InsightsV3GenreContribution> previousContributions,
+        int previousEligibleTitles)
+    {
+        if (currentEligibleTitles < MinimumTitlesPerYear || previousEligibleTitles < MinimumTitlesPerYear)
         {
             return null;
         }
 
-        var currentShares = ComputeGenreShares(currentTitles);
-        var previousShares = ComputeGenreShares(previousTitles);
+        var currentShares = ComputeGenreShares(currentContributions);
+        var previousShares = ComputeGenreShares(previousContributions);
 
         var risingCandidate = currentShares
             .Select(pair =>
@@ -73,20 +88,9 @@ public static class InsightsV3TasteBuilder
     }
 
     private static Dictionary<(Guid GenreId, string Name), decimal> ComputeGenreShares(
-        IReadOnlyList<InsightsDnaTitleData> titles)
+        IReadOnlyList<InsightsV3GenreContribution> contributions)
     {
-        var weights = new Dictionary<(Guid GenreId, string Name), decimal>();
-
-        foreach (var title in titles)
-        {
-            var contribution = 1m / title.Genres.Count;
-            foreach (var genre in title.Genres)
-            {
-                var key = (genre.GenreId, genre.Name);
-                weights[key] = weights.GetValueOrDefault(key) + contribution;
-            }
-        }
-
+        var weights = InsightsGenreContributions.SumWeightsByGenreAndName(contributions);
         var denominator = weights.Values.Sum();
         if (denominator <= 0)
         {

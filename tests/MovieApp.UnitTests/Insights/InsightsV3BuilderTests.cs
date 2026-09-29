@@ -5,31 +5,97 @@ namespace MovieApp.UnitTests.Insights;
 
 public sealed class InsightsV3BuilderTests
 {
-    private static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById(
-        OperatingSystem.IsWindows() ? "Turkey Standard Time" : "Europe/Istanbul");
+    [Fact]
+    public void YourYearFillsTwelveMonthsAndBreaksPeakTiesTowardLaterMonth()
+    {
+        var raw = CreateRawData(
+            yearActivity: new InsightsV3YearActivityAggregate(
+                [
+                    new InsightsV3MonthCount(1, 2, 0),
+                    new InsightsV3MonthCount(3, 1, 1),
+                ],
+                new Dictionary<DayOfWeek, int>(),
+                2,
+                0));
 
-    private static readonly DateTime UtcNow = new(2026, 6, 15, 21, 0, 0, DateTimeKind.Utc);
+        var yourYear = InsightsV3YourYearBuilder.Build(raw, 2026);
+
+        Assert.Equal(12, yourYear.Months.Count);
+        Assert.Equal(2, yourYear.Months.Single(month => month.Month == 1).Movies);
+        Assert.Equal(0, yourYear.Months.Single(month => month.Month == 2).Total);
+        Assert.Equal(2, yourYear.ActiveDays);
+        Assert.Equal(3, yourYear.PeakMonth?.Month);
+        Assert.Equal(2, yourYear.PeakMonth?.Total);
+    }
 
     [Fact]
-    public void YourYearRespectsCalendarYearBoundariesInTimeZone()
+    public void FavoriteWeekdayUsesWeekdayTotalsAndActivityThreshold()
     {
-        var year = 2026;
+        var dominant = new Dictionary<DayOfWeek, int>
+        {
+            [DayOfWeek.Monday] = 30,
+            [DayOfWeek.Tuesday] = 2,
+            [DayOfWeek.Wednesday] = 2,
+            [DayOfWeek.Thursday] = 2,
+            [DayOfWeek.Friday] = 2,
+            [DayOfWeek.Saturday] = 2,
+            [DayOfWeek.Sunday] = 2,
+        };
+        var belowDominance = new Dictionary<DayOfWeek, int>
+        {
+            [DayOfWeek.Monday] = 10,
+            [DayOfWeek.Tuesday] = 8,
+            [DayOfWeek.Wednesday] = 8,
+            [DayOfWeek.Thursday] = 8,
+            [DayOfWeek.Friday] = 8,
+            [DayOfWeek.Saturday] = 8,
+            [DayOfWeek.Sunday] = 8,
+        };
+
+        Assert.Equal(DayOfWeek.Monday, InsightsV3YourYearBuilder.CalculateFavoriteWeekday(dominant));
+        Assert.Null(InsightsV3YourYearBuilder.CalculateFavoriteWeekday(belowDominance));
+        Assert.Null(InsightsV3YourYearBuilder.CalculateFavoriteWeekday(
+            new Dictionary<DayOfWeek, int> { [DayOfWeek.Friday] = 9 }));
+    }
+
+    [Fact]
+    public void TimeInStoriesUsesAggregatedYearMinutes()
+    {
         var raw = CreateRawData(
-            yearMovieWatches:
+            yearActivity: new InsightsV3YearActivityAggregate([], new Dictionary<DayOfWeek, int>(), 0, 235),
+            movieEstimatedMinutes: 400,
+            episodeEstimatedMinutes: 80,
+            moviesWithKnownRuntime: 2,
+            episodesWithKnownRuntime: 2,
+            moviesWatched: 3,
+            episodesWatched: 2);
+
+        var time = InsightsV3TimeInStoriesBuilder.Build(raw);
+
+        Assert.Equal(480, time.TotalMinutes);
+        Assert.Equal(235, time.YearMinutes);
+        Assert.Equal(80.0m, time.RuntimeCoveragePercent);
+    }
+
+    [Fact]
+    public void RisingGenreGroupedContributionsMatchPerTitleShares()
+    {
+        var sciFi = new InsightsDnaGenreData(Guid.NewGuid(), "Sci-Fi");
+        var drama = new InsightsDnaGenreData(Guid.NewGuid(), "Drama");
+        var currentTitles = Enumerable.Repeat(new InsightsDnaTitleData(2026, [sciFi, drama]), 3).ToList();
+        var previousTitles = Enumerable.Repeat(new InsightsDnaTitleData(2025, [drama]), 3).ToList();
+
+        var fromTitles = InsightsV3TasteBuilder.TryBuildRisingGenre(currentTitles, [], previousTitles, []);
+        var fromGroups = InsightsV3TasteBuilder.TryBuildRisingGenre(
             [
-                (new DateTime(2025, 12, 31, 21, 30, 0, DateTimeKind.Utc), 120),
-                (new DateTime(2026, 1, 1, 0, 30, 0, DateTimeKind.Utc), 120),
-                (new DateTime(2026, 12, 31, 20, 30, 0, DateTimeKind.Utc), 120),
-                (new DateTime(2027, 1, 1, 0, 30, 0, DateTimeKind.Utc), 120),
+                new InsightsV3GenreContribution(sciFi.GenreId, sciFi.Name, 2, 3),
+                new InsightsV3GenreContribution(drama.GenreId, drama.Name, 2, 3),
             ],
-            yearEpisodeWatches: []);
+            3,
+            [new InsightsV3GenreContribution(drama.GenreId, drama.Name, 1, 3)],
+            3);
 
-        var yourYear = InsightsV3YourYearBuilder.Build(raw, Istanbul, year);
-
-        Assert.Equal(2, yourYear.ActiveDays);
-        Assert.Equal(2, yourYear.Months.Single(month => month.Month == 1).Movies);
-        Assert.Equal(1, yourYear.Months.Single(month => month.Month == 12).Movies);
-        Assert.Equal(2, yourYear.PeakMonth?.Total);
+        Assert.Equal(fromTitles, fromGroups);
     }
 
     [Fact]
@@ -108,25 +174,30 @@ public sealed class InsightsV3BuilderTests
     }
 
     private static InsightsV3RawData CreateRawData(
-        IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)>? yearMovieWatches = null,
-        IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)>? yearEpisodeWatches = null,
+        InsightsV3YearActivityAggregate? yearActivity = null,
         InsightsV3RecordsRawData? records = null,
         IReadOnlyList<(int Score, int Count)>? ratingScoreCounts = null,
-        IReadOnlyList<InsightsV3GenreRatingRow>? genreRatings = null)
+        IReadOnlyList<InsightsV3GenreRatingRow>? genreRatings = null,
+        int movieEstimatedMinutes = 0,
+        int episodeEstimatedMinutes = 0,
+        int moviesWithKnownRuntime = 0,
+        int episodesWithKnownRuntime = 0,
+        int moviesWatched = 0,
+        int episodesWatched = 0)
     {
         var milestoneRaw = new InsightsAnalyticsRawData(
             new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            0,
-            0,
+            moviesWatched,
+            episodesWatched,
             0,
             ratingScoreCounts?.Sum(item => item.Count) ?? 0,
             [],
             [],
             [],
-            0,
-            0,
-            0,
-            0,
+            movieEstimatedMinutes,
+            moviesWithKnownRuntime,
+            episodeEstimatedMinutes,
+            episodesWithKnownRuntime,
             ratingScoreCounts ?? [],
             [],
             null,
@@ -142,23 +213,24 @@ public sealed class InsightsV3BuilderTests
             milestoneRaw.MemberSinceUtc,
             0,
             0,
-            0,
-            0,
+            moviesWatched,
+            episodesWatched,
             0,
             milestoneRaw.RatingsCount,
             [],
+            0,
             [],
+            0,
             [],
+            0,
             [],
-            [],
-            [],
-            yearMovieWatches ?? [],
-            yearEpisodeWatches ?? [],
+            0,
+            yearActivity ?? new InsightsV3YearActivityAggregate([], new Dictionary<DayOfWeek, int>(), 0, 0),
             records ?? new InsightsV3RecordsRawData(null, null, null),
-            0,
-            0,
-            0,
-            0,
+            movieEstimatedMinutes,
+            episodeEstimatedMinutes,
+            moviesWithKnownRuntime,
+            episodesWithKnownRuntime,
             ratingScoreCounts ?? [],
             genreRatings ?? [],
             null,

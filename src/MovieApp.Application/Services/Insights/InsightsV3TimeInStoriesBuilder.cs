@@ -17,12 +17,7 @@ public static class InsightsV3TimeInStoriesBuilder
                 1,
                 MidpointRounding.AwayFromZero);
 
-        var yearMinutes = raw.YearMovieWatches
-            .Where(watch => watch.RuntimeMinutes is > 0)
-            .Sum(watch => watch.RuntimeMinutes ?? 0)
-            + raw.YearEpisodeWatches
-                .Where(watch => watch.RuntimeMinutes is > 0)
-                .Sum(watch => watch.RuntimeMinutes ?? 0);
+        var yearMinutes = raw.YearActivity.YearMinutes;
 
         return new InsightsV3TimeInStoriesResult(
             totalMinutes,
