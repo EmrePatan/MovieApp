@@ -115,6 +115,7 @@ public sealed class UserCredentialMethodsServiceTests
                 "en-US"));
 
         Assert.Equal("user@example.com", user.Email);
+        Assert.Equal("new@example.com", user.PendingEmail);
         Assert.Single(tokenRepository.CreatedTokens);
         Assert.Equal("new@example.com", tokenRepository.CreatedTokens[0].PendingEmail);
     }
@@ -201,6 +202,7 @@ public sealed class UserCredentialMethodsServiceTests
 
         return new UserCredentialMethodsService(
             new CredentialFakeCurrentUser(user.Id),
+            new CredentialFakeApplicationDbContext(),
             userRepository,
             externalLoginRepository,
             accountReauthentication,
@@ -222,6 +224,17 @@ public sealed class UserCredentialMethodsServiceTests
             "social@example.com",
             "Social",
             DateTime.UtcNow);
+
+    private sealed class CredentialFakeApplicationDbContext : IApplicationDbContext
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task ExecuteInTransactionAsync(
+            Func<CancellationToken, Task> action,
+            CancellationToken cancellationToken = default) =>
+            action(cancellationToken);
+    }
 
     private sealed class CredentialFakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -351,20 +364,38 @@ public sealed class UserCredentialMethodsServiceTests
         public Task CompleteDeliveryAsync(Guid tokenId, DateTime utcNow, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task<string?> GetPendingEmailChangeIntentForUserAsync(
-            Guid userId,
+        public Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
+            string tokenHash,
+            DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
-            var pending = CreatedTokens
-                .Where(token =>
-                    token.UserId == userId &&
-                    token.UsedAtUtc is null &&
-                    !string.IsNullOrWhiteSpace(token.PendingEmail))
-                .OrderByDescending(token => token.CreatedAtUtc)
-                .Select(token => token.PendingEmail)
-                .FirstOrDefault();
+            var token = CreatedTokens.FirstOrDefault(item =>
+                item.TokenHash == tokenHash &&
+                item.UsedAtUtc is null &&
+                item.ExpiresAtUtc > utcNow);
 
-            return Task.FromResult(pending);
+            return Task.FromResult(token is null
+                ? null
+                : new EmailVerificationTokenConsumptionResult(
+                    token.Id,
+                    token.UserId,
+                    token.PendingEmail,
+                    token.ContentLocale));
+        }
+
+        public Task<bool> TryMarkTokenUsedAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var token = CreatedTokens.FirstOrDefault(item => item.Id == tokenId);
+            if (token is null || token.UsedAtUtc is not null || token.ExpiresAtUtc <= utcNow)
+            {
+                return Task.FromResult(false);
+            }
+
+            token.UsedAtUtc = utcNow;
+            return Task.FromResult(true);
         }
 
         public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(

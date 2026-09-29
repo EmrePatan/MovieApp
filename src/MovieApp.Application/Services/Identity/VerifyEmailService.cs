@@ -37,47 +37,66 @@ public sealed class VerifyEmailService(
 
         await applicationDbContext.ExecuteInTransactionAsync(async ct =>
         {
-            var consumedToken = await emailVerificationTokenRepository.TryConsumeActiveTokenAsync(
+            var activeToken = await emailVerificationTokenRepository.GetActiveTokenByHashAsync(
                 tokenHash,
                 utcNow,
                 ct);
 
-            if (consumedToken is null)
+            if (activeToken is null)
             {
                 throw new ValidationException(InvalidTokenMessage);
             }
 
-            var user = await userRepository.GetByIdForUpdateAsync(consumedToken.UserId, ct);
+            var user = await userRepository.GetByIdForUpdateAsync(activeToken.UserId, ct);
             if (user is null || !user.IsActive)
             {
                 throw new ValidationException(InvalidTokenMessage);
             }
 
-            if (!string.IsNullOrWhiteSpace(consumedToken.PendingEmail))
+            if (!string.IsNullOrWhiteSpace(activeToken.PendingEmail))
             {
-                var pendingEmail = consumedToken.PendingEmail.Trim();
+                if (!UserPendingEmailChange.TokenMatchesUserPendingEmail(user, activeToken.PendingEmail))
+                {
+                    throw new ValidationException(InvalidTokenMessage);
+                }
+
+                var pendingEmail = activeToken.PendingEmail.Trim();
                 var normalizedPendingEmail = UserEmailNormalizer.Normalize(pendingEmail);
                 if (await userRepository.ExistsByNormalizedEmailAsync(normalizedPendingEmail, ct))
                 {
                     throw new ValidationException(InvalidTokenMessage);
                 }
 
+                if (!await emailVerificationTokenRepository.TryMarkTokenUsedAsync(activeToken.TokenId, utcNow, ct))
+                {
+                    throw new ValidationException(InvalidTokenMessage);
+                }
+
                 previousEmailForNotification = user.Email;
                 completedPendingEmail = pendingEmail;
-                notificationContentLocale = consumedToken.ContentLocale;
+                notificationContentLocale = activeToken.ContentLocale;
 
                 user.ChangeEmail(pendingEmail, normalizedPendingEmail, utcNow);
+                user.ClearPendingEmailChange(utcNow);
                 user.MarkEmailVerified(utcNow);
             }
-            else if (!user.IsEmailVerified)
+            else
             {
-                user.MarkEmailVerified(utcNow);
+                if (!await emailVerificationTokenRepository.TryMarkTokenUsedAsync(activeToken.TokenId, utcNow, ct))
+                {
+                    throw new ValidationException(InvalidTokenMessage);
+                }
+
+                if (!user.IsEmailVerified)
+                {
+                    user.MarkEmailVerified(utcNow);
+                }
             }
 
             user.RecordSuccessfulLogin(utcNow);
             await userRepository.UpdateAsync(user, ct);
 
-            if (!string.IsNullOrWhiteSpace(consumedToken.PendingEmail))
+            if (!string.IsNullOrWhiteSpace(completedPendingEmail))
             {
                 await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, ct);
             }

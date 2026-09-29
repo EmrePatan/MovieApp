@@ -16,6 +16,7 @@ namespace MovieApp.Application.Services.Identity;
 
 public sealed class UserCredentialMethodsService(
     ICurrentUser currentUser,
+    IApplicationDbContext applicationDbContext,
     IUserRepository userRepository,
     IUserExternalLoginRepository externalLoginRepository,
     IAccountReauthenticationService accountReauthenticationService,
@@ -194,49 +195,28 @@ public sealed class UserCredentialMethodsService(
         }
 
         var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(command.ContentLocale);
-        var utcNow = DateTime.UtcNow;
+        var trimmedPendingEmail = command.NewEmail.Trim();
+        EmailVerificationToken? verificationToken = null;
 
-        await emailVerificationTokenRepository.InvalidateUnusedPendingEmailChangeTokensForUserAsync(
-            user.Id,
-            utcNow,
-            cancellationToken);
-        await emailVerificationTokenRepository.InvalidateActiveTokensForUserAsync(user.Id, utcNow, cancellationToken);
-
-        var rawToken = PasswordResetTokenGenerator.GenerateToken();
-        var tokenHash = PasswordResetTokenHasher.HashToken(rawToken);
-        var lifetime = TimeSpan.FromMinutes(
-            Math.Max(1, emailVerificationOptions.Value.TokenLifetimeMinutes));
-
-        var verificationToken = new EmailVerificationToken
+        await applicationDbContext.ExecuteInTransactionAsync(async ct =>
         {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            TokenHash = tokenHash,
-            CreatedAtUtc = utcNow,
-            ExpiresAtUtc = utcNow.Add(lifetime),
-            ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken),
-            ContentLocale = normalizedContentLocale,
-            PendingEmail = command.NewEmail.Trim(),
-        };
+            var lockedUser = await userRepository.GetByIdForUpdateAsync(user.Id, ct);
+            if (lockedUser is null || !lockedUser.IsActive)
+            {
+                throw new NotFoundException("The authenticated user was not found.");
+            }
 
-        await emailVerificationTokenRepository.CreateAsync(verificationToken, cancellationToken);
+            lockedUser.SetPendingEmailChange(trimmedPendingEmail, DateTime.UtcNow);
+            await userRepository.UpdateAsync(lockedUser, ct);
 
-        try
-        {
-            await deliveryEnqueuer.EnqueueAsync(verificationToken.Id, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            EmailVerificationLogMessages.LogDeliveryEnqueueFailed(
-                logger,
-                verificationToken.Id,
-                user.Id,
-                exception.GetType().Name);
-        }
+            verificationToken = await CreatePendingEmailVerificationTokenAsync(
+                lockedUser.Id,
+                trimmedPendingEmail,
+                normalizedContentLocale,
+                ct);
+        }, cancellationToken);
+
+        await EnqueueVerificationDeliveryAsync(verificationToken!, user.Id, cancellationToken);
 
         CredentialMethodsLogMessages.LogEmailChangeRequested(logger, user.Id);
         return new MessageResult(EmailChangeRequestedMessage);
@@ -247,12 +227,7 @@ public sealed class UserCredentialMethodsService(
         CancellationToken cancellationToken = default)
     {
         var user = await GetCurrentUserForUpdateAsync(cancellationToken);
-        var utcNow = DateTime.UtcNow;
-        var pendingEmail = await PendingEmailChangeIntentHelper.ResolveForUserAsync(
-            emailVerificationTokenRepository,
-            user,
-            cancellationToken);
-
+        var pendingEmail = UserPendingEmailChange.GetDisplayPendingEmail(user);
         if (string.IsNullOrWhiteSpace(pendingEmail))
         {
             throw new ValidationException(
@@ -261,30 +236,77 @@ public sealed class UserCredentialMethodsService(
         }
 
         var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale);
+        EmailVerificationToken? verificationToken = null;
+
+        await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+        {
+            var lockedUser = await userRepository.GetByIdForUpdateAsync(user.Id, ct);
+            if (lockedUser is null || !lockedUser.IsActive)
+            {
+                throw new NotFoundException("The authenticated user was not found.");
+            }
+
+            var currentPendingEmail = UserPendingEmailChange.GetDisplayPendingEmail(lockedUser);
+            if (string.IsNullOrWhiteSpace(currentPendingEmail))
+            {
+                throw new ValidationException(
+                    "No pending email change was found.",
+                    AccountAuthenticationErrorCodes.NoPendingEmailChange);
+            }
+
+            verificationToken = await CreatePendingEmailVerificationTokenAsync(
+                lockedUser.Id,
+                currentPendingEmail,
+                normalizedContentLocale,
+                ct);
+        }, cancellationToken);
+
+        await EnqueueVerificationDeliveryAsync(verificationToken!, user.Id, cancellationToken);
+
+        CredentialMethodsLogMessages.LogPendingEmailChangeResent(logger, user.Id);
+        return new MessageResult(EmailChangeRequestedMessage);
+    }
+
+    private async Task<EmailVerificationToken> CreatePendingEmailVerificationTokenAsync(
+        Guid userId,
+        string pendingEmail,
+        string normalizedContentLocale,
+        CancellationToken cancellationToken)
+    {
+        var utcNow = DateTime.UtcNow;
         await emailVerificationTokenRepository.InvalidateUnusedPendingEmailChangeTokensForUserAsync(
-            user.Id,
+            userId,
             utcNow,
             cancellationToken);
+        await emailVerificationTokenRepository.InvalidateActiveTokensForUserAsync(userId, utcNow, cancellationToken);
 
         var rawToken = PasswordResetTokenGenerator.GenerateToken();
         var tokenHash = PasswordResetTokenHasher.HashToken(rawToken);
         var lifetime = TimeSpan.FromMinutes(
             Math.Max(1, emailVerificationOptions.Value.TokenLifetimeMinutes));
+        var trimmedPendingEmail = pendingEmail.Trim();
 
         var verificationToken = new EmailVerificationToken
         {
             Id = Guid.NewGuid(),
-            UserId = user.Id,
+            UserId = userId,
             TokenHash = tokenHash,
             CreatedAtUtc = utcNow,
             ExpiresAtUtc = utcNow.Add(lifetime),
             ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken),
             ContentLocale = normalizedContentLocale,
-            PendingEmail = pendingEmail.Trim(),
+            PendingEmail = trimmedPendingEmail,
         };
 
         await emailVerificationTokenRepository.CreateAsync(verificationToken, cancellationToken);
+        return verificationToken;
+    }
 
+    private async Task EnqueueVerificationDeliveryAsync(
+        EmailVerificationToken verificationToken,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
         try
         {
             await deliveryEnqueuer.EnqueueAsync(verificationToken.Id, cancellationToken);
@@ -298,26 +320,16 @@ public sealed class UserCredentialMethodsService(
             EmailVerificationLogMessages.LogDeliveryEnqueueFailed(
                 logger,
                 verificationToken.Id,
-                user.Id,
+                userId,
                 exception.GetType().Name);
         }
-
-        CredentialMethodsLogMessages.LogPendingEmailChangeResent(logger, user.Id);
-        return new MessageResult(EmailChangeRequestedMessage);
     }
 
-    private async Task<UserProfileResult> MapProfileAsync(
+    private static Task<UserProfileResult> MapProfileAsync(
         User user,
         IReadOnlyList<string> linkedProviders,
-        CancellationToken cancellationToken)
-    {
-        var pendingEmail = await PendingEmailChangeIntentHelper.ResolveForUserAsync(
-            emailVerificationTokenRepository,
-            user,
-            cancellationToken);
-
-        return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);
-    }
+        CancellationToken cancellationToken) =>
+        Task.FromResult(UserMapper.ToUserProfileResult(user, linkedProviders));
 
     private async Task<User> GetCurrentUserForUpdateAsync(CancellationToken cancellationToken)
     {

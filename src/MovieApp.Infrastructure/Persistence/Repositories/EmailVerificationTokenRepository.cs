@@ -12,33 +12,54 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
         DateTime utcNow,
         CancellationToken cancellationToken = default)
     {
-        var consumedRows = await dbContext.EmailVerificationTokens
+        var activeToken = await GetActiveTokenByHashAsync(tokenHash, utcNow, cancellationToken);
+        if (activeToken is null)
+        {
+            return null;
+        }
+
+        var marked = await TryMarkTokenUsedAsync(activeToken.TokenId, utcNow, cancellationToken);
+        return marked ? activeToken : null;
+    }
+
+    public async Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
+        string tokenHash,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        var activeToken = await dbContext.EmailVerificationTokens
+            .AsNoTracking()
             .Where(token =>
                 token.TokenHash == tokenHash &&
+                token.UsedAtUtc == null &&
+                token.ExpiresAtUtc > utcNow)
+            .Select(token => new { token.Id, token.UserId, token.PendingEmail, token.ContentLocale })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return activeToken is null
+            ? null
+            : new EmailVerificationTokenConsumptionResult(
+                activeToken.Id,
+                activeToken.UserId,
+                activeToken.PendingEmail,
+                activeToken.ContentLocale);
+    }
+
+    public async Task<bool> TryMarkTokenUsedAsync(
+        Guid tokenId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        var consumedRows = await dbContext.EmailVerificationTokens
+            .Where(token =>
+                token.Id == tokenId &&
                 token.UsedAtUtc == null &&
                 token.ExpiresAtUtc > utcNow)
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(token => token.UsedAtUtc, utcNow),
                 cancellationToken);
 
-        if (consumedRows == 0)
-        {
-            return null;
-        }
-
-        var consumedToken = await dbContext.EmailVerificationTokens
-            .AsNoTracking()
-            .Where(token => token.TokenHash == tokenHash)
-            .Select(token => new { token.Id, token.UserId, token.PendingEmail, token.ContentLocale })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return consumedToken is null
-            ? null
-            : new EmailVerificationTokenConsumptionResult(
-                consumedToken.Id,
-                consumedToken.UserId,
-                consumedToken.PendingEmail,
-                consumedToken.ContentLocale);
+        return consumedRows == 1;
     }
 
     public async Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)
@@ -97,22 +118,6 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
                     .SetProperty(token => token.DeliveryCompletedAtUtc, utcNow)
                     .SetProperty(token => token.ProtectedDeliverySecret, (string?)null),
                 cancellationToken);
-    }
-
-    public async Task<string?> GetPendingEmailChangeIntentForUserAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default)
-    {
-        return await dbContext.EmailVerificationTokens
-            .AsNoTracking()
-            .Where(token =>
-                token.UserId == userId &&
-                token.UsedAtUtc == null &&
-                token.PendingEmail != null &&
-                token.PendingEmail != string.Empty)
-            .OrderByDescending(token => token.CreatedAtUtc)
-            .Select(token => token.PendingEmail)
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(

@@ -23,6 +23,9 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(320);
 
+        builder.Property(user => user.PendingEmail)
+            .HasMaxLength(320);
+
         builder.Property(user => user.UserName)
             .IsRequired()
             .HasMaxLength(ConfigurationConstants.NameMaxLength);

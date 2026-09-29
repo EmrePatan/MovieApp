@@ -469,21 +469,17 @@ public sealed class EmailVerificationDeliveryTests
             return Task.CompletedTask;
         }
 
-        public Task<string?> GetPendingEmailChangeIntentForUserAsync(
-            Guid userId,
-            CancellationToken cancellationToken = default)
-        {
-            var pending = CreatedTokens
-                .Where(token =>
-                    token.UserId == userId &&
-                    token.UsedAtUtc is null &&
-                    !string.IsNullOrWhiteSpace(token.PendingEmail))
-                .OrderByDescending(token => token.CreatedAtUtc)
-                .Select(token => token.PendingEmail)
-                .FirstOrDefault();
+        public Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
+            string tokenHash,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
 
-            return Task.FromResult(pending);
-        }
+        public Task<bool> TryMarkTokenUsedAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
 
         public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
             Guid userId,

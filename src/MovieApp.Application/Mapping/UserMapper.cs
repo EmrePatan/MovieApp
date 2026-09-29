@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Services.Identity;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Application.Mapping;
@@ -15,8 +16,7 @@ public static class UserMapper
 
     public static UserProfileResult ToUserProfileResult(
         User user,
-        IReadOnlyList<string> linkedProviders,
-        string? pendingEmail = null) =>
+        IReadOnlyList<string> linkedProviders) =>
         new(
             user.Id,
             user.Email,
@@ -25,7 +25,7 @@ public static class UserMapper
             user.CreatedAt,
             user.HasPassword,
             linkedProviders,
-            pendingEmail);
+            UserPendingEmailChange.GetDisplayPendingEmail(user));
 
     public static TokenUserContext ToTokenUserContext(User user) =>
         new(user.Id, user.Email, user.SecurityStamp);

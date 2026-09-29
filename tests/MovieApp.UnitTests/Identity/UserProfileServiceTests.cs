@@ -281,7 +281,6 @@ public sealed class UserProfileServiceTests
             new FakeCurrentUser(user.Id),
             repository,
             externalLoginRepository,
-            new FakeEmailVerificationTokenRepository(),
             statisticsRepository,
             new FakeProfileStatisticsCache(),
             passwordHasher,
@@ -475,10 +474,17 @@ public sealed class UserProfileServiceTests
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task<string?> GetPendingEmailChangeIntentForUserAsync(
-            Guid userId,
+        public Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
+            string tokenHash,
+            DateTime utcNow,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(null);
+            Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
+
+        public Task<bool> TryMarkTokenUsedAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
 
         public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
             Guid userId,

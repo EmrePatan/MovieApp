@@ -10,6 +10,16 @@ public interface IEmailVerificationTokenRepository
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 
+    Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
+        string tokenHash,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> TryMarkTokenUsedAsync(
+        Guid tokenId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
+
     Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default);
 
     Task InvalidateActiveTokensForUserAsync(
@@ -25,10 +35,6 @@ public interface IEmailVerificationTokenRepository
     Task CompleteDeliveryAsync(
         Guid tokenId,
         DateTime utcNow,
-        CancellationToken cancellationToken = default);
-
-    Task<string?> GetPendingEmailChangeIntentForUserAsync(
-        Guid userId,
         CancellationToken cancellationToken = default);
 
     Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(

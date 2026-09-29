@@ -13,89 +13,95 @@ using Microsoft.Extensions.Options;
 
 namespace MovieApp.UnitTests.Identity;
 
-public sealed class PendingEmailChangeIntentTests
+public sealed class UserPendingEmailChangeTests
 {
     [Fact]
-    public async Task ProfilePendingEmailExistsWhileTokenActive()
+    public async Task RequestEmailChangeStoresPendingEmailOnUser()
     {
         var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        tokenRepository.SeedPendingToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(1));
+        var service = CreateCredentialService(user, new TrackingTokenRepository());
 
-        var profile = await CreateProfileService(user, tokenRepository).GetCurrentProfileAsync();
+        await service.RequestEmailChangeAsync(
+            new RequestEmailChangeCommand(
+                "new@example.com",
+                new AccountReauthenticationProof("StrongPassword123", null, null),
+                "en-US"));
 
-        Assert.Equal("new@example.com", profile.PendingEmail);
-    }
-
-    [Fact]
-    public async Task ProfilePendingEmailStillExistsAfterTokenExpires()
-    {
-        var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        tokenRepository.SeedPendingToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(-1));
-
-        var profile = await CreateProfileService(user, tokenRepository).GetCurrentProfileAsync();
-
-        Assert.Equal("new@example.com", profile.PendingEmail);
-    }
-
-    [Fact]
-    public async Task ResendAfterExpiryCreatesFreshTokenForSamePendingEmail()
-    {
-        var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        var expired = tokenRepository.SeedPendingToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(-1));
-        var service = CreateCredentialService(user, tokenRepository);
-
-        await service.ResendPendingEmailChangeAsync("en-US");
-
-        Assert.Equal(2, tokenRepository.CreatedTokens.Count);
-        Assert.NotNull(expired.UsedAtUtc);
-        Assert.Equal("new@example.com", tokenRepository.CreatedTokens[^1].PendingEmail);
-        Assert.True(tokenRepository.CreatedTokens[^1].ExpiresAtUtc > DateTime.UtcNow);
-    }
-
-    [Fact]
-    public async Task ExpiredTokenCannotBeConsumed()
-    {
-        var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        var expired = tokenRepository.SeedPendingToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(-1), "raw-expired");
-        var verifyService = CreateVerifyService(user, tokenRepository);
-
-        await Assert.ThrowsAsync<ValidationException>(() =>
-            verifyService.VerifyEmailAsync(new VerifyEmailRequest("raw-expired")));
-
-        Assert.Null(expired.UsedAtUtc);
+        Assert.Equal("new@example.com", user.PendingEmail);
         Assert.Equal("user@example.com", user.Email);
     }
 
     [Fact]
-    public async Task NewerPendingEmailReplacesOlderIntent()
+    public async Task ExpiredTokenDoesNotClearUserPendingEmail()
     {
         var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        var older = tokenRepository.SeedPendingToken(user.Id, "older@example.com", DateTime.UtcNow.AddHours(-1), "older-token");
+        user.SetPendingEmailChange("new@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(-1), "expired");
+
+        var profile = await CreateProfileService(user, tokenRepository).GetCurrentProfileAsync();
+
+        Assert.Equal("new@example.com", profile.PendingEmail);
+        Assert.Equal("new@example.com", user.PendingEmail);
+    }
+
+    [Fact]
+    public async Task ResendUsesUserPendingEmail()
+    {
+        var user = CreateVerifiedPasswordUser();
+        user.SetPendingEmailChange("new@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
         var service = CreateCredentialService(user, tokenRepository);
 
+        await service.ResendPendingEmailChangeAsync("en-US");
+
+        Assert.Equal("new@example.com", tokenRepository.CreatedTokens[^1].PendingEmail);
+    }
+
+    [Fact]
+    public async Task ResendCreatesFreshTokenAndOldTokenRemainsUnusable()
+    {
+        var user = CreateVerifiedPasswordUser();
+        user.SetPendingEmailChange("new@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
+        var expired = tokenRepository.SeedActiveToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(-1), "old-token");
+        var service = CreateCredentialService(user, tokenRepository);
+
+        await service.ResendPendingEmailChangeAsync("en-US");
+
+        Assert.NotNull(expired.UsedAtUtc);
+        Assert.Equal(2, tokenRepository.CreatedTokens.Count);
+        Assert.True(tokenRepository.CreatedTokens[^1].ExpiresAtUtc > DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task NewerRequestReplacesUserPendingEmail()
+    {
+        var user = CreateVerifiedPasswordUser();
+        var service = CreateCredentialService(user, new TrackingTokenRepository());
+
+        await service.RequestEmailChangeAsync(
+            new RequestEmailChangeCommand(
+                "older@example.com",
+                new AccountReauthenticationProof("StrongPassword123", null, null),
+                "en-US"));
         await service.RequestEmailChangeAsync(
             new RequestEmailChangeCommand(
                 "newer@example.com",
                 new AccountReauthenticationProof("StrongPassword123", null, null),
                 "en-US"));
 
-        Assert.NotNull(older.UsedAtUtc);
-        var profile = await CreateProfileService(user, tokenRepository).GetCurrentProfileAsync();
-        Assert.Equal("newer@example.com", profile.PendingEmail);
+        Assert.Equal("newer@example.com", user.PendingEmail);
     }
 
     [Fact]
-    public async Task OldExpiredLinkCannotApplyAfterNewerRequest()
+    public async Task OldTokenCannotVerifyAfterNewerRequest()
     {
         var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        tokenRepository.SeedPendingToken(user.Id, "older@example.com", DateTime.UtcNow.AddHours(-1), "older-token");
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "older@example.com", DateTime.UtcNow.AddHours(1), "older-token");
         var service = CreateCredentialService(user, tokenRepository);
+
         await service.RequestEmailChangeAsync(
             new RequestEmailChangeCommand(
                 "newer@example.com",
@@ -105,35 +111,116 @@ public sealed class PendingEmailChangeIntentTests
         var verifyService = CreateVerifyService(user, tokenRepository);
         await Assert.ThrowsAsync<ValidationException>(() =>
             verifyService.VerifyEmailAsync(new VerifyEmailRequest("older-token")));
+        Assert.Equal("user@example.com", user.Email);
     }
 
     [Fact]
-    public async Task SuccessfulVerificationClearsPendingState()
+    public async Task SuccessfulVerifyMovesPendingEmailToEmailAndClearsPending()
     {
         var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        tokenRepository.SeedPendingToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(1), "fresh-token");
+        user.SetPendingEmailChange("new@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(1), "fresh-token");
         var verifyService = CreateVerifyService(user, tokenRepository);
 
         await verifyService.VerifyEmailAsync(new VerifyEmailRequest("fresh-token"));
 
-        var profile = await CreateProfileService(user, tokenRepository).GetCurrentProfileAsync();
         Assert.Equal("new@example.com", user.Email);
+        Assert.Null(user.PendingEmail);
+        var profile = await CreateProfileService(user, tokenRepository).GetCurrentProfileAsync();
         Assert.Null(profile.PendingEmail);
     }
 
     [Fact]
-    public async Task ResendAfterSuccessfulVerificationReturnsNoPendingEmailChange()
+    public async Task ResendAfterSuccessfulVerifyReturnsNoPendingEmailChange()
     {
         var user = CreateVerifiedPasswordUser();
-        var tokenRepository = new IntentTrackingTokenRepository();
-        tokenRepository.SeedPendingToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(1), "fresh-token");
+        user.SetPendingEmailChange("new@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(1), "fresh-token");
         await CreateVerifyService(user, tokenRepository).VerifyEmailAsync(new VerifyEmailRequest("fresh-token"));
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() =>
             CreateCredentialService(user, tokenRepository).ResendPendingEmailChangeAsync("en-US"));
 
         Assert.Equal(AccountAuthenticationErrorCodes.NoPendingEmailChange, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task HistoricalTokenWithPendingEmailCannotChangeEmailWhenUserPendingIsNull()
+    {
+        var user = CreateVerifiedPasswordUser();
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "new@example.com", DateTime.UtcNow.AddHours(1), "stale-token");
+        var verifyService = CreateVerifyService(user, tokenRepository);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            verifyService.VerifyEmailAsync(new VerifyEmailRequest("stale-token")));
+
+        Assert.Equal("user@example.com", user.Email);
+        Assert.Null(user.PendingEmail);
+    }
+
+    [Fact]
+    public async Task TokenPendingEmailMismatchingUserPendingCannotChangeEmail()
+    {
+        var user = CreateVerifiedPasswordUser();
+        user.SetPendingEmailChange("newer@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "older@example.com", DateTime.UtcNow.AddHours(1), "mismatch-token");
+        var verifyService = CreateVerifyService(user, tokenRepository);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            verifyService.VerifyEmailAsync(new VerifyEmailRequest("mismatch-token")));
+
+        Assert.Equal("user@example.com", user.Email);
+        Assert.Equal("newer@example.com", user.PendingEmail);
+    }
+
+    [Fact]
+    public async Task SerializedReplacementRequestsLeaveOnlyLatestPendingEmail()
+    {
+        var user = CreateVerifiedPasswordUser();
+        var service = CreateCredentialService(user, new TrackingTokenRepository());
+
+        await service.RequestEmailChangeAsync(
+            new RequestEmailChangeCommand(
+                "first@example.com",
+                new AccountReauthenticationProof("StrongPassword123", null, null),
+                "en-US"));
+        await service.RequestEmailChangeAsync(
+            new RequestEmailChangeCommand(
+                "second@example.com",
+                new AccountReauthenticationProof("StrongPassword123", null, null),
+                "en-US"));
+        await service.RequestEmailChangeAsync(
+            new RequestEmailChangeCommand(
+                "third@example.com",
+                new AccountReauthenticationProof("StrongPassword123", null, null),
+                "en-US"));
+
+        Assert.Equal("third@example.com", user.PendingEmail);
+        var profile = await CreateProfileService(user, new TrackingTokenRepository()).GetCurrentProfileAsync();
+        Assert.Equal("third@example.com", profile.PendingEmail);
+    }
+
+    [Fact]
+    public async Task VerifyRejectsDuplicateEmailBeforeApplyingChange()
+    {
+        var user = CreateVerifiedPasswordUser();
+        user.SetPendingEmailChange("taken@example.com", DateTime.UtcNow);
+        var tokenRepository = new TrackingTokenRepository();
+        tokenRepository.SeedActiveToken(user.Id, "taken@example.com", DateTime.UtcNow.AddHours(1), "dup-token");
+        var verifyService = CreateVerifyService(
+            user,
+            tokenRepository,
+            existingNormalizedEmail: UserEmailNormalizer.Normalize("taken@example.com"));
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            verifyService.VerifyEmailAsync(new VerifyEmailRequest("dup-token")));
+
+        Assert.Equal("user@example.com", user.Email);
+        Assert.Equal("taken@example.com", user.PendingEmail);
     }
 
     private static User CreateVerifiedPasswordUser()
@@ -143,32 +230,26 @@ public sealed class PendingEmailChangeIntentTests
         return user;
     }
 
-    private static UserProfileService CreateProfileService(User user, IntentTrackingTokenRepository tokenRepository) =>
+    private static UserProfileService CreateProfileService(User user, TrackingTokenRepository tokenRepository) =>
         new(
             new FakeCurrentUser(user.Id),
             new FakeUserRepository(user),
             new FakeExternalLoginRepository(),
-            tokenRepository,
             new FakeStatisticsRepository(),
             new FakeProfileStatisticsCache(),
             new FakePasswordHasher(),
             new FakeAuthenticationSessionService(),
-            new AccountReauthenticationService(
-                new FakeExternalLoginRepository(),
-                new FakePasswordHasher(),
-                []));
+            new AccountReauthenticationService(new FakeExternalLoginRepository(), new FakePasswordHasher(), []));
 
     private static UserCredentialMethodsService CreateCredentialService(
         User user,
-        IntentTrackingTokenRepository tokenRepository) =>
+        TrackingTokenRepository tokenRepository) =>
         new(
             new FakeCurrentUser(user.Id),
+            new FakeApplicationDbContext(),
             new FakeUserRepository(user),
             new FakeExternalLoginRepository(),
-            new AccountReauthenticationService(
-                new FakeExternalLoginRepository(),
-                new FakePasswordHasher(),
-                []),
+            new AccountReauthenticationService(new FakeExternalLoginRepository(), new FakePasswordHasher(), []),
             new FakePasswordHasher(),
             new FakeAuthenticationSessionService(),
             tokenRepository,
@@ -177,24 +258,27 @@ public sealed class PendingEmailChangeIntentTests
             Options.Create(new EmailVerificationOptions { TokenLifetimeMinutes = 60 }),
             NullLogger<UserCredentialMethodsService>.Instance);
 
-    private static VerifyEmailService CreateVerifyService(User user, IntentTrackingTokenRepository tokenRepository) =>
+    private static VerifyEmailService CreateVerifyService(
+        User user,
+        TrackingTokenRepository tokenRepository,
+        string? existingNormalizedEmail = null) =>
         new(
             new FakeApplicationDbContext(),
-            new FakeUserRepository(user),
+            new FakeUserRepository(user, existingNormalizedEmail),
             tokenRepository,
             new FakeAuthenticationSessionService(),
             new FakeAccountEmailChangedNotificationSender(),
             NullLogger<VerifyEmailService>.Instance);
 
-    private sealed class IntentTrackingTokenRepository : IEmailVerificationTokenRepository
+    private sealed class TrackingTokenRepository : IEmailVerificationTokenRepository
     {
         public List<EmailVerificationToken> CreatedTokens { get; } = [];
 
-        public EmailVerificationToken SeedPendingToken(
+        public EmailVerificationToken SeedActiveToken(
             Guid userId,
             string pendingEmail,
             DateTime expiresAtUtc,
-            string rawToken = "token")
+            string rawToken)
         {
             var token = new EmailVerificationToken
             {
@@ -215,19 +299,47 @@ public sealed class PendingEmailChangeIntentTests
             DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
-            var token = CreatedTokens.FirstOrDefault(item => item.TokenHash == tokenHash);
-            if (token is null || token.UsedAtUtc is not null || token.ExpiresAtUtc <= utcNow)
+            var active = GetActiveTokenByHashAsync(tokenHash, utcNow, cancellationToken).Result;
+            if (active is null || !TryMarkTokenUsedAsync(active.TokenId, utcNow, cancellationToken).Result)
             {
                 return Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
             }
 
-            token.UsedAtUtc = utcNow;
-            return Task.FromResult<EmailVerificationTokenConsumptionResult?>(
-                new EmailVerificationTokenConsumptionResult(
+            return Task.FromResult<EmailVerificationTokenConsumptionResult?>(active);
+        }
+
+        public Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
+            string tokenHash,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var token = CreatedTokens.FirstOrDefault(item =>
+                item.TokenHash == tokenHash &&
+                item.UsedAtUtc is null &&
+                item.ExpiresAtUtc > utcNow);
+
+            return Task.FromResult(token is null
+                ? null
+                : new EmailVerificationTokenConsumptionResult(
                     token.Id,
                     token.UserId,
                     token.PendingEmail,
                     token.ContentLocale));
+        }
+
+        public Task<bool> TryMarkTokenUsedAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var token = CreatedTokens.FirstOrDefault(item => item.Id == tokenId);
+            if (token is null || token.UsedAtUtc is not null || token.ExpiresAtUtc <= utcNow)
+            {
+                return Task.FromResult(false);
+            }
+
+            token.UsedAtUtc = utcNow;
+            return Task.FromResult(true);
         }
 
         public Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)
@@ -254,18 +366,6 @@ public sealed class PendingEmailChangeIntentTests
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task<string?> GetPendingEmailChangeIntentForUserAsync(
-            Guid userId,
-            CancellationToken cancellationToken = default)
-        {
-            var pending = CreatedTokens
-                .Where(token => token.UserId == userId && token.UsedAtUtc is null && !string.IsNullOrWhiteSpace(token.PendingEmail))
-                .OrderByDescending(token => token.CreatedAtUtc)
-                .Select(token => token.PendingEmail)
-                .FirstOrDefault();
-            return Task.FromResult(pending);
-        }
-
         public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
             Guid userId,
             DateTime utcNow,
@@ -289,7 +389,7 @@ public sealed class PendingEmailChangeIntentTests
         public Guid? UserId => userId;
     }
 
-    private sealed class FakeUserRepository(User user) : IUserRepository
+    private sealed class FakeUserRepository(User user, string? existingNormalizedEmail = null) : IUserRepository
     {
         public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<User?>(user.Id == id ? user : null);
@@ -304,7 +404,10 @@ public sealed class PendingEmailChangeIntentTests
             Task.FromResult<User?>(null);
 
         public Task<bool> ExistsByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
+            Task.FromResult(
+                existingNormalizedEmail is not null &&
+                existingNormalizedEmail == normalizedEmail &&
+                user.NormalizedEmail != normalizedEmail);
 
         public Task<User> CreateAsync(User user, CancellationToken cancellationToken = default) =>
             Task.FromResult(user);
@@ -352,6 +455,16 @@ public sealed class PendingEmailChangeIntentTests
         public bool VerifyPassword(string password, string passwordHash) => password == "StrongPassword123";
     }
 
+    private sealed class FakeApplicationDbContext : IApplicationDbContext
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
+
+        public Task ExecuteInTransactionAsync(
+            Func<CancellationToken, Task> action,
+            CancellationToken cancellationToken = default) =>
+            action(cancellationToken);
+    }
+
     private sealed class FakeDeliverySecretProtector : IEmailVerificationDeliverySecretProtector
     {
         public string Protect(string rawToken) => rawToken;
@@ -362,13 +475,6 @@ public sealed class PendingEmailChangeIntentTests
     {
         public Task EnqueueAsync(Guid tokenId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
-    }
-
-    private sealed class FakeApplicationDbContext : IApplicationDbContext
-    {
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
-        public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken = default) =>
-            action(cancellationToken);
     }
 
     private sealed class FakeAccountEmailChangedNotificationSender : IAccountEmailChangedNotificationSender

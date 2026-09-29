@@ -10,6 +10,8 @@ public sealed class User
 
     public string NormalizedEmail { get; set; } = string.Empty;
 
+    public string? PendingEmail { get; set; }
+
     public string UserName { get; set; } = string.Empty;
 
     public string? PasswordHash { get; set; }
@@ -152,6 +154,25 @@ public sealed class User
         NormalizedEmail = normalizedEmail;
         EmailVerifiedAtUtc = null;
         RotateSecurityStamp(utcNow);
+    }
+
+    public void SetPendingEmailChange(string pendingEmail, DateTime utcNow)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("Inactive users cannot request an email change.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(pendingEmail);
+
+        PendingEmail = pendingEmail.Trim();
+        UpdatedAt = utcNow;
+    }
+
+    public void ClearPendingEmailChange(DateTime utcNow)
+    {
+        PendingEmail = null;
+        UpdatedAt = utcNow;
     }
 
     public void ChangePassword(string passwordHash, DateTime utcNow)

@@ -20,6 +20,13 @@ public sealed class UserRepository(
 
     public async Task<User?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        if (dbContext.Database.CurrentTransaction is not null)
+        {
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"""SELECT 1 FROM users WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
         return await dbContext.Users
             .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
     }
