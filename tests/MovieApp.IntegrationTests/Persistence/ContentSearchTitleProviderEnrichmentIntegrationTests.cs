@@ -74,8 +74,8 @@ public sealed class ContentSearchTitleProviderEnrichmentIntegrationTests
 
         var synchronizer = new ContentSearchTitleSynchronizer(context);
         var upsert = new CatalogProviderUpsertService(
-            new MovieRepository(context, synchronizer),
-            new TvShowRepository(context, synchronizer),
+            CatalogRepositoryTestFactory.CreateMovieRepository(context),
+            CatalogRepositoryTestFactory.CreateTvShowRepository(context),
             new NoOpKeywordIngestion(),
             new NoOpMovieCacheInvalidator(),
             synchronizer,

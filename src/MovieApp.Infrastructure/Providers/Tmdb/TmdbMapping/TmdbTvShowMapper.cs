@@ -22,7 +22,8 @@ internal static class TmdbTvShowMapper
             OriginalLanguage: result.OriginalLanguage,
             VoteAverage: result.VoteAverage,
             VoteCount: result.VoteCount,
-            Popularity: Convert.ToDecimal(result.Popularity));
+            Popularity: Convert.ToDecimal(result.Popularity),
+            GenreTmdbIds: result.GenreIds);
     }
 
     internal static TvShowProviderDetails ToDetails(TmdbTvDetailsResponseJson details)

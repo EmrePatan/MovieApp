@@ -15,4 +15,5 @@ public sealed record TvShowProviderSummary(
     decimal VoteAverage,
     int VoteCount,
     decimal Popularity = 0,
-    string? PrimaryOriginCountryCode = null);
+    string? PrimaryOriginCountryCode = null,
+    IReadOnlyList<int>? GenreTmdbIds = null);

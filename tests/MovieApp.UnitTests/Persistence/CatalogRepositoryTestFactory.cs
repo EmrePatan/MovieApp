@@ -6,8 +6,14 @@ namespace MovieApp.UnitTests.Persistence;
 internal static class CatalogRepositoryTestFactory
 {
     internal static MovieRepository CreateMovieRepository(ApplicationDbContext context) =>
-        new(context, new ContentSearchTitleSynchronizer(context));
+        new(
+            context,
+            new ContentSearchTitleSynchronizer(context),
+            new NoOpMovieCatalogDetailsCacheInvalidator());
 
     internal static TvShowRepository CreateTvShowRepository(ApplicationDbContext context) =>
-        new(context, new ContentSearchTitleSynchronizer(context));
+        new(
+            context,
+            new ContentSearchTitleSynchronizer(context),
+            new NoOpTvShowCatalogDetailsCacheInvalidator());
 }

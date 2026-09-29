@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
@@ -149,33 +150,100 @@ public sealed class MovieRepositoryTests
     }
 
     [Fact]
-    public async Task EnsureFromSummariesAsyncCreatesMinimalRowsWithoutGenres()
+    public async Task EnsureFromSummariesAsyncPersistsGenresForNewSummaryRow()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase($"movie-repository-summary-create-{Guid.NewGuid()}")
-            .Options;
-
-        await using var context = new ApplicationDbContext(options);
+        await using var context = CreateContext();
         var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
 
-        var resolved = await repository.EnsureFromSummariesAsync(
-        [
-            new MovieProviderSummary(
-                "fake-tmdb-54321",
-                54321,
-                null,
-                null,
-                "New Movie",
-                "Overview",
-                new DateOnly(2020, 1, 1),
-                "/poster.jpg",
-                7.5m,
-                50)
-        ]);
+        await repository.EnsureFromSummariesAsync([CreateSummary(54321, [28, 18])]);
 
-        Assert.True(resolved.ContainsKey(54321));
+        Assert.Equal(1, await context.Movies.CountAsync());
+        Assert.Equal(2, await context.MovieGenres.CountAsync());
+        var genreNames = await context.MovieGenres
+            .Join(context.Genres, link => link.GenreId, genre => genre.Id, (_, genre) => genre.Name)
+            .OrderBy(name => name)
+            .ToListAsync();
+        Assert.Equal(["Action", "Drama"], genreNames);
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncIgnoresUnknownGenreIds()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
+
+        await repository.EnsureFromSummariesAsync([CreateSummary(54322, [28, 999_999])]);
+
+        Assert.Equal(1, await context.MovieGenres.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncRepairsExistingGenreLessRow()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
+
+        await repository.EnsureFromSummariesAsync([CreateSummary(54323, genreIds: null)]);
+        Assert.Equal(0, await context.MovieGenres.CountAsync());
+
+        await repository.EnsureFromSummariesAsync([CreateSummary(54323, [80])]);
+
+        Assert.Equal(1, await context.MovieGenres.CountAsync());
+        var genreName = await context.MovieGenres
+            .Join(context.Genres, link => link.GenreId, genre => genre.Id, (_, genre) => genre.Name)
+            .SingleAsync();
+        Assert.Equal("Crime", genreName);
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncDoesNotReplaceExistingGenres()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
+
+        var existing = await repository.UpsertFromProviderAsync(
+            CreateDetails(tmdbId: 54324, imdbId: null, title: "Existing") with
+            {
+                Genres = ["Drama", "Thriller"]
+            });
+
+        await repository.EnsureFromSummariesAsync([CreateSummary(54324, [28])]);
+
+        var links = await context.MovieGenres.Where(link => link.MovieId == existing.Id).CountAsync();
+        Assert.Equal(2, links);
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncDoesNotDuplicateGenreLinksOnRepeatIngestion()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
+        var summary = CreateSummary(54325, [28, 18]);
+
+        await repository.EnsureFromSummariesAsync([summary]);
+        await repository.EnsureFromSummariesAsync([summary]);
+
+        Assert.Equal(2, await context.MovieGenres.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncAllowsEmptyGenreIds()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateMovieRepository(context);
+
+        await repository.EnsureFromSummariesAsync([CreateSummary(54326, [])]);
+
         Assert.Equal(1, await context.Movies.CountAsync());
         Assert.Equal(0, await context.MovieGenres.CountAsync());
+    }
+
+    [Fact]
+    public void MapMovieTmdbIdsToGenreNamesUsesMovieGenreMapping()
+    {
+        var names = TmdbGenreIdMap.MapMovieTmdbIdsToGenreNames([28, 878]);
+
+        Assert.Equal(["Action", "Science Fiction"], names);
     }
 
     [Fact]
@@ -242,6 +310,29 @@ public sealed class MovieRepositoryTests
         Assert.Null(updated.CollectionPosterPath);
         Assert.Null(updated.CollectionBackdropPath);
     }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"movie-repository-summary-{Guid.NewGuid()}")
+            .Options;
+
+        return new ApplicationDbContext(options);
+    }
+
+    private static MovieProviderSummary CreateSummary(int tmdbId, IReadOnlyList<int>? genreIds) =>
+        new(
+            $"fake-tmdb-{tmdbId}",
+            tmdbId,
+            null,
+            null,
+            "New Movie",
+            "Overview",
+            new DateOnly(2020, 1, 1),
+            "/poster.jpg",
+            7.5m,
+            50,
+            GenreTmdbIds: genreIds);
 
     private static MovieProviderDetails CreateDetails(int tmdbId, string? imdbId, string title) =>
         new(

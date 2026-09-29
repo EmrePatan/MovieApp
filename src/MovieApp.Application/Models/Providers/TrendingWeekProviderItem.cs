@@ -10,4 +10,5 @@ public sealed record TrendingWeekProviderItem(
     string? PosterPath,
     string? BackdropPath,
     decimal VoteAverage,
-    int VoteCount);
+    int VoteCount,
+    IReadOnlyList<int>? GenreTmdbIds = null);

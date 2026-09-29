@@ -218,8 +218,8 @@ public sealed class LibraryKeysetPaginationIntegrationTests
             new LibraryRepository(context),
             new FixedCurrentUser(userId),
             new ContentLocalizedPosterRepository(context),
-            new MovieRepository(context, new NoOpContentSearchTitleSynchronizer()),
-            new TvShowRepository(context, new NoOpContentSearchTitleSynchronizer()),
+            CatalogRepositoryTestFactory.CreateMovieRepository(context),
+            CatalogRepositoryTestFactory.CreateTvShowRepository(context),
             NullLogger<LibraryService>.Instance);
 
     private static async Task<Guid> SeedUserAsync(ApplicationDbContext context, string userName)

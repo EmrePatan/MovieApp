@@ -18,7 +18,8 @@ internal static class TrendingWeekCatalogMapper
             item.ReleaseDate,
             item.PosterPath,
             item.VoteAverage,
-            item.VoteCount);
+            item.VoteCount,
+            GenreTmdbIds: item.GenreTmdbIds);
 
     internal static TvShowProviderSummary ToTvSummary(TrendingWeekProviderItem item) =>
         new(
@@ -34,7 +35,8 @@ internal static class TrendingWeekCatalogMapper
             item.BackdropPath,
             null,
             item.VoteAverage,
-            item.VoteCount);
+            item.VoteCount,
+            GenreTmdbIds: item.GenreTmdbIds);
 
     internal static List<SearchItem> MapOrderedItems(
         IReadOnlyList<TrendingWeekProviderItem> providerItems,

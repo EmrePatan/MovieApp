@@ -14,4 +14,5 @@ public sealed record MovieProviderSummary(
     string? OriginalTitle = null,
     decimal Popularity = 0,
     string? OriginalLanguage = null,
-    string? PrimaryOriginCountryCode = null);
+    string? PrimaryOriginCountryCode = null,
+    IReadOnlyList<int>? GenreTmdbIds = null);

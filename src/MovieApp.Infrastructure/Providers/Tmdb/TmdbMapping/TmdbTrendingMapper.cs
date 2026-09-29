@@ -40,6 +40,7 @@ internal static class TmdbTrendingMapper
             TmdbMovieMapper.NormalizeImagePath(result.PosterPath),
             TmdbMovieMapper.NormalizeImagePath(result.BackdropPath),
             result.VoteAverage,
-            result.VoteCount);
+            result.VoteCount,
+            result.GenreIds);
     }
 }

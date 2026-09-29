@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 internal sealed class TmdbTvSearchResponseJson
@@ -34,4 +36,7 @@ internal sealed class TmdbTvSearchResultJson
     public int VoteCount { get; set; }
 
     public double Popularity { get; set; }
+
+    [JsonPropertyName("genre_ids")]
+    public List<int> GenreIds { get; set; } = [];
 }

@@ -69,6 +69,50 @@ public static class TmdbGenreIdMap
     public static IReadOnlyList<int> MapGenreNamesToTvIds(IEnumerable<string> genreNames) =>
         MapGenreNames(genreNames, TryGetTvGenreId);
 
+    public static IReadOnlyList<string> MapMovieTmdbIdsToGenreNames(IEnumerable<int> tmdbGenreIds) =>
+        MapTmdbIdsToGenreNames(tmdbGenreIds, MovieTmdbIdToCanonicalName);
+
+    public static IReadOnlyList<string> MapTvTmdbIdsToGenreNames(IEnumerable<int> tmdbGenreIds) =>
+        MapTmdbIdsToGenreNames(tmdbGenreIds, TvTmdbIdToCanonicalName);
+
+    private static readonly Dictionary<int, string> MovieTmdbIdToCanonicalName =
+        BuildTmdbIdToCanonicalNameMap(MovieGenreIds);
+
+    private static readonly Dictionary<int, string> TvTmdbIdToCanonicalName =
+        BuildTmdbIdToCanonicalNameMap(TvGenreIds);
+
+    private static Dictionary<int, string> BuildTmdbIdToCanonicalNameMap(Dictionary<string, int> genreIdsByName)
+    {
+        var map = new Dictionary<int, string>();
+        foreach (var (name, tmdbGenreId) in genreIdsByName)
+        {
+            map.TryAdd(tmdbGenreId, name);
+        }
+
+        return map;
+    }
+
+    private static List<string> MapTmdbIdsToGenreNames(
+        IEnumerable<int> tmdbGenreIds,
+        Dictionary<int, string> canonicalNamesByTmdbId)
+    {
+        var names = new List<string>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tmdbGenreId in tmdbGenreIds)
+        {
+            if (!canonicalNamesByTmdbId.TryGetValue(tmdbGenreId, out var genreName) ||
+                !seenNames.Add(genreName))
+            {
+                continue;
+            }
+
+            names.Add(genreName);
+        }
+
+        return names;
+    }
+
     private static List<int> MapGenreNames(
         IEnumerable<string> genreNames,
         TryGetGenreId tryGetGenreId)

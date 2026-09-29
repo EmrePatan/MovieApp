@@ -22,7 +22,8 @@ internal static class TmdbMovieMapper
             VoteCount: result.VoteCount,
             OriginalTitle: result.OriginalTitle,
             Popularity: Convert.ToDecimal(result.Popularity),
-            OriginalLanguage: result.OriginalLanguage);
+            OriginalLanguage: result.OriginalLanguage,
+            GenreTmdbIds: result.GenreIds);
     }
 
     internal static MovieProviderDetails ToDetails(TmdbMovieDetailsResponseJson details)

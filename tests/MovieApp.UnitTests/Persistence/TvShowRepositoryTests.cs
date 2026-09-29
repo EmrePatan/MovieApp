@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Enums;
@@ -123,38 +124,75 @@ public sealed class TvShowRepositoryTests
     }
 
     [Fact]
-    public async Task EnsureFromSummariesAsyncCreatesMinimalRowsWithoutSeasonsOrGenres()
+    public async Task EnsureFromSummariesAsyncPersistsGenresForNewSummaryRow()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase($"tvshow-repository-summary-create-{Guid.NewGuid()}")
-            .Options;
-
-        await using var context = new ApplicationDbContext(options);
+        await using var context = CreateContext();
         var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
 
-        var resolved = await repository.EnsureFromSummariesAsync(
-        [
-            new TvShowProviderSummary(
-                "fake-tv-777777",
-                777777,
-                null,
-                null,
-                "New Show",
-                null,
-                "Overview",
-                new DateOnly(2021, 1, 1),
-                "/poster.jpg",
-                null,
-                "en",
-                7m,
-                20)
-        ]);
+        await repository.EnsureFromSummariesAsync([CreateSummary(777777, [10762, 18])]);
 
-        Assert.True(resolved.ContainsKey(777777));
         Assert.Equal(1, await context.TvShows.CountAsync());
-        Assert.Equal(0, await context.TvShowGenres.CountAsync());
         Assert.Equal(0, await context.Seasons.CountAsync());
+        Assert.Equal(2, await context.TvShowGenres.CountAsync());
     }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncRepairsExistingGenreLessTvRow()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
+
+        await repository.EnsureFromSummariesAsync([CreateSummary(777778, null)]);
+        await repository.EnsureFromSummariesAsync([CreateSummary(777778, [80])]);
+
+        Assert.Equal(1, await context.TvShowGenres.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureFromSummariesAsyncDoesNotReplaceExistingTvGenres()
+    {
+        await using var context = CreateContext();
+        var repository = CatalogRepositoryTestFactory.CreateTvShowRepository(context);
+
+        var existing = await repository.UpsertFromProviderAsync(CreateBreakingBadDetails());
+        await repository.EnsureFromSummariesAsync([CreateSummary(900101, [10762])]);
+
+        Assert.Equal(3, await context.TvShowGenres.CountAsync(link => link.TvShowId == existing.Id));
+    }
+
+    [Fact]
+    public void MapTvTmdbIdsToGenreNamesUsesTvGenreMapping()
+    {
+        var names = TmdbGenreIdMap.MapTvTmdbIdsToGenreNames([10762]);
+
+        Assert.Equal(["Kids"], names);
+    }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"tvshow-repository-summary-{Guid.NewGuid()}")
+            .Options;
+
+        return new ApplicationDbContext(options);
+    }
+
+    private static TvShowProviderSummary CreateSummary(int tmdbId, IReadOnlyList<int>? genreIds) =>
+        new(
+            $"fake-tv-{tmdbId}",
+            tmdbId,
+            null,
+            null,
+            "New Show",
+            null,
+            "Overview",
+            new DateOnly(2021, 1, 1),
+            "/poster.jpg",
+            null,
+            "en",
+            7m,
+            20,
+            GenreTmdbIds: genreIds);
 
     private static TvShowProviderDetails CreateBreakingBadDetails() =>
         new(

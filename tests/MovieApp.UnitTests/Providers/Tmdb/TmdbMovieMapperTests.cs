@@ -27,6 +27,19 @@ public sealed class TmdbMovieMapperTests
     }
 
     [Fact]
+    public void ToSummaryMapsGenreIdsFromSearchResult()
+    {
+        var result = TmdbMovieMapper.ToSummary(new TmdbMovieSearchResultJson
+        {
+            Id = 157336,
+            Title = "Interstellar",
+            GenreIds = [28, 18, 878]
+        });
+
+        Assert.Equal([28, 18, 878], result.GenreTmdbIds);
+    }
+
+    [Fact]
     public void ToDetailsMapsMovieDetailsAndExternalIds()
     {
         var details = TmdbMovieMapper.ToDetails(new TmdbMovieDetailsResponseJson

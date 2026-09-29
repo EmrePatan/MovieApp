@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 internal sealed class TmdbTrendingResponseJson
@@ -34,4 +36,7 @@ internal sealed class TmdbTrendingResultJson
     public decimal VoteAverage { get; set; }
 
     public int VoteCount { get; set; }
+
+    [JsonPropertyName("genre_ids")]
+    public List<int> GenreIds { get; set; } = [];
 }

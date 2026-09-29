@@ -1,18 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Models.Changes;
-using MovieApp.Infrastructure.Persistence;
-using MovieApp.Infrastructure.Persistence.Repositories;
 
-namespace MovieApp.IntegrationTests.Persistence;
-
-internal static class CatalogRepositoryTestFactory
-{
-    internal static MovieRepository CreateMovieRepository(ApplicationDbContext context) =>
-        new(context, new ContentSearchTitleSynchronizer(context), new NoOpMovieCatalogDetailsCacheInvalidator());
-
-    internal static TvShowRepository CreateTvShowRepository(ApplicationDbContext context) =>
-        new(context, new ContentSearchTitleSynchronizer(context), new NoOpTvShowCatalogDetailsCacheInvalidator());
-}
+namespace MovieApp.UnitTests.Persistence;
 
 internal sealed class NoOpMovieCatalogDetailsCacheInvalidator : IMovieCatalogDetailsCacheInvalidator
 {
