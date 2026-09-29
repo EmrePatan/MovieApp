@@ -31,7 +31,7 @@ public sealed class GetTvShowWatchProvidersService(
         var cached = await cacheService.GetAsync<WatchProvidersCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
-            return cached.Result;
+            return TitleWatchProvidersPresentationFilter.Apply(cached.Result);
         }
 
         var lookup = await tvShowRepository.GetProviderLookupByIdAsync(tvShowId, cancellationToken);
@@ -45,10 +45,11 @@ public sealed class GetTvShowWatchProvidersService(
             return new WatchProvidersResult(normalizedRegion, [], null);
         }
 
-        var providers = await watchProviderService.GetTvShowWatchProvidersAsync(
-            lookup.TmdbId.Value,
-            normalizedRegion,
-            cancellationToken);
+        var providers = TitleWatchProvidersPresentationFilter.Apply(
+            await watchProviderService.GetTvShowWatchProvidersAsync(
+                lookup.TmdbId.Value,
+                normalizedRegion,
+                cancellationToken));
 
         await cacheService.SetAsync(
             cacheKey,

@@ -31,7 +31,7 @@ public sealed class GetMovieWatchProvidersService(
         var cached = await cacheService.GetAsync<WatchProvidersCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
-            return cached.Result;
+            return TitleWatchProvidersPresentationFilter.Apply(cached.Result);
         }
 
         var lookup = await movieRepository.GetProviderLookupByIdAsync(movieId, cancellationToken);
@@ -45,10 +45,11 @@ public sealed class GetMovieWatchProvidersService(
             return new WatchProvidersResult(normalizedRegion, [], null);
         }
 
-        var providers = await watchProviderService.GetMovieWatchProvidersAsync(
-            lookup.TmdbId.Value,
-            normalizedRegion,
-            cancellationToken);
+        var providers = TitleWatchProvidersPresentationFilter.Apply(
+            await watchProviderService.GetMovieWatchProvidersAsync(
+                lookup.TmdbId.Value,
+                normalizedRegion,
+                cancellationToken));
 
         await cacheService.SetAsync(
             cacheKey,
