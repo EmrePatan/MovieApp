@@ -483,6 +483,152 @@ public sealed class PersonalizedRecommendationEngineTests
     }
 
     [Fact]
+    public void SelectHomeRecommendedSeparatesSamePrimaryGenreWhenADifferentGenreIsEligibleLater()
+    {
+        var actionGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var comedyGenreId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var pool = new List<RecommendationItem>
+        {
+            CreateRailItem(1, actionGenreId, 0.90m),
+            CreateRailItem(2, actionGenreId, 0.80m),
+            CreateRailItem(3, comedyGenreId, 0.70m)
+        };
+
+        var rail = PersonalizedRecommendationEngine.SelectHomeRecommended(pool, DefaultOptions, sectionSize: 3);
+
+        Assert.Equal([pool[0].Id, pool[2].Id, pool[1].Id], rail.Select(item => item.Id).ToArray());
+        Assert.NotEqual(rail[0].DiversityGenreIds![0], rail[1].DiversityGenreIds![0]);
+        Assert.Equal(pool[0].Id, rail[0].Id);
+    }
+
+    [Fact]
+    public void SelectHomeRecommendedKeepsScoreOrderWhenPrimaryGenresAlreadyDiffer()
+    {
+        var actionGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var comedyGenreId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var dramaGenreId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var pool = new List<RecommendationItem>
+        {
+            CreateRailItem(1, actionGenreId, 0.90m),
+            CreateRailItem(2, comedyGenreId, 0.80m),
+            CreateRailItem(3, dramaGenreId, 0.70m)
+        };
+
+        var rail = PersonalizedRecommendationEngine.SelectHomeRecommended(pool, DefaultOptions, sectionSize: 3);
+
+        Assert.Equal(pool.Select(item => item.Id).ToArray(), rail.Select(item => item.Id).ToArray());
+    }
+
+    [Fact]
+    public void SelectHomeRecommendedBackfillsSectionSizeFromLowerScoredPoolItems()
+    {
+        const int collectionId = 86311;
+        var pool = new List<RecommendationItem>();
+        for (var index = 0; index < 6; index++)
+        {
+            pool.Add(CreateRailItem(
+                index + 1,
+                Guid.NewGuid(),
+                0.95m - (index * 0.01m),
+                collectionId));
+        }
+
+        for (var index = 0; index < 9; index++)
+        {
+            pool.Add(CreateRailItem(
+                100 + index,
+                Guid.NewGuid(),
+                0.40m - (index * 0.01m)));
+        }
+
+        var rail = PersonalizedRecommendationEngine.SelectHomeRecommended(pool, DefaultOptions, sectionSize: 10);
+
+        Assert.Equal(10, rail.Count);
+        Assert.Equal(1, rail.Count(item => item.TmdbCollectionId == collectionId));
+        Assert.Contains(rail, item => item.Score < 0.5m);
+        Assert.All(rail, item => Assert.Contains(pool, candidate => candidate.Id == item.Id));
+        Assert.DoesNotContain(rail, item => item.Id == pool[1].Id);
+    }
+
+    [Fact]
+    public void SelectHomeRecommendedDoesNotInventItemsOutsideTheScoredPool()
+    {
+        var pool = Enumerable.Range(0, 4)
+            .Select(index => CreateRailItem(index + 1, Guid.NewGuid(), 0.90m - (index * 0.01m)))
+            .ToList();
+        var outsideId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+
+        var rail = PersonalizedRecommendationEngine.SelectHomeRecommended(pool, DefaultOptions, sectionSize: 10);
+
+        Assert.Equal(4, rail.Count);
+        Assert.Equal(pool.Select(item => item.Id).ToArray(), rail.Select(item => item.Id).ToArray());
+        Assert.DoesNotContain(rail, item => item.Id == outsideId);
+    }
+
+    [Fact]
+    public void SelectHomeRecommendedStaysShortWhenCapsExhaustTheScoredPool()
+    {
+        var actionGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var pool = Enumerable.Range(0, 12)
+            .Select(index => CreateRailItem(index + 1, actionGenreId, 0.90m - (index * 0.01m)))
+            .ToList();
+
+        var rail = PersonalizedRecommendationEngine.SelectHomeRecommended(pool, DefaultOptions, sectionSize: 10);
+
+        Assert.Equal(DefaultOptions.DiversityMaxPerGenre, rail.Count);
+        Assert.All(rail, item => Assert.Contains(pool, candidate => candidate.Id == item.Id));
+        Assert.Equal(pool.Take(DefaultOptions.DiversityMaxPerGenre).Select(item => item.Id).ToArray(), rail.Select(item => item.Id).ToArray());
+    }
+
+    [Fact]
+    public void SelectHomeRecommendedKeepsCollectionCapOfOneAndFranchiseCapOfTwo()
+    {
+        const int collectionId = 42;
+        var franchiseKeywordId = Guid.Parse("abababab-abab-abab-abab-abababababab");
+        var pool = new List<RecommendationItem>();
+
+        for (var index = 0; index < 3; index++)
+        {
+            pool.Add(CreateRailItem(
+                index + 1,
+                Guid.NewGuid(),
+                0.99m - (index * 0.01m),
+                collectionId));
+        }
+
+        for (var index = 0; index < 4; index++)
+        {
+            pool.Add(CreateRailItem(
+                20 + index,
+                Guid.NewGuid(),
+                0.90m - (index * 0.01m),
+                collectionId: 5000 + index,
+                franchiseKeywordId: franchiseKeywordId));
+        }
+
+        for (var index = 0; index < 10; index++)
+        {
+            pool.Add(CreateRailItem(
+                40 + index,
+                Guid.NewGuid(),
+                0.50m - (index * 0.01m),
+                collectionId: 8000 + index));
+        }
+
+        var rail = PersonalizedRecommendationEngine.SelectHomeRecommended(pool, DefaultOptions, sectionSize: 10);
+
+        Assert.Equal(10, rail.Count);
+        Assert.Equal(1, rail.Count(item => item.TmdbCollectionId == collectionId));
+        Assert.Equal(2, rail.Count(item => item.FranchiseKeywordIds?.Contains(franchiseKeywordId) == true));
+        Assert.Equal(1, DefaultOptions.DiversityMaxPerCollection);
+        Assert.Equal(2, DefaultOptions.DiversityMaxPerFranchiseFamily);
+        Assert.Equal(
+            ["marvel cinematic universe", "dc extended universe", "star wars", "james bond"],
+            DefaultOptions.DiversityFranchiseKeywordNames);
+        Assert.All(rail, item => Assert.Contains(pool, candidate => candidate.Id == item.Id));
+    }
+
+    [Fact]
     public void ScoreCandidatesPushesLowRatedGenreBelowLikedGenre()
     {
         var horrorGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -552,6 +698,30 @@ public sealed class PersonalizedRecommendationEngineTests
 
         Assert.Equal("Because you watched Strong Match", scored[0].Reason);
     }
+
+    private static RecommendationItem CreateRailItem(
+        int seed,
+        Guid genreId,
+        decimal score,
+        int? collectionId = null,
+        Guid? franchiseKeywordId = null) =>
+        new(
+            Guid.Parse($"dddddddd-dddd-dddd-dddd-{seed:D012}"),
+            "movie",
+            $"Title {seed}",
+            null,
+            null,
+            null,
+            null,
+            new DateOnly(2020, 1, 1),
+            8m,
+            100,
+            2020,
+            score,
+            null,
+            [genreId],
+            collectionId,
+            franchiseKeywordId is Guid keywordId ? [keywordId] : null);
 
     private static RecommendationOptions BehaviorOnlyOptions() =>
         new()

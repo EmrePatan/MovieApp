@@ -24,7 +24,7 @@ When two or more genres have positive taste, each keeps at least `CandidateMinPe
 
 ## Diversity (franchise and genre stacking)
 
-Caps are hard. Items that miss a cap are dropped. Score order is kept among items that pass. Nothing is shuffled back in.
+Caps are hard. Items that miss a cap are dropped. Score order is kept among items that pass, except a light primary-genre interleave: the same first genre id is not placed back-to-back when a later cap-passing title has a different primary genre. Nothing outside the scored pool is shuffled in.
 
 | Knob | Default | Effect on a rail of 10 |
 |---|---|---|
@@ -34,15 +34,15 @@ Caps are hard. Items that miss a cap are dropped. Score order is kept among item
 
 There is no production-company table. Franchise family uses exact catalog keyword names in `DiversityFranchiseKeywordNames` (case-insensitive, only when that keyword is synced): marvel cinematic universe, dc extended universe, star wars, james bond. Unmatched names do nothing. Collection cap covers direct sequels; the keyword cap covers cross-collection families such as the MCU.
 
-Home asks for `sectionSize + HeroSectionSize + HomeRecommendationSurplus` score-ordered items (defaults 10 + 10 + 10). It removes Hot This Week ids first, then applies the caps, then takes `sectionSize`. Overlap with the hero leaves the rail when anything else scored high enough remains. `/api/recommendations` and `/api/recommendations/home` still apply the same caps before pagination.
+Home asks for the full personalized scored pool (`MaximumCandidates`, at least the hero window of `sectionSize + HeroSectionSize + HomeRecommendationSurplus`). It removes Hot This Week ids first, applies the caps to that pool, lightly interleaves primary genres, then takes `sectionSize`. If the caps leave fewer than `sectionSize` titles, later items in the same scored pool that still pass the caps fill the rail. Global popular, trending, cold-start, and unscored catalog titles are not used as padding. Overlap with the hero leaves the rail when anything else scored high enough remains. `/api/recommendations` and `/api/recommendations/home` still apply the same caps before pagination, without the home interleave.
 
-A library that is almost entirely one genre can return a shorter rail. That is the cap working.
+A library that is almost entirely one genre, collection, or franchise can return a shorter rail. That is the cap working.
 
 ## Other
 
 - `PersonalizedPersonWeight` is unused. Movie hydration does not load cast, and behavior similarity passes empty person lists. Wiring it would only affect TV.
 - `Reason` is still not on `HomeItem` (mobile is unchanged). `/api/recommendations` reasons now use the strongest personal signal (genre, keyword, or behavior), not the first watched title in list order.
-- Personalized recommendation cache generation is `v5`. Home response cache is `v7`. The home recommendation key includes content type, result limit, and whether the payload is already diversified (`div`) or a raw surplus for hero removal (`raw`).
+- Personalized recommendation cache generation is `v6`. Home response cache is `v8`. The home recommendation key includes content type, result limit, and whether the payload is already diversified (`div`) or a raw surplus for hero removal (`raw`).
 
 ## Tests that lock the audit failures
 

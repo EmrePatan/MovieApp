@@ -507,17 +507,15 @@ public sealed class HomeService(
             ? recommended.Items
             : recommended.Items.Where(item => !heroIds.Contains(item.Id)).ToList();
 
-        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(
-            withoutHero,
-            _recommendationOptions);
+        var candidates = FilterRecommendationItems(withoutHero, criteria.Type);
+        var ranked = PersonalizedRecommendationEngine.SelectHomeRecommended(
+            candidates,
+            _recommendationOptions,
+            criteria.SectionSize);
 
-        var items = HomeSectionBuilders.DeduplicateItems(
-            diversified.Select(HomeMapper.FromRecommendationItem),
-            diversified.Count);
-
-        var filteredItems = HomeSectionBuilders.FilterByType(items, criteria.Type)
-            .Take(criteria.SectionSize)
-            .ToList();
+        var filteredItems = HomeSectionBuilders.DeduplicateItems(
+            ranked.Select(HomeMapper.FromRecommendationItem),
+            criteria.SectionSize);
 
         if (filteredItems.Count == 0)
         {
@@ -562,8 +560,24 @@ public sealed class HomeService(
         return orderedSections;
     }
 
-    private int RecommendationCandidateLimit(int sectionSize) =>
-        sectionSize + _options.HeroSectionSize + Math.Max(0, _recommendationOptions.HomeRecommendationSurplus);
+    private int RecommendationCandidateLimit(int sectionSize)
+    {
+        var heroWindow = sectionSize
+            + Math.Max(0, _options.HeroSectionSize)
+            + Math.Max(0, _recommendationOptions.HomeRecommendationSurplus);
+        var scoredPool = Math.Max(1, _recommendationOptions.MaximumCandidates);
+        return Math.Max(heroWindow, scoredPool);
+    }
+
+    private static IReadOnlyList<RecommendationItem> FilterRecommendationItems(
+        IReadOnlyList<RecommendationItem> items,
+        SearchContentType type) =>
+        type switch
+        {
+            SearchContentType.Movie => items.Where(item => item.Type == "movie").ToList(),
+            SearchContentType.Tv => items.Where(item => item.Type == "tv").ToList(),
+            _ => items
+        };
 
     private static RecommendationContentType MapRecommendationContentType(SearchContentType type) =>
         type switch
