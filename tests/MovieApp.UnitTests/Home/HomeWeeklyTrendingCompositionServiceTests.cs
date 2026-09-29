@@ -140,19 +140,22 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
     }
 
     [Fact]
-    public void SplitExcludesLowVoteAverageFromHeroButKeepsInTrending()
+    public void SplitIncludesLowVoteAverageInHeroInWeeklyOrder()
     {
         List<SearchItem> weekly =
         [
-            CreateEligibleItem("movie", 1, "Strong First", voteAverage: 8m),
-            CreateEligibleItem("movie", 2, "Weak Second", voteAverage: 6m),
-            CreateEligibleItem("movie", 3, "Strong Third", voteAverage: 7m),
+            CreateEligibleItem("movie", 1, "Resident Evil", voteAverage: 6.1m, voteCount: 12),
+            CreateEligibleItem("movie", 2, "High Rated Skip", voteAverage: 8.2m, backdropUrl: null),
+            CreateEligibleItem("movie", 3, "Futurama", voteAverage: 8.4m, voteCount: 5000),
+            CreateEligibleItem("movie", 4, "Another Hot", voteAverage: 5.9m, voteCount: 3),
         ];
 
-        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 3);
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 3, 4);
 
-        Assert.Equal(["Strong First", "Strong Third"], hero.Select(item => item.Title).ToList());
-        Assert.Equal(["Weak Second"], trending.Select(item => item.Title).ToList());
+        Assert.Equal(
+            ["Resident Evil", "Futurama", "Another Hot"],
+            hero.Select(item => item.Title).ToList());
+        Assert.Equal(["High Rated Skip"], trending.Select(item => item.Title).ToList());
     }
 
     [Fact]
@@ -172,19 +175,18 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
     }
 
     [Fact]
-    public void SplitExcludesLowVoteCountFromHeroButKeepsInTrending()
+    public void SplitIncludesLowVoteCountInHeroInWeeklyOrder()
     {
         List<SearchItem> weekly =
         [
-            CreateEligibleItem("movie", 1, "Confident"),
-            CreateEligibleItem("movie", 2, "Too Few Votes", voteCount: 10),
-            CreateEligibleItem("movie", 3, "Confident Two"),
+            CreateEligibleItem("movie", 1, "Hot Now", voteCount: 5),
+            CreateEligibleItem("movie", 2, "Also Hot", voteCount: 8),
         ];
 
         var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 3);
 
-        Assert.Equal(["Confident", "Confident Two"], hero.Select(item => item.Title).ToList());
-        Assert.Equal(["Too Few Votes"], trending.Select(item => item.Title).ToList());
+        Assert.Equal(["Hot Now", "Also Hot"], hero.Select(item => item.Title).ToList());
+        Assert.Empty(trending);
     }
 
     [Fact]
@@ -193,13 +195,13 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
         List<SearchItem> weekly =
         [
             CreateEligibleItem("movie", 1, "Only Hero"),
-            CreateEligibleItem("movie", 2, "Ineligible", voteAverage: 5m),
+            CreateEligibleItem("movie", 2, "No Backdrop", backdropUrl: null),
         ];
 
         var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 3, 5);
 
         Assert.Single(hero);
-        Assert.Equal(["Ineligible"], trending.Select(item => item.Title).ToList());
+        Assert.Equal(["No Backdrop"], trending.Select(item => item.Title).ToList());
     }
 
     [Fact]
@@ -208,7 +210,7 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
         List<SearchItem> weekly =
         [
             CreateEligibleItem("movie", 1, "Hero A"),
-            CreateEligibleItem("movie", 2, "Skip Hero", voteAverage: 5m),
+            CreateEligibleItem("movie", 2, "Not Hero", backdropUrl: null),
             CreateEligibleItem("movie", 3, "Hero B"),
             CreateEligibleItem("movie", 4, "Trend C", voteAverage: 5m),
             CreateEligibleItem("movie", 5, "Trend D"),
@@ -218,8 +220,24 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
 
         Assert.Equal(["Hero A", "Hero B"], hero.Select(item => item.Title).ToList());
         Assert.Equal(
-            ["Skip Hero", "Trend C", "Trend D"],
+            ["Not Hero", "Trend C", "Trend D"],
             trending.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public void SplitDoesNotPromoteHigherRatedItemAheadOfLowerRatedWeeklyItem()
+    {
+        List<SearchItem> weekly =
+        [
+            CreateEligibleItem("movie", 1, "Lower Rated First", voteAverage: 6m),
+            CreateEligibleItem("movie", 2, "Higher Rated Second", voteAverage: 9.5m),
+        ];
+
+        var (hero, _) = HomeWeeklyTrendingComposition.Split(weekly, 2, 2);
+
+        Assert.Equal(
+            ["Lower Rated First", "Higher Rated Second"],
+            hero.Select(item => item.Title).ToList());
     }
 
     [Fact]

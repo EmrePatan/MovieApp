@@ -4,10 +4,6 @@ namespace MovieApp.Application.Services.Home;
 
 internal static class HomeWeeklyTrendingComposition
 {
-    internal const int MinimumHeroVoteCount = 50;
-
-    internal const decimal MinimumHeroVoteAverage = 6.5m;
-
     internal static (List<SearchItem> HeroItems, List<SearchItem> TrendingItems) Split(
         IReadOnlyList<SearchItem> weeklyOrdered,
         int heroSize,
@@ -32,9 +28,7 @@ internal static class HomeWeeklyTrendingComposition
     }
 
     internal static bool IsHeroEligible(SearchItem item) =>
-        !string.IsNullOrWhiteSpace(item.BackdropUrl) &&
-        item.VoteAverage >= MinimumHeroVoteAverage &&
-        item.VoteCount >= MinimumHeroVoteCount;
+        !string.IsNullOrWhiteSpace(item.BackdropUrl);
 
     private static List<SearchItem> SelectHeroItems(IReadOnlyList<SearchItem> weeklyOrdered, int heroSize)
     {
