@@ -6,7 +6,6 @@ using MovieApp.Application.Models.Favorites;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Application.Services.Identity;
-using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Domain.Entities;
 using MovieApp.UnitTests.Caching;
 
