@@ -17,6 +17,8 @@ internal static class TmdbWatchProvidersMapper
         var merged = new Dictionary<int, ProviderAccumulator>();
 
         AddProviders(merged, regionData.Flatrate, WatchProviderAvailabilityType.Flatrate);
+        AddProviders(merged, regionData.Free, WatchProviderAvailabilityType.Free);
+        AddProviders(merged, regionData.Ads, WatchProviderAvailabilityType.Ads);
         AddProviders(merged, regionData.Rent, WatchProviderAvailabilityType.Rent);
         AddProviders(merged, regionData.Buy, WatchProviderAvailabilityType.Buy);
 

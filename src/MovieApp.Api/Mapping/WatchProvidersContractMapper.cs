@@ -24,6 +24,8 @@ public static class WatchProvidersContractMapper
         availabilityType switch
         {
             WatchProviderAvailabilityType.Flatrate => "flatrate",
+            WatchProviderAvailabilityType.Free => "free",
+            WatchProviderAvailabilityType.Ads => "ads",
             WatchProviderAvailabilityType.Rent => "rent",
             WatchProviderAvailabilityType.Buy => "buy",
             _ => availabilityType.ToString().ToLowerInvariant()

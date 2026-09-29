@@ -16,6 +16,12 @@ internal sealed class TmdbWatchProviderRegionJson
     [JsonPropertyName("flatrate")]
     public List<TmdbWatchProviderJson>? Flatrate { get; init; }
 
+    [JsonPropertyName("free")]
+    public List<TmdbWatchProviderJson>? Free { get; init; }
+
+    [JsonPropertyName("ads")]
+    public List<TmdbWatchProviderJson>? Ads { get; init; }
+
     [JsonPropertyName("rent")]
     public List<TmdbWatchProviderJson>? Rent { get; init; }
 

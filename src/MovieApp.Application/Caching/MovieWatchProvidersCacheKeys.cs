@@ -4,7 +4,7 @@ public static class MovieWatchProvidersCacheKeys
 {
     public const string Prefix = "movie-watch-providers:";
 
-    public const string Version = "v1";
+    public const string Version = "v2";
 
     public static string Create(Guid movieId, string region) =>
         $"{Prefix}{movieId}:{region.ToUpperInvariant()}:{Version}";
