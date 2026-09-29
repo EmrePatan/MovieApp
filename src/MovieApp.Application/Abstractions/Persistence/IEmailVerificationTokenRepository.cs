@@ -27,7 +27,11 @@ public interface IEmailVerificationTokenRepository
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 
-    Task<string?> GetActivePendingEmailForUserAsync(
+    Task<string?> GetPendingEmailChangeIntentForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
         Guid userId,
         DateTime utcNow,
         CancellationToken cancellationToken = default);

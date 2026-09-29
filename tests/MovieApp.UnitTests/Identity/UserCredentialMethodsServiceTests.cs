@@ -351,22 +351,37 @@ public sealed class UserCredentialMethodsServiceTests
         public Task CompleteDeliveryAsync(Guid tokenId, DateTime utcNow, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task<string?> GetActivePendingEmailForUserAsync(
+        public Task<string?> GetPendingEmailChangeIntentForUserAsync(
             Guid userId,
-            DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
             var pending = CreatedTokens
                 .Where(token =>
                     token.UserId == userId &&
                     token.UsedAtUtc is null &&
-                    token.ExpiresAtUtc > utcNow &&
                     !string.IsNullOrWhiteSpace(token.PendingEmail))
                 .OrderByDescending(token => token.CreatedAtUtc)
                 .Select(token => token.PendingEmail)
                 .FirstOrDefault();
 
             return Task.FromResult(pending);
+        }
+
+        public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var token in CreatedTokens.Where(token =>
+                         token.UserId == userId &&
+                         token.UsedAtUtc is null &&
+                         !string.IsNullOrWhiteSpace(token.PendingEmail)))
+            {
+                token.UsedAtUtc = utcNow;
+                token.ProtectedDeliverySecret = null;
+            }
+
+            return Task.CompletedTask;
         }
     }
 

@@ -196,6 +196,10 @@ public sealed class UserCredentialMethodsService(
         var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(command.ContentLocale);
         var utcNow = DateTime.UtcNow;
 
+        await emailVerificationTokenRepository.InvalidateUnusedPendingEmailChangeTokensForUserAsync(
+            user.Id,
+            utcNow,
+            cancellationToken);
         await emailVerificationTokenRepository.InvalidateActiveTokensForUserAsync(user.Id, utcNow, cancellationToken);
 
         var rawToken = PasswordResetTokenGenerator.GenerateToken();
@@ -244,9 +248,9 @@ public sealed class UserCredentialMethodsService(
     {
         var user = await GetCurrentUserForUpdateAsync(cancellationToken);
         var utcNow = DateTime.UtcNow;
-        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
-            user.Id,
-            utcNow,
+        var pendingEmail = await PendingEmailChangeIntentHelper.ResolveForUserAsync(
+            emailVerificationTokenRepository,
+            user,
             cancellationToken);
 
         if (string.IsNullOrWhiteSpace(pendingEmail))
@@ -257,7 +261,10 @@ public sealed class UserCredentialMethodsService(
         }
 
         var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale);
-        await emailVerificationTokenRepository.InvalidateActiveTokensForUserAsync(user.Id, utcNow, cancellationToken);
+        await emailVerificationTokenRepository.InvalidateUnusedPendingEmailChangeTokensForUserAsync(
+            user.Id,
+            utcNow,
+            cancellationToken);
 
         var rawToken = PasswordResetTokenGenerator.GenerateToken();
         var tokenHash = PasswordResetTokenHasher.HashToken(rawToken);
@@ -304,9 +311,9 @@ public sealed class UserCredentialMethodsService(
         IReadOnlyList<string> linkedProviders,
         CancellationToken cancellationToken)
     {
-        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
-            user.Id,
-            DateTime.UtcNow,
+        var pendingEmail = await PendingEmailChangeIntentHelper.ResolveForUserAsync(
+            emailVerificationTokenRepository,
+            user,
             cancellationToken);
 
         return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);

@@ -383,10 +383,15 @@ public sealed class ProfileStatisticsCacheTests
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
-        public Task<string?> GetActivePendingEmailForUserAsync(
+        public Task<string?> GetPendingEmailChangeIntentForUserAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
+
+        public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
             Guid userId,
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(null);
+            Task.CompletedTask;
     }
 }

@@ -27,9 +27,9 @@ public sealed class UserProfileService(
     {
         var user = await GetCurrentUserForReadAsync(cancellationToken);
         var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
-        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
-            user.Id,
-            DateTime.UtcNow,
+        var pendingEmail = await PendingEmailChangeIntentHelper.ResolveForUserAsync(
+            emailVerificationTokenRepository,
+            user,
             cancellationToken);
 
         return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);
@@ -49,9 +49,9 @@ public sealed class UserProfileService(
         user.UpdateDisplayName(displayName, DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
         var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
-        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
-            user.Id,
-            DateTime.UtcNow,
+        var pendingEmail = await PendingEmailChangeIntentHelper.ResolveForUserAsync(
+            emailVerificationTokenRepository,
+            user,
             cancellationToken);
 
         return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);

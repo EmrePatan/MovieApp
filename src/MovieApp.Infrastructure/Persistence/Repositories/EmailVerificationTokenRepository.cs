@@ -99,9 +99,8 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
                 cancellationToken);
     }
 
-    public async Task<string?> GetActivePendingEmailForUserAsync(
+    public async Task<string?> GetPendingEmailChangeIntentForUserAsync(
         Guid userId,
-        DateTime utcNow,
         CancellationToken cancellationToken = default)
     {
         return await dbContext.EmailVerificationTokens
@@ -109,11 +108,28 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
             .Where(token =>
                 token.UserId == userId &&
                 token.UsedAtUtc == null &&
-                token.ExpiresAtUtc > utcNow &&
                 token.PendingEmail != null &&
                 token.PendingEmail != string.Empty)
             .OrderByDescending(token => token.CreatedAtUtc)
             .Select(token => token.PendingEmail)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
+        Guid userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        await dbContext.EmailVerificationTokens
+            .Where(token =>
+                token.UserId == userId &&
+                token.UsedAtUtc == null &&
+                token.PendingEmail != null &&
+                token.PendingEmail != string.Empty)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(token => token.UsedAtUtc, utcNow)
+                    .SetProperty(token => token.ProtectedDeliverySecret, (string?)null),
+                cancellationToken);
     }
 }
