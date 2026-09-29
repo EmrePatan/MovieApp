@@ -139,6 +139,101 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
         Assert.Equal(["Weekly 3", "Weekly 4", "Weekly 5"], trending.Select(item => item.Title).ToList());
     }
 
+    [Fact]
+    public void SplitExcludesLowVoteAverageFromHeroButKeepsInTrending()
+    {
+        List<SearchItem> weekly =
+        [
+            CreateEligibleItem("movie", 1, "Strong First", voteAverage: 8m),
+            CreateEligibleItem("movie", 2, "Weak Second", voteAverage: 6m),
+            CreateEligibleItem("movie", 3, "Strong Third", voteAverage: 7m),
+        ];
+
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 3);
+
+        Assert.Equal(["Strong First", "Strong Third"], hero.Select(item => item.Title).ToList());
+        Assert.Equal(["Weak Second"], trending.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public void SplitExcludesMissingBackdropFromHeroButKeepsInTrending()
+    {
+        List<SearchItem> weekly =
+        [
+            CreateEligibleItem("movie", 1, "With Backdrop"),
+            CreateEligibleItem("movie", 2, "No Backdrop", backdropUrl: null),
+            CreateEligibleItem("movie", 3, "Also With Backdrop"),
+        ];
+
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 3);
+
+        Assert.Equal(["With Backdrop", "Also With Backdrop"], hero.Select(item => item.Title).ToList());
+        Assert.Equal(["No Backdrop"], trending.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public void SplitExcludesLowVoteCountFromHeroButKeepsInTrending()
+    {
+        List<SearchItem> weekly =
+        [
+            CreateEligibleItem("movie", 1, "Confident"),
+            CreateEligibleItem("movie", 2, "Too Few Votes", voteCount: 10),
+            CreateEligibleItem("movie", 3, "Confident Two"),
+        ];
+
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 3);
+
+        Assert.Equal(["Confident", "Confident Two"], hero.Select(item => item.Title).ToList());
+        Assert.Equal(["Too Few Votes"], trending.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public void SplitReturnsShorterHeroWhenInsufficientEligibleCandidates()
+    {
+        List<SearchItem> weekly =
+        [
+            CreateEligibleItem("movie", 1, "Only Hero"),
+            CreateEligibleItem("movie", 2, "Ineligible", voteAverage: 5m),
+        ];
+
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 3, 5);
+
+        Assert.Single(hero);
+        Assert.Equal(["Ineligible"], trending.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public void SplitTrendingPreservesOriginalWeeklyOrderAfterHeroRemoval()
+    {
+        List<SearchItem> weekly =
+        [
+            CreateEligibleItem("movie", 1, "Hero A"),
+            CreateEligibleItem("movie", 2, "Skip Hero", voteAverage: 5m),
+            CreateEligibleItem("movie", 3, "Hero B"),
+            CreateEligibleItem("movie", 4, "Trend C", voteAverage: 5m),
+            CreateEligibleItem("movie", 5, "Trend D"),
+        ];
+
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 4);
+
+        Assert.Equal(["Hero A", "Hero B"], hero.Select(item => item.Title).ToList());
+        Assert.Equal(
+            ["Skip Hero", "Trend C", "Trend D"],
+            trending.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public void SplitDoesNotDuplicateHeroItemsInTrending()
+    {
+        var weekly = CreateWeeklyItems(5);
+        var (hero, trending) = HomeWeeklyTrendingComposition.Split(weekly, 2, 5);
+
+        Assert.Equal(2, hero.Count);
+        Assert.DoesNotContain(
+            trending,
+            item => hero.Any(heroItem => heroItem.Type == item.Type && heroItem.Id == item.Id));
+    }
+
     private static HomeWeeklyTrendingCompositionService CreateService(
         FakeSnapshotService snapshotService,
         RecordingDiscoveryService discoveryService) =>
@@ -160,7 +255,28 @@ public sealed class HomeWeeklyTrendingCompositionServiceTests
             .ToList();
 
     private static SearchItem CreateSearchItem(string type, Guid id, string title) =>
-        new(id, type, title, null, null, "/poster.jpg", null, null, 8m, 100, null);
+        CreateEligibleItem(type, 0, title, id);
+
+    private static SearchItem CreateEligibleItem(
+        string type,
+        int seed,
+        string title,
+        Guid? id = null,
+        string? backdropUrl = "/backdrop.jpg",
+        decimal voteAverage = 8m,
+        int voteCount = 100) =>
+        new(
+            id ?? Guid.Parse($"aaaaaaaa-aaaa-aaaa-aaaa-{seed:D12}"),
+            type,
+            title,
+            null,
+            null,
+            "/poster.jpg",
+            backdropUrl,
+            null,
+            voteAverage,
+            voteCount,
+            null);
 
     private sealed class FakeSnapshotService(IReadOnlyList<SearchItem>? items) : IHotThisWeekTrendingSnapshotService
     {

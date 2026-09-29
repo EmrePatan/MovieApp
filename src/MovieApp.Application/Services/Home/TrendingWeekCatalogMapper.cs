@@ -48,7 +48,7 @@ internal static class TrendingWeekCatalogMapper
             if (providerItem.MediaType == "movie" &&
                 movieIds.TryGetValue(providerItem.TmdbId, out var movieId))
             {
-                items.Add(ProviderSearchMapper.ToSearchItem(ToMovieSummary(providerItem), movieId));
+                items.Add(ToMovieSearchItem(providerItem, movieId));
                 continue;
             }
 
@@ -61,4 +61,19 @@ internal static class TrendingWeekCatalogMapper
 
         return items;
     }
+
+    private static SearchItem ToMovieSearchItem(TrendingWeekProviderItem item, Guid movieId) =>
+        new(
+            movieId,
+            "movie",
+            item.Title,
+            item.OriginalTitle,
+            item.Overview,
+            item.PosterPath,
+            item.BackdropPath,
+            item.ReleaseDate,
+            item.VoteAverage,
+            item.VoteCount,
+            item.ReleaseDate?.Year,
+            item.TmdbId);
 }
