@@ -14,7 +14,8 @@ public static class UserProfileContractMapper
             result.DisplayName,
             result.CreatedAt,
             result.HasPassword,
-            result.LinkedProviders);
+            result.LinkedProviders,
+            result.PendingEmail);
 
     public static UserProfileResponse ToUserProfileResponse(CurrentUserResult result) =>
         new(

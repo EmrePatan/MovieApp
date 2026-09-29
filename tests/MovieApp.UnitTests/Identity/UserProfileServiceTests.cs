@@ -281,6 +281,7 @@ public sealed class UserProfileServiceTests
             new FakeCurrentUser(user.Id),
             repository,
             externalLoginRepository,
+            new FakeEmailVerificationTokenRepository(),
             statisticsRepository,
             new FakeProfileStatisticsCache(),
             passwordHasher,
@@ -443,6 +444,42 @@ public sealed class UserProfileServiceTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+    }
+
+    private sealed class FakeEmailVerificationTokenRepository : IEmailVerificationTokenRepository
+    {
+        public Task<EmailVerificationTokenConsumptionResult?> TryConsumeActiveTokenAsync(
+            string tokenHash,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
+
+        public Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task InvalidateActiveTokensForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<EmailVerificationDeliveryTarget?> GetDeliveryTargetAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationDeliveryTarget?>(null);
+
+        public Task CompleteDeliveryAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<string?> GetActivePendingEmailForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class FakeSocialIdentityTokenVerifier : ISocialIdentityTokenVerifier

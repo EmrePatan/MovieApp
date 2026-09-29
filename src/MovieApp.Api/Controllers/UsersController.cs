@@ -142,6 +142,47 @@ public sealed class UsersController(
         }
     }
 
+    [HttpPost("me/email/pending/resend")]
+    [EnableRateLimiting(AccountRateLimitPolicies.ChangeEmail)]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<MessageResponse>> ResendPendingEmailChange(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await userCredentialMethodsService.ResendPendingEmailChangeAsync(
+                Request.ResolveContentLocale(),
+                cancellationToken);
+
+            return Ok(new MessageResponse(result.Message));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status400BadRequest,
+                "Invalid pending email change request.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
     [HttpPost("me/linked-providers")]
     [EnableRateLimiting(AccountRateLimitPolicies.ChangePassword)]
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]

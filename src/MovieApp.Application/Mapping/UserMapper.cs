@@ -15,7 +15,8 @@ public static class UserMapper
 
     public static UserProfileResult ToUserProfileResult(
         User user,
-        IReadOnlyList<string> linkedProviders) =>
+        IReadOnlyList<string> linkedProviders,
+        string? pendingEmail = null) =>
         new(
             user.Id,
             user.Email,
@@ -23,7 +24,8 @@ public static class UserMapper
             user.DisplayName,
             user.CreatedAt,
             user.HasPassword,
-            linkedProviders);
+            linkedProviders,
+            pendingEmail);
 
     public static TokenUserContext ToTokenUserContext(User user) =>
         new(user.Id, user.Email, user.SecurityStamp);

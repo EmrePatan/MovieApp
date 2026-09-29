@@ -20,6 +20,8 @@ public static class EmailVerificationDeliveryServiceCollectionExtensions
         {
             services.AddSingleton<IEmailVerificationEmailSender>(serviceProvider =>
                 serviceProvider.GetRequiredService<CapturingEmailSender>());
+            services.AddSingleton<IAccountEmailChangedNotificationSender>(serviceProvider =>
+                serviceProvider.GetRequiredService<CapturingEmailSender>());
         }
         else
         {
@@ -28,6 +30,12 @@ public static class EmailVerificationDeliveryServiceCollectionExtensions
                 {
                     client.BaseAddress = new Uri("https://api.resend.com/");
                 });
+            services
+                .AddHttpClient<IAccountEmailChangedNotificationSender, ResendAccountEmailChangedNotificationSender>(
+                    client =>
+                    {
+                        client.BaseAddress = new Uri("https://api.resend.com/");
+                    });
         }
 
         var backgroundJobsEnabled = configuration

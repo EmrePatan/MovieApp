@@ -29,7 +29,7 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
         var consumedToken = await dbContext.EmailVerificationTokens
             .AsNoTracking()
             .Where(token => token.TokenHash == tokenHash)
-            .Select(token => new { token.Id, token.UserId, token.PendingEmail })
+            .Select(token => new { token.Id, token.UserId, token.PendingEmail, token.ContentLocale })
             .FirstOrDefaultAsync(cancellationToken);
 
         return consumedToken is null
@@ -37,7 +37,8 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
             : new EmailVerificationTokenConsumptionResult(
                 consumedToken.Id,
                 consumedToken.UserId,
-                consumedToken.PendingEmail);
+                consumedToken.PendingEmail,
+                consumedToken.ContentLocale);
     }
 
     public async Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)
@@ -96,5 +97,23 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
                     .SetProperty(token => token.DeliveryCompletedAtUtc, utcNow)
                     .SetProperty(token => token.ProtectedDeliverySecret, (string?)null),
                 cancellationToken);
+    }
+
+    public async Task<string?> GetActivePendingEmailForUserAsync(
+        Guid userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.EmailVerificationTokens
+            .AsNoTracking()
+            .Where(token =>
+                token.UserId == userId &&
+                token.UsedAtUtc == null &&
+                token.ExpiresAtUtc > utcNow &&
+                token.PendingEmail != null &&
+                token.PendingEmail != string.Empty)
+            .OrderByDescending(token => token.CreatedAtUtc)
+            .Select(token => token.PendingEmail)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

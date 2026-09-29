@@ -14,6 +14,7 @@ public sealed class UserProfileService(
     ICurrentUser currentUser,
     IUserRepository userRepository,
     IUserExternalLoginRepository externalLoginRepository,
+    IEmailVerificationTokenRepository emailVerificationTokenRepository,
     IUserStatisticsRepository userStatisticsRepository,
     IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
@@ -26,7 +27,12 @@ public sealed class UserProfileService(
     {
         var user = await GetCurrentUserForReadAsync(cancellationToken);
         var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
-        return UserMapper.ToUserProfileResult(user, linkedProviders);
+        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
+            user.Id,
+            DateTime.UtcNow,
+            cancellationToken);
+
+        return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);
     }
 
     public async Task<UserProfileResult> UpdateDisplayNameAsync(
@@ -43,8 +49,12 @@ public sealed class UserProfileService(
         user.UpdateDisplayName(displayName, DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
         var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
+        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
+            user.Id,
+            DateTime.UtcNow,
+            cancellationToken);
 
-        return UserMapper.ToUserProfileResult(user, linkedProviders);
+        return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);
     }
 
     public async Task<AuthenticationResult> ChangePasswordAsync(

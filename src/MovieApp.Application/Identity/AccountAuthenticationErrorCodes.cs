@@ -13,4 +13,8 @@ public static class AccountAuthenticationErrorCodes
     public const string ProviderNotLinked = "PROVIDER_NOT_LINKED";
 
     public const string TargetProviderLinkedToAnotherUser = "TARGET_PROVIDER_LINKED_TO_ANOTHER_USER";
+
+    public const string EmailUnchanged = "EMAIL_UNCHANGED";
+
+    public const string NoPendingEmailChange = "NO_PENDING_EMAIL_CHANGE";
 }

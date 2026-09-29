@@ -66,7 +66,8 @@ public sealed class UserCredentialMethodsService(
         await externalLoginRepository.CreateAsync(externalLogin, cancellationToken);
 
         linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
-        return UserMapper.ToUserProfileResult(user, linkedProviders);
+        CredentialMethodsLogMessages.LogProviderLinked(logger, user.Id);
+        return await MapProfileAsync(user, linkedProviders, cancellationToken);
     }
 
     public async Task<UserProfileResult> UnlinkExternalLoginAsync(
@@ -106,7 +107,8 @@ public sealed class UserCredentialMethodsService(
         }
 
         linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
-        return UserMapper.ToUserProfileResult(user, linkedProviders);
+        CredentialMethodsLogMessages.LogProviderUnlinked(logger, user.Id);
+        return await MapProfileAsync(user, linkedProviders, cancellationToken);
     }
 
     public async Task<AuthenticationResult> CreatePasswordAsync(
@@ -155,6 +157,7 @@ public sealed class UserCredentialMethodsService(
         await userRepository.UpdateAsync(user, cancellationToken);
 
         await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, cancellationToken);
+        CredentialMethodsLogMessages.LogPasswordCreated(logger, user.Id);
         return await authenticationSessionService.IssueAsync(user, cancellationToken);
     }
 
@@ -180,7 +183,9 @@ public sealed class UserCredentialMethodsService(
         var normalizedEmail = UserEmailNormalizer.Normalize(command.NewEmail);
         if (user.NormalizedEmail == normalizedEmail)
         {
-            return new MessageResult(EmailChangeRequestedMessage);
+            throw new ValidationException(
+                "The new email address must be different from your current email.",
+                AccountAuthenticationErrorCodes.EmailUnchanged);
         }
 
         if (await userRepository.ExistsByNormalizedEmailAsync(normalizedEmail, cancellationToken))
@@ -229,7 +234,82 @@ public sealed class UserCredentialMethodsService(
                 exception.GetType().Name);
         }
 
+        CredentialMethodsLogMessages.LogEmailChangeRequested(logger, user.Id);
         return new MessageResult(EmailChangeRequestedMessage);
+    }
+
+    public async Task<MessageResult> ResendPendingEmailChangeAsync(
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await GetCurrentUserForUpdateAsync(cancellationToken);
+        var utcNow = DateTime.UtcNow;
+        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
+            user.Id,
+            utcNow,
+            cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(pendingEmail))
+        {
+            throw new ValidationException(
+                "No pending email change was found.",
+                AccountAuthenticationErrorCodes.NoPendingEmailChange);
+        }
+
+        var normalizedContentLocale = ContentLocaleResolver.ResolveFromAcceptLanguage(contentLocale);
+        await emailVerificationTokenRepository.InvalidateActiveTokensForUserAsync(user.Id, utcNow, cancellationToken);
+
+        var rawToken = PasswordResetTokenGenerator.GenerateToken();
+        var tokenHash = PasswordResetTokenHasher.HashToken(rawToken);
+        var lifetime = TimeSpan.FromMinutes(
+            Math.Max(1, emailVerificationOptions.Value.TokenLifetimeMinutes));
+
+        var verificationToken = new EmailVerificationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            TokenHash = tokenHash,
+            CreatedAtUtc = utcNow,
+            ExpiresAtUtc = utcNow.Add(lifetime),
+            ProtectedDeliverySecret = deliverySecretProtector.Protect(rawToken),
+            ContentLocale = normalizedContentLocale,
+            PendingEmail = pendingEmail.Trim(),
+        };
+
+        await emailVerificationTokenRepository.CreateAsync(verificationToken, cancellationToken);
+
+        try
+        {
+            await deliveryEnqueuer.EnqueueAsync(verificationToken.Id, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            EmailVerificationLogMessages.LogDeliveryEnqueueFailed(
+                logger,
+                verificationToken.Id,
+                user.Id,
+                exception.GetType().Name);
+        }
+
+        CredentialMethodsLogMessages.LogPendingEmailChangeResent(logger, user.Id);
+        return new MessageResult(EmailChangeRequestedMessage);
+    }
+
+    private async Task<UserProfileResult> MapProfileAsync(
+        User user,
+        IReadOnlyList<string> linkedProviders,
+        CancellationToken cancellationToken)
+    {
+        var pendingEmail = await emailVerificationTokenRepository.GetActivePendingEmailForUserAsync(
+            user.Id,
+            DateTime.UtcNow,
+            cancellationToken);
+
+        return UserMapper.ToUserProfileResult(user, linkedProviders, pendingEmail);
     }
 
     private async Task<User> GetCurrentUserForUpdateAsync(CancellationToken cancellationToken)

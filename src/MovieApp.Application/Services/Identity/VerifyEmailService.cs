@@ -1,7 +1,10 @@
+using Microsoft.Extensions.Logging;
+using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Users;
 
 namespace MovieApp.Application.Services.Identity;
@@ -10,7 +13,9 @@ public sealed class VerifyEmailService(
     IApplicationDbContext applicationDbContext,
     IUserRepository userRepository,
     IEmailVerificationTokenRepository emailVerificationTokenRepository,
-    IAuthenticationSessionService authenticationSessionService) : IVerifyEmailService
+    IAuthenticationSessionService authenticationSessionService,
+    IAccountEmailChangedNotificationSender accountEmailChangedNotificationSender,
+    ILogger<VerifyEmailService> logger) : IVerifyEmailService
 {
     public const string InvalidTokenMessage = "Invalid or expired verification token.";
 
@@ -26,6 +31,9 @@ public sealed class VerifyEmailService(
         var utcNow = DateTime.UtcNow;
         var tokenHash = PasswordResetTokenHasher.HashToken(request.Token.Trim());
         AuthenticationResult? result = null;
+        string? previousEmailForNotification = null;
+        string? completedPendingEmail = null;
+        string? notificationContentLocale = null;
 
         await applicationDbContext.ExecuteInTransactionAsync(async ct =>
         {
@@ -54,6 +62,10 @@ public sealed class VerifyEmailService(
                     throw new ValidationException(InvalidTokenMessage);
                 }
 
+                previousEmailForNotification = user.Email;
+                completedPendingEmail = pendingEmail;
+                notificationContentLocale = consumedToken.ContentLocale;
+
                 user.ChangeEmail(pendingEmail, normalizedPendingEmail, utcNow);
                 user.MarkEmailVerified(utcNow);
             }
@@ -72,6 +84,25 @@ public sealed class VerifyEmailService(
 
             result = await authenticationSessionService.IssueAsync(user, ct);
         }, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(previousEmailForNotification) &&
+            !string.IsNullOrWhiteSpace(completedPendingEmail))
+        {
+            try
+            {
+                await accountEmailChangedNotificationSender.SendAsync(
+                    previousEmailForNotification,
+                    completedPendingEmail,
+                    notificationContentLocale ?? ContentLocaleResolver.EnglishUnitedStates,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                VerifyEmailLogMessages.LogAccountEmailChangedNotificationFailed(
+                    logger,
+                    exception.GetType().Name);
+            }
+        }
 
         return result!;
     }

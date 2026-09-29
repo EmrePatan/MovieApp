@@ -7,4 +7,5 @@ public sealed record UserProfileResult(
     string DisplayName,
     DateTime CreatedAt,
     bool HasPassword,
-    IReadOnlyList<string> LinkedProviders);
+    IReadOnlyList<string> LinkedProviders,
+    string? PendingEmail = null);

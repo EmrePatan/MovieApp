@@ -26,9 +26,15 @@ public interface IEmailVerificationTokenRepository
         Guid tokenId,
         DateTime utcNow,
         CancellationToken cancellationToken = default);
+
+    Task<string?> GetActivePendingEmailForUserAsync(
+        Guid userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record EmailVerificationTokenConsumptionResult(
     Guid TokenId,
     Guid UserId,
-    string? PendingEmail);
+    string? PendingEmail,
+    string ContentLocale);

@@ -19,6 +19,10 @@ public interface IUserCredentialMethodsService
     Task<MessageResult> RequestEmailChangeAsync(
         RequestEmailChangeCommand command,
         CancellationToken cancellationToken = default);
+
+    Task<MessageResult> ResendPendingEmailChangeAsync(
+        string contentLocale,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record LinkExternalLoginCommand(

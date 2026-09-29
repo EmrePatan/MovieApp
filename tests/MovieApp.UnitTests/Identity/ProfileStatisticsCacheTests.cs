@@ -134,6 +134,7 @@ public sealed class ProfileStatisticsCacheTests
             new FakeCurrentUser(user.Id),
             new FakeUserRepository(user),
             new FakeExternalLoginRepository(),
+            new FakeEmailVerificationTokenRepository(),
             repository,
             profileStatisticsCache,
             new FakePasswordHasher(),
@@ -352,5 +353,41 @@ public sealed class ProfileStatisticsCacheTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+    }
+
+    private sealed class FakeEmailVerificationTokenRepository : IEmailVerificationTokenRepository
+    {
+        public Task<EmailVerificationTokenConsumptionResult?> TryConsumeActiveTokenAsync(
+            string tokenHash,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
+
+        public Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task InvalidateActiveTokensForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<EmailVerificationDeliveryTarget?> GetDeliveryTargetAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EmailVerificationDeliveryTarget?>(null);
+
+        public Task CompleteDeliveryAsync(
+            Guid tokenId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<string?> GetActivePendingEmailForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
     }
 }

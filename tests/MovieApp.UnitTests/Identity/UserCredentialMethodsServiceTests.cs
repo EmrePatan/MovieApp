@@ -119,6 +119,65 @@ public sealed class UserCredentialMethodsServiceTests
         Assert.Equal("new@example.com", tokenRepository.CreatedTokens[0].PendingEmail);
     }
 
+    [Fact]
+    public async Task RequestEmailChangeAsyncRejectsUnchangedEmail()
+    {
+        var user = CreatePasswordUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
+        var service = CreateService(
+            user,
+            new CredentialFakeExternalLoginRepository(),
+            [],
+            new CredentialFakeUserRepository(user),
+            new CredentialFakeEmailVerificationTokenRepository());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.RequestEmailChangeAsync(
+                new RequestEmailChangeCommand(
+                    user.Email,
+                    new AccountReauthenticationProof("StrongPassword123", null, null),
+                    "en-US")));
+
+        Assert.Equal(AccountAuthenticationErrorCodes.EmailUnchanged, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResendPendingEmailChangeAsyncCreatesFreshTokenForPendingEmail()
+    {
+        var user = CreatePasswordUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
+        var tokenRepository = new CredentialFakeEmailVerificationTokenRepository();
+        var service = CreateService(
+            user,
+            new CredentialFakeExternalLoginRepository(),
+            [],
+            new CredentialFakeUserRepository(user),
+            tokenRepository);
+
+        await service.RequestEmailChangeAsync(
+            new RequestEmailChangeCommand(
+                "new@example.com",
+                new AccountReauthenticationProof("StrongPassword123", null, null),
+                "en-US"));
+
+        await service.ResendPendingEmailChangeAsync("en-US");
+
+        Assert.Equal(2, tokenRepository.CreatedTokens.Count);
+        Assert.All(tokenRepository.CreatedTokens, token => Assert.Equal("new@example.com", token.PendingEmail));
+    }
+
+    [Fact]
+    public async Task ResendPendingEmailChangeAsyncRejectsWhenNoPendingChange()
+    {
+        var user = CreatePasswordUser();
+        var service = CreateService(user, new CredentialFakeExternalLoginRepository());
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.ResendPendingEmailChangeAsync("en-US"));
+
+        Assert.Equal(AccountAuthenticationErrorCodes.NoPendingEmailChange, exception.ErrorCode);
+    }
+
     private static UserCredentialMethodsService CreateService(
         User user,
         CredentialFakeExternalLoginRepository externalLoginRepository,
@@ -291,6 +350,24 @@ public sealed class UserCredentialMethodsServiceTests
 
         public Task CompleteDeliveryAsync(Guid tokenId, DateTime utcNow, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<string?> GetActivePendingEmailForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var pending = CreatedTokens
+                .Where(token =>
+                    token.UserId == userId &&
+                    token.UsedAtUtc is null &&
+                    token.ExpiresAtUtc > utcNow &&
+                    !string.IsNullOrWhiteSpace(token.PendingEmail))
+                .OrderByDescending(token => token.CreatedAtUtc)
+                .Select(token => token.PendingEmail)
+                .FirstOrDefault();
+
+            return Task.FromResult(pending);
+        }
     }
 
     private sealed class CredentialFakeDeliverySecretProtector : IEmailVerificationDeliverySecretProtector

@@ -219,7 +219,9 @@ public sealed class EmailVerificationDeliveryTests
             new FakeApplicationDbContext(),
             new FakeUserRepository(user),
             tokenRepository,
-            new FakeAuthenticationSessionService());
+            new FakeAuthenticationSessionService(),
+            new FakeAccountEmailChangedNotificationSender(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VerifyEmailService>.Instance);
 
         var authResult = await verifyService.VerifyEmailAsync(new VerifyEmailRequest(rawToken!));
 
@@ -395,7 +397,7 @@ public sealed class EmailVerificationDeliveryTests
 
             token.UsedAtUtc = utcNow;
             return Task.FromResult<EmailVerificationTokenConsumptionResult?>(
-                new EmailVerificationTokenConsumptionResult(token.Id, token.UserId, null));
+                new EmailVerificationTokenConsumptionResult(token.Id, token.UserId, null, "en-US"));
         }
 
         public Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)
@@ -466,6 +468,24 @@ public sealed class EmailVerificationDeliveryTests
 
             return Task.CompletedTask;
         }
+
+        public Task<string?> GetActivePendingEmailForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default)
+        {
+            var pending = CreatedTokens
+                .Where(token =>
+                    token.UserId == userId &&
+                    token.UsedAtUtc is null &&
+                    token.ExpiresAtUtc > utcNow &&
+                    !string.IsNullOrWhiteSpace(token.PendingEmail))
+                .OrderByDescending(token => token.CreatedAtUtc)
+                .Select(token => token.PendingEmail)
+                .FirstOrDefault();
+
+            return Task.FromResult(pending);
+        }
     }
 
     private sealed class FakeUserRepository(User user) : IUserRepository
@@ -510,5 +530,15 @@ public sealed class EmailVerificationDeliveryTests
     {
         public AccessTokenResult CreateAccessToken(TokenUserContext user) =>
             new("access-token", DateTime.UtcNow.AddHours(1));
+    }
+
+    private sealed class FakeAccountEmailChangedNotificationSender : IAccountEmailChangedNotificationSender
+    {
+        public Task SendAsync(
+            string previousEmail,
+            string newEmail,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

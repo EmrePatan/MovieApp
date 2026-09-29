@@ -5,12 +5,17 @@ namespace MovieApp.Infrastructure.Email;
 /// <summary>
 /// Captures password reset and verification emails for integration tests. Registered only in the Testing environment.
 /// </summary>
-public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmailSender, IPasswordResetEmailSender
+public sealed class CapturingEmailSender :
+    IEmailSender,
+    IEmailVerificationEmailSender,
+    IPasswordResetEmailSender,
+    IAccountEmailChangedNotificationSender
 {
     private readonly object _sync = new();
     private readonly List<(string Email, string ResetUrl)> _sentPasswordResetEmails = [];
     private readonly List<(Guid TokenId, string Email, string ResetUrl, string ContentLocale)> _sentPasswordResetDeliveryEmails = [];
     private readonly List<(Guid TokenId, string Email, string VerifyUrl, string ContentLocale)> _sentVerificationEmails = [];
+    private readonly List<(string PreviousEmail, string NewEmail, string ContentLocale)> _sentAccountEmailChangedNotifications = [];
 
     public IReadOnlyList<(Guid TokenId, string Email, string ResetUrl, string ContentLocale)> SentPasswordResetDeliveryEmails
     {
@@ -89,12 +94,39 @@ public sealed class CapturingEmailSender : IEmailSender, IEmailVerificationEmail
         return Task.CompletedTask;
     }
 
+    public Task SendAsync(
+        string previousEmail,
+        string newEmail,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            _sentAccountEmailChangedNotifications.Add((previousEmail, newEmail, contentLocale));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public IReadOnlyList<(string PreviousEmail, string NewEmail, string ContentLocale)>
+        SentAccountEmailChangedNotifications
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _sentAccountEmailChangedNotifications.ToList();
+            }
+        }
+    }
+
     public void Clear()
     {
         lock (_sync)
         {
             _sentPasswordResetEmails.Clear();
             _sentVerificationEmails.Clear();
+            _sentAccountEmailChangedNotifications.Clear();
         }
     }
 

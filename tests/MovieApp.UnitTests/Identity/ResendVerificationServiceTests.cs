@@ -178,5 +178,11 @@ public sealed class ResendVerificationServiceTests
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<string?> GetActivePendingEmailForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
     }
 }

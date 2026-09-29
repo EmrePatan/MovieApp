@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Identity;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Identity;
@@ -20,7 +21,7 @@ public sealed class VerifyEmailServiceTests
             DateTime.UtcNow);
         var repository = new FakeUserRepository(user);
         var tokenRepository = new FakeEmailVerificationTokenRepository(
-            new EmailVerificationTokenConsumptionResult(Guid.NewGuid(), user.Id, null));
+            new EmailVerificationTokenConsumptionResult(Guid.NewGuid(), user.Id, null, "en-US"));
         var service = CreateService(repository, tokenRepository);
 
         var result = await service.VerifyEmailAsync(new VerifyEmailRequest("raw-token"));
@@ -60,7 +61,19 @@ public sealed class VerifyEmailServiceTests
             new FakeApplicationDbContext(),
             userRepository,
             tokenRepository,
-            new FakeAuthenticationSessionService());
+            new FakeAuthenticationSessionService(),
+            new FakeAccountEmailChangedNotificationSender(),
+            NullLogger<VerifyEmailService>.Instance);
+
+    private sealed class FakeAccountEmailChangedNotificationSender : IAccountEmailChangedNotificationSender
+    {
+        public Task SendAsync(
+            string previousEmail,
+            string newEmail,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
 
     private sealed class FakeApplicationDbContext : IApplicationDbContext
     {
@@ -134,6 +147,12 @@ public sealed class VerifyEmailServiceTests
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<string?> GetActivePendingEmailForUserAsync(
+            Guid userId,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
     }
 
 }
