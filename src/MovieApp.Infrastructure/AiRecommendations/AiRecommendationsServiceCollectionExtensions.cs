@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.AiRecommendations;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Services.AiRecommendations;
+using MovieApp.Infrastructure.Configuration;
 
 namespace MovieApp.Infrastructure.AiRecommendations;
 
@@ -15,10 +16,21 @@ public static class AiRecommendationsServiceCollectionExtensions
         services.AddOptions<AiRecommendationOptions>()
             .Bind(configuration.GetSection(AiRecommendationOptions.SectionName));
 
+        var movieProviders = configuration
+            .GetSection(MovieProvidersOptions.SectionName)
+            .Get<MovieProvidersOptions>() ?? new MovieProvidersOptions();
+
         services.AddScoped<IAiRecommendationPerfContext, AiRecommendationPerfContext>();
         services.AddScoped<IAiTasteProfileDataSource, AiTasteProfileDataSource>();
         services.AddScoped<IAiTasteProfileBuilder, AiTasteProfileBuilder>();
-        services.AddScoped<IAiRecommendationTmdbSearch, AiRecommendationTmdbSearch>();
+        if (IsTmdbProvider(movieProviders.Provider))
+        {
+            services.AddScoped<IAiRecommendationTmdbSearch, AiRecommendationTmdbSearch>();
+        }
+        else
+        {
+            services.AddScoped<IAiRecommendationTmdbSearch, NullAiRecommendationTmdbSearch>();
+        }
         services.AddScoped<IAiRequestedPersonFilmographyResolver, AiRequestedPersonFilmographyResolver>();
         services.AddScoped<IMovieIdentityResolver, AiMovieIdentityResolver>();
         services.AddScoped<IAiMovieRecommendationValidator, AiMovieRecommendationValidator>();
@@ -59,6 +71,9 @@ public static class AiRecommendationsServiceCollectionExtensions
 
         return services;
     }
+
+    private static bool IsTmdbProvider(string provider) =>
+        string.Equals(provider, MovieDataProviderNames.Tmdb, StringComparison.OrdinalIgnoreCase);
 
     private static void RegisterExternalProviderHttpClient<TProvider>(
         IServiceCollection services,
