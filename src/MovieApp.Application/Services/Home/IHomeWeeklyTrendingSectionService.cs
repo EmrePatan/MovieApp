@@ -1,11 +1,13 @@
+using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Services.Home;
 
-public interface IHomeWeeklyTrendingCompositionService
+public interface IHomeWeeklyTrendingSectionService
 {
-    Task<HomeWeeklyTrendingCompositionResult> ComposeAsync(
+    Task<IReadOnlyList<SearchItem>> GetTrendingItemsAsync(
         SearchContentType type,
+        IReadOnlyList<SearchItem> heroItems,
         int heroSize,
         int trendingSize,
         string contentLocale,

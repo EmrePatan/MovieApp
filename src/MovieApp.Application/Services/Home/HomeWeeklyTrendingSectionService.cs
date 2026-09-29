@@ -5,24 +5,23 @@ using MovieApp.Application.Services.Search;
 
 namespace MovieApp.Application.Services.Home;
 
-public sealed class HomeWeeklyTrendingCompositionService(
+public sealed class HomeWeeklyTrendingSectionService(
     IHotThisWeekTrendingSnapshotService trendingSnapshotService,
     IDiscoveryService discoveryService,
-    ISummaryLocalizationOverlayService summaryLocalizationOverlayService) : IHomeWeeklyTrendingCompositionService
+    ISummaryLocalizationOverlayService summaryLocalizationOverlayService) : IHomeWeeklyTrendingSectionService
 {
-    public async Task<HomeWeeklyTrendingCompositionResult> ComposeAsync(
+    public async Task<IReadOnlyList<SearchItem>> GetTrendingItemsAsync(
         SearchContentType type,
+        IReadOnlyList<SearchItem> heroItems,
         int heroSize,
         int trendingSize,
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var normalizedHeroSize = Math.Max(0, heroSize);
         var normalizedTrendingSize = Math.Max(0, trendingSize);
-
-        if (normalizedHeroSize == 0 && normalizedTrendingSize == 0)
+        if (normalizedTrendingSize == 0)
         {
-            return new HomeWeeklyTrendingCompositionResult([], [], HomeWeeklyTrendingReadSource.WeeklySnapshot);
+            return [];
         }
 
         var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
@@ -30,37 +29,27 @@ public sealed class HomeWeeklyTrendingCompositionService(
         {
             var filtered = HotThisWeekService.FilterAndTake(snapshot.Items, type, snapshot.Items.Count);
             var localized = await ApplyLocalizationAsync(filtered, contentLocale, cancellationToken);
-            var (heroItems, trendingItems) = HomeWeeklyTrendingComposition.Split(
+            return HomeWeeklyTrendingComposition.SelectTrendingItems(
                 localized,
-                normalizedHeroSize,
-                normalizedTrendingSize);
-
-            return new HomeWeeklyTrendingCompositionResult(
                 heroItems,
-                trendingItems,
-                HomeWeeklyTrendingReadSource.WeeklySnapshot);
+                normalizedTrendingSize);
         }
 
-        var fallbackPageSize = normalizedHeroSize + normalizedTrendingSize;
+        var fallbackPageSize = Math.Max(heroItems.Count, Math.Max(0, heroSize)) + normalizedTrendingSize;
         if (fallbackPageSize <= 0)
         {
-            return new HomeWeeklyTrendingCompositionResult([], [], HomeWeeklyTrendingReadSource.CatalogFallback);
+            return [];
         }
 
         var discovery = await discoveryService.GetTrendingAsync(
             new DiscoveryCriteria(type, 1, fallbackPageSize),
             contentLocale,
             cancellationToken);
-        var fallbackOrdered = discovery.Items.ToList();
-        var (fallbackHero, fallbackTrending) = HomeWeeklyTrendingComposition.Split(
-            fallbackOrdered,
-            normalizedHeroSize,
-            normalizedTrendingSize);
 
-        return new HomeWeeklyTrendingCompositionResult(
-            fallbackHero,
-            fallbackTrending,
-            HomeWeeklyTrendingReadSource.CatalogFallback);
+        return HomeWeeklyTrendingComposition.SelectTrendingItems(
+            discovery.Items.ToList(),
+            heroItems,
+            normalizedTrendingSize);
     }
 
     private async Task<List<SearchItem>> ApplyLocalizationAsync(

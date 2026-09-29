@@ -446,7 +446,7 @@ public sealed class HomeServiceTests
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(2, discovery.TrendingCallCount);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
         Assert.Equal(1, discovery.TopRatedCallCount);
@@ -731,7 +731,10 @@ public sealed class HomeServiceTests
             new FakeWeeklyTrendingSnapshotService(snapshotItems));
         services.AddScoped<ISummaryLocalizationOverlayService>(_ =>
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService());
-        services.AddScoped<IHomeWeeklyTrendingCompositionService, HomeWeeklyTrendingCompositionService>();
+        services.AddLogging();
+        services.AddSingleton<HotThisWeekLoadCoordinator>();
+        services.AddScoped<IHotThisWeekService, HotThisWeekService>();
+        services.AddScoped<IHomeWeeklyTrendingSectionService, HomeWeeklyTrendingSectionService>();
         services.AddSingleton(Options.Create(new TopRatedOptions()));
         services.AddScoped<IGenreReadRepository>(_ => new PassthroughGenreReadRepository());
         services.AddScoped<ISearchRepository>(_ => new PassthroughSearchRepository());
@@ -832,7 +835,11 @@ public sealed class HomeServiceTests
         public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
             where T : class
         {
-            WasWritten = true;
+            if (typeof(T) == typeof(HomeCacheEntry))
+            {
+                WasWritten = true;
+            }
+
             return Task.CompletedTask;
         }
 

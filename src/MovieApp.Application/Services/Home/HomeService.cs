@@ -299,7 +299,7 @@ public sealed class HomeService(
             cancellationToken);
 
         var hotThisWeekDedupTask = RunScopedTimedAsync(
-            (services, ct) => BuildHotThisWeekSectionFromCompositionAsync(
+            (services, ct) => BuildHotThisWeekSectionAsync(
                 services,
                 criteria,
                 heroSize,
@@ -410,28 +410,38 @@ public sealed class HomeService(
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var composition = await services
-            .GetRequiredService<IHomeWeeklyTrendingCompositionService>()
-            .ComposeAsync(criteria.Type, heroSize, criteria.SectionSize, contentLocale, cancellationToken);
+        var heroItems = await services
+            .GetRequiredService<IHotThisWeekService>()
+            .GetItemsAsync(criteria.Type, heroSize, contentLocale, cancellationToken);
 
-        var hotThisWeek = BuildHotThisWeekSection(criteria, heroSize, composition.HeroItems);
-        var trending = BuildHomeTrendingSection(criteria, composition.TrendingItems);
+        var trendingItems = await services
+            .GetRequiredService<IHomeWeeklyTrendingSectionService>()
+            .GetTrendingItemsAsync(
+                criteria.Type,
+                heroItems,
+                heroSize,
+                criteria.SectionSize,
+                contentLocale,
+                cancellationToken);
+
+        var hotThisWeek = BuildHotThisWeekSection(criteria, heroSize, heroItems);
+        var trending = BuildHomeTrendingSection(criteria, trendingItems);
 
         return new WeeklyHeroAndTrendingSections(hotThisWeek, trending);
     }
 
-    private static async Task<HomeSection> BuildHotThisWeekSectionFromCompositionAsync(
+    private static async Task<HomeSection> BuildHotThisWeekSectionAsync(
         IServiceProvider services,
         HomeCriteria criteria,
         int heroSize,
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var composition = await services
-            .GetRequiredService<IHomeWeeklyTrendingCompositionService>()
-            .ComposeAsync(criteria.Type, heroSize, 0, contentLocale, cancellationToken);
+        var items = await services
+            .GetRequiredService<IHotThisWeekService>()
+            .GetItemsAsync(criteria.Type, heroSize, contentLocale, cancellationToken);
 
-        return BuildHotThisWeekSection(criteria, heroSize, composition.HeroItems);
+        return BuildHotThisWeekSection(criteria, heroSize, items);
     }
 
     private static HomeSection BuildHotThisWeekSection(
