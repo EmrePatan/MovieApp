@@ -6,7 +6,7 @@ public static class HomeCacheKeys
 {
     public const string Prefix = "home:";
 
-    public const string Version = "v6";
+    public const string Version = "v7";
 
     public static string Create(
         Guid userId,

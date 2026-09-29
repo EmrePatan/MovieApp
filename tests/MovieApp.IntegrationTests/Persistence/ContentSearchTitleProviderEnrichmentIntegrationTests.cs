@@ -111,7 +111,7 @@ public sealed class ContentSearchTitleProviderEnrichmentIntegrationTests
                             null),
                     ])),
             new NoOpTvShowDataProvider(),
-            new TvShowRepository(context, synchronizer),
+            new TvShowRepository(context, synchronizer, new NoOpTvShowCatalogDetailsCacheInvalidator()),
             new MovieApp.Infrastructure.Providers.FakeTvExternalIdResolver(),
             upsert,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<ContentSearchTitleProviderEnrichmentService>.Instance);

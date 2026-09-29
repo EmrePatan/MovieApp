@@ -25,5 +25,8 @@ public interface IRecommendationService
     Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
         bool includeColdStartDiscoverySections = true,
         string contentLocale = "en-US",
+        RecommendationContentType contentType = RecommendationContentType.All,
+        int? sectionItemCount = null,
+        bool diversify = true,
         CancellationToken cancellationToken = default);
 }

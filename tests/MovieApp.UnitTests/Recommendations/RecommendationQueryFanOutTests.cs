@@ -246,10 +246,12 @@ public sealed class RecommendationQueryFanOutTests
         public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
             Guid userId,
             int minimumInteractionsForEnrichment = 0,
+            int mildRatingMinScore = 6,
             CancellationToken cancellationToken = default)
         {
             GetUserContextCount++;
             LastMinimumInteractionsForEnrichment = minimumInteractionsForEnrichment;
+            _ = mildRatingMinScore;
 
             return Task.FromResult(new UserRecommendationContext(
                 [],
@@ -379,10 +381,12 @@ public sealed class RecommendationQueryFanOutTests
         public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
             Guid userId,
             int minimumInteractionsForEnrichment = 0,
+            int mildRatingMinScore = 6,
             CancellationToken cancellationToken = default)
         {
             GetUserContextCount++;
             _ = minimumInteractionsForEnrichment;
+            _ = mildRatingMinScore;
             var watchedSignals = Enumerable.Range(0, WatchedSignalCount)
                 .Select(index => new UserBehaviorSignal(
                     Guid.Parse($"bbbbbbbb-bbbb-bbbb-bbbb-{index:D012}"),

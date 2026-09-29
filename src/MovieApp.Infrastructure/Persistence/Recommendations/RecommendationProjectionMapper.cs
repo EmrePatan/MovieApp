@@ -34,7 +34,8 @@ internal static class RecommendationProjectionMapper
 
     internal static PersonalizedCandidateProfile ToPersonalizedCandidateProfile(
         RecommendationCandidateProjection projection,
-        IReadOnlyList<Guid>? keywordIds = null)
+        IReadOnlyList<Guid>? keywordIds = null,
+        IReadOnlySet<Guid>? franchiseKeywordIds = null)
     {
         var profile = new PersonalizedCandidateProfile(
             projection.Id,
@@ -53,12 +54,21 @@ internal static class RecommendationProjectionMapper
             projection.PersonIds,
             projection.TmdbCollectionId);
 
-        if (keywordIds is { Count: > 0 })
+        var keywords = keywordIds ?? [];
+        var franchiseIds = keywords.Count == 0 || franchiseKeywordIds is not { Count: > 0 }
+            ? []
+            : keywords.Where(franchiseKeywordIds.Contains).Distinct().ToList();
+
+        if (keywords.Count == 0 && franchiseIds.Count == 0)
         {
-            return profile with { KeywordIds = keywordIds };
+            return profile;
         }
 
-        return profile;
+        return profile with
+        {
+            KeywordIds = keywords,
+            FranchiseKeywordIds = franchiseIds
+        };
     }
 
     private static Dictionary<Guid, string> ToGenreDictionary(

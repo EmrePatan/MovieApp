@@ -620,6 +620,103 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
+    public async Task GetHomePersonalizedAsyncPassesRequestedTypeAndSurplusToRecommendationEngine()
+    {
+        var recommendations = new FakeRecommendationService(
+        [
+            new RecommendationSection(
+                "recommended-for-you",
+                "Recommended For You",
+                Enumerable.Range(1, 10).Select(seed => CreateRecommendationItem("tv", seed)).ToList())
+        ]);
+        var service = CreateService(
+            recommendationService: recommendations,
+            options: new HomeOptions
+            {
+                DefaultSectionSize = 10,
+                MaximumSectionSize = 20,
+                HeroSectionSize = 10
+            });
+
+        var result = await service.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.Tv, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+        var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
+
+        Assert.Equal(RecommendationContentType.Tv, recommendations.LastContentType);
+        Assert.False(recommendations.LastDiversify);
+        Assert.Equal(30, recommendations.LastSectionItemCount);
+        Assert.Equal(10, recommended.Items.Count);
+        Assert.All(recommended.Items, item => Assert.Equal("tv", item.ContentType));
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncRemovesHeroOverlapWhenSurplusExists()
+    {
+        var heroId = Guid.Parse("11111111-1111-1111-1111-000000000001");
+        var recommendedItems = Enumerable.Range(1, 11)
+            .Select(seed => CreateRecommendationItem("movie", seed))
+            .ToList();
+        recommendedItems[0] = recommendedItems[0] with { Id = heroId };
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
+            ]),
+            options: new HomeOptions
+            {
+                DefaultSectionSize = 10,
+                MaximumSectionSize = 20,
+                HeroSectionSize = 5
+            });
+
+        var result = await service.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.All, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+        var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
+
+        Assert.Equal(10, recommended.Items.Count);
+        Assert.DoesNotContain(recommended.Items, item => item.Id == heroId);
+        Assert.Contains(recommended.Items, item => item.Id == recommendedItems[1].Id);
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncCapsGenreAfterRemovingHeroOverlap()
+    {
+        var heroId = Guid.Parse("11111111-1111-1111-1111-000000000001");
+        var genreId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var recommendedItems = Enumerable.Range(1, 12)
+            .Select(seed => CreateRecommendationItem("movie", seed) with
+            {
+                DiversityGenreIds = [genreId]
+            })
+            .ToList();
+        recommendedItems[0] = recommendedItems[0] with { Id = heroId };
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
+            ]),
+            options: new HomeOptions
+            {
+                DefaultSectionSize = 10,
+                MaximumSectionSize = 20,
+                HeroSectionSize = 5
+            });
+
+        var result = await service.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.All, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+        var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
+
+        Assert.Equal(3, recommended.Items.Count);
+        Assert.DoesNotContain(recommended.Items, item => item.Id == heroId);
+        Assert.Equal(recommendedItems[1].Id, recommended.Items[0].Id);
+    }
+
+    [Fact]
     public async Task GetHomePersonalizedAsyncWorksWithoutBrowseFirst()
     {
         var service = CreateService(
@@ -699,6 +796,7 @@ public sealed class HomeServiceTests
             cache ?? new FakeCacheService(),
             Options.Create(homeOptions),
             Options.Create(new ReleaseRegionOptions()),
+            Options.Create(new RecommendationOptions()),
             NullLogger<HomeService>.Instance);
     }
 
@@ -858,8 +956,25 @@ public sealed class HomeServiceTests
         public Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(RecommendationCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(bool includeColdStartDiscoverySections = true, string contentLocale = "en-US", CancellationToken cancellationToken = default) =>
-            Task.FromResult(sections);
+        public RecommendationContentType? LastContentType { get; private set; }
+
+        public int? LastSectionItemCount { get; private set; }
+
+        public bool LastDiversify { get; private set; } = true;
+
+        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
+            bool includeColdStartDiscoverySections = true,
+            string contentLocale = "en-US",
+            RecommendationContentType contentType = RecommendationContentType.All,
+            int? sectionItemCount = null,
+            bool diversify = true,
+            CancellationToken cancellationToken = default)
+        {
+            LastContentType = contentType;
+            LastSectionItemCount = sectionItemCount;
+            LastDiversify = diversify;
+            return Task.FromResult(sections);
+        }
     }
 
     private sealed class CancellingRecommendationService : IRecommendationService
@@ -873,7 +988,13 @@ public sealed class HomeServiceTests
         public Task<PaginatedResult<RecommendationItem>> GetRecommendationsForCurrentUserAsync(RecommendationCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(bool includeColdStartDiscoverySections = true, string contentLocale = "en-US", CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
+            bool includeColdStartDiscoverySections = true,
+            string contentLocale = "en-US",
+            RecommendationContentType contentType = RecommendationContentType.All,
+            int? sectionItemCount = null,
+            bool diversify = true,
+            CancellationToken cancellationToken = default) =>
             Task.FromCanceled<IReadOnlyList<RecommendationSection>>(cancellationToken);
     }
 

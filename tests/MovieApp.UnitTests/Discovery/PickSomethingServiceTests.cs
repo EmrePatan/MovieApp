@@ -463,6 +463,7 @@ public sealed class PickSomethingServiceTests
         public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
             Guid userId,
             int minimumInteractionsForEnrichment = 0,
+            int mildRatingMinScore = 6,
             CancellationToken cancellationToken = default)
         {
             GetUserContextCount++;

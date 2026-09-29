@@ -17,6 +17,7 @@ internal sealed class UserRecommendationContextLoader(
     public async Task<UserRecommendationContext> LoadAsync(
         Guid userId,
         int minimumInteractionsForEnrichment = 0,
+        int mildRatingMinScore = 6,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -32,7 +33,8 @@ internal sealed class UserRecommendationContextLoader(
                 await UserRecommendationContextInteractionProbe.CountDistinctMeaningfulInteractionsAsync(
                     dbContext,
                     userId,
-                    cancellationToken);
+                    cancellationToken,
+                    mildRatingMinScore);
             probeStopwatch.Stop();
             probeMs = probeStopwatch.ElapsedMilliseconds;
             dbTotalMs += probeMs;
@@ -75,7 +77,8 @@ internal sealed class UserRecommendationContextLoader(
             interactions.WatchedMovieRows,
             interactions.WatchlistRows,
             interactions.WatchedEpisodeRows,
-            interactions.CatalogFollowRows);
+            interactions.CatalogFollowRows,
+            mildRatingMinScore);
 
         if (minimumInteractionsForEnrichment > 0 &&
             meaningfulInteractionCount < minimumInteractionsForEnrichment)
@@ -148,7 +151,7 @@ internal sealed class UserRecommendationContextLoader(
             dbContextFactory));
         dbTotalMs += searchMatchMoviesMs + searchMatchTvMs;
 
-        var collapsedSeeds = CollapseSeeds(seeds);
+        var collapsedSeeds = CollapseSeeds(seeds, mildRatingMinScore);
         var movieSeedList = collapsedSeeds.Where(seed => seed.ContentType == "movie").ToList();
         var tvSeedList = collapsedSeeds.Where(seed => seed.ContentType == "tv").ToList();
 
@@ -390,20 +393,38 @@ internal sealed class UserRecommendationContextLoader(
         IReadOnlyList<UserRecommendationContextModels.WatchedMovieRow> watchedMovieRows,
         IReadOnlyList<UserRecommendationContextModels.TimestampedContentRow> watchlistRows,
         IReadOnlyList<UserRecommendationContextModels.WatchedEpisodeRow> watchedEpisodeRows,
-        IReadOnlyList<UserRecommendationContextModels.CatalogFollowRow> catalogFollowRows)
+        IReadOnlyList<UserRecommendationContextModels.CatalogFollowRow> catalogFollowRows,
+        int mildRatingMinScore = 6)
     {
         var interactions = new HashSet<(string ContentType, Guid ContentId)>();
+        var lowRated = new HashSet<(string ContentType, Guid ContentId)>();
 
         foreach (var rating in ratingRows)
         {
             if (rating.MovieId.HasValue)
             {
-                interactions.Add(("movie", rating.MovieId.Value));
+                var key = ("movie", rating.MovieId.Value);
+                if (rating.Score >= mildRatingMinScore)
+                {
+                    interactions.Add(key);
+                }
+                else
+                {
+                    lowRated.Add(key);
+                }
             }
 
             if (rating.TvShowId.HasValue)
             {
-                interactions.Add(("tv", rating.TvShowId.Value));
+                var key = ("tv", rating.TvShowId.Value);
+                if (rating.Score >= mildRatingMinScore)
+                {
+                    interactions.Add(key);
+                }
+                else
+                {
+                    lowRated.Add(key);
+                }
             }
         }
 
@@ -450,6 +471,7 @@ internal sealed class UserRecommendationContextLoader(
             interactions.Add(("tv", follow.ContentId));
         }
 
+        interactions.ExceptWith(lowRated);
         return interactions.Count;
     }
 
@@ -719,13 +741,16 @@ internal sealed class UserRecommendationContextLoader(
         return seeds;
     }
 
-    private static List<UserRecommendationContextModels.SignalSeed> CollapseSeeds(
-        IEnumerable<UserRecommendationContextModels.SignalSeed> seeds) =>
+    internal static List<UserRecommendationContextModels.SignalSeed> CollapseSeeds(
+        IEnumerable<UserRecommendationContextModels.SignalSeed> seeds,
+        int mildRatingMinScore = 6) =>
         seeds
             .GroupBy(seed => (seed.ContentType, seed.ContentId))
             .Select(group => group
-                .OrderByDescending(seed => RecommendationSignalScoring.GetSignalPriority(seed.SignalType))
-                .ThenByDescending(seed => seed.RatingScore ?? 0)
+                .OrderByDescending(seed => RecommendationSignalScoring.GetCollapseRank(
+                    seed.SignalType,
+                    seed.RatingScore,
+                    mildRatingMinScore))
                 .ThenByDescending(seed => seed.SignalAtUtc ?? DateTime.MinValue)
                 .First())
             .ToList();

@@ -29,6 +29,7 @@ public sealed class DeterministicAiMovieRecommendationProvider(
         var context = await recommendationRepository.GetUserRecommendationContextAsync(
             request.UserId,
             settings.MinimumPersonalizationInteractions,
+            settings.MildRatingMinScore,
             cancellationToken);
 
         var excludedMovies = MergeExclusions(context.ExcludedMovieIds, request.Session.RecommendedMovieIds);
@@ -36,7 +37,7 @@ public sealed class DeterministicAiMovieRecommendationProvider(
 
         IReadOnlyList<AiProviderSuggestion> suggestions;
 
-        if (context.MeaningfulInteractionCount < settings.MinimumPersonalizationInteractions)
+        if (!RecommendationSignalScoring.HasEnoughPositiveTaste(context, settings, DateTime.UtcNow))
         {
             suggestions = await BuildColdStartSuggestionsAsync(request, cancellationToken);
         }
@@ -96,7 +97,7 @@ public sealed class DeterministicAiMovieRecommendationProvider(
 
         var candidates = await recommendationRepository.GetPersonalizedCandidatesAsync(
             RecommendationContentType.All,
-            genrePreferences.Keys.ToList(),
+            PersonalizedRecommendationEngine.SelectPositiveGenreIds(genrePreferences),
             excludedMovies,
             excludedTv,
             settings.MaximumCandidates,

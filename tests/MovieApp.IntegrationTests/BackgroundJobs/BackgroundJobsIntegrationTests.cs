@@ -142,6 +142,11 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
                 Enabled = keywordBackfillEnabled,
                 RecurringCron = "0 * * * *"
             }),
+            Options.Create(new CatalogGenreBackfillOptions
+            {
+                Enabled = false,
+                RecurringCron = "0 * * * *"
+            }),
             Options.Create(new TvUpcomingEpisodeSyncOptions
             {
                 Enabled = tvUpcomingEpisodeSyncEnabled

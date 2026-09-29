@@ -187,6 +187,54 @@ public sealed class UserRecommendationContextLoaderEarlyExitTests
     }
 
     [Fact]
+    public async Task GetUserRecommendationContextAsyncDoesNotUnlockOnLowRatingsAlone()
+    {
+        await using var context = CreateContext();
+        var userId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+
+        context.Users.Add(User.Create(
+            userId,
+            "low-ratings@example.com",
+            "hash",
+            "Low Ratings",
+            utcNow));
+
+        for (var index = 0; index < 3; index++)
+        {
+            var movieId = Guid.NewGuid();
+            context.Movies.Add(new Movie
+            {
+                Id = movieId,
+                Title = $"Low Rated {index}",
+                VoteAverage = 8m,
+                VoteCount = 100,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+            context.Ratings.Add(new Rating
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                MovieId = movieId,
+                Score = 2 + index,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var repository = new RecommendationRepository(context);
+        var recommendationContext = await repository.GetUserRecommendationContextAsync(
+            userId,
+            minimumInteractionsForEnrichment: PersonalizationThreshold);
+
+        Assert.Equal(0, recommendationContext.MeaningfulInteractionCount);
+        Assert.Empty(recommendationContext.Signals);
+    }
+
+    [Fact]
     public async Task GetUserRecommendationContextAsyncShortCircuitsSearchOnlyUsersWhenThresholdIsSet()
     {
         await using var context = CreateContext();

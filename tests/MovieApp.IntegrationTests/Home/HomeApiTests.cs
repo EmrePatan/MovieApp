@@ -241,6 +241,38 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task HomePersonalizedOmitsRecommendedRailWhenOnlyLowRatingsExist()
+    {
+        await fixture.ResetAsync();
+        var token = await RegisterAndGetTokenAsync();
+        var catalogResponse = await _client.GetAsync("/api/movies/search?q=paged-catalog&page=1&pageSize=25");
+        Assert.Equal(HttpStatusCode.OK, catalogResponse.StatusCode);
+        var catalog = await catalogResponse.Content.ReadFromJsonAsync<MovieSearchResponse>();
+        Assert.NotNull(catalog);
+        var movieIds = catalog.Items.Take(3).Select(item => item.Id).Distinct().ToList();
+        Assert.Equal(3, movieIds.Count);
+
+        foreach (var movieId in movieIds)
+        {
+            var ratingResponse = await SendAuthorizedPostAsync(
+                $"/api/ratings/movies/{movieId}",
+                token,
+                new CreateRatingRequest(2));
+            Assert.True(
+                ratingResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created,
+                ratingResponse.StatusCode.ToString());
+        }
+
+        var response = await SendAuthorizedGetAsync("/api/home/personalized?type=all&sectionSize=10", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<HomePersonalizedResponse>();
+        Assert.NotNull(payload);
+        Assert.False(payload.IsPersonalized);
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "RecommendedForYou");
+    }
+
+    [Fact]
     public async Task HomePersonalizedReturnsColdStartStateForNewUser()
     {
         await fixture.ResetAsync();

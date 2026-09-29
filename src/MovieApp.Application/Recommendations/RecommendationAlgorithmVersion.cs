@@ -4,5 +4,5 @@ public static class RecommendationAlgorithmVersion
 {
     public const string Similar = "v1";
 
-    public const string Personalized = "v4";
+    public const string Personalized = "v5";
 }

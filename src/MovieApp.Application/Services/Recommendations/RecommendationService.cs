@@ -158,10 +158,11 @@ public sealed class RecommendationService(
         var context = await recommendationRepository.GetUserRecommendationContextAsync(
             userId,
             _options.MinimumPersonalizationInteractions,
+            _options.MildRatingMinScore,
             cancellationToken);
         PaginatedResult<RecommendationItem> result;
 
-        if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
+        if (!RecommendationSignalScoring.HasEnoughPositiveTaste(context, _options, DateTime.UtcNow))
         {
             result = await BuildColdStartRecommendationsAsync(criteria, contentLocale, cancellationToken);
         }
@@ -186,14 +187,26 @@ public sealed class RecommendationService(
     public async Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
         bool includeColdStartDiscoverySections = true,
         string contentLocale = ContentLocaleResolver.EnglishUnitedStates,
+        RecommendationContentType contentType = RecommendationContentType.All,
+        int? sectionItemCount = null,
+        bool diversify = true,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
+        var resultLimit = sectionItemCount is > 0
+            ? sectionItemCount.Value
+            : _options.HomeSectionItemCount;
 
         var cacheLookupStopwatch = Stopwatch.StartNew();
         var generation = await _cacheGeneration.GetAsync(userId, cancellationToken);
-        var cacheKey = RecommendationCacheKeys.Home(userId, contentLocale, generation);
+        var cacheKey = RecommendationCacheKeys.Home(
+            userId,
+            contentLocale,
+            generation,
+            contentType,
+            resultLimit,
+            diversify);
         var cached = await cacheService.GetAsync<RecommendationHomeCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
 
@@ -212,6 +225,7 @@ public sealed class RecommendationService(
         var context = await recommendationRepository.GetUserRecommendationContextAsync(
             userId,
             _options.MinimumPersonalizationInteractions,
+            _options.MildRatingMinScore,
             cancellationToken);
         userContextStopwatch.Stop();
 
@@ -219,7 +233,7 @@ public sealed class RecommendationService(
         long personalizedSectionMs = 0;
         long becauseYouWatchedMs = 0;
 
-        if (context.MeaningfulInteractionCount < _options.MinimumPersonalizationInteractions)
+        if (!RecommendationSignalScoring.HasEnoughPositiveTaste(context, _options, DateTime.UtcNow))
         {
             sections = includeColdStartDiscoverySections
                 ? await BuildColdStartHomeSectionsAsync(contentLocale, cancellationToken)
@@ -228,7 +242,13 @@ public sealed class RecommendationService(
         else
         {
             (sections, personalizedSectionMs, becauseYouWatchedMs) =
-                await BuildPersonalizedHomeSectionsTimedAsync(context, contentLocale, cancellationToken);
+                await BuildPersonalizedHomeSectionsTimedAsync(
+                    context,
+                    contentLocale,
+                    contentType,
+                    resultLimit,
+                    diversify,
+                    cancellationToken);
         }
 
         sections = await summaryLocalizationOverlayService.ApplyToRecommendationSectionsAsync(
@@ -287,7 +307,8 @@ public sealed class RecommendationService(
         UserRecommendationContext context,
         RecommendationCriteria criteria,
         CancellationToken cancellationToken,
-        bool emitPerfLogs = false)
+        bool emitPerfLogs = false,
+        bool applyDiversity = true)
     {
         var utcNow = DateTime.UtcNow;
 
@@ -300,7 +321,7 @@ public sealed class RecommendationService(
             context.Signals,
             _options,
             utcNow);
-        var preferredGenreIds = genrePreferences.Keys.ToList();
+        var preferredGenreIds = PersonalizedRecommendationEngine.SelectPositiveGenreIds(genrePreferences);
         preferenceBuildStopwatch.Stop();
 
         var candidateFetchStopwatch = Stopwatch.StartNew();
@@ -324,7 +345,10 @@ public sealed class RecommendationService(
         scoringStopwatch.Stop();
 
         var diversityStopwatch = Stopwatch.StartNew();
-        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(scored, _options)
+        var ranked = applyDiversity
+            ? PersonalizedRecommendationEngine.ApplyDiversity(scored, _options)
+            : scored;
+        var diversified = ranked
             .Select(RecommendationMapper.ToRecommendationItem)
             .ToList();
         diversityStopwatch.Stop();
@@ -397,11 +421,14 @@ public sealed class RecommendationService(
         BuildPersonalizedHomeSectionsTimedAsync(
             UserRecommendationContext context,
             string contentLocale,
+            RecommendationContentType contentType,
+            int resultLimit,
+            bool diversify,
             CancellationToken cancellationToken)
     {
         var sections = new List<RecommendationSection>();
         var sectionSize = _options.HomeSectionItemCount;
-        var criteria = new RecommendationCriteria(RecommendationContentType.All, 1, sectionSize);
+        var criteria = new RecommendationCriteria(contentType, 1, Math.Max(sectionSize, resultLimit));
 
         var personalizedStopwatch = Stopwatch.StartNew();
         var becauseYouWatchedStopwatch = Stopwatch.StartNew();
@@ -414,7 +441,8 @@ public sealed class RecommendationService(
                 context,
                 criteria,
                 cancellationToken,
-                emitPerfLogs: true);
+                emitPerfLogs: true,
+                applyDiversity: diversify);
             personalizedStopwatch.Stop();
 
             becauseYouWatched = await BuildBecauseYouWatchedSectionAsync(context, sectionSize, cancellationToken);
@@ -427,7 +455,8 @@ public sealed class RecommendationService(
                     context,
                     criteria,
                     ct,
-                    emitPerfLogs: true),
+                    emitPerfLogs: true,
+                    applyDiversity: diversify),
                 cancellationToken);
             var becauseYouWatchedTask = RunIsolatedAsync(
                 (service, ct) => service.BuildBecauseYouWatchedSectionAsync(context, sectionSize, ct),

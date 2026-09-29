@@ -187,11 +187,8 @@ public sealed class PersonalizedRecommendationEngineTests
 
         var diversified = PersonalizedRecommendationEngine.ApplyDiversity(recommendations, DefaultOptions, maxPerGenre: 2);
 
-        Assert.Equal(6, diversified.Count);
-        Assert.Equal(2, diversified.Take(2).Count(item => item.Candidate.GenreIds.Contains(SciFiGenreId)));
-        Assert.Contains(
-            diversified.Skip(2),
-            item => item.Candidate.GenreIds.Contains(SciFiGenreId));
+        Assert.Equal(2, diversified.Count);
+        Assert.All(diversified, item => Assert.Contains(SciFiGenreId, item.Candidate.GenreIds));
     }
 
     [Fact]
@@ -407,9 +404,153 @@ public sealed class PersonalizedRecommendationEngineTests
 
         var diversified = PersonalizedRecommendationEngine.ApplyDiversity(recommendations, DefaultOptions, maxPerGenre: 3);
 
-        Assert.Equal(5, diversified.Count);
-        Assert.Equal(2, diversified.Take(2).Count(item => item.Candidate.TmdbCollectionId == collectionId));
-        Assert.Equal(3, diversified.Skip(2).Count(item => item.Candidate.TmdbCollectionId == collectionId));
+        Assert.Single(diversified);
+        Assert.Equal(recommendations[0].Candidate.Id, diversified[0].Candidate.Id);
+        Assert.Equal(collectionId, diversified[0].Candidate.TmdbCollectionId);
+    }
+
+    [Fact]
+    public void ApplyDiversityHardCapsCollectionAtOneInsideTopTen()
+    {
+        var avengersCollection = 86311;
+        var recommendations = Enumerable.Range(0, 14)
+            .Select(index => new ScoredRecommendation(
+                CreateCandidate(
+                    Guid.NewGuid(),
+                    [Guid.NewGuid()],
+                    new Dictionary<Guid, string>(),
+                    8m,
+                    1000 - index,
+                    index < 4 ? avengersCollection : 1000 + index),
+                1m - (index * 0.01m),
+                null))
+            .ToList();
+
+        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(recommendations, DefaultOptions)
+            .Take(10)
+            .ToList();
+
+        Assert.Equal(10, diversified.Count);
+        Assert.Equal(1, diversified.Count(item => item.Candidate.TmdbCollectionId == avengersCollection));
+        Assert.Equal(recommendations[0].Candidate.Id, diversified[0].Candidate.Id);
+    }
+
+    [Fact]
+    public void ApplyDiversityHardCapsGenrePileUp()
+    {
+        var actionGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var comedyGenreId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var actionNames = new Dictionary<Guid, string> { [actionGenreId] = "Action" };
+        var comedyNames = new Dictionary<Guid, string> { [comedyGenreId] = "Comedy" };
+        var recommendations = new List<ScoredRecommendation>();
+        for (var index = 0; index < 8; index++)
+        {
+            recommendations.Add(new ScoredRecommendation(
+                CreateCandidate(Guid.NewGuid(), [actionGenreId], actionNames, 8m, 500 - index, null),
+                0.9m - (index * 0.01m),
+                null));
+            recommendations.Add(new ScoredRecommendation(
+                CreateCandidate(Guid.NewGuid(), [comedyGenreId], comedyNames, 8m, 400 - index, null),
+                0.8m - (index * 0.01m),
+                null));
+        }
+
+        recommendations = recommendations.OrderByDescending(item => item.Score).ToList();
+        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(recommendations, DefaultOptions);
+
+        Assert.Equal(3, diversified.Count(item => item.Candidate.GenreIds.Contains(actionGenreId)));
+        Assert.Equal(3, diversified.Count(item => item.Candidate.GenreIds.Contains(comedyGenreId)));
+        Assert.Equal(recommendations[0].Candidate.Id, diversified[0].Candidate.Id);
+    }
+
+    [Fact]
+    public void ApplyDiversityHardCapsFranchiseFamilyKeywords()
+    {
+        var mcuKeyword = Guid.Parse("abababab-abab-abab-abab-abababababab");
+        var recommendations = Enumerable.Range(0, 6)
+            .Select(index => new ScoredRecommendation(
+                CreateCandidate(Guid.NewGuid(), [SciFiGenreId], new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" }, 8m, 1000 - index, 2000 + index)
+                    with { FranchiseKeywordIds = [mcuKeyword] },
+                1m - (index * 0.01m),
+                null))
+            .ToList();
+
+        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(recommendations, DefaultOptions);
+
+        Assert.Equal(2, diversified.Count);
+        Assert.Equal(recommendations[0].Candidate.Id, diversified[0].Candidate.Id);
+        Assert.Equal(recommendations[1].Candidate.Id, diversified[1].Candidate.Id);
+    }
+
+    [Fact]
+    public void ScoreCandidatesPushesLowRatedGenreBelowLikedGenre()
+    {
+        var horrorGenreId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var horrorNames = new Dictionary<Guid, string> { [horrorGenreId] = "Horror" };
+        var sciFiNames = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var signals = new List<UserBehaviorSignal>
+        {
+            CreateSignal(UserBehaviorSignalTypes.Favorite, null, UtcNow.AddDays(-2)),
+            CreateSignal(
+                UserBehaviorSignalTypes.Rating,
+                3,
+                UtcNow.AddDays(-1),
+                genreIds: [horrorGenreId],
+                genreNames: horrorNames)
+        };
+        var preferences = PersonalizedRecommendationEngine.BuildGenrePreferences(signals, DefaultOptions, UtcNow);
+        var liked = CreateCandidate(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), [SciFiGenreId], sciFiNames, 7m, 100, null);
+        var disliked = CreateCandidate(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), [horrorGenreId], horrorNames, 9m, 5000, null);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [disliked, liked],
+            signals,
+            preferences,
+            new Dictionary<Guid, decimal>(),
+            DefaultOptions,
+            UtcNow);
+
+        Assert.True(preferences[horrorGenreId].Score < 0m);
+        Assert.Equal(liked.Id, scored[0].Candidate.Id);
+        Assert.DoesNotContain(horrorGenreId, PersonalizedRecommendationEngine.SelectPositiveGenreIds(preferences));
+    }
+
+    [Fact]
+    public void ScoreCandidatesReasonUsesBestBehaviorSignalRatherThanFirstWatched()
+    {
+        var sciFiNames = new Dictionary<Guid, string> { [SciFiGenreId] = "Science Fiction" };
+        var weakWatched = CreateSignal(
+            UserBehaviorSignalTypes.Watched,
+            null,
+            UtcNow.AddDays(-1),
+            catalogVoteAverage: 2m,
+            catalogYear: 1960,
+            title: "Weak Match");
+        var strongWatched = CreateSignal(
+            UserBehaviorSignalTypes.Watched,
+            null,
+            UtcNow.AddDays(-20),
+            catalogVoteAverage: 8m,
+            catalogYear: 2014,
+            title: "Strong Match");
+        var candidate = CreateCandidate(
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            [SciFiGenreId],
+            sciFiNames,
+            8m,
+            1000,
+            null,
+            year: 2014);
+
+        var scored = PersonalizedRecommendationEngine.ScoreCandidates(
+            [candidate],
+            [weakWatched, strongWatched],
+            new Dictionary<Guid, (decimal Score, string Name)>(),
+            new Dictionary<Guid, decimal>(),
+            BehaviorOnlyOptions(),
+            UtcNow);
+
+        Assert.Equal("Because you watched Strong Match", scored[0].Reason);
     }
 
     private static RecommendationOptions BehaviorOnlyOptions() =>
@@ -429,12 +570,13 @@ public sealed class PersonalizedRecommendationEngineTests
         decimal catalogVoteAverage = 0m,
         int? catalogYear = null,
         IReadOnlyList<Guid>? genreIds = null,
-        IReadOnlyDictionary<Guid, string>? genreNames = null) =>
+        IReadOnlyDictionary<Guid, string>? genreNames = null,
+        string title = "Interstellar") =>
         new(
             Guid.NewGuid(),
             "movie",
             signalType,
-            "Interstellar",
+            title,
             rating,
             signalAtUtc,
             genreIds ?? [SciFiGenreId],
