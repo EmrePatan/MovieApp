@@ -83,6 +83,39 @@ public sealed class LoginUserServiceTests
     }
 
     [Fact]
+    public async Task LoginAsyncDoesNotAuthenticateThroughPendingEmail()
+    {
+        var user = CreateUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
+        user.SetPendingEmailChange("pending@example.com", DateTime.UtcNow);
+        var repository = new TrackingUserRepository(user);
+        var service = new LoginUserService(repository, new FakePasswordHasher(true), new FakeAuthenticationSessionService());
+
+        await Assert.ThrowsAsync<AuthenticationException>(() =>
+            service.LoginAsync(new LoginUserRequest("pending@example.com", "StrongPassword123")));
+
+        Assert.Equal(
+            [UserEmailNormalizer.Normalize("pending@example.com")],
+            repository.NormalizedEmailLookupKeys);
+    }
+
+    [Fact]
+    public async Task LoginAsyncSucceedsWithPrimaryEmailWhilePendingEmailChangeIsActive()
+    {
+        var user = CreateUser();
+        user.MarkEmailVerified(DateTime.UtcNow);
+        user.SetPendingEmailChange("pending@example.com", DateTime.UtcNow);
+        var service = new LoginUserService(
+            new FakeUserRepository(user),
+            new FakePasswordHasher(true),
+            new FakeAuthenticationSessionService());
+
+        var result = await service.LoginAsync(new LoginUserRequest("user@example.com", "StrongPassword123"));
+
+        Assert.Equal("token", result.AccessToken);
+    }
+
+    [Fact]
     public async Task LoginAsyncThrowsAuthenticationExceptionForInactiveUser()
     {
         var user = CreateUser();
@@ -131,6 +164,38 @@ public sealed class LoginUserServiceTests
             UpdateCount++;
             return Task.CompletedTask;
         }
+
+        public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class TrackingUserRepository(User? user) : IUserRepository
+    {
+        public List<string> NormalizedEmailLookupKeys { get; } = [];
+
+        public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(user);
+
+        public Task<User?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(user);
+
+        public Task<Guid?> GetSecurityStampAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(user?.SecurityStamp);
+
+        public Task<User?> GetByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default)
+        {
+            NormalizedEmailLookupKeys.Add(normalizedEmail);
+            return Task.FromResult(user is not null && user.NormalizedEmail == normalizedEmail ? user : null);
+        }
+
+        public Task<bool> ExistsByNormalizedEmailAsync(string normalizedEmail, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<User> CreateAsync(User user, CancellationToken cancellationToken = default) =>
+            Task.FromResult(user);
+
+        public Task UpdateAsync(User user, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);

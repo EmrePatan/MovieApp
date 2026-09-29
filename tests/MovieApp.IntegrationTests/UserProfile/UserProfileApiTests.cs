@@ -108,14 +108,19 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
             emailSender.SentVerificationEmails,
             email => email.Email == newEmail);
 
-        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
+        var pendingNewEmailLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             newEmail,
             "StrongPassword123"));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, loginResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, pendingNewEmailLoginResponse.StatusCode);
 
-        var loginProblem = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(EmailNotVerifiedException.ErrorCode, loginProblem.GetProperty("code").GetString());
+        var pendingNewEmailLoginProblem = await pendingNewEmailLoginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("AUTHENTICATION_FAILED", pendingNewEmailLoginProblem.GetProperty("code").GetString());
+
+        var pendingOldEmailLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
+            oldEmail,
+            "StrongPassword123"));
+        Assert.Equal(HttpStatusCode.OK, pendingOldEmailLoginResponse.StatusCode);
 
         var rawToken = CapturingEmailSender.ExtractTokenFromVerificationUrl(changeVerificationEmail.VerifyUrl);
         Assert.False(string.IsNullOrWhiteSpace(rawToken));
@@ -142,6 +147,9 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
             "StrongPassword123"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, oldLoginResponse.StatusCode);
+
+        var oldLoginProblem = await oldLoginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("AUTHENTICATION_FAILED", oldLoginProblem.GetProperty("code").GetString());
     }
 
     [Fact]
