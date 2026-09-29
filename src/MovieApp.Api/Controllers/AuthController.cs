@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Errors;
 using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Api.RateLimiting;
@@ -77,17 +78,19 @@ public sealed class AuthController(
         }
         catch (AuthenticationException exception)
         {
-            return Unauthorized(CreateProblemDetails(
+            return Unauthorized(ApiProblemDetailsHelper.Create(
                 StatusCodes.Status401Unauthorized,
                 "Authentication failed.",
-                exception.Message));
+                exception.Message,
+                exception.ErrorCode));
         }
         catch (ConflictException exception)
         {
-            return Conflict(CreateProblemDetails(
+            return Conflict(ApiProblemDetailsHelper.Create(
                 StatusCodes.Status409Conflict,
                 "Social authentication conflict.",
-                exception.Message));
+                exception.Message,
+                exception.ErrorCode));
         }
     }
 

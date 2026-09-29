@@ -16,4 +16,9 @@ public interface IUserExternalLoginRepository
     Task<IReadOnlyList<string>> GetProvidersForUserAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteAsync(
+        Guid userId,
+        string provider,
+        CancellationToken cancellationToken = default);
 }

@@ -1,3 +1,12 @@
 namespace MovieApp.Application.Exceptions;
 
-public sealed class ConflictException(string message) : Exception(message);
+public sealed class ConflictException : Exception
+{
+    public ConflictException(string message, string? errorCode = null)
+        : base(message)
+    {
+        ErrorCode = errorCode;
+    }
+
+    public string? ErrorCode { get; }
+}

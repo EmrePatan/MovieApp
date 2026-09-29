@@ -29,12 +29,15 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
         var consumedToken = await dbContext.EmailVerificationTokens
             .AsNoTracking()
             .Where(token => token.TokenHash == tokenHash)
-            .Select(token => new { token.Id, token.UserId })
+            .Select(token => new { token.Id, token.UserId, token.PendingEmail })
             .FirstOrDefaultAsync(cancellationToken);
 
         return consumedToken is null
             ? null
-            : new EmailVerificationTokenConsumptionResult(consumedToken.Id, consumedToken.UserId);
+            : new EmailVerificationTokenConsumptionResult(
+                consumedToken.Id,
+                consumedToken.UserId,
+                consumedToken.PendingEmail);
     }
 
     public async Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)
@@ -71,7 +74,7 @@ public sealed class EmailVerificationTokenRepository(ApplicationDbContext dbCont
             .Select(token => new EmailVerificationDeliveryTarget(
                 token.Id,
                 token.UserId,
-                token.User.Email,
+                token.PendingEmail ?? token.User.Email,
                 token.ProtectedDeliverySecret ?? string.Empty,
                 token.DeliveryCompletedAtUtc == null &&
                 token.UsedAtUtc == null &&

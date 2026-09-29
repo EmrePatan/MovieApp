@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MovieApp.Api.Errors;
 using MovieApp.Api.Localization;
 using MovieApp.Api.RateLimiting;
 using MovieApp.Api.Mapping;
+using MovieApp.Contracts.Auth;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
@@ -14,7 +16,9 @@ namespace MovieApp.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/users")]
-public sealed class UsersController(IUserProfileService userProfileService) : ControllerBase
+public sealed class UsersController(
+    IUserProfileService userProfileService,
+    IUserCredentialMethodsService userCredentialMethodsService) : ControllerBase
 {
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
@@ -81,49 +85,222 @@ public sealed class UsersController(IUserProfileService userProfileService) : Co
 
     [HttpPut("me/email")]
     [EnableRateLimiting(AccountRateLimitPolicies.ChangeEmail)]
-    [ProducesResponseType(typeof(UserProfileAuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<UserProfileAuthResponse>> ChangeEmail(
+    public async Task<ActionResult<MessageResponse>> ChangeEmail(
         [FromBody] ChangeEmailRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await userProfileService.ChangeEmailAsync(
-                request.Email,
+            var proof = new AccountReauthenticationProof(
                 request.CurrentPassword,
-                Request.ResolveContentLocale(),
+                request.ReauthProvider,
+                request.ReauthIdentityToken);
+            var result = await userCredentialMethodsService.RequestEmailChangeAsync(
+                new RequestEmailChangeCommand(
+                    request.Email,
+                    proof,
+                    Request.ResolveContentLocale()),
+                cancellationToken);
+
+            return Ok(new MessageResponse(result.Message));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status400BadRequest,
+                "Invalid email change request.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status409Conflict,
+                "Email change conflict.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("me/linked-providers")]
+    [EnableRateLimiting(AccountRateLimitPolicies.ChangePassword)]
+    [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserProfileResponse>> LinkExternalLogin(
+        [FromBody] LinkExternalLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var proof = new AccountReauthenticationProof(
+                request.CurrentPassword,
+                request.ReauthProvider,
+                request.ReauthIdentityToken);
+            var profile = await userCredentialMethodsService.LinkExternalLoginAsync(
+                new LinkExternalLoginCommand(
+                    proof,
+                    request.TargetProvider,
+                    request.TargetIdentityToken),
+                cancellationToken);
+
+            return Ok(UserProfileContractMapper.ToUserProfileResponse(profile));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status400BadRequest,
+                "Invalid link request.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status409Conflict,
+                "Link conflict.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpDelete("me/linked-providers/{provider}")]
+    [EnableRateLimiting(AccountRateLimitPolicies.ChangePassword)]
+    [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserProfileResponse>> UnlinkExternalLogin(
+        string provider,
+        [FromBody] UnlinkExternalLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var proof = new AccountReauthenticationProof(
+                request.CurrentPassword,
+                request.ReauthProvider,
+                request.ReauthIdentityToken);
+            var profile = await userCredentialMethodsService.UnlinkExternalLoginAsync(
+                new UnlinkExternalLoginCommand(provider, proof),
+                cancellationToken);
+
+            return Ok(UserProfileContractMapper.ToUserProfileResponse(profile));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status400BadRequest,
+                "Invalid unlink request.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status409Conflict,
+                "Unlink conflict.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message,
+                exception.ErrorCode));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(ApiProblemDetailsHelper.Create(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("me/password")]
+    [EnableRateLimiting(AccountRateLimitPolicies.ChangePassword)]
+    [ProducesResponseType(typeof(UserProfileAuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserProfileAuthResponse>> CreatePassword(
+        [FromBody] CreatePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await userCredentialMethodsService.CreatePasswordAsync(
+                new CreatePasswordCommand(
+                    request.NewPassword,
+                    request.Provider,
+                    request.IdentityToken),
                 cancellationToken);
 
             return Ok(UserProfileContractMapper.ToUserProfileAuthResponse(result));
         }
         catch (ValidationException exception)
         {
-            return BadRequest(CreateProblemDetails(
+            return BadRequest(ApiProblemDetailsHelper.Create(
                 StatusCodes.Status400BadRequest,
-                "Invalid email change request.",
-                exception.Message));
+                "Invalid create password request.",
+                exception.Message,
+                exception.ErrorCode));
         }
         catch (ConflictException exception)
         {
-            return Conflict(CreateProblemDetails(
+            return Conflict(ApiProblemDetailsHelper.Create(
                 StatusCodes.Status409Conflict,
-                "Email change conflict.",
-                exception.Message));
+                "Create password conflict.",
+                exception.Message,
+                exception.ErrorCode));
         }
         catch (AuthenticationException exception)
         {
-            return Unauthorized(CreateProblemDetails(
+            return Unauthorized(ApiProblemDetailsHelper.Create(
                 StatusCodes.Status401Unauthorized,
                 "Authentication required.",
-                exception.Message));
+                exception.Message,
+                exception.ErrorCode));
         }
         catch (NotFoundException exception)
         {
-            return NotFound(CreateProblemDetails(
+            return NotFound(ApiProblemDetailsHelper.Create(
                 StatusCodes.Status404NotFound,
                 "User not found.",
                 exception.Message));

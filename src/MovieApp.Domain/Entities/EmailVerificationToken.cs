@@ -20,6 +20,11 @@ public sealed class EmailVerificationToken
 
     public DateTime? DeliveryCompletedAtUtc { get; set; }
 
+    /// <summary>
+    /// When set, confirming this token applies a pending email change to this address.
+    /// </summary>
+    public string? PendingEmail { get; set; }
+
     public User User { get; set; } = null!;
 
     public bool IsActive(DateTime utcNow) =>

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Application.Identity;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Contracts.Auth;
 using MovieApp.Domain.Users;
@@ -34,7 +35,9 @@ public sealed class AuthEnumerationHardeningApiTests(AuthApiFixture fixture)
 
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Social authentication failed.", problem.GetProperty("detail").GetString());
-        Assert.Equal("AUTHENTICATION_FAILED", problem.GetProperty("code").GetString());
+        Assert.Equal(
+            AccountAuthenticationErrorCodes.AccountExistsDifferentSignInMethod,
+            problem.GetProperty("code").GetString());
     }
 
     [Fact]

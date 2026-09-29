@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Validation;
@@ -18,6 +19,8 @@ public sealed class SocialAuthService(
     IAuthenticationSessionService authenticationSessionService,
     ILogger<SocialAuthService> logger) : ISocialAuthService
 {
+    private const string SocialAuthenticationFailedMessage = "Social authentication failed.";
+
     private readonly Dictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
         tokenVerifiers.ToDictionary(verifier => verifier.Provider, StringComparer.Ordinal);
 
@@ -60,13 +63,13 @@ public sealed class SocialAuthService(
             catch (Exception)
             {
                 perf.Complete("authentication_failed");
-                throw new AuthenticationException("Social authentication failed.");
+                throw new AuthenticationException(SocialAuthenticationFailedMessage);
             }
 
             if (!string.Equals(identity.Provider, provider, StringComparison.Ordinal))
             {
                 perf.Complete("authentication_failed");
-                throw new AuthenticationException("Social authentication failed.");
+                throw new AuthenticationException(SocialAuthenticationFailedMessage);
             }
 
             var lookupStopwatch = Stopwatch.StartNew();
@@ -92,19 +95,10 @@ public sealed class SocialAuthService(
 
                 if (userByEmail is not null)
                 {
-                    if (userByEmail.HasPassword)
-                    {
-                        perf.Complete("password_account_rejected");
-                        throw new AuthenticationException("Social authentication failed.");
-                    }
-
-                    var result = await LinkExternalLoginAndAuthenticateAsync(
-                        userByEmail,
-                        identity,
-                        perf,
-                        cancellationToken);
-                    perf.Complete("linked_existing_account");
-                    return result;
+                    perf.Complete("existing_account_different_sign_in_method");
+                    throw new AuthenticationException(
+                        SocialAuthenticationFailedMessage,
+                        AccountAuthenticationErrorCodes.AccountExistsDifferentSignInMethod);
                 }
             }
 
@@ -145,57 +139,6 @@ public sealed class SocialAuthService(
                     perf.IssueTokenMs);
             }
         }
-    }
-
-    private async Task<AuthenticationResult> LinkExternalLoginAndAuthenticateAsync(
-        User user,
-        VerifiedSocialIdentity identity,
-        SocialAuthPerfState perf,
-        CancellationToken cancellationToken)
-    {
-        if (!user.IsActive)
-        {
-            throw new AuthenticationException("This account is inactive.");
-        }
-
-        user.SetInitialDisplayNameIfEmpty(identity.DisplayName, DateTime.UtcNow);
-
-        var externalLogin = UserExternalLogin.Create(
-            Guid.NewGuid(),
-            user.Id,
-            identity.Provider,
-            identity.Subject,
-            identity.Email,
-            DateTime.UtcNow);
-
-        try
-        {
-            var persistenceStopwatch = Stopwatch.StartNew();
-            await externalLoginRepository.CreateAsync(externalLogin, cancellationToken);
-            perf.PersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
-        }
-        catch (ConflictException)
-        {
-            var lookupStopwatch = Stopwatch.StartNew();
-            var linkedUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
-                identity.Provider,
-                identity.Subject,
-                cancellationToken);
-            perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
-
-            if (linkedUser is null)
-            {
-                throw;
-            }
-
-            return await IssueAuthenticationResultAsync(linkedUser, identity, perf, cancellationToken);
-        }
-
-        var updateStopwatch = Stopwatch.StartNew();
-        await userRepository.UpdateAsync(user, cancellationToken);
-        perf.PersistenceMs += updateStopwatch.ElapsedMilliseconds;
-
-        return await IssueAuthenticationResultAsync(user, identity, perf, cancellationToken);
     }
 
     private async Task<AuthenticationResult> CreateUserAndAuthenticateAsync(
@@ -254,14 +197,11 @@ public sealed class SocialAuthService(
                 var userByEmail = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
                 perf.DbLookupMs += lookupStopwatch.ElapsedMilliseconds;
 
-                if (userByEmail is not null && !userByEmail.HasPassword)
+                if (userByEmail is not null)
                 {
-                    return await LinkExternalLoginAndAuthenticateAsync(userByEmail, identity, perf, cancellationToken);
-                }
-
-                if (userByEmail is not null && userByEmail.HasPassword)
-                {
-                    throw new AuthenticationException("Social authentication failed.");
+                    throw new AuthenticationException(
+                        SocialAuthenticationFailedMessage,
+                        AccountAuthenticationErrorCodes.AccountExistsDifferentSignInMethod);
                 }
             }
 

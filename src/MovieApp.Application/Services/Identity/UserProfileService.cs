@@ -18,23 +18,9 @@ public sealed class UserProfileService(
     IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
     IAuthenticationSessionService authenticationSessionService,
-    IResendVerificationService resendVerificationService,
-    IEnumerable<ISocialIdentityTokenVerifier> tokenVerifiers) : IUserProfileService
+    IAccountReauthenticationService accountReauthenticationService) : IUserProfileService
 {
     private const string InvalidCurrentPasswordMessage = "Current password is incorrect.";
-    private const string SocialReauthenticationRequiredMessage =
-        "Social re-authentication is required.";
-    private const string SocialReauthenticationFailedMessage = "Social re-authentication failed.";
-    private const string PasswordConfirmationRequiredMessage =
-        "Confirm deletion with your current password.";
-    private const string PasswordNotUsedMessage =
-        "This account does not use a password. Confirm deletion with a linked sign-in provider.";
-    private const string UnsupportedProviderMessage = "Unsupported social provider.";
-    private const string UnlinkedProviderMessage =
-        "The selected sign-in provider is not linked to this account.";
-
-    private readonly Dictionary<string, ISocialIdentityTokenVerifier> _tokenVerifiers =
-        tokenVerifiers.ToDictionary(verifier => verifier.Provider, StringComparer.Ordinal);
 
     public async Task<UserProfileResult> GetCurrentProfileAsync(CancellationToken cancellationToken = default)
     {
@@ -61,39 +47,6 @@ public sealed class UserProfileService(
         return UserMapper.ToUserProfileResult(user, linkedProviders);
     }
 
-    public async Task<AuthenticationResult> ChangeEmailAsync(
-        string email,
-        string currentPassword,
-        string contentLocale,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateEmailChangeRequest(email, currentPassword);
-
-        var user = await GetCurrentUserForUpdateAsync(cancellationToken);
-        EnsureCurrentPassword(user, currentPassword);
-
-        var normalizedEmail = UserEmailNormalizer.Normalize(email);
-        if (user.NormalizedEmail == normalizedEmail)
-        {
-            return await CreateAuthenticationResult(user);
-        }
-
-        if (await userRepository.ExistsByNormalizedEmailAsync(normalizedEmail, cancellationToken))
-        {
-            throw new ConflictException("A user with this email address already exists.");
-        }
-
-        user.ChangeEmail(email, normalizedEmail, DateTime.UtcNow);
-        await userRepository.UpdateAsync(user, cancellationToken);
-        await resendVerificationService.SendVerificationEmailAsync(
-            user,
-            contentLocale,
-            cancellationToken);
-
-        await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, cancellationToken);
-        return await CreateAuthenticationResult(user);
-    }
-
     public async Task<AuthenticationResult> ChangePasswordAsync(
         string currentPassword,
         string newPassword,
@@ -102,9 +55,14 @@ public sealed class UserProfileService(
         ValidatePasswordChangeRequest(currentPassword, newPassword);
 
         var user = await GetCurrentUserForUpdateAsync(cancellationToken);
+        if (!user.HasPassword)
+        {
+            throw new ValidationException("This account does not have a password.");
+        }
+
         EnsureCurrentPassword(user, currentPassword);
 
-        if (user.HasPassword && passwordHasher.VerifyPassword(newPassword, user.PasswordHash!))
+        if (passwordHasher.VerifyPassword(newPassword, user.PasswordHash!))
         {
             throw new ValidationException("New password must be different from the current password.");
         }
@@ -140,108 +98,31 @@ public sealed class UserProfileService(
 
         if (user.HasPassword)
         {
-            EnsurePasswordDeletionConfirmation(request);
-            EnsureCurrentPassword(user, request.CurrentPassword!);
+            var proof = new AccountReauthenticationProof(request.CurrentPassword, null, null);
+            await accountReauthenticationService.EnsureCurrentAccountReauthenticatedAsync(
+                user,
+                linkedProviders,
+                proof,
+                cancellationToken);
         }
         else if (linkedProviders.Count > 0)
         {
-            await EnsureSocialDeletionConfirmationAsync(user, request, linkedProviders, cancellationToken);
+            var proof = new AccountReauthenticationProof(null, request.Provider, request.IdentityToken);
+            await accountReauthenticationService.EnsureCurrentAccountReauthenticatedAsync(
+                user,
+                linkedProviders,
+                proof,
+                cancellationToken);
         }
         else
         {
-            throw new ValidationException(SocialReauthenticationRequiredMessage);
+            throw new ValidationException("Social re-authentication is required.");
         }
 
         var deleted = await userRepository.DeleteAsync(user.Id, cancellationToken);
         if (!deleted)
         {
             throw new NotFoundException("The authenticated user was not found.");
-        }
-    }
-
-    private static void EnsurePasswordDeletionConfirmation(DeleteAccountCommand request)
-    {
-        if (!string.IsNullOrWhiteSpace(request.Provider) || !string.IsNullOrWhiteSpace(request.IdentityToken))
-        {
-            throw new ValidationException(PasswordConfirmationRequiredMessage);
-        }
-
-        var passwordValidation = ProfileValidator.ValidateCurrentPassword(request.CurrentPassword);
-        if (!passwordValidation.IsValid)
-        {
-            throw new ValidationException(passwordValidation.ErrorMessage!);
-        }
-    }
-
-    private async Task EnsureSocialDeletionConfirmationAsync(
-        Domain.Entities.User user,
-        DeleteAccountCommand request,
-        IReadOnlyList<string> linkedProviders,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(request.CurrentPassword))
-        {
-            throw new ValidationException(PasswordNotUsedMessage);
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Provider) || string.IsNullOrWhiteSpace(request.IdentityToken))
-        {
-            throw new ValidationException(SocialReauthenticationRequiredMessage);
-        }
-
-        var provider = ExternalLoginProviders.Normalize(request.Provider);
-        if (!linkedProviders.Contains(provider, StringComparer.Ordinal))
-        {
-            throw new ValidationException(UnlinkedProviderMessage);
-        }
-
-        if (!_tokenVerifiers.TryGetValue(provider, out var verifier))
-        {
-            throw new ValidationException(UnsupportedProviderMessage);
-        }
-
-        VerifiedSocialIdentity identity;
-        try
-        {
-            identity = await verifier.VerifyIdentityTokenAsync(request.IdentityToken, cancellationToken);
-        }
-        catch (AuthenticationException)
-        {
-            throw new AuthenticationException(SocialReauthenticationFailedMessage);
-        }
-        catch (Exception)
-        {
-            throw new AuthenticationException(SocialReauthenticationFailedMessage);
-        }
-
-        if (!string.Equals(identity.Provider, provider, StringComparison.Ordinal))
-        {
-            throw new AuthenticationException(SocialReauthenticationFailedMessage);
-        }
-
-        var authenticatedUser = await externalLoginRepository.GetUserByProviderAndSubjectAsync(
-            provider,
-            identity.Subject,
-            cancellationToken);
-
-        if (authenticatedUser is null || authenticatedUser.Id != user.Id)
-        {
-            throw new AuthenticationException(SocialReauthenticationFailedMessage);
-        }
-    }
-
-    private static void ValidateEmailChangeRequest(string email, string currentPassword)
-    {
-        var emailValidation = ProfileValidator.ValidateEmail(email);
-        if (!emailValidation.IsValid)
-        {
-            throw new ValidationException(emailValidation.ErrorMessage!);
-        }
-
-        var passwordValidation = ProfileValidator.ValidateCurrentPassword(currentPassword);
-        if (!passwordValidation.IsValid)
-        {
-            throw new ValidationException(passwordValidation.ErrorMessage!);
         }
     }
 
@@ -293,7 +174,4 @@ public sealed class UserProfileService(
             throw new ValidationException(InvalidCurrentPasswordMessage);
         }
     }
-
-    private Task<AuthenticationResult> CreateAuthenticationResult(Domain.Entities.User user) =>
-        authenticationSessionService.IssueAsync(user);
 }

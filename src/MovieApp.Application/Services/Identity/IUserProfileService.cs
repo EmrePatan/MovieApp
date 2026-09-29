@@ -10,12 +10,6 @@ public interface IUserProfileService
         string displayName,
         CancellationToken cancellationToken = default);
 
-    Task<AuthenticationResult> ChangeEmailAsync(
-        string email,
-        string currentPassword,
-        string contentLocale,
-        CancellationToken cancellationToken = default);
-
     Task<AuthenticationResult> ChangePasswordAsync(
         string currentPassword,
         string newPassword,

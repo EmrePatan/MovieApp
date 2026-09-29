@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Services.Identity;
@@ -191,11 +192,11 @@ public sealed class SocialAuthServiceTests
         var exception = await Assert.ThrowsAsync<AuthenticationException>(() =>
             service.AuthenticateAsync(new SocialAuthRequest(ExternalLoginProviders.Google, "token")));
 
-        Assert.Equal("Social authentication failed.", exception.Message);
+        Assert.Equal(AccountAuthenticationErrorCodes.AccountExistsDifferentSignInMethod, exception.ErrorCode);
     }
 
     [Fact]
-    public async Task AuthenticateAsyncLinksVerifiedEmailToExistingSocialOnlyAccount()
+    public async Task AuthenticateAsyncDoesNotAutoLinkVerifiedEmailToExistingSocialOnlyAccount()
     {
         var socialUser = User.CreateFromExternalIdentity(
             Guid.NewGuid(),
@@ -216,12 +217,11 @@ public sealed class SocialAuthServiceTests
         var externalLoginRepository = new FakeExternalLoginRepository();
         var service = CreateService(userRepository, externalLoginRepository, verifier);
 
-        var result = await service.AuthenticateAsync(
-            new SocialAuthRequest(ExternalLoginProviders.Apple, "token"));
+        var exception = await Assert.ThrowsAsync<AuthenticationException>(() =>
+            service.AuthenticateAsync(new SocialAuthRequest(ExternalLoginProviders.Apple, "token")));
 
-        Assert.Equal(socialUser.Id, result.User.Id);
-        Assert.Equal(1, externalLoginRepository.CreateCount);
-        Assert.Equal(0, userRepository.CreateCount);
+        Assert.Equal(AccountAuthenticationErrorCodes.AccountExistsDifferentSignInMethod, exception.ErrorCode);
+        Assert.Equal(0, externalLoginRepository.CreateCount);
     }
 
     [Fact]
@@ -419,6 +419,9 @@ public sealed class SocialAuthServiceTests
 
             return Task.FromResult<IReadOnlyList<string>>(providers);
         }
+
+        public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
 }

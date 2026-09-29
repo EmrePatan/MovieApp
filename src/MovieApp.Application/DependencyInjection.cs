@@ -98,6 +98,8 @@ public static class DependencyInjection
         services.AddScoped<IInsightsAnalyticsService, InsightsAnalyticsService>();
         services.AddScoped<IInsightsV3Service, InsightsV3Service>();
         services.AddScoped<IUserProfileService, UserProfileService>();
+        services.AddScoped<IAccountReauthenticationService, AccountReauthenticationService>();
+        services.AddScoped<IUserCredentialMethodsService, UserCredentialMethodsService>();
         services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
         services.AddScoped<IResetPasswordService, ResetPasswordService>();
         services.AddScoped<IVerifyEmailService, VerifyEmailService>();

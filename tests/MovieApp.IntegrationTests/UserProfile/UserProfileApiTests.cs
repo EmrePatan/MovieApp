@@ -93,20 +93,15 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var changeResponse = await SendAuthorizedPutAsync(
             "/api/users/me/email",
             oldToken,
-            new ChangeEmailRequest(newEmail, "StrongPassword123"));
+            new ChangeEmailRequest(newEmail, CurrentPassword: "StrongPassword123"));
 
         Assert.Equal(HttpStatusCode.OK, changeResponse.StatusCode);
 
-        var payload = await changeResponse.Content.ReadFromJsonAsync<UserProfileAuthResponse>();
-        Assert.NotNull(payload);
-        Assert.Equal(newEmail, payload.User.Email);
-        Assert.False(string.IsNullOrWhiteSpace(payload.AccessToken));
-
-        var oldTokenResponse = await SendAuthorizedGetAsync("/api/users/me", oldToken);
-        Assert.Equal(HttpStatusCode.Unauthorized, oldTokenResponse.StatusCode);
-
-        var newTokenResponse = await SendAuthorizedGetAsync("/api/users/me", payload.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
+        var profileBeforeVerify = await SendAuthorizedGetAsync("/api/users/me", oldToken);
+        Assert.Equal(HttpStatusCode.OK, profileBeforeVerify.StatusCode);
+        var profileBeforePayload = await profileBeforeVerify.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profileBeforePayload);
+        Assert.Equal(oldEmail, profileBeforePayload.Email);
 
         var emailSender = fixture.Factory.Services.GetRequiredService<CapturingEmailSender>();
         var changeVerificationEmail = Assert.Single(
@@ -129,6 +124,13 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
             "/api/auth/verify-email",
             new VerifyEmailRequest(rawToken!));
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
+
+        var verifiedAuth = await verifyResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(verifiedAuth);
+        Assert.Equal(newEmail, verifiedAuth.User.Email);
+
+        var oldTokenResponse = await SendAuthorizedGetAsync("/api/users/me", oldToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, oldTokenResponse.StatusCode);
 
         var verifiedLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(
             newEmail,

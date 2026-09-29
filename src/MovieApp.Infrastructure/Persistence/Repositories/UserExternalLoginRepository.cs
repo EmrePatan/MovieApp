@@ -47,4 +47,24 @@ public sealed class UserExternalLoginRepository(ApplicationDbContext dbContext) 
             .OrderBy(provider => provider)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<bool> DeleteAsync(
+        Guid userId,
+        string provider,
+        CancellationToken cancellationToken = default)
+    {
+        var login = await dbContext.UserExternalLogins
+            .FirstOrDefaultAsync(
+                entry => entry.UserId == userId && entry.Provider == provider,
+                cancellationToken);
+
+        if (login is null)
+        {
+            return false;
+        }
+
+        dbContext.UserExternalLogins.Remove(login);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }

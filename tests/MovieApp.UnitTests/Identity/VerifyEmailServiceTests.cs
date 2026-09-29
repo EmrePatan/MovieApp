@@ -20,7 +20,7 @@ public sealed class VerifyEmailServiceTests
             DateTime.UtcNow);
         var repository = new FakeUserRepository(user);
         var tokenRepository = new FakeEmailVerificationTokenRepository(
-            new EmailVerificationTokenConsumptionResult(Guid.NewGuid(), user.Id));
+            new EmailVerificationTokenConsumptionResult(Guid.NewGuid(), user.Id, null));
         var service = CreateService(repository, tokenRepository);
 
         var result = await service.VerifyEmailAsync(new VerifyEmailRequest("raw-token"));

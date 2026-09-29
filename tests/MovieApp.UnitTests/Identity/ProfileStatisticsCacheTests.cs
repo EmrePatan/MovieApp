@@ -6,6 +6,7 @@ using MovieApp.Application.Models.Favorites;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Favorites;
 using MovieApp.Application.Services.Identity;
+using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Domain.Entities;
 using MovieApp.UnitTests.Caching;
 
@@ -137,8 +138,10 @@ public sealed class ProfileStatisticsCacheTests
             profileStatisticsCache,
             new FakePasswordHasher(),
             new FakeAuthenticationSessionService(),
-            new FakeResendVerificationService(),
-            []);
+            new AccountReauthenticationService(
+                new FakeExternalLoginRepository(),
+                new FakePasswordHasher(),
+                []));
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -346,5 +349,8 @@ public sealed class ProfileStatisticsCacheTests
             Guid userId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

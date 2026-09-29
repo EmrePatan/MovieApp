@@ -395,7 +395,7 @@ public sealed class EmailVerificationDeliveryTests
 
             token.UsedAtUtc = utcNow;
             return Task.FromResult<EmailVerificationTokenConsumptionResult?>(
-                new EmailVerificationTokenConsumptionResult(token.Id, token.UserId));
+                new EmailVerificationTokenConsumptionResult(token.Id, token.UserId, null));
         }
 
         public Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)

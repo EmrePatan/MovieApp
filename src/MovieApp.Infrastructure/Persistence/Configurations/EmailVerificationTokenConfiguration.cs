@@ -38,6 +38,9 @@ internal sealed class EmailVerificationTokenConfiguration : IEntityTypeConfigura
 
         builder.Property(token => token.DeliveryCompletedAtUtc);
 
+        builder.Property(token => token.PendingEmail)
+            .HasMaxLength(320);
+
         builder.HasOne(token => token.User)
             .WithMany(user => user.EmailVerificationTokens)
             .HasForeignKey(token => token.UserId)

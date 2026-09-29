@@ -59,62 +59,6 @@ public sealed class UserProfileServiceTests
     }
 
     [Fact]
-    public async Task ChangeEmailAsyncUpdatesEmailAndReturnsNewToken()
-    {
-        var user = CreateUser();
-        user.MarkEmailVerified(DateTime.UtcNow);
-        var repository = new FakeUserRepository(user);
-        var resendVerificationService = new FakeResendVerificationService();
-        var service = CreateService(
-            user,
-            repository,
-            passwordShouldVerify: true,
-            resendVerificationService: resendVerificationService);
-
-        var result = await service.ChangeEmailAsync("new@example.com", "StrongPassword123", "en");
-
-        Assert.Equal("new@example.com", result.User.Email);
-        Assert.Equal("token", result.AccessToken);
-        Assert.Equal(1, repository.UpdateCount);
-        Assert.False(user.IsEmailVerified);
-        Assert.Equal(1, resendVerificationService.SendCount);
-    }
-
-    [Fact]
-    public async Task ChangeEmailAsyncNormalizesEmail()
-    {
-        var user = CreateUser();
-        var repository = new FakeUserRepository(user);
-        var service = CreateService(user, repository, passwordShouldVerify: true);
-
-        await service.ChangeEmailAsync(" NEW@Example.com ", "StrongPassword123", "en");
-
-        Assert.Equal("new@example.com", user.NormalizedEmail);
-    }
-
-    [Fact]
-    public async Task ChangeEmailAsyncThrowsConflictForDuplicateEmail()
-    {
-        var user = CreateUser();
-        var otherUser = CreateUser();
-        otherUser.NormalizedEmail = "other@example.com";
-        var repository = new FakeUserRepository(user, existingNormalizedEmail: "other@example.com");
-        var service = CreateService(user, repository, passwordShouldVerify: true);
-
-        await Assert.ThrowsAsync<ConflictException>(() =>
-            service.ChangeEmailAsync("other@example.com", "StrongPassword123", "en"));
-    }
-
-    [Fact]
-    public async Task ChangeEmailAsyncRejectsIncorrectCurrentPassword()
-    {
-        var service = CreateService(CreateUser(), passwordShouldVerify: false);
-
-        await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ChangeEmailAsync("new@example.com", "WrongPassword123", "en"));
-    }
-
-    [Fact]
     public async Task ChangePasswordAsyncUpdatesHashAndReturnsNewToken()
     {
         var user = CreateUser();
@@ -322,14 +266,16 @@ public sealed class UserProfileServiceTests
         UserStatisticsResult? statistics = null,
         bool passwordShouldVerify = true,
         bool newPasswordMatchesCurrent = false,
-        FakeResendVerificationService? resendVerificationService = null,
         params FakeSocialIdentityTokenVerifier[] socialVerifiers)
     {
         repository ??= new FakeUserRepository(user);
         externalLoginRepository ??= new FakeExternalLoginRepository();
         passwordHasher ??= new FakePasswordHasher(passwordShouldVerify, "new-hash", newPasswordMatchesCurrent);
         var statisticsRepository = new FakeUserStatisticsRepository(statistics ?? CreateEmptyStatistics());
-        resendVerificationService ??= new FakeResendVerificationService();
+        var accountReauthenticationService = new AccountReauthenticationService(
+            externalLoginRepository,
+            passwordHasher,
+            socialVerifiers);
 
         return new UserProfileService(
             new FakeCurrentUser(user.Id),
@@ -339,8 +285,7 @@ public sealed class UserProfileServiceTests
             new FakeProfileStatisticsCache(),
             passwordHasher,
             new FakeAuthenticationSessionService(),
-            resendVerificationService,
-            socialVerifiers);
+            accountReauthenticationService);
     }
 
     private static User CreateUser() =>
@@ -495,6 +440,9 @@ public sealed class UserProfileServiceTests
 
             return Task.FromResult<IReadOnlyList<string>>(providers);
         }
+
+        public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private sealed class FakeSocialIdentityTokenVerifier : ISocialIdentityTokenVerifier

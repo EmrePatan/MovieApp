@@ -27,7 +27,7 @@ internal static class ApiExceptionMappings
                     StatusCodes.Status400BadRequest,
                     "Validation failed.",
                     validation.Message,
-                    ApiErrorCodes.ValidationFailed,
+                    validation.ErrorCode ?? ApiErrorCodes.ValidationFailed,
                     LogAsError: false);
                 return true;
             case MovieApp.Application.Exceptions.AuthenticationException authentication:
@@ -35,7 +35,7 @@ internal static class ApiExceptionMappings
                     StatusCodes.Status401Unauthorized,
                     "Authentication failed.",
                     authentication.Message,
-                    ApiErrorCodes.AuthenticationFailed,
+                    authentication.ErrorCode ?? ApiErrorCodes.AuthenticationFailed,
                     LogAsError: false);
                 return true;
             case MovieApp.Application.Exceptions.NotFoundException notFound:
@@ -51,7 +51,7 @@ internal static class ApiExceptionMappings
                     StatusCodes.Status409Conflict,
                     "Conflict.",
                     conflict.Message,
-                    ApiErrorCodes.Conflict,
+                    conflict.ErrorCode ?? ApiErrorCodes.Conflict,
                     LogAsError: false);
                 return true;
             case MovieApp.Application.Exceptions.SearchProviderUnavailableException:

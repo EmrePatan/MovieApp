@@ -28,4 +28,7 @@ public interface IEmailVerificationTokenRepository
         CancellationToken cancellationToken = default);
 }
 
-public sealed record EmailVerificationTokenConsumptionResult(Guid TokenId, Guid UserId);
+public sealed record EmailVerificationTokenConsumptionResult(
+    Guid TokenId,
+    Guid UserId,
+    string? PendingEmail);

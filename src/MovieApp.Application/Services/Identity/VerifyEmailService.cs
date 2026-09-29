@@ -2,6 +2,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Identity;
+using MovieApp.Domain.Users;
 
 namespace MovieApp.Application.Services.Identity;
 
@@ -44,13 +45,30 @@ public sealed class VerifyEmailService(
                 throw new ValidationException(InvalidTokenMessage);
             }
 
-            if (!user.IsEmailVerified)
+            if (!string.IsNullOrWhiteSpace(consumedToken.PendingEmail))
+            {
+                var pendingEmail = consumedToken.PendingEmail.Trim();
+                var normalizedPendingEmail = UserEmailNormalizer.Normalize(pendingEmail);
+                if (await userRepository.ExistsByNormalizedEmailAsync(normalizedPendingEmail, ct))
+                {
+                    throw new ValidationException(InvalidTokenMessage);
+                }
+
+                user.ChangeEmail(pendingEmail, normalizedPendingEmail, utcNow);
+                user.MarkEmailVerified(utcNow);
+            }
+            else if (!user.IsEmailVerified)
             {
                 user.MarkEmailVerified(utcNow);
             }
 
             user.RecordSuccessfulLogin(utcNow);
             await userRepository.UpdateAsync(user, ct);
+
+            if (!string.IsNullOrWhiteSpace(consumedToken.PendingEmail))
+            {
+                await authenticationSessionService.RevokeAllRefreshTokensForUserAsync(user.Id, ct);
+            }
 
             result = await authenticationSessionService.IssueAsync(user, ct);
         }, cancellationToken);
