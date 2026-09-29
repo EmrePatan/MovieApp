@@ -19,6 +19,10 @@ using MovieApp.IntegrationTests.Support;
 
 namespace MovieApp.IntegrationTests.Auth;
 
+[CollectionDefinition("DevelopmentLoginSchemaMigration", DisableParallelization = true)]
+public sealed class DevelopmentLoginSchemaMigrationApiTestsDefinition;
+
+[Collection("DevelopmentLoginSchemaMigration")]
 public sealed class DevelopmentLoginSchemaMigrationApiTests
 {
     private const string DevelopmentDatabaseName = "movieapp_dev_login_migration_tests";

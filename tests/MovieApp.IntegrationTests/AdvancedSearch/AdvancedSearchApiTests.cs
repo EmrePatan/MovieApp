@@ -29,7 +29,7 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
         Assert.NotNull(payload);
-        Assert.Equal(2, payload.TotalCount);
+        Assert.Equal(3, payload.TotalCount);
         Assert.Contains(payload.Items, item => item.Type == "movie");
         Assert.Contains(payload.Items, item => item.Type == "tv");
     }
@@ -88,7 +88,7 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
         Assert.NotNull(payload);
-        Assert.Equal(2, payload.TotalCount);
+        Assert.Equal(3, payload.TotalCount);
     }
 
     [Fact]

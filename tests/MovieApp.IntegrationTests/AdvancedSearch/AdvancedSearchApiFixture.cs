@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Models.Common;
+using MovieApp.Application.Models.Movies;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Infrastructure.Providers;
 
 namespace MovieApp.IntegrationTests.AdvancedSearch;
 
@@ -29,6 +31,14 @@ public sealed class AdvancedSearchApiFixture : IAsyncLifetime
             "breaking",
             SearchPaginationDefaults.DefaultPage,
             SearchPaginationDefaults.DefaultPageSize));
+        await cacheService.RemoveAsync(MovieSearchCacheKeys.Create(
+            FakeMovieDataProvider.RecentReleaseQueryToken,
+            MovieSearchPagination.DefaultPage,
+            MovieSearchPagination.DefaultPageSize));
+        await cacheService.RemoveAsync(ExplorePreviewCacheKeys.Create(10, string.Empty));
+        await cacheService.RemoveAsync(ExplorePreviewCacheKeys.Create(
+            SearchPaginationDefaults.DefaultPageSize,
+            string.Empty));
 
         await using var context = CreateContext();
         context.SearchHistories.RemoveRange(context.SearchHistories);

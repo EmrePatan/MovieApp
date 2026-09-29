@@ -24,6 +24,8 @@ public sealed class MovieSearchWebApplicationFactory : WebApplicationFactory<Pro
             configuration["MovieProviders:Tmdb:ApiKey"] = string.Empty;
             configuration["MovieProviders:Tmdb:ReadAccessToken"] = string.Empty;
             configuration["MovieProviders:Tvdb:ApiKey"] = string.Empty;
+            configuration["CatalogShare:PublicWebBaseUrl"] = "https://moviecaveapp.test";
+            configuration["CatalogShare:CustomUrlScheme"] = "movieapp";
             configurationBuilder.AddInMemoryCollection(configuration);
         });
     }

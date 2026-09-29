@@ -195,26 +195,20 @@ public static class DependencyInjection
         services.AddSingleton<HomeColdPerfDbTelemetryInterceptor>();
         services.AddSingleton<HomeColdPerfConnectionInterceptor>();
 
-        services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+        void ConfigureApplicationDbContext(IServiceProvider serviceProvider, DbContextOptionsBuilder options) =>
             options.UseNpgsql(
                     postgreSqlConnectionString,
                     npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
                 .AddInterceptors(
                     serviceProvider.GetRequiredService<HomeColdPerfDbTelemetryInterceptor>(),
-                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>()));
+                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>());
 
-        services.AddDbContextFactory<ApplicationDbContext>((serviceProvider, options) =>
-            options.UseNpgsql(
-                    postgreSqlConnectionString,
-                    npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
-                .AddInterceptors(
-                    serviceProvider.GetRequiredService<HomeColdPerfDbTelemetryInterceptor>(),
-                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>()));
+        services.AddDbContextFactory<ApplicationDbContext>(ConfigureApplicationDbContext);
 
-
+        services.AddScoped(provider =>
+            provider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
 
         services.AddScoped<IApplicationDbContext>(provider =>
-
             provider.GetRequiredService<ApplicationDbContext>());
 
 

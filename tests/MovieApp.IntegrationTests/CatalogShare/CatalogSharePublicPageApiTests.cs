@@ -35,6 +35,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     public async Task GetMoviesListingReturnsHtmlWithMovieLinks()
     {
         await fixture.ResetAsync();
+        _ = await SeedMovieIdAsync();
         var response = await _client.GetAsync("/movies");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -48,6 +49,7 @@ public sealed class CatalogSharePublicPageApiTests(MovieSearchApiFixture fixture
     public async Task GetTvListingReturnsHtmlWithTvLinks()
     {
         await fixture.ResetAsync();
+        _ = await SeedTvIdAsync();
         var response = await _client.GetAsync("/tv");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
