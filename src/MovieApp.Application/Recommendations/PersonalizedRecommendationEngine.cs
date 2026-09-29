@@ -238,6 +238,116 @@ public static class PersonalizedRecommendationEngine
             .ToList();
     }
 
+    /// <summary>
+    /// Home rail: hard collection, genre, and franchise caps, then a light primary-genre
+    /// interleave. When caps leave fewer than <paramref name="sectionSize"/> titles, the
+    /// remainder is filled from later items in this same scored pool that still pass the caps.
+    /// </summary>
+    public static IReadOnlyList<RecommendationItem> SelectHomeRecommended(
+        IReadOnlyList<RecommendationItem> scoredPool,
+        RecommendationOptions options,
+        int sectionSize)
+    {
+        if (sectionSize <= 0 || scoredPool.Count == 0)
+        {
+            return [];
+        }
+
+        var capPassing = ApplyDiversity(scoredPool, options);
+        var interleaved = InterleavePrimaryGenres(capPassing);
+        var selected = new List<RecommendationItem>(Math.Min(sectionSize, interleaved.Count));
+        var seen = new HashSet<(Guid Id, string Type)>();
+
+        foreach (var item in interleaved)
+        {
+            if (!seen.Add((item.Id, item.Type)))
+            {
+                continue;
+            }
+
+            selected.Add(item);
+            if (selected.Count == sectionSize)
+            {
+                break;
+            }
+        }
+
+        return selected;
+    }
+
+    private static List<RecommendationItem> InterleavePrimaryGenres(IReadOnlyList<RecommendationItem> items)
+    {
+        var result = new List<RecommendationItem>(items.Count);
+        var used = new bool[items.Count];
+        var remaining = items.Count;
+
+        while (remaining > 0)
+        {
+            var chosen = ChooseNextPrimaryGenreIndex(items, used, result);
+            if (chosen < 0)
+            {
+                break;
+            }
+
+            used[chosen] = true;
+            remaining--;
+            result.Add(items[chosen]);
+        }
+
+        return result;
+    }
+
+    private static int ChooseNextPrimaryGenreIndex(
+        IReadOnlyList<RecommendationItem> items,
+        bool[] used,
+        List<RecommendationItem> selected)
+    {
+        var lastGenre = selected.Count == 0 ? null : PrimaryGenre(selected[^1]);
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            if (used[index])
+            {
+                continue;
+            }
+
+            var genre = PrimaryGenre(items[index]);
+            var samePrimary = lastGenre.HasValue && genre.HasValue && genre.Value == lastGenre.Value;
+            if (!samePrimary || !LaterDifferentPrimaryExists(items, used, index, lastGenre!.Value))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool LaterDifferentPrimaryExists(
+        IReadOnlyList<RecommendationItem> items,
+        bool[] used,
+        int afterIndex,
+        Guid lastGenre)
+    {
+        for (var index = afterIndex + 1; index < items.Count; index++)
+        {
+            if (used[index])
+            {
+                continue;
+            }
+
+            var genre = PrimaryGenre(items[index]);
+            if (!genre.HasValue || genre.Value != lastGenre)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Guid? PrimaryGenre(RecommendationItem item) =>
+        item.DiversityGenreIds is { Count: > 0 } ? item.DiversityGenreIds[0] : null;
+
     private static decimal CalculateGenrePreferenceScore(
         PersonalizedCandidateProfile candidate,
         IReadOnlyDictionary<Guid, (decimal Score, string Name)> genrePreferences)

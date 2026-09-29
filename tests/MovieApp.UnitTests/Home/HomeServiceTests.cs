@@ -620,7 +620,7 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
-    public async Task GetHomePersonalizedAsyncPassesRequestedTypeAndSurplusToRecommendationEngine()
+    public async Task GetHomePersonalizedAsyncRequestsScoredPoolAndRequestedType()
     {
         var recommendations = new FakeRecommendationService(
         [
@@ -645,7 +645,7 @@ public sealed class HomeServiceTests
 
         Assert.Equal(RecommendationContentType.Tv, recommendations.LastContentType);
         Assert.False(recommendations.LastDiversify);
-        Assert.Equal(30, recommendations.LastSectionItemCount);
+        Assert.Equal(new RecommendationOptions().MaximumCandidates, recommendations.LastSectionItemCount);
         Assert.Equal(10, recommended.Items.Count);
         Assert.All(recommended.Items, item => Assert.Equal("tv", item.ContentType));
     }
@@ -714,6 +714,77 @@ public sealed class HomeServiceTests
         Assert.Equal(3, recommended.Items.Count);
         Assert.DoesNotContain(recommended.Items, item => item.Id == heroId);
         Assert.Equal(recommendedItems[1].Id, recommended.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncSeparatesAdjacentPrimaryGenresFromTheScoredPool()
+    {
+        var actionGenreId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var comedyGenreId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var recommendedItems = new List<RecommendationItem>
+        {
+            CreateRecommendationItem("movie", 1) with { DiversityGenreIds = [actionGenreId], Score = 0.90m },
+            CreateRecommendationItem("movie", 2) with { DiversityGenreIds = [actionGenreId], Score = 0.80m },
+            CreateRecommendationItem("movie", 3) with { DiversityGenreIds = [comedyGenreId], Score = 0.70m }
+        };
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
+            ]));
+
+        var result = await service.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.All, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+        var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
+
+        Assert.Equal(
+            [recommendedItems[0].Id, recommendedItems[2].Id, recommendedItems[1].Id],
+            recommended.Items.Select(item => item.Id).ToArray());
+    }
+
+    [Fact]
+    public async Task GetHomePersonalizedAsyncBackfillsFromLowerScoredPoolItemsOnly()
+    {
+        const int collectionId = 77;
+        var recommendedItems = new List<RecommendationItem>();
+        for (var seed = 1; seed <= 6; seed++)
+        {
+            recommendedItems.Add(CreateRecommendationItem("movie", seed) with
+            {
+                Score = 0.95m - (seed * 0.01m),
+                TmdbCollectionId = collectionId,
+                DiversityGenreIds = [Guid.NewGuid()]
+            });
+        }
+
+        for (var seed = 7; seed <= 16; seed++)
+        {
+            recommendedItems.Add(CreateRecommendationItem("movie", seed) with
+            {
+                Score = 0.40m - (seed * 0.01m),
+                DiversityGenreIds = [Guid.NewGuid()]
+            });
+        }
+
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService(
+            [
+                new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
+            ]),
+            discoveryService: new FakeDiscoveryService());
+
+        var result = await service.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.All, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+        var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
+        var collectionIds = recommendedItems.Take(6).Select(item => item.Id).ToHashSet();
+
+        Assert.Equal(10, recommended.Items.Count);
+        Assert.Equal(1, recommended.Items.Count(item => collectionIds.Contains(item.Id)));
+        Assert.Contains(recommended.Items, item => !collectionIds.Contains(item.Id));
+        Assert.All(recommended.Items, item => Assert.Contains(recommendedItems, source => source.Id == item.Id));
     }
 
     [Fact]
