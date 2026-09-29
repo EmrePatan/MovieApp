@@ -29,6 +29,16 @@ public sealed class HomeService(
 {
     private const string RecommendedForYouKey = "recommended-for-you";
 
+    /// <summary>
+    /// Max scored rows Home will request for the Recommended For You rail.
+    /// <see cref="RecommendationOptions.MaximumCandidates"/> (500) stays the SQL fetch budget
+    /// for paginated recommendations. Using it as this list size hydrated and cached ~500
+    /// items on every Home miss and pushed small instances toward their memory ceiling.
+    /// 80 still covers the largest home rail (section size 20) after hero dedup plus the
+    /// genre, collection, and franchise caps that fill the rail from the scored pool.
+    /// </summary>
+    private const int HomeScoredPoolCap = 80;
+
     private static readonly HomeSectionType[] HomeSectionOrder =
     [
         HomeSectionType.HotThisWeek,
@@ -565,8 +575,11 @@ public sealed class HomeService(
         var heroWindow = sectionSize
             + Math.Max(0, _options.HeroSectionSize)
             + Math.Max(0, _recommendationOptions.HomeRecommendationSurplus);
-        var scoredPool = Math.Max(1, _recommendationOptions.MaximumCandidates);
-        return Math.Max(heroWindow, scoredPool);
+        // sectionSize * 4 is headroom for genre interleave and diversity caps
+        // (~40 at the default rail of 10) without returning the SQL candidate budget as scored rows.
+        var headroom = Math.Max(heroWindow, Math.Max(0, sectionSize) * 4);
+        var upper = Math.Max(heroWindow, HomeScoredPoolCap);
+        return Math.Clamp(headroom, heroWindow, upper);
     }
 
     private static IReadOnlyList<RecommendationItem> FilterRecommendationItems(

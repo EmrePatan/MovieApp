@@ -620,6 +620,53 @@ public sealed class HomeServiceTests
     }
 
     [Fact]
+    public async Task HomeRequestsScoredPoolBelowSqlCandidateBudget()
+    {
+        const int sectionSize = 10;
+        const int heroSectionSize = 10;
+        var recommendationOptions = new RecommendationOptions();
+        var heroWindow = sectionSize
+            + heroSectionSize
+            + recommendationOptions.HomeRecommendationSurplus;
+        var homeOptions = new HomeOptions
+        {
+            DefaultSectionSize = sectionSize,
+            MaximumSectionSize = 20,
+            HeroSectionSize = heroSectionSize
+        };
+        var criteria = new HomeCriteria(SearchContentType.All, sectionSize);
+        var sections = new RecommendationSection[]
+        {
+            new(
+                "recommended-for-you",
+                "Recommended For You",
+                Enumerable.Range(1, sectionSize).Select(seed => CreateRecommendationItem("movie", seed)).ToList())
+        };
+
+        var personalizedRecommendations = new FakeRecommendationService(sections);
+        var personalized = CreateService(recommendationService: personalizedRecommendations, options: homeOptions);
+        await personalized.GetHomePersonalizedAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        var homeRecommendations = new FakeRecommendationService(sections);
+        var home = CreateService(recommendationService: homeRecommendations, options: homeOptions);
+        await home.GetHomeAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        const int largestSectionSize = 20;
+        var largestRail = new FakeRecommendationService(sections);
+        var largestHome = CreateService(recommendationService: largestRail, options: homeOptions);
+        await largestHome.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.All, largestSectionSize),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(500, recommendationOptions.MaximumCandidates);
+        Assert.NotNull(personalizedRecommendations.LastSectionItemCount);
+        Assert.InRange(personalizedRecommendations.LastSectionItemCount.Value, heroWindow, 80);
+        Assert.NotEqual(recommendationOptions.MaximumCandidates, personalizedRecommendations.LastSectionItemCount);
+        Assert.Equal(personalizedRecommendations.LastSectionItemCount, homeRecommendations.LastSectionItemCount);
+        Assert.Equal(80, largestRail.LastSectionItemCount);
+    }
+
+    [Fact]
     public async Task GetHomePersonalizedAsyncRequestsScoredPoolAndRequestedType()
     {
         var recommendations = new FakeRecommendationService(
@@ -645,7 +692,7 @@ public sealed class HomeServiceTests
 
         Assert.Equal(RecommendationContentType.Tv, recommendations.LastContentType);
         Assert.False(recommendations.LastDiversify);
-        Assert.Equal(new RecommendationOptions().MaximumCandidates, recommendations.LastSectionItemCount);
+        Assert.Equal(40, recommendations.LastSectionItemCount);
         Assert.Equal(10, recommended.Items.Count);
         Assert.All(recommended.Items, item => Assert.Equal("tv", item.ContentType));
     }
