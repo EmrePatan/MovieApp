@@ -24,6 +24,7 @@ using MovieApp.Application.Services.PushNotifications;
 using MovieApp.Application.Services.ReleaseNotifications;
 using MovieApp.Application.Services.HotRelease;
 using MovieApp.Application.Services.TvShowChanges;
+using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.MovieChanges;
 using MovieApp.Application.Services.TvShowFollows;
 using MovieApp.Application.Services.MovieFollows;
@@ -182,6 +183,8 @@ public static class DependencyInjection
         services.AddSingleton<ICatalogKeywordReadPathScheduler, BackgroundCatalogKeywordReadPathScheduler>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
         services.AddScoped<ICatalogKeywordBackfillService, CatalogKeywordBackfillService>();
+        services.AddScoped<ICatalogGenreBackfillItemProcessor, CatalogGenreBackfillItemProcessor>();
+        services.AddScoped<ICatalogGenreBackfillService, CatalogGenreBackfillService>();
         services.AddScoped<ICatalogProviderUpsertService, CatalogProviderUpsertService>();
         services.AddScoped<IContentSearchTitleProviderEnrichmentService, ContentSearchTitleProviderEnrichmentService>();
         services.AddScoped<IGenreService, GenreService>();

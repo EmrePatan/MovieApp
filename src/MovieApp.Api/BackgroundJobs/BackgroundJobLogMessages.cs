@@ -159,6 +159,47 @@ internal static partial class BackgroundJobLogMessages
         int hydrated);
 
     [LoggerMessage(
+        EventId = 6014,
+        Level = LogLevel.Information,
+        Message = "Catalog genre backfill is disabled; skipping execution.")]
+    internal static partial void LogCatalogGenreBackfillDisabled(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 6015,
+        Level = LogLevel.Information,
+        Message = "Catalog genre backfill started: movieGenreLess={MovieGenreLess} tvGenreLess={TvGenreLess} remaining={Remaining}")]
+    internal static partial void LogCatalogGenreBackfillStarted(
+        ILogger logger,
+        int movieGenreLess,
+        int tvGenreLess,
+        int remaining);
+
+    [LoggerMessage(
+        EventId = 6016,
+        Level = LogLevel.Information,
+        Message = "Catalog genre backfill completed: no eligible candidates. remaining={Remaining}")]
+    internal static partial void LogCatalogGenreBackfillNoCandidates(
+        ILogger logger,
+        int remaining);
+
+    [LoggerMessage(
+        EventId = 6017,
+        Level = LogLevel.Information,
+        Message = "Catalog genre backfill completed: batches={Batches} selected={Selected} succeeded={Succeeded} unrepairable={Unrepairable} failed={Failed} skipped={Skipped} movies={MoviesProcessed} tv={TvShowsProcessed} remaining={Remaining} durationMs={DurationMs}")]
+    internal static partial void LogCatalogGenreBackfillCompleted(
+        ILogger logger,
+        int batches,
+        int selected,
+        int succeeded,
+        int unrepairable,
+        int failed,
+        int skipped,
+        int moviesProcessed,
+        int tvShowsProcessed,
+        int remaining,
+        long durationMs);
+
+    [LoggerMessage(
         EventId = 6013,
         Level = LogLevel.Information,
         Message = "Notification inbox cleanup completed: deleted={DeletedCount} cutoffUtc={CutoffUtc} durationMs={DurationMs}")]

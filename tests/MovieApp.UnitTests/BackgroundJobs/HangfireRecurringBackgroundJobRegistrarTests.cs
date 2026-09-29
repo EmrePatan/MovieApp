@@ -180,6 +180,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         bool enabled,
         bool pushEnabled,
         bool keywordBackfillEnabled = false,
+        bool genreBackfillEnabled = false,
         bool tvUpcomingEpisodeSyncEnabled = false,
         bool tmdbChangesEnabled = true) =>
         new(
@@ -201,6 +202,11 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             Options.Create(new CatalogKeywordBackfillOptions
             {
                 Enabled = keywordBackfillEnabled,
+                RecurringCron = "0 * * * *"
+            }),
+            Options.Create(new CatalogGenreBackfillOptions
+            {
+                Enabled = genreBackfillEnabled,
                 RecurringCron = "0 * * * *"
             }),
             Options.Create(new TvUpcomingEpisodeSyncOptions

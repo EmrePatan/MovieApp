@@ -90,6 +90,7 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services.AddSingleton<IValidateOptions<CatalogKeywordBackfillOptions>, CatalogKeywordBackfillOptionsValidator>();
+        services.AddSingleton<IValidateOptions<CatalogGenreBackfillOptions>, CatalogGenreBackfillOptionsValidator>();
 
         services.AddOptions<TvUpcomingEpisodeSyncOptions>()
             .Bind(configuration.GetSection(TvUpcomingEpisodeSyncOptions.SectionName))
@@ -212,6 +213,7 @@ public static class DependencyInjection
         services.AddScoped<IKeywordCatalogRepository, KeywordCatalogRepository>();
 
         services.AddScoped<ICatalogKeywordBackfillRepository, CatalogKeywordBackfillRepository>();
+        services.AddScoped<ICatalogGenreBackfillRepository, CatalogGenreBackfillRepository>();
 
         services.AddScoped<IPersonRepository, PersonRepository>();
 
