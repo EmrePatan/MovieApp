@@ -40,11 +40,14 @@ public sealed class RecommendationSignalScoringTests
     }
 
     [Fact]
-    public void LowRatingHasNoPositiveContribution()
+    public void LowRatingPushesTasteDownAndDoesNotCountAsPositive()
     {
         var lowRating = CreateSignal(UserBehaviorSignalTypes.Rating, 4, UtcNow.AddDays(-1));
 
-        Assert.Equal(0m, RecommendationSignalScoring.GetSignalContribution(lowRating, DefaultOptions, UtcNow));
+        var contribution = RecommendationSignalScoring.GetSignalContribution(lowRating, DefaultOptions, UtcNow);
+
+        Assert.True(contribution < 0m);
+        Assert.False(RecommendationSignalScoring.IsPositiveTasteSignal(lowRating, DefaultOptions, UtcNow));
     }
 
     [Fact]

@@ -87,14 +87,14 @@ public sealed class KeywordAffinityScorerTests
     }
 
     [Fact]
-    public void LowRatingContributesNoPositiveKeywordAffinity()
+    public void LowRatingPushesMatchingKeywordAffinityDown()
     {
         var preferences = KeywordAffinityScorer.BuildKeywordPreferences(
             [CreateSignal(UserBehaviorSignalTypes.Rating, 3, UtcNow, [KeywordTimeTravel])],
             DefaultOptions,
             UtcNow);
 
-        Assert.Empty(preferences);
+        Assert.True(preferences[KeywordTimeTravel] < 0m);
     }
 
     [Fact]

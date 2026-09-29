@@ -11,6 +11,7 @@ using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Recommendations;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
@@ -23,6 +24,7 @@ public sealed class HomeService(
     ICacheService cacheService,
     IOptions<HomeOptions> options,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
+    IOptions<RecommendationOptions> recommendationOptions,
     ILogger<HomeService> logger) : IHomeService
 {
     private const string RecommendedForYouKey = "recommended-for-you";
@@ -53,6 +55,7 @@ public sealed class HomeService(
 
     private readonly HomeOptions _options = options.Value;
     private readonly ReleaseRegionOptions _releaseRegionOptions = releaseRegionOptions.Value;
+    private readonly RecommendationOptions _recommendationOptions = recommendationOptions.Value;
     private readonly UserRecommendationCacheGeneration _recommendationCacheGeneration = new(cacheService);
 
     public async Task<HomeResult> GetHomeAsync(
@@ -92,6 +95,7 @@ public sealed class HomeService(
 
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
         var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
+        var recommendationLimit = RecommendationCandidateLimit(criteria.SectionSize);
 
         var recommendationSectionsTask = RunScopedTimedAsync(
             (services, ct) => services
@@ -99,6 +103,9 @@ public sealed class HomeService(
                 .GetHomeRecommendationsForCurrentUserAsync(
                     includeColdStartDiscoverySections: false,
                     contentLocale,
+                    MapRecommendationContentType(criteria.Type),
+                    recommendationLimit,
+                    diversify: false,
                     ct),
             cancellationToken);
 
@@ -284,6 +291,7 @@ public sealed class HomeService(
         _ = CurrentUserGuard.RequireUserId(currentUser);
 
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
+        var recommendationLimit = RecommendationCandidateLimit(criteria.SectionSize);
 
         var recommendationSectionsTask = RunScopedTimedAsync(
             (services, ct) => services
@@ -291,6 +299,9 @@ public sealed class HomeService(
                 .GetHomeRecommendationsForCurrentUserAsync(
                     includeColdStartDiscoverySections: false,
                     contentLocale,
+                    MapRecommendationContentType(criteria.Type),
+                    recommendationLimit,
+                    diversify: false,
                     ct),
             cancellationToken);
 
@@ -475,7 +486,7 @@ public sealed class HomeService(
             0);
     }
 
-    private static HomeSection? BuildRecommendedSection(
+    private HomeSection? BuildRecommendedSection(
         IReadOnlyList<RecommendationSection> recommendationSections,
         HomeCriteria criteria,
         HomeSection? hotThisWeekSection)
@@ -488,24 +499,25 @@ public sealed class HomeService(
             return null;
         }
 
-        var items = HomeSectionBuilders.DeduplicateItems(
-            recommended.Items.Select(HomeMapper.FromRecommendationItem),
-            criteria.SectionSize);
-
         var heroIds = hotThisWeekSection?.Items
             .Select(item => item.Id)
             .ToHashSet() ?? [];
 
-        if (heroIds.Count > 0)
-        {
-            var withoutHero = items.Where(item => !heroIds.Contains(item.Id)).ToList();
-            if (withoutHero.Count >= criteria.SectionSize)
-            {
-                items = withoutHero.Take(criteria.SectionSize).ToList();
-            }
-        }
+        var withoutHero = heroIds.Count == 0
+            ? recommended.Items
+            : recommended.Items.Where(item => !heroIds.Contains(item.Id)).ToList();
 
-        var filteredItems = HomeSectionBuilders.FilterByType(items, criteria.Type);
+        var diversified = PersonalizedRecommendationEngine.ApplyDiversity(
+            withoutHero,
+            _recommendationOptions);
+
+        var items = HomeSectionBuilders.DeduplicateItems(
+            diversified.Select(HomeMapper.FromRecommendationItem),
+            diversified.Count);
+
+        var filteredItems = HomeSectionBuilders.FilterByType(items, criteria.Type)
+            .Take(criteria.SectionSize)
+            .ToList();
 
         if (filteredItems.Count == 0)
         {
@@ -549,6 +561,17 @@ public sealed class HomeService(
 
         return orderedSections;
     }
+
+    private int RecommendationCandidateLimit(int sectionSize) =>
+        sectionSize + _options.HeroSectionSize + Math.Max(0, _recommendationOptions.HomeRecommendationSurplus);
+
+    private static RecommendationContentType MapRecommendationContentType(SearchContentType type) =>
+        type switch
+        {
+            SearchContentType.Movie => RecommendationContentType.Movie,
+            SearchContentType.Tv => RecommendationContentType.Tv,
+            _ => RecommendationContentType.All
+        };
 
     private void ValidateCriteria(HomeCriteria criteria)
     {

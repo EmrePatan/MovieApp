@@ -11,7 +11,7 @@ public static class RecommendationSignalScoring
         DateTime utcNow)
     {
         var baseWeight = GetBaseSignalWeight(signal, options);
-        if (baseWeight <= 0m)
+        if (baseWeight == 0m)
         {
             return 0m;
         }
@@ -51,7 +51,8 @@ public static class RecommendationSignalScoring
             return (decimal)options.MildRatingSignalWeight;
         }
 
-        return 0m;
+        var lowRatingWeight = (decimal)options.LowRatingSignalWeight;
+        return lowRatingWeight > 0m ? -lowRatingWeight : lowRatingWeight;
     }
 
     public static decimal GetRecencyMultiplier(
@@ -85,10 +86,61 @@ public static class RecommendationSignalScoring
             _ => 0
         };
 
+    /// <summary>
+    /// Collapse rank for one title. A rating below the mild threshold outranks favorite, watchlist, and watched
+    /// so the low score defines taste polarity. The title stays excluded from candidates either way.
+    /// </summary>
+    public static int GetCollapseRank(string signalType, int? ratingScore, int mildRatingMinScore)
+    {
+        if (signalType == UserBehaviorSignalTypes.Rating &&
+            ratingScore is int score &&
+            score < mildRatingMinScore)
+        {
+            return 100;
+        }
+
+        return GetSignalPriority(signalType);
+    }
+
     public static bool IsMeaningfulInteractionSignal(string signalType) =>
         signalType is UserBehaviorSignalTypes.Rating
             or UserBehaviorSignalTypes.Favorite
             or UserBehaviorSignalTypes.Watched
             or UserBehaviorSignalTypes.Watchlist
             or UserBehaviorSignalTypes.TvFollow;
+
+    public static bool IsPositiveTasteSignal(
+        UserBehaviorSignal signal,
+        RecommendationOptions options,
+        DateTime utcNow) =>
+        IsMeaningfulInteractionSignal(signal.SignalType) &&
+        GetSignalContribution(signal, options, utcNow) > 0m;
+
+    public static bool HasEnoughPositiveTaste(
+        UserRecommendationContext context,
+        RecommendationOptions options,
+        DateTime utcNow)
+    {
+        if (context.MeaningfulInteractionCount < options.MinimumPersonalizationInteractions)
+        {
+            return false;
+        }
+
+        var positiveCount = 0;
+        foreach (var signal in context.Signals)
+        {
+            if (!IsPositiveTasteSignal(signal, options, utcNow))
+            {
+                continue;
+            }
+
+            positiveCount++;
+            if (positiveCount >= options.MinimumPersonalizationInteractions)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

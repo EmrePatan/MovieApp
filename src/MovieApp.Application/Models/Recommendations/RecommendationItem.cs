@@ -13,4 +13,7 @@ public sealed record RecommendationItem(
     int VoteCount,
     int? Year,
     decimal Score,
-    string? Reason);
+    string? Reason,
+    IReadOnlyList<Guid>? DiversityGenreIds = null,
+    int? TmdbCollectionId = null,
+    IReadOnlyList<Guid>? FranchiseKeywordIds = null);

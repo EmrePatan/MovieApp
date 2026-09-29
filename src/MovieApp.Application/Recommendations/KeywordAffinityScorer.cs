@@ -15,7 +15,7 @@ public static class KeywordAffinityScorer
         foreach (var signal in signals)
         {
             var contribution = RecommendationSignalScoring.GetSignalContribution(signal, options, utcNow);
-            if (contribution <= 0m)
+            if (contribution == 0m)
             {
                 continue;
             }
@@ -40,14 +40,23 @@ public static class KeywordAffinityScorer
         }
 
         var maxScore = preferences.Values.Max();
-        if (maxScore <= 0m)
+        if (maxScore > 0m)
         {
-            return preferences;
+            return preferences.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value / maxScore);
         }
 
-        return preferences.ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value / maxScore);
+        var minScore = preferences.Values.Min();
+        if (minScore < 0m)
+        {
+            var scale = Math.Abs(minScore);
+            return preferences.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value / scale);
+        }
+
+        return preferences;
     }
 
     public static decimal CalculateKeywordScore(
@@ -69,12 +78,22 @@ public static class KeywordAffinityScorer
             .Where(keywordPreferences.ContainsKey)
             .Sum(keywordId => keywordPreferences[keywordId]);
 
-        if (rawOverlap <= 0m)
+        if (rawOverlap == 0m)
         {
             return 0m;
         }
 
         var normalized = rawOverlap / (decimal)Math.Sqrt(keywordIds.Count);
-        return normalized > 1m ? 1m : normalized;
+        if (normalized > 1m)
+        {
+            return 1m;
+        }
+
+        if (normalized < -1m)
+        {
+            return -1m;
+        }
+
+        return normalized;
     }
 }

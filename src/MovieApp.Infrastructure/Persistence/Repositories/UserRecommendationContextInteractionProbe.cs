@@ -8,19 +8,22 @@ internal static class UserRecommendationContextInteractionProbe
     internal static async Task<int> CountDistinctMeaningfulInteractionsAsync(
         ApplicationDbContext dbContext,
         Guid userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int mildRatingMinScore = 6)
     {
         if (UsesNpgsql(dbContext))
         {
             return await CountDistinctMeaningfulInteractionsViaSqlAsync(
                 dbContext,
                 userId,
+                mildRatingMinScore,
                 cancellationToken);
         }
 
         return await CountDistinctMeaningfulInteractionsViaEfAsync(
             dbContext,
             userId,
+            mildRatingMinScore,
             cancellationToken);
     }
 
@@ -31,6 +34,7 @@ internal static class UserRecommendationContextInteractionProbe
     private static async Task<int> CountDistinctMeaningfulInteractionsViaSqlAsync(
         ApplicationDbContext dbContext,
         Guid userId,
+        int mildRatingMinScore,
         CancellationToken cancellationToken)
     {
         var tvContentType = CatalogContentType.Tv.ToString();
@@ -39,45 +43,58 @@ internal static class UserRecommendationContextInteractionProbe
             .SqlQuery<int>($"""
                 SELECT COUNT(*)::int AS "Value"
                 FROM (
-                    SELECT 'movie' AS content_type, r."MovieId" AS content_id
-                    FROM ratings AS r
-                    WHERE r."UserId" = {userId} AND r."MovieId" IS NOT NULL
-                    UNION
-                    SELECT 'tv', r."TvShowId"
-                    FROM ratings AS r
-                    WHERE r."UserId" = {userId} AND r."TvShowId" IS NOT NULL
-                    UNION
-                    SELECT 'movie', f."MovieId"
-                    FROM favorites AS f
-                    WHERE f."UserId" = {userId} AND f."MovieId" IS NOT NULL
-                    UNION
-                    SELECT 'tv', f."TvShowId"
-                    FROM favorites AS f
-                    WHERE f."UserId" = {userId} AND f."TvShowId" IS NOT NULL
-                    UNION
-                    SELECT 'movie', wm."MovieId"
-                    FROM watched_movies AS wm
-                    WHERE wm."UserId" = {userId}
-                    UNION
-                    SELECT 'movie', wi."MovieId"
-                    FROM watchlist_items AS wi
-                    INNER JOIN watchlists AS w ON w."Id" = wi."WatchlistId"
-                    WHERE w."UserId" = {userId} AND wi."MovieId" IS NOT NULL
-                    UNION
-                    SELECT 'tv', wi."TvShowId"
-                    FROM watchlist_items AS wi
-                    INNER JOIN watchlists AS w ON w."Id" = wi."WatchlistId"
-                    WHERE w."UserId" = {userId} AND wi."TvShowId" IS NOT NULL
-                    UNION
-                    SELECT 'tv', s."TvShowId"
-                    FROM watched_episodes AS we
-                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
-                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
-                    WHERE we."UserId" = {userId}
-                    UNION
-                    SELECT 'tv', cf."ContentId"
-                    FROM catalog_follows AS cf
-                    WHERE cf."UserId" = {userId} AND cf."ContentType" = {tvContentType}
+                    SELECT content_type, content_id
+                    FROM (
+                        SELECT 'movie' AS content_type, r."MovieId" AS content_id
+                        FROM ratings AS r
+                        WHERE r."UserId" = {userId} AND r."MovieId" IS NOT NULL AND r."Score" >= {mildRatingMinScore}
+                        UNION
+                        SELECT 'tv', r."TvShowId"
+                        FROM ratings AS r
+                        WHERE r."UserId" = {userId} AND r."TvShowId" IS NOT NULL AND r."Score" >= {mildRatingMinScore}
+                        UNION
+                        SELECT 'movie', f."MovieId"
+                        FROM favorites AS f
+                        WHERE f."UserId" = {userId} AND f."MovieId" IS NOT NULL
+                        UNION
+                        SELECT 'tv', f."TvShowId"
+                        FROM favorites AS f
+                        WHERE f."UserId" = {userId} AND f."TvShowId" IS NOT NULL
+                        UNION
+                        SELECT 'movie', wm."MovieId"
+                        FROM watched_movies AS wm
+                        WHERE wm."UserId" = {userId}
+                        UNION
+                        SELECT 'movie', wi."MovieId"
+                        FROM watchlist_items AS wi
+                        INNER JOIN watchlists AS w ON w."Id" = wi."WatchlistId"
+                        WHERE w."UserId" = {userId} AND wi."MovieId" IS NOT NULL
+                        UNION
+                        SELECT 'tv', wi."TvShowId"
+                        FROM watchlist_items AS wi
+                        INNER JOIN watchlists AS w ON w."Id" = wi."WatchlistId"
+                        WHERE w."UserId" = {userId} AND wi."TvShowId" IS NOT NULL
+                        UNION
+                        SELECT 'tv', s."TvShowId"
+                        FROM watched_episodes AS we
+                        INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                        INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                        WHERE we."UserId" = {userId}
+                        UNION
+                        SELECT 'tv', cf."ContentId"
+                        FROM catalog_follows AS cf
+                        WHERE cf."UserId" = {userId} AND cf."ContentType" = {tvContentType}
+                    ) AS positive_interactions
+                    EXCEPT
+                    (
+                        SELECT 'movie' AS content_type, r."MovieId" AS content_id
+                        FROM ratings AS r
+                        WHERE r."UserId" = {userId} AND r."MovieId" IS NOT NULL AND r."Score" < {mildRatingMinScore}
+                        UNION
+                        SELECT 'tv', r."TvShowId"
+                        FROM ratings AS r
+                        WHERE r."UserId" = {userId} AND r."TvShowId" IS NOT NULL AND r."Score" < {mildRatingMinScore}
+                    )
                 ) AS interactions
                 """)
             .SingleAsync(cancellationToken);
@@ -86,6 +103,7 @@ internal static class UserRecommendationContextInteractionProbe
     private static async Task<int> CountDistinctMeaningfulInteractionsViaEfAsync(
         ApplicationDbContext dbContext,
         Guid userId,
+        int mildRatingMinScore,
         CancellationToken cancellationToken)
     {
         var ratingRows = await dbContext.Ratings
@@ -153,6 +171,7 @@ internal static class UserRecommendationContextInteractionProbe
             watchedMovieRows,
             watchlistRows,
             watchedEpisodeRows,
-            catalogFollowRows);
+            catalogFollowRows,
+            mildRatingMinScore);
     }
 }

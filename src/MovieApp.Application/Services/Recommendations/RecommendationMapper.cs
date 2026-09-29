@@ -38,7 +38,10 @@ internal static class RecommendationMapper
             recommendation.Candidate.VoteCount,
             recommendation.Candidate.Year,
             recommendation.Score,
-            recommendation.Reason);
+            recommendation.Reason,
+            recommendation.Candidate.GenreIds,
+            recommendation.Candidate.TmdbCollectionId,
+            recommendation.Candidate.FranchiseKeywordIds);
 
     internal static RecommendationItem ToColdStartItem(
         Models.Search.SearchItem item,

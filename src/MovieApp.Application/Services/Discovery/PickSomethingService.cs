@@ -45,9 +45,10 @@ public sealed class PickSomethingService(
             var context = await recommendationRepository.GetUserRecommendationContextAsync(
                 userId,
                 _options.MinimumPersonalizationInteractions,
+                _options.MildRatingMinScore,
                 cancellationToken);
 
-            if (context.MeaningfulInteractionCount >= _options.MinimumPersonalizationInteractions)
+            if (RecommendationSignalScoring.HasEnoughPositiveTaste(context, _options, DateTime.UtcNow))
             {
                 return await BuildPersonalizedPickAsync(context, criteria, contentLocale, cancellationToken);
             }
@@ -138,7 +139,7 @@ public sealed class PickSomethingService(
             context.Signals,
             _options,
             utcNow);
-        var preferredGenreIds = genrePreferences.Keys.ToList();
+        var preferredGenreIds = PersonalizedRecommendationEngine.SelectPositiveGenreIds(genrePreferences);
 
         var candidates = await recommendationRepository.GetPersonalizedCandidatesAsync(
             criteria.MediaType,

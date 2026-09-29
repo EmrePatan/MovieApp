@@ -47,8 +47,27 @@ public static class RecommendationCacheKeys
         $"{UserPrefix}{userId}:{type}:{page}:{pageSize}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
 
     public static string Home(Guid userId, string contentLocale, long generation) =>
-        ContentLocaleCacheKeySegment.Append(Home(userId, generation), contentLocale);
+        Home(userId, contentLocale, generation, RecommendationContentType.All, sectionItemCount: 0);
+
+    public static string Home(
+        Guid userId,
+        string contentLocale,
+        long generation,
+        RecommendationContentType contentType,
+        int sectionItemCount,
+        bool diversified = true) =>
+        ContentLocaleCacheKeySegment.Append(
+            Home(userId, generation, contentType, sectionItemCount, diversified),
+            contentLocale);
 
     public static string Home(Guid userId, long generation = 0) =>
-        $"{HomePrefix}{userId}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
+        Home(userId, generation, RecommendationContentType.All, sectionItemCount: 0);
+
+    public static string Home(
+        Guid userId,
+        long generation,
+        RecommendationContentType contentType,
+        int sectionItemCount,
+        bool diversified = true) =>
+        $"{HomePrefix}{userId}:{contentType}:{sectionItemCount}:{(diversified ? "div" : "raw")}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
 }

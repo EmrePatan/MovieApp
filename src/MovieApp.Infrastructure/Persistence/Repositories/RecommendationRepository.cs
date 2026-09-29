@@ -2,7 +2,9 @@ using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Recommendations;
 using MovieApp.Domain.Enums;
@@ -13,11 +15,15 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 public sealed class RecommendationRepository(
     ApplicationDbContext dbContext,
     ILogger<RecommendationRepository>? repositoryLogger = null,
-    IDbContextFactory<ApplicationDbContext>? dbContextFactory = null) : IRecommendationRepository
+    IDbContextFactory<ApplicationDbContext>? dbContextFactory = null,
+    IOptions<RecommendationOptions>? recommendationOptions = null) : IRecommendationRepository
 {
     private const int MaxCastPeople = 20;
+    private const int MaxStratifiedGenres = 8;
     private readonly ILogger<RecommendationRepository> _repositoryLogger =
         repositoryLogger ?? NullLogger<RecommendationRepository>.Instance;
+    private readonly RecommendationOptions _recommendationOptions =
+        recommendationOptions?.Value ?? new RecommendationOptions();
     private readonly SimilarCandidateIdBatchLoader _similarCandidateIdBatchLoader = new(dbContext);
 
     public Task<bool> MovieExistsAsync(Guid movieId, CancellationToken cancellationToken = default) =>
@@ -129,10 +135,12 @@ public sealed class RecommendationRepository(
     public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
         Guid userId,
         int minimumInteractionsForEnrichment = 0,
+        int mildRatingMinScore = 6,
         CancellationToken cancellationToken = default) =>
         new UserRecommendationContextLoader(dbContext, dbContextFactory, _repositoryLogger).LoadAsync(
             userId,
             minimumInteractionsForEnrichment,
+            mildRatingMinScore,
             cancellationToken);
 
     public async Task<IReadOnlyDictionary<Guid, SimilaritySourceProfile>> GetMovieSimilarityProfilesAsync(
@@ -222,14 +230,20 @@ public sealed class RecommendationRepository(
         long tvFetchMs = 0;
         var movieIdCount = 0;
         var tvIdCount = 0;
+        var franchiseKeywordIds = await LoadFranchiseKeywordIdsAsync(metrics, cancellationToken);
 
         if (type is RecommendationContentType.All or RecommendationContentType.Movie)
         {
+            var movieBudget = type == RecommendationContentType.Movie
+                ? maxCandidates
+                : RecommendationCandidateBudget.Split(maxCandidates, _recommendationOptions.CandidateMinorityTypeMinimum)
+                    .MovieBudget;
             var movieCandidates = await LoadConsolidatedMovieCandidatesAsync(
                 preferredGenreIds,
                 excludedMovieIds,
-                maxCandidates,
+                movieBudget,
                 metrics,
+                franchiseKeywordIds,
                 cancellationToken);
             movieFetchMs = movieCandidates.ElapsedMs;
             dbTotalMs += movieFetchMs;
@@ -239,17 +253,57 @@ public sealed class RecommendationRepository(
 
         if (type is RecommendationContentType.All or RecommendationContentType.Tv)
         {
-            var remaining = Math.Max(0, maxCandidates - candidates.Count);
+            var tvBudget = maxCandidates;
+            if (type == RecommendationContentType.All)
+            {
+                var split = RecommendationCandidateBudget.Split(
+                    maxCandidates,
+                    _recommendationOptions.CandidateMinorityTypeMinimum);
+                var unusedMovieSlots = Math.Max(0, split.MovieBudget - movieIdCount);
+                tvBudget = split.TvBudget + unusedMovieSlots;
+            }
+
             var tvCandidates = await LoadConsolidatedTvCandidatesAsync(
                 preferredGenreIds,
                 excludedTvShowIds,
-                remaining,
+                tvBudget,
                 metrics,
+                franchiseKeywordIds,
                 cancellationToken);
             tvFetchMs = tvCandidates.ElapsedMs;
             dbTotalMs += tvFetchMs;
             tvIdCount = tvCandidates.Candidates.Count;
             candidates.AddRange(tvCandidates.Candidates);
+        }
+
+        if (type == RecommendationContentType.All &&
+            movieIdCount > 0 &&
+            candidates.Count < maxCandidates)
+        {
+            var split = RecommendationCandidateBudget.Split(
+                maxCandidates,
+                _recommendationOptions.CandidateMinorityTypeMinimum);
+            if (movieIdCount >= split.MovieBudget && tvIdCount < split.TvBudget)
+            {
+                var alreadySelectedMovieIds = candidates
+                    .Where(candidate => candidate.Type == "movie")
+                    .Select(candidate => candidate.Id)
+                    .ToHashSet();
+                var backfillExcluded = new HashSet<Guid>(excludedMovieIds);
+                backfillExcluded.UnionWith(alreadySelectedMovieIds);
+                var deficit = maxCandidates - candidates.Count;
+                var backfill = await LoadConsolidatedMovieCandidatesAsync(
+                    preferredGenreIds,
+                    backfillExcluded,
+                    deficit,
+                    metrics,
+                    franchiseKeywordIds,
+                    cancellationToken);
+                movieFetchMs += backfill.ElapsedMs;
+                dbTotalMs += backfill.ElapsedMs;
+                movieIdCount += backfill.Candidates.Count;
+                candidates.AddRange(backfill.Candidates);
+            }
         }
 
         LogCandidateFetchSummary(
@@ -274,18 +328,18 @@ public sealed class RecommendationRepository(
         IReadOnlySet<Guid> excludedMovieIds,
         int maxCandidates,
         RecommendationQueryMetrics metrics,
+        IReadOnlySet<Guid> franchiseKeywordIds,
         CancellationToken cancellationToken)
     {
         var totalStopwatch = Stopwatch.StartNew();
 
         var idSelectionStopwatch = Stopwatch.StartNew();
-        metrics.RecordRoundTrip();
-        var movieIds = await BuildMovieCandidateQuery(preferredGenreIds, excludedMovieIds)
-            .OrderByDescending(movie => movie.VoteCount)
-            .ThenByDescending(movie => movie.VoteAverage)
-            .Take(maxCandidates)
-            .Select(movie => movie.Id)
-            .ToListAsync(cancellationToken);
+        var movieIds = await SelectMovieCandidateIdsAsync(
+            preferredGenreIds,
+            excludedMovieIds,
+            maxCandidates,
+            metrics,
+            cancellationToken);
         idSelectionStopwatch.Stop();
 
         if (movieIds.Count == 0)
@@ -317,7 +371,8 @@ public sealed class RecommendationRepository(
             .Where(movieId => projectionById.ContainsKey(movieId))
             .Select(movieId => RecommendationProjectionMapper.ToPersonalizedCandidateProfile(
                 projectionById[movieId],
-                keywordIdsByMovieId.GetValueOrDefault(movieId)))
+                keywordIdsByMovieId.GetValueOrDefault(movieId),
+                franchiseKeywordIds))
             .ToList();
 
         totalStopwatch.Stop();
@@ -389,6 +444,7 @@ public sealed class RecommendationRepository(
         IReadOnlySet<Guid> excludedTvShowIds,
         int maxCandidates,
         RecommendationQueryMetrics metrics,
+        IReadOnlySet<Guid> franchiseKeywordIds,
         CancellationToken cancellationToken)
     {
         if (maxCandidates == 0)
@@ -397,12 +453,21 @@ public sealed class RecommendationRepository(
         }
 
         var stopwatch = Stopwatch.StartNew();
-        var query = BuildTvCandidateQuery(preferredGenreIds, excludedTvShowIds);
+        var tvShowIds = await SelectTvCandidateIdsAsync(
+            preferredGenreIds,
+            excludedTvShowIds,
+            maxCandidates,
+            metrics,
+            cancellationToken);
+        if (tvShowIds.Count == 0)
+        {
+            stopwatch.Stop();
+            return new ConsolidatedCandidateLoadResult([], stopwatch.ElapsedMilliseconds);
+        }
+
         metrics.RecordRoundTrip();
-        var rows = await query
-            .OrderByDescending(tvShow => tvShow.VoteCount)
-            .ThenByDescending(tvShow => tvShow.VoteAverage)
-            .Take(maxCandidates)
+        var rows = await BuildTvCandidateQuery(preferredGenreIds, excludedTvShowIds)
+            .Where(tvShow => tvShowIds.Contains(tvShow.Id))
             .AsSplitQuery()
             .Select(tvShow => new PersonalizedCandidateQueryRow(
                 new RecommendationCandidateProjection
@@ -431,16 +496,212 @@ public sealed class RecommendationRepository(
             .ToListAsync(cancellationToken);
         stopwatch.Stop();
 
-        return new ConsolidatedCandidateLoadResult(
-            rows.Select(row => RecommendationProjectionMapper.ToPersonalizedCandidateProfile(
-                row.Projection,
-                row.KeywordIds)).ToList(),
-            stopwatch.ElapsedMilliseconds);
+        var rowById = rows.ToDictionary(row => row.Projection.Id);
+        var candidates = tvShowIds
+            .Where(rowById.ContainsKey)
+            .Select(tvShowId => RecommendationProjectionMapper.ToPersonalizedCandidateProfile(
+                rowById[tvShowId].Projection,
+                rowById[tvShowId].KeywordIds,
+                franchiseKeywordIds))
+            .ToList();
+
+        return new ConsolidatedCandidateLoadResult(candidates, stopwatch.ElapsedMilliseconds);
     }
 
     private sealed record PersonalizedCandidateQueryRow(
         RecommendationCandidateProjection Projection,
         List<Guid> KeywordIds);
+
+    private async Task<List<Guid>> SelectMovieCandidateIdsAsync(
+        IReadOnlyList<Guid> preferredGenreIds,
+        IReadOnlySet<Guid> excludedMovieIds,
+        int maxCandidates,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        if (maxCandidates <= 0)
+        {
+            return [];
+        }
+
+        var genres = preferredGenreIds
+            .Where(genreId => genreId != Guid.Empty)
+            .Distinct()
+            .Take(MaxStratifiedGenres)
+            .ToList();
+        if (genres.Count < 2)
+        {
+            return await TakeMovieIdsAsync(
+                preferredGenreIds,
+                excludedMovieIds,
+                maxCandidates,
+                metrics,
+                cancellationToken);
+        }
+
+        var perGenre = Math.Min(
+            maxCandidates,
+            Math.Max(_recommendationOptions.CandidateMinPerGenre, maxCandidates / genres.Count));
+        var buckets = new List<IReadOnlyList<Guid>>(genres.Count);
+        foreach (var genreId in genres)
+        {
+            buckets.Add(await TakeMovieIdsAsync(
+                [genreId],
+                excludedMovieIds,
+                perGenre,
+                metrics,
+                cancellationToken));
+        }
+
+        var selected = RecommendationCandidateBudget.RoundRobin(buckets, maxCandidates);
+        if (selected.Count >= maxCandidates)
+        {
+            return selected;
+        }
+
+        var fill = await TakeMovieIdsAsync(
+            preferredGenreIds,
+            excludedMovieIds,
+            maxCandidates,
+            metrics,
+            cancellationToken);
+        return RecommendationCandidateBudget.AppendDistinct(selected, fill, maxCandidates);
+    }
+
+    private async Task<List<Guid>> TakeMovieIdsAsync(
+        IReadOnlyList<Guid> preferredGenreIds,
+        IReadOnlySet<Guid> excludedMovieIds,
+        int maxCandidates,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        metrics.RecordRoundTrip();
+        return await BuildMovieCandidateQuery(preferredGenreIds, excludedMovieIds)
+            .OrderByDescending(movie => movie.VoteCount)
+            .ThenByDescending(movie => movie.VoteAverage)
+            .ThenBy(movie => movie.Id)
+            .Select(movie => movie.Id)
+            .Take(maxCandidates)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<List<Guid>> SelectTvCandidateIdsAsync(
+        IReadOnlyList<Guid> preferredGenreIds,
+        IReadOnlySet<Guid> excludedTvShowIds,
+        int maxCandidates,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        if (maxCandidates <= 0)
+        {
+            return [];
+        }
+
+        var genres = preferredGenreIds
+            .Where(genreId => genreId != Guid.Empty)
+            .Distinct()
+            .Take(MaxStratifiedGenres)
+            .ToList();
+        if (genres.Count < 2)
+        {
+            return await TakeTvIdsAsync(
+                preferredGenreIds,
+                excludedTvShowIds,
+                maxCandidates,
+                metrics,
+                cancellationToken);
+        }
+
+        var perGenre = Math.Min(
+            maxCandidates,
+            Math.Max(_recommendationOptions.CandidateMinPerGenre, maxCandidates / genres.Count));
+        var buckets = new List<IReadOnlyList<Guid>>(genres.Count);
+        foreach (var genreId in genres)
+        {
+            buckets.Add(await TakeTvIdsAsync(
+                [genreId],
+                excludedTvShowIds,
+                perGenre,
+                metrics,
+                cancellationToken));
+        }
+
+        var selected = RecommendationCandidateBudget.RoundRobin(buckets, maxCandidates);
+        if (selected.Count >= maxCandidates)
+        {
+            return selected;
+        }
+
+        var fill = await TakeTvIdsAsync(
+            preferredGenreIds,
+            excludedTvShowIds,
+            maxCandidates,
+            metrics,
+            cancellationToken);
+        return RecommendationCandidateBudget.AppendDistinct(selected, fill, maxCandidates);
+    }
+
+    private async Task<List<Guid>> TakeTvIdsAsync(
+        IReadOnlyList<Guid> preferredGenreIds,
+        IReadOnlySet<Guid> excludedTvShowIds,
+        int maxCandidates,
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        metrics.RecordRoundTrip();
+        return await BuildTvCandidateQuery(preferredGenreIds, excludedTvShowIds)
+            .OrderByDescending(tvShow => tvShow.VoteCount)
+            .ThenByDescending(tvShow => tvShow.VoteAverage)
+            .ThenBy(tvShow => tvShow.Id)
+            .Select(tvShow => tvShow.Id)
+            .Take(maxCandidates)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<HashSet<Guid>> LoadFranchiseKeywordIdsAsync(
+        RecommendationQueryMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        var names = _recommendationOptions.DiversityFranchiseKeywordNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToArray();
+        if (names.Length == 0)
+        {
+            return [];
+        }
+
+        metrics.RecordRoundTrip();
+        if (dbContext.Database.IsRelational() &&
+            dbContext.Database.ProviderName is "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            IQueryable<Domain.Entities.Keyword>? union = null;
+            foreach (var name in names)
+            {
+                var term = name;
+                var branch = dbContext.Keywords
+                    .AsNoTracking()
+                    .Where(keyword => EF.Functions.ILike(keyword.Name, term));
+                union = union is null ? branch : union.Union(branch);
+            }
+
+            var relationalIds = await union!
+                .Select(keyword => keyword.Id)
+                .ToListAsync(cancellationToken);
+            return relationalIds.ToHashSet();
+        }
+
+        var keywords = await dbContext.Keywords
+            .AsNoTracking()
+            .Select(keyword => new { keyword.Id, keyword.Name })
+            .ToListAsync(cancellationToken);
+        var nameSet = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return keywords
+            .Where(keyword => nameSet.Contains(keyword.Name))
+            .Select(keyword => keyword.Id)
+            .ToHashSet();
+    }
 
     private IQueryable<Domain.Entities.Movie> BuildMovieCandidateQuery(
         IReadOnlyList<Guid> preferredGenreIds,
@@ -450,6 +711,11 @@ public sealed class RecommendationRepository(
         var query = dbContext.Movies.AsNoTracking().AsQueryable();
 
         query = query.Where(movie => movie.ReleaseDate == null || movie.ReleaseDate <= today);
+
+        if (_recommendationOptions.CandidateMinVoteCount > 0)
+        {
+            query = query.Where(movie => movie.VoteCount >= _recommendationOptions.CandidateMinVoteCount);
+        }
 
         if (preferredGenreIds.Count > 0)
         {
@@ -472,6 +738,11 @@ public sealed class RecommendationRepository(
         var query = dbContext.TvShows.AsNoTracking().AsQueryable();
 
         query = query.Where(tvShow => tvShow.FirstAirDate == null || tvShow.FirstAirDate <= today);
+
+        if (_recommendationOptions.CandidateMinVoteCount > 0)
+        {
+            query = query.Where(tvShow => tvShow.VoteCount >= _recommendationOptions.CandidateMinVoteCount);
+        }
 
         if (preferredGenreIds.Count > 0)
         {

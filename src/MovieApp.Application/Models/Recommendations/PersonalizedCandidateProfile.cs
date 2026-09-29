@@ -18,4 +18,9 @@ public sealed record PersonalizedCandidateProfile(
     int? TmdbCollectionId)
 {
     public IReadOnlyList<Guid> KeywordIds { get; init; } = [];
+
+    /// <summary>
+    /// Keyword ids whose catalog name is a configured franchise family (for example "marvel cinematic universe").
+    /// </summary>
+    public IReadOnlyList<Guid> FranchiseKeywordIds { get; init; } = [];
 }
