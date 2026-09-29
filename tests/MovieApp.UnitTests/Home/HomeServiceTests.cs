@@ -18,6 +18,7 @@ using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Services.WatchHistory;
+using MovieApp.UnitTests.Search;
 
 namespace MovieApp.UnitTests.Home;
 
@@ -181,7 +182,7 @@ public sealed class HomeServiceTests
                 HomeSectionType.NewReleases
             ],
             result.Sections.Select(section => section.Type).ToList());
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(0, discovery.TrendingCallCount);
         Assert.Equal(0, discovery.PopularCallCount);
         Assert.Equal(1, discovery.NewReleasesCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
@@ -302,7 +303,7 @@ public sealed class HomeServiceTests
         Assert.Equal(
             [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
             result.Sections.Select(section => section.Type).ToList());
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(0, discovery.TrendingCallCount);
         Assert.Equal(0, discovery.PopularCallCount);
         Assert.Equal(1, discovery.NewReleasesCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
@@ -322,7 +323,7 @@ public sealed class HomeServiceTests
             [
                 new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
             ]),
-            hotThisWeekService: new FakeHotThisWeekService(
+            weeklySnapshotItems:
             [
                 new SearchItem(
                     heroItemId,
@@ -336,7 +337,7 @@ public sealed class HomeServiceTests
                     9m,
                     1000,
                     2025)
-            ]),
+            ],
             options: new HomeOptions
             {
                 DefaultSectionSize = 10,
@@ -371,8 +372,8 @@ public sealed class HomeServiceTests
         var trending = result.Sections.Single(section => section.Type == HomeSectionType.Trending);
 
         Assert.Equal("Trending Now", trending.Title);
-        Assert.Single(trending.Items);
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(5, trending.Items.Count);
+        Assert.Equal(0, discovery.TrendingCallCount);
     }
 
     [Fact]
@@ -396,7 +397,7 @@ public sealed class HomeServiceTests
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new FakeDiscoveryService(),
-            hotThisWeekService: new FakeHotThisWeekService(hotItems),
+            weeklySnapshotItems: hotItems,
             options: new HomeOptions
             {
                 DefaultSectionSize = 10,
@@ -417,30 +418,39 @@ public sealed class HomeServiceTests
     public async Task GetHomeAsyncKeepsTrendingIndependentFromHotThisWeek()
     {
         var discovery = new CountingDiscoveryService();
+        var heroId = Guid.Parse("11111111-1111-1111-1111-000000000099");
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
             discoveryService: discovery,
-            hotThisWeekService: new FakeHotThisWeekService(
-            [
-                new SearchItem(
-                    Guid.Parse("11111111-1111-1111-1111-000000000099"),
-                    "movie",
-                    "Hot Hero",
-                    null,
-                    null,
-                    null,
-                    null,
-                    new DateOnly(2025, 1, 1),
-                    9m,
-                    1000,
-                    2025)
-            ]));
+            weeklySnapshotItems: CreateWeeklySnapshotItems(12, heroId, "Hot Hero"));
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.Trending);
+        var hero = result.Sections.Single(section => section.Type == HomeSectionType.HotThisWeek);
+        var trending = result.Sections.Single(section => section.Type == HomeSectionType.Trending);
+
+        Assert.Equal(5, hero.Items.Count);
+        Assert.Equal(5, trending.Items.Count);
+        Assert.DoesNotContain(trending.Items, item => hero.Items.Any(heroItem => heroItem.Id == item.Id && heroItem.ContentType == item.ContentType));
+        Assert.Equal(0, discovery.TrendingCallCount);
+    }
+
+    [Fact]
+    public async Task GetHomeAsyncUsesCatalogTrendingFallbackWhenWeeklySnapshotMissing()
+    {
+        var discovery = new CountingDiscoveryService();
+        var service = CreateService(
+            recommendationService: new FakeRecommendationService([]),
+            discoveryService: discovery,
+            weeklySnapshotItems: []);
+
+        var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
+
         Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
+        Assert.Equal(1, discovery.TopRatedCallCount);
+        Assert.Equal(1, discovery.NewReleasesCallCount);
     }
 
     [Fact]
@@ -448,7 +458,8 @@ public sealed class HomeServiceTests
     {
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
-            discoveryService: new EmptyTrendingDiscoveryService());
+            discoveryService: new EmptyTrendingDiscoveryService(),
+            weeklySnapshotItems: []);
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -466,8 +477,8 @@ public sealed class HomeServiceTests
                 new RecommendationSection("recommended-for-you", "Recommended For You",
                     [CreateRecommendationItem("movie", 1)])
             ]),
-            hotThisWeekService: new FakeHotThisWeekService([]),
-            discoveryService: new FakeDiscoveryService());
+            weeklySnapshotItems: [],
+            discoveryService: new EmptyTrendingDiscoveryService());
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -502,7 +513,8 @@ public sealed class HomeServiceTests
     {
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
-            discoveryService: new EmptyTrendingDiscoveryService());
+            discoveryService: new EmptyTrendingDiscoveryService(),
+            weeklySnapshotItems: []);
 
         var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -578,7 +590,7 @@ public sealed class HomeServiceTests
             [
                 new RecommendationSection("recommended-for-you", "Recommended For You", recommendedItems)
             ]),
-            hotThisWeekService: new FakeHotThisWeekService(
+            weeklySnapshotItems:
             [
                 new SearchItem(
                     heroItemId,
@@ -592,7 +604,7 @@ public sealed class HomeServiceTests
                     9m,
                     1000,
                     2025)
-            ]),
+            ],
             options: new HomeOptions
             {
                 DefaultSectionSize = 10,
@@ -662,7 +674,7 @@ public sealed class HomeServiceTests
         IRecommendationService? recommendationService = null,
         IDiscoveryService? discoveryService = null,
         IWatchHistoryService? watchHistoryService = null,
-        IHotThisWeekService? hotThisWeekService = null,
+        IReadOnlyList<SearchItem>? weeklySnapshotItems = null,
         IGetHomeComingUpService? comingUpService = null,
         HomeOptions? options = null,
         Guid? userId = null)
@@ -680,7 +692,7 @@ public sealed class HomeServiceTests
                 recommendationService,
                 discoveryService,
                 watchHistoryService,
-                hotThisWeekService,
+                weeklySnapshotItems,
                 comingUpService,
                 cache,
                 homeOptions),
@@ -694,7 +706,7 @@ public sealed class HomeServiceTests
         IRecommendationService? recommendationService = null,
         IDiscoveryService? discoveryService = null,
         IWatchHistoryService? watchHistoryService = null,
-        IHotThisWeekService? hotThisWeekService = null,
+        IReadOnlyList<SearchItem>? weeklySnapshotItems = null,
         IGetHomeComingUpService? comingUpService = null,
         ICacheService? sharedCache = null,
         HomeOptions? options = null)
@@ -714,8 +726,12 @@ public sealed class HomeServiceTests
             discoveryService ?? new FakeDiscoveryService());
         services.AddScoped<IWatchHistoryService>(_ =>
             watchHistoryService ?? new FakeWatchHistoryService([]));
-        services.AddScoped<IHotThisWeekService>(_ =>
-            hotThisWeekService ?? new FakeHotThisWeekService());
+        var snapshotItems = weeklySnapshotItems ?? CreateWeeklySnapshotItems(25);
+        services.AddScoped<IHotThisWeekTrendingSnapshotService>(_ =>
+            new FakeWeeklyTrendingSnapshotService(snapshotItems));
+        services.AddScoped<ISummaryLocalizationOverlayService>(_ =>
+            new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService());
+        services.AddScoped<IHomeWeeklyTrendingCompositionService, HomeWeeklyTrendingCompositionService>();
         services.AddSingleton(Options.Create(new TopRatedOptions()));
         services.AddScoped<IGenreReadRepository>(_ => new PassthroughGenreReadRepository());
         services.AddScoped<ISearchRepository>(_ => new PassthroughSearchRepository());
@@ -727,6 +743,37 @@ public sealed class HomeServiceTests
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
 
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    }
+
+    private static List<SearchItem> CreateWeeklySnapshotItems(
+        int count,
+        Guid? firstItemId = null,
+        string? firstItemTitle = null)
+    {
+        return Enumerable.Range(1, count)
+            .Select(index =>
+            {
+                var type = index % 2 == 0 ? "tv" : "movie";
+                var id = index == 1 && firstItemId.HasValue
+                    ? firstItemId.Value
+                    : Guid.Parse($"11111111-1111-1111-1111-{index:D12}");
+                var title = index == 1 && firstItemTitle is not null
+                    ? firstItemTitle
+                    : $"Weekly Snapshot {index}";
+                return new SearchItem(
+                    id,
+                    type,
+                    title,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new DateOnly(2025, 1, 1),
+                    8m,
+                    1000,
+                    2025);
+            })
+            .ToList();
     }
 
     private static HomeItem CreateHomeItem(string type, int seed) =>
@@ -1189,25 +1236,23 @@ public sealed class HomeServiceTests
                 (items ?? []).Take(limit).ToList());
     }
 
-    private sealed class FakeHotThisWeekService(IReadOnlyList<SearchItem>? items = null) : IHotThisWeekService
+    private sealed class FakeWeeklyTrendingSnapshotService(IReadOnlyList<SearchItem> items) : IHotThisWeekTrendingSnapshotService
     {
-        private readonly IReadOnlyList<SearchItem> _items = items ??
-        [
-            new SearchItem(
-                Guid.Parse("ffffffff-ffff-ffff-ffff-000000000099"),
-                "movie",
-                "Hot This Week",
-                null,
-                null,
-                null,
-                null,
-                new DateOnly(2025, 3, 1),
-                8.8m,
-                1200,
-                2025)
-        ];
+        public Task<HotThisWeekTrendingSnapshotEntry?> GetSnapshotAsync(CancellationToken cancellationToken = default)
+        {
+            if (items.Count == 0)
+            {
+                return Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(null);
+            }
 
-        public Task<IReadOnlyList<SearchItem>> GetItemsAsync(SearchContentType type, int maxItems, string contentLocale, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchItem>>(_items.Take(maxItems).ToList());
+            return Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(new HotThisWeekTrendingSnapshotEntry
+            {
+                RefreshedAt = DateTimeOffset.UtcNow,
+                Items = items,
+            });
+        }
+
+        public Task<HotThisWeekTrendingSnapshotRefreshResult> RefreshAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

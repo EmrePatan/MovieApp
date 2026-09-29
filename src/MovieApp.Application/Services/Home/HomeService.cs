@@ -102,8 +102,8 @@ public sealed class HomeService(
                     ct),
             cancellationToken);
 
-        var hotThisWeekTask = RunScopedTimedAsync(
-            (services, ct) => BuildHotThisWeekSectionAsync(
+        var weeklySectionsTask = RunScopedTimedAsync(
+            (services, ct) => BuildWeeklyHeroAndTrendingSectionsAsync(
                 services,
                 criteria,
                 heroSize,
@@ -113,16 +113,6 @@ public sealed class HomeService(
 
         var comingUpTask = RunScopedTimedAsync(
             (services, ct) => BuildComingUpSectionAsync(services, releaseRegion, contentLocale, ct),
-            cancellationToken);
-
-        var trendingTask = RunScopedTimedAsync(
-            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
-                HomeSectionType.Trending,
-                "Trending Now",
-                services.GetRequiredService<IDiscoveryService>()
-                    .GetTrendingAsync(discoveryCriteria, contentLocale, ct),
-                criteria,
-                ct),
             cancellationToken);
 
         var topRatedTask = RunScopedTimedAsync(
@@ -141,9 +131,8 @@ public sealed class HomeService(
 
         await Task.WhenAll(
             recommendationSectionsTask,
-            hotThisWeekTask,
+            weeklySectionsTask,
             comingUpTask,
-            trendingTask,
             topRatedTask,
             newReleasesTask);
 
@@ -151,8 +140,11 @@ public sealed class HomeService(
         var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
 
         var (comingUpSection, comingUpMs) = await comingUpTask;
-        var (hotThisWeekSection, hotThisWeekMs) = await hotThisWeekTask;
-        var (trendingSection, trendingMs) = await trendingTask;
+        var (weeklySections, weeklySectionsMs) = await weeklySectionsTask;
+        var hotThisWeekSection = weeklySections.HotThisWeek;
+        var trendingSection = weeklySections.Trending;
+        var hotThisWeekMs = weeklySectionsMs;
+        var trendingMs = weeklySectionsMs;
         var (topRatedSection, topRatedMs) = await topRatedTask;
         var (newReleasesSection, newReleasesMs) = await newReleasesTask;
 
@@ -224,22 +216,12 @@ public sealed class HomeService(
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
         var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
 
-        var hotThisWeekTask = RunScopedTimedAsync(
-            (services, ct) => BuildHotThisWeekSectionAsync(
+        var weeklySectionsTask = RunScopedTimedAsync(
+            (services, ct) => BuildWeeklyHeroAndTrendingSectionsAsync(
                 services,
                 criteria,
                 heroSize,
                 contentLocale,
-                ct),
-            cancellationToken);
-
-        var trendingTask = RunScopedTimedAsync(
-            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
-                HomeSectionType.Trending,
-                "Trending Now",
-                services.GetRequiredService<IDiscoveryService>()
-                    .GetTrendingAsync(discoveryCriteria, contentLocale, ct),
-                criteria,
                 ct),
             cancellationToken);
 
@@ -257,10 +239,13 @@ public sealed class HomeService(
                 ct),
             cancellationToken);
 
-        await Task.WhenAll(hotThisWeekTask, trendingTask, topRatedTask, newReleasesTask);
+        await Task.WhenAll(weeklySectionsTask, topRatedTask, newReleasesTask);
 
-        var (hotThisWeekSection, hotThisWeekMs) = await hotThisWeekTask;
-        var (trendingSection, trendingMs) = await trendingTask;
+        var (weeklySections, weeklySectionsMs) = await weeklySectionsTask;
+        var hotThisWeekSection = weeklySections.HotThisWeek;
+        var trendingSection = weeklySections.Trending;
+        var hotThisWeekMs = weeklySectionsMs;
+        var trendingMs = weeklySectionsMs;
         var (topRatedSection, topRatedMs) = await topRatedTask;
         var (newReleasesSection, newReleasesMs) = await newReleasesTask;
 
@@ -314,7 +299,7 @@ public sealed class HomeService(
             cancellationToken);
 
         var hotThisWeekDedupTask = RunScopedTimedAsync(
-            (services, ct) => BuildHotThisWeekSectionAsync(
+            (services, ct) => BuildHotThisWeekSectionFromCompositionAsync(
                 services,
                 criteria,
                 heroSize,
@@ -416,17 +401,44 @@ public sealed class HomeService(
             0);
     }
 
-    private static async Task<HomeSection> BuildHotThisWeekSectionAsync(
+    private sealed record WeeklyHeroAndTrendingSections(HomeSection HotThisWeek, HomeSection Trending);
+
+    private static async Task<WeeklyHeroAndTrendingSections> BuildWeeklyHeroAndTrendingSectionsAsync(
         IServiceProvider services,
         HomeCriteria criteria,
         int heroSize,
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var items = await services
-            .GetRequiredService<IHotThisWeekService>()
-            .GetItemsAsync(criteria.Type, heroSize, contentLocale, cancellationToken);
+        var composition = await services
+            .GetRequiredService<IHomeWeeklyTrendingCompositionService>()
+            .ComposeAsync(criteria.Type, heroSize, criteria.SectionSize, contentLocale, cancellationToken);
 
+        var hotThisWeek = BuildHotThisWeekSection(criteria, heroSize, composition.HeroItems);
+        var trending = BuildHomeTrendingSection(criteria, composition.TrendingItems);
+
+        return new WeeklyHeroAndTrendingSections(hotThisWeek, trending);
+    }
+
+    private static async Task<HomeSection> BuildHotThisWeekSectionFromCompositionAsync(
+        IServiceProvider services,
+        HomeCriteria criteria,
+        int heroSize,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        var composition = await services
+            .GetRequiredService<IHomeWeeklyTrendingCompositionService>()
+            .ComposeAsync(criteria.Type, heroSize, 0, contentLocale, cancellationToken);
+
+        return BuildHotThisWeekSection(criteria, heroSize, composition.HeroItems);
+    }
+
+    private static HomeSection BuildHotThisWeekSection(
+        HomeCriteria criteria,
+        int heroSize,
+        IReadOnlyList<SearchItem> items)
+    {
         var homeItems = HomeSectionBuilders.DeduplicateItems(
             items.Select(HomeMapper.FromSearchItem),
             heroSize);
@@ -434,6 +446,21 @@ public sealed class HomeService(
         return new HomeSection(
             HomeSectionType.HotThisWeek,
             "Hot This Week",
+            HomeSectionBuilders.FilterByType(homeItems, criteria.Type),
+            0);
+    }
+
+    private static HomeSection BuildHomeTrendingSection(
+        HomeCriteria criteria,
+        IReadOnlyList<SearchItem> items)
+    {
+        var homeItems = HomeSectionBuilders.DeduplicateItems(
+            items.Select(HomeMapper.FromSearchItem),
+            criteria.SectionSize);
+
+        return new HomeSection(
+            HomeSectionType.Trending,
+            "Trending Now",
             HomeSectionBuilders.FilterByType(homeItems, criteria.Type),
             0);
     }
@@ -526,4 +553,4 @@ public sealed class HomeService(
         }
     }
 }
-
+
