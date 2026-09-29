@@ -388,16 +388,13 @@ public sealed class EmailVerificationDeliveryTests
             DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
-            if (!_tokensByHash.TryGetValue(tokenHash, out var token) ||
-                token.UsedAtUtc is not null ||
-                token.ExpiresAtUtc <= utcNow)
+            var active = GetActiveTokenByHashAsync(tokenHash, utcNow, cancellationToken).Result;
+            if (active is null || !TryMarkTokenUsedAsync(active.TokenId, utcNow, cancellationToken).Result)
             {
                 return Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
             }
 
-            token.UsedAtUtc = utcNow;
-            return Task.FromResult<EmailVerificationTokenConsumptionResult?>(
-                new EmailVerificationTokenConsumptionResult(token.Id, token.UserId, null, "en-US"));
+            return Task.FromResult<EmailVerificationTokenConsumptionResult?>(active);
         }
 
         public Task CreateAsync(EmailVerificationToken token, CancellationToken cancellationToken = default)
@@ -472,14 +469,37 @@ public sealed class EmailVerificationDeliveryTests
         public Task<EmailVerificationTokenConsumptionResult?> GetActiveTokenByHashAsync(
             string tokenHash,
             DateTime utcNow,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
+            CancellationToken cancellationToken = default)
+        {
+            if (!_tokensByHash.TryGetValue(tokenHash, out var token) ||
+                token.UsedAtUtc is not null ||
+                token.ExpiresAtUtc <= utcNow)
+            {
+                return Task.FromResult<EmailVerificationTokenConsumptionResult?>(null);
+            }
+
+            return Task.FromResult<EmailVerificationTokenConsumptionResult?>(
+                new EmailVerificationTokenConsumptionResult(
+                    token.Id,
+                    token.UserId,
+                    token.PendingEmail,
+                    token.ContentLocale));
+        }
 
         public Task<bool> TryMarkTokenUsedAsync(
             Guid tokenId,
             DateTime utcNow,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
+            CancellationToken cancellationToken = default)
+        {
+            var token = CreatedTokens.FirstOrDefault(item => item.Id == tokenId);
+            if (token is null || token.UsedAtUtc is not null || token.ExpiresAtUtc <= utcNow)
+            {
+                return Task.FromResult(false);
+            }
+
+            token.UsedAtUtc = utcNow;
+            return Task.FromResult(true);
+        }
 
         public Task InvalidateUnusedPendingEmailChangeTokensForUserAsync(
             Guid userId,
