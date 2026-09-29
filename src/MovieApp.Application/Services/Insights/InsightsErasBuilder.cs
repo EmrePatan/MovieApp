@@ -15,24 +15,31 @@ public static class InsightsErasBuilder
 
     public static InsightsErasResult Build(InsightsAnalyticsRawData raw)
     {
-        var years = raw.MovieTitles
+        var counts = raw.MovieTitles
             .Select(title => title.ReleaseYear)
             .Concat(raw.TvShowTitles.Select(title => title.ReleaseYear))
+            .GroupBy(year => year)
+            .Select(group => new InsightsV3ReleaseYearCount(group.Key, group.Count()))
             .ToList();
 
+        return BuildFromYearCounts(counts);
+    }
+
+    public static InsightsErasResult BuildFromYearCounts(IReadOnlyList<InsightsV3ReleaseYearCount> years)
+    {
         var bucketCounts = KnownBucketOrder.ToDictionary(bucket => bucket, _ => 0);
         var unknownCount = 0;
 
-        foreach (var year in years)
+        foreach (var row in years)
         {
-            if (year is null)
+            if (row.Year is null)
             {
-                unknownCount++;
+                unknownCount += row.Count;
                 continue;
             }
 
-            var bucket = MapYearToBucket(year.Value);
-            bucketCounts[bucket]++;
+            var bucket = MapYearToBucket(row.Year.Value);
+            bucketCounts[bucket] += row.Count;
         }
 
         var knownTotal = bucketCounts.Values.Sum();

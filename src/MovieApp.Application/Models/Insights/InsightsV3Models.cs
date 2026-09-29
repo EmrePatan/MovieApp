@@ -124,6 +124,27 @@ public sealed record InsightsV3OldestTitleRow(
     string? PosterPath,
     DateOnly? SortDate);
 
+public sealed record InsightsV3GenreContribution(
+    Guid GenreId,
+    string Name,
+    int GenresOnTitle,
+    int TitleCount);
+
+public sealed record InsightsV3ReleaseYearCount(
+    int? Year,
+    int Count);
+
+public sealed record InsightsV3MonthCount(
+    int Month,
+    int Movies,
+    int Episodes);
+
+public sealed record InsightsV3YearActivityAggregate(
+    IReadOnlyList<InsightsV3MonthCount> Months,
+    IReadOnlyDictionary<DayOfWeek, int> WeekdayTotals,
+    int ActiveDays,
+    int YearMinutes);
+
 public sealed record InsightsV3RawData(
     DateTime MemberSinceUtc,
     int DistinctMovieCount,
@@ -132,14 +153,15 @@ public sealed record InsightsV3RawData(
     int EpisodesWatched,
     int ShowsStarted,
     int RatingsCount,
-    IReadOnlyList<InsightsDnaTitleData> MovieTitles,
-    IReadOnlyList<InsightsDnaTitleData> TvShowTitles,
-    IReadOnlyList<InsightsDnaTitleData> CurrentYearMovieTitles,
-    IReadOnlyList<InsightsDnaTitleData> CurrentYearTvShowTitles,
-    IReadOnlyList<InsightsDnaTitleData> PreviousYearMovieTitles,
-    IReadOnlyList<InsightsDnaTitleData> PreviousYearTvShowTitles,
-    IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)> YearMovieWatches,
-    IReadOnlyList<(DateTime WatchedAtUtc, int? RuntimeMinutes)> YearEpisodeWatches,
+    IReadOnlyList<InsightsV3GenreContribution> AllTimeGenreContributions,
+    int AllTimeTitlesWithGenres,
+    IReadOnlyList<InsightsV3ReleaseYearCount> AllTimeReleaseYears,
+    int DistinctGenreCount,
+    IReadOnlyList<InsightsV3GenreContribution> CurrentYearGenreContributions,
+    int CurrentYearTitlesWithGenres,
+    IReadOnlyList<InsightsV3GenreContribution> PreviousYearGenreContributions,
+    int PreviousYearTitlesWithGenres,
+    InsightsV3YearActivityAggregate YearActivity,
     InsightsV3RecordsRawData Records,
     int MovieEstimatedMinutes,
     int EpisodeEstimatedMinutes,

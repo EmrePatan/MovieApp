@@ -14,35 +14,28 @@ public static class InsightsTasteBuilder
             .Where(title => title.Genres.Count > 0)
             .ToList();
 
-        if (eligibleTitles.Count < MinimumEligibleTitles)
+        return new InsightsTasteResult(BuildGenres(
+            InsightsGenreContributions.FromTitles(eligibleTitles),
+            eligibleTitles.Count));
+    }
+
+    public static IReadOnlyList<InsightsTasteGenreResult> BuildGenres(
+        IReadOnlyList<InsightsV3GenreContribution> contributions,
+        int eligibleTitles)
+    {
+        if (eligibleTitles < MinimumEligibleTitles)
         {
-            return new InsightsTasteResult([]);
+            return [];
         }
 
-        var weights = new Dictionary<Guid, (string Name, decimal Weight)>();
-
-        foreach (var title in eligibleTitles)
-        {
-            var contribution = 1m / title.Genres.Count;
-            foreach (var genre in title.Genres)
-            {
-                if (weights.TryGetValue(genre.GenreId, out var existing))
-                {
-                    weights[genre.GenreId] = (existing.Name, existing.Weight + contribution);
-                    continue;
-                }
-
-                weights[genre.GenreId] = (genre.Name, contribution);
-            }
-        }
-
+        var weights = InsightsGenreContributions.SumWeightsByGenreId(contributions);
         var denominator = weights.Values.Sum(item => item.Weight);
         if (denominator <= 0)
         {
-            return new InsightsTasteResult([]);
+            return [];
         }
 
-        var genres = weights
+        return weights
             .Select(pair => new InsightsTasteGenreResult(
                 pair.Key,
                 pair.Value.Name,
@@ -52,7 +45,5 @@ public static class InsightsTasteBuilder
             .ThenBy(genre => genre.Name, StringComparer.Ordinal)
             .Take(TopGenreCount)
             .ToList();
-
-        return new InsightsTasteResult(genres);
     }
 }

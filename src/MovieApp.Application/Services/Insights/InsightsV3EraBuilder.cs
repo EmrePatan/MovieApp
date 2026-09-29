@@ -6,7 +6,7 @@ public static class InsightsV3EraBuilder
 {
     public static InsightsV3EraSectionResult Build(InsightsV3RawData raw)
     {
-        var eras = InsightsErasBuilder.Build(raw.MilestoneRaw);
+        var eras = InsightsErasBuilder.BuildFromYearCounts(raw.AllTimeReleaseYears);
         var favoriteDecade = eras.Buckets
             .Where(bucket => bucket.Count > 0)
             .OrderByDescending(bucket => bucket.Count)

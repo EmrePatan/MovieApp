@@ -300,8 +300,8 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
         var timeZone = InsightsTimeZoneGuard.RequireValidTimeZone("Europe/Istanbul");
         var (_, metrics) = await repository.GetV3RawDataAsync(userId, timeZone, 2026);
 
-        Assert.Equal(10, metrics.DbRoundTrips);
-        Assert.Equal(10, metrics.PgCommandRoundTrips);
+        Assert.Equal(11, metrics.DbRoundTrips);
+        Assert.Equal(11, metrics.PgCommandRoundTrips);
     }
 
     private static ApplicationDbContext CreateContext()

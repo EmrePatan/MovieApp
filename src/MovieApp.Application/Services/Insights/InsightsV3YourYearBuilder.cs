@@ -6,75 +6,24 @@ public static class InsightsV3YourYearBuilder
 {
     public const int MinimumWeekdayActivity = 10;
 
-    public static InsightsV3YourYearResult Build(
-        InsightsV3RawData raw,
-        TimeZoneInfo timeZone,
-        int year)
+    public static InsightsV3YourYearResult Build(InsightsV3RawData raw, int year)
     {
-        var dayCounts = new Dictionary<DateOnly, (int Movies, int Episodes)>();
-
-        foreach (var (watchedAtUtc, _) in raw.YearMovieWatches)
-        {
-            var date = InsightsV3TimeRangeHelper.ToLocalDate(watchedAtUtc, timeZone);
-            if (date.Year != year)
-            {
-                continue;
-            }
-
-            if (!dayCounts.TryGetValue(date, out var counts))
-            {
-                counts = (0, 0);
-            }
-
-            counts.Movies++;
-            dayCounts[date] = counts;
-        }
-
-        foreach (var (watchedAtUtc, _) in raw.YearEpisodeWatches)
-        {
-            var date = InsightsV3TimeRangeHelper.ToLocalDate(watchedAtUtc, timeZone);
-            if (date.Year != year)
-            {
-                continue;
-            }
-
-            if (!dayCounts.TryGetValue(date, out var counts))
-            {
-                counts = (0, 0);
-            }
-
-            counts.Episodes++;
-            dayCounts[date] = counts;
-        }
-
-        var monthly = new Dictionary<int, (int Movies, int Episodes)>();
-        foreach (var (date, counts) in dayCounts)
-        {
-            var key = date.Month;
-            if (!monthly.TryGetValue(key, out var monthCounts))
-            {
-                monthCounts = (0, 0);
-            }
-
-            monthCounts.Movies += counts.Movies;
-            monthCounts.Episodes += counts.Episodes;
-            monthly[key] = monthCounts;
-        }
-
+        var monthly = raw.YearActivity.Months.ToDictionary(month => month.Month);
         var months = Enumerable.Range(1, 12)
             .Select(month =>
             {
-                var counts = monthly.TryGetValue(month, out var value) ? value : (Movies: 0, Episodes: 0);
+                monthly.TryGetValue(month, out var counts);
+                var movies = counts?.Movies ?? 0;
+                var episodes = counts?.Episodes ?? 0;
                 return new InsightsV3MonthlyActivityResult(
                     year,
                     month,
-                    counts.Movies,
-                    counts.Episodes,
-                    counts.Movies + counts.Episodes);
+                    movies,
+                    episodes,
+                    movies + episodes);
             })
             .ToList();
 
-        var activeDays = dayCounts.Count;
         var peakMonth = months
             .Where(month => month.Total > 0)
             .OrderByDescending(month => month.Total)
@@ -87,22 +36,29 @@ public static class InsightsV3YourYearBuilder
                 month.Total))
             .FirstOrDefault();
 
-        var favoriteWeekday = CalculateFavoriteWeekday(dayCounts);
-
-        return new InsightsV3YourYearResult(months, activeDays, peakMonth, favoriteWeekday);
+        return new InsightsV3YourYearResult(
+            months,
+            raw.YearActivity.ActiveDays,
+            peakMonth,
+            CalculateFavoriteWeekday(raw.YearActivity.WeekdayTotals));
     }
 
-    public static DayOfWeek? CalculateFavoriteWeekday(
-        IReadOnlyDictionary<DateOnly, (int Movies, int Episodes)> dayCounts)
+    public static DayOfWeek? CalculateFavoriteWeekday(IReadOnlyDictionary<DayOfWeek, int> weekdayTotals)
     {
-        var activeDays = dayCounts
-            .Select(pair => new InsightsActivityDayResult(
-                pair.Key,
-                pair.Value.Movies,
-                pair.Value.Episodes,
-                pair.Value.Movies + pair.Value.Episodes,
-                InsightsActivityDayState.Active,
-                0))
+        var sunday = new DateOnly(2024, 1, 7);
+        var activeDays = weekdayTotals
+            .Where(pair => pair.Value > 0)
+            .Select(pair =>
+            {
+                var date = sunday.AddDays((int)pair.Key);
+                return new InsightsActivityDayResult(
+                    date,
+                    pair.Value,
+                    0,
+                    pair.Value,
+                    InsightsActivityDayState.Active,
+                    0);
+            })
             .ToList();
 
         return InsightsActivityBuilder.CalculateMostActiveWeekday(activeDays);

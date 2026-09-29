@@ -73,6 +73,41 @@ public sealed class InsightsMilestonesBuilderTests
         Assert.Null(milestone.AchievedAt);
     }
 
+    [Fact]
+    public void BuildUsesPrecomputedDistinctGenreCountWithoutTitleRows()
+    {
+        var raw = new InsightsAnalyticsRawData(
+            DateTime.UtcNow,
+            0,
+            0,
+            0,
+            0,
+            [],
+            [],
+            [],
+            0,
+            0,
+            0,
+            0,
+            [],
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            DistinctGenreCount: 5);
+
+        var milestone = InsightsMilestonesBuilder.Build(raw).Single(item => item.Id == "genres-5");
+
+        Assert.Equal(5, milestone.CurrentValue);
+        Assert.True(milestone.Achieved);
+        Assert.Null(milestone.AchievedAt);
+    }
+
     private static InsightsAnalyticsRawData CreateRaw(
         int moviesWatched = 0,
         DateTime? firstMovieAt = null,
