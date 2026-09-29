@@ -9,4 +9,10 @@ public interface IDiscoveryWatchProvidersService
         SearchContentType mediaType,
         string watchRegion,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DiscoveryWatchProviderItem>> GetWatchProvidersAsync(
+        SearchContentType mediaType,
+        string watchRegion,
+        bool includeTransactionalProviders,
+        CancellationToken cancellationToken = default);
 }

@@ -40,5 +40,8 @@ public sealed class DiscoverRailOptionsValidatorTests
         Assert.False(new TopRatedOptionsValidator()
             .Validate(null, new TopRatedOptions { MinVoteCountMovie = -1, MinVoteCountTv = -1 })
             .Succeeded);
+        Assert.False(new AdvancedDiscoverOptionsValidator()
+            .Validate(null, new AdvancedDiscoverOptions { TransactionalWatchProviderIds = [0] })
+            .Succeeded);
     }
 }

@@ -21,7 +21,8 @@ public sealed class AdvancedDiscoverService(
     ITvShowRepository tvShowRepository,
     IGenreReadRepository genreReadRepository,
     ICacheService cacheService,
-    ILogger<AdvancedDiscoverService> logger) : IAdvancedDiscoverService
+    ILogger<AdvancedDiscoverService> logger,
+    ITransactionalStreamOfferFilter? transactionalStreamOfferFilter = null) : IAdvancedDiscoverService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(10);
 
@@ -143,6 +144,19 @@ public sealed class AdvancedDiscoverService(
             ingestResult = searchResult;
         }
 
+        var allowedMovieIds = await ResolveAllowedTmdbIdsAsync(
+            criteria,
+            searchResult.Results.Select(summary => summary.TmdbId)
+                .Concat(ingestResult.Results.Select(summary => summary.TmdbId)),
+            cancellationToken);
+        if (allowedMovieIds is not null)
+        {
+            searchResult = FilterMovies(searchResult, allowedMovieIds);
+            ingestResult = ReferenceEquals(searchResult, ingestResult)
+                ? searchResult
+                : FilterMovies(ingestResult, allowedMovieIds);
+        }
+
         var movieIds = await movieRepository.EnsureFromSummariesAsync(ingestResult.Results, cancellationToken);
         var items = MapMovieResults(searchResult.Results, movieIds);
 
@@ -175,6 +189,19 @@ public sealed class AdvancedDiscoverService(
         {
             searchResult = await DiscoverTvShowsSafeAsync(providerCriteria, cancellationToken);
             ingestResult = searchResult;
+        }
+
+        var allowedTvIds = await ResolveAllowedTmdbIdsAsync(
+            criteria,
+            searchResult.Results.Select(summary => summary.TmdbId)
+                .Concat(ingestResult.Results.Select(summary => summary.TmdbId)),
+            cancellationToken);
+        if (allowedTvIds is not null)
+        {
+            searchResult = FilterTvShows(searchResult, allowedTvIds);
+            ingestResult = ReferenceEquals(searchResult, ingestResult)
+                ? searchResult
+                : FilterTvShows(ingestResult, allowedTvIds);
         }
 
         var tvIds = await tvShowRepository.EnsureFromSummariesAsync(ingestResult.Results, cancellationToken);
@@ -253,6 +280,84 @@ public sealed class AdvancedDiscoverService(
             DiscoverBrowseLogMessages.LogTvDiscoverFailed(logger, criteria.Page, exception);
             throw new SearchProviderUnavailableException();
         }
+    }
+
+    private async Task<IReadOnlySet<int>?> ResolveAllowedTmdbIdsAsync(
+        AdvancedDiscoverCriteria criteria,
+        IEnumerable<int?> tmdbIds,
+        CancellationToken cancellationToken)
+    {
+        if (transactionalStreamOfferFilter is null)
+        {
+            return null;
+        }
+
+        var distinctIds = tmdbIds
+            .Where(tmdbId => tmdbId.HasValue)
+            .Select(tmdbId => tmdbId!.Value)
+            .Distinct()
+            .ToList();
+
+        try
+        {
+            return await transactionalStreamOfferFilter.SelectMatchingTmdbIdsAsync(
+                criteria.MediaType,
+                criteria.WatchRegion,
+                criteria.WatchProviderIds,
+                criteria.WatchMonetizationTypes,
+                distinctIds,
+                cancellationToken);
+        }
+        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
+        {
+            throw new SearchProviderUnavailableException();
+        }
+    }
+
+    private static MovieProviderSearchResult FilterMovies(
+        MovieProviderSearchResult result,
+        IReadOnlySet<int> allowedTmdbIds)
+    {
+        var filtered = result.Results
+            .Where(summary => summary.TmdbId is int tmdbId && allowedTmdbIds.Contains(tmdbId))
+            .ToList();
+        if (filtered.Count == result.Results.Count)
+        {
+            return result;
+        }
+
+        var dropped = result.Results.Count - filtered.Count;
+        var totalCount = Math.Max(0, result.TotalCount - dropped);
+        var pageSize = Math.Max(1, result.PageSize);
+        return result with
+        {
+            Results = filtered,
+            TotalCount = totalCount,
+            TotalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+
+    private static TvShowProviderSearchResult FilterTvShows(
+        TvShowProviderSearchResult result,
+        IReadOnlySet<int> allowedTmdbIds)
+    {
+        var filtered = result.Results
+            .Where(summary => summary.TmdbId is int tmdbId && allowedTmdbIds.Contains(tmdbId))
+            .ToList();
+        if (filtered.Count == result.Results.Count)
+        {
+            return result;
+        }
+
+        var dropped = result.Results.Count - filtered.Count;
+        var totalCount = Math.Max(0, result.TotalCount - dropped);
+        var pageSize = Math.Max(1, result.PageSize);
+        return result with
+        {
+            Results = filtered,
+            TotalCount = totalCount,
+            TotalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
     }
 
     private static List<SearchItem> MapMovieResults(

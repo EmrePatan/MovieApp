@@ -11,13 +11,30 @@ public sealed class TitleWatchProvidersPresentationFilterTests
             new WatchProvidersResult(
                 "TR",
                 [
-                    Provider(1, [WatchProviderAvailabilityType.Flatrate]),
-                    Provider(2, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Rent]),
-                    Provider(3, [WatchProviderAvailabilityType.Rent]),
+                    Provider(8, [WatchProviderAvailabilityType.Flatrate]),
+                    Provider(9, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Rent]),
+                    Provider(4, [WatchProviderAvailabilityType.Rent]),
                 ],
                 null));
 
-        Assert.Equal([1, 2], result.Providers.Select(provider => provider.ProviderId).ToArray());
+        Assert.Equal([8, 9], result.Providers.Select(provider => provider.ProviderId).ToArray());
+    }
+
+    [Fact]
+    public void Apply_excludes_transactional_store_providers_even_when_marked_flatrate()
+    {
+        var result = TitleWatchProvidersPresentationFilter.Apply(
+            new WatchProvidersResult(
+                "TR",
+                [
+                    Provider(8, [WatchProviderAvailabilityType.Flatrate]),
+                    Provider(2, [WatchProviderAvailabilityType.Flatrate]),
+                    Provider(3, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Buy]),
+                    Provider(10, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Rent]),
+                ],
+                null));
+
+        Assert.Equal([8], result.Providers.Select(provider => provider.ProviderId).ToArray());
     }
 
     [Theory]

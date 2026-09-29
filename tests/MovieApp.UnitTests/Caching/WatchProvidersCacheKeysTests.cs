@@ -5,7 +5,7 @@ namespace MovieApp.UnitTests.Caching;
 public sealed class WatchProvidersCacheKeysTests
 {
     [Fact]
-    public void MovieWatchProvidersCacheKeyIncludesVersionV2()
+    public void MovieWatchProvidersCacheKeyIncludesVersionV3()
     {
         var movieId = Guid.Parse("3fa85f64-5717-4562-b3fc-2c963f66afa6");
 
@@ -14,11 +14,11 @@ public sealed class WatchProvidersCacheKeysTests
         Assert.Equal(
             $"movie-watch-providers:{movieId}:TR:{MovieWatchProvidersCacheKeys.Version}",
             key);
-        Assert.EndsWith(":v2", key);
+        Assert.EndsWith(":v3", key);
     }
 
     [Fact]
-    public void TvShowWatchProvidersCacheKeyIncludesVersionV2()
+    public void TvShowWatchProvidersCacheKeyIncludesVersionV3()
     {
         var tvShowId = Guid.Parse("3fa85f64-5717-4562-b3fc-2c963f66afa6");
 
@@ -27,6 +27,6 @@ public sealed class WatchProvidersCacheKeysTests
         Assert.Equal(
             $"tvshow-watch-providers:{tvShowId}:DE:{TvShowWatchProvidersCacheKeys.Version}",
             key);
-        Assert.EndsWith(":v2", key);
+        Assert.EndsWith(":v3", key);
     }
 }

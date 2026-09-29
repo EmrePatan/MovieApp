@@ -40,7 +40,7 @@ public sealed class GetTitleWatchProvidersServiceSubscriptionFilterTests
             new WatchProvidersResult(
                 "TR",
                 [
-                    Provider(3, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Buy]),
+                    Provider(8, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Buy]),
                     Provider(4, [WatchProviderAvailabilityType.Ads]),
                 ],
                 null));
@@ -48,7 +48,7 @@ public sealed class GetTitleWatchProvidersServiceSubscriptionFilterTests
         var result = await service.GetWatchProvidersAsync(CatalogId, "TR");
 
         Assert.Single(result.Providers);
-        Assert.Equal(3, result.Providers[0].ProviderId);
+        Assert.Equal(8, result.Providers[0].ProviderId);
         Assert.Equal([WatchProviderAvailabilityType.Flatrate], result.Providers[0].AvailabilityTypes);
     }
 
@@ -76,6 +76,25 @@ public sealed class GetTitleWatchProvidersServiceSubscriptionFilterTests
 
         Assert.Single(result.Providers);
         Assert.Equal([WatchProviderAvailabilityType.Flatrate], result.Providers[0].AvailabilityTypes);
+    }
+
+    [Fact]
+    public async Task GetMovieWatchProvidersAsync_hides_transactional_store_ids_from_subscription_list()
+    {
+        var service = CreateMovieService(
+            new WatchProvidersResult(
+                "TR",
+                [
+                    Provider(8, [WatchProviderAvailabilityType.Flatrate]),
+                    Provider(2, [WatchProviderAvailabilityType.Flatrate, WatchProviderAvailabilityType.Buy]),
+                    Provider(3, [WatchProviderAvailabilityType.Buy]),
+                    Provider(10, [WatchProviderAvailabilityType.Rent]),
+                ],
+                null));
+
+        var result = await service.GetWatchProvidersAsync(CatalogId, "TR");
+
+        Assert.Equal([8], result.Providers.Select(provider => provider.ProviderId).ToArray());
     }
 
     private static GetMovieWatchProvidersService CreateMovieService(WatchProvidersResult providerResult) =>
