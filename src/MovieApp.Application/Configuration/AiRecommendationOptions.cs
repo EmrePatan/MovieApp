@@ -12,7 +12,7 @@ public sealed class AiRecommendationOptions
 
     public int SuggestionCount { get; set; } = 10;
 
-    public int MaxReturnedCount { get; set; } = 5;
+    public int MaxReturnedCount { get; set; } = 10;
 
     public int SessionTtlHours { get; set; } = 24;
 

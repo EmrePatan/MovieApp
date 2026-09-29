@@ -279,7 +279,7 @@ public sealed class AiMovieRecommendationServiceTests
             Options.Create(new AiRecommendationOptions
             {
                 SuggestionCount = 10,
-                MaxReturnedCount = 5,
+                MaxReturnedCount = 10,
                 UserDailyMessageLimit = 3
             }),
             NullAiRecommendationPerfContext.Instance,
