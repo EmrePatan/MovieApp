@@ -8,7 +8,19 @@ public sealed class TopRatedOptions
     /// Minimum vote-confidence threshold (m) for Bayesian weighted rating.
     /// Titles with very few votes are pulled toward the catalog mean.
     /// </summary>
-    public int MinimumVoteConfidence { get; set; } = 100;
+    public int MinimumVoteConfidence { get; set; } = 300;
+
+    /// <summary>
+    /// Hard vote-count floor for movies on the Home Top Rated rail.
+    /// Titles below this floor are excluded before diversity ranking.
+    /// </summary>
+    public int MinVoteCountMovie { get; set; } = 1000;
+
+    /// <summary>
+    /// Hard vote-count floor for TV shows on the Home Top Rated rail.
+    /// Titles below this floor are excluded before diversity ranking.
+    /// </summary>
+    public int MinVoteCountTv { get; set; } = 500;
 
     /// <summary>
     /// Catalog genre name used for Home Top Rated animation diversity (TMDB genre id 16).

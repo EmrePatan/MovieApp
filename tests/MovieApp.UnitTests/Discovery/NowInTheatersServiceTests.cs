@@ -80,6 +80,30 @@ public sealed class NowInTheatersServiceTests
     }
 
     [Fact]
+    public async Task GetNowInTheatersAsyncKeepsReleasesInsideTheConfiguredAgeWindow()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var catalog = new RecordingNowInTheatersMovieCatalog
+        {
+            SummariesOverride =
+            [
+                CreateSummary(1, "Too Old", today.AddDays(-61)),
+                CreateSummary(2, "Oldest Allowed", today.AddDays(-60)),
+                CreateSummary(3, "Current", today),
+                CreateSummary(4, "Future", today.AddDays(1)),
+                CreateSummary(5, "Undated", null)
+            ]
+        };
+        var service = CreateService(catalog, new NowInTheatersFakeCache());
+
+        var result = await service.GetNowInTheatersAsync(
+            new NowInTheatersCriteria("TR", 1, 20),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(["Oldest Allowed", "Current"], result.Items.Select(item => item.Title).ToArray());
+    }
+
+    [Fact]
     public async Task GetNowInTheatersAsyncReturnsEmptyResultForUnknownRegion()
     {
         var catalog = new RecordingNowInTheatersMovieCatalog();
@@ -100,10 +124,24 @@ public sealed class NowInTheatersServiceTests
             cache,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             Options.Create(new ReleaseRegionOptions { DefaultRegion = "TR" }),
+            Options.Create(new NowInTheatersOptions()),
             NullLogger<NowInTheatersService>.Instance);
 
     private static SearchItem CreateMovieItem(Guid id, string title) =>
         new(id, "movie", title, null, null, null, null, null, 0m, 0, null);
+
+    private static MovieProviderSummary CreateSummary(int tmdbId, string title, DateOnly? releaseDate) =>
+        new(
+            $"fake-tmdb-{tmdbId}",
+            tmdbId,
+            null,
+            $"tt{tmdbId}",
+            title,
+            "Overview",
+            releaseDate,
+            "/poster.jpg",
+            7m,
+            10);
 
     private sealed class RecordingNowInTheatersMovieCatalog : INowInTheatersMovieCatalog
     {
@@ -114,6 +152,8 @@ public sealed class NowInTheatersServiceTests
         public int LastPage { get; private set; }
 
         public bool ShouldThrow { get; init; }
+
+        public IReadOnlyList<MovieProviderSummary>? SummariesOverride { get; init; }
 
         public Task<MovieProviderSearchResult> GetNowPlayingMoviesAsync(
             string releaseRegion,
@@ -130,7 +170,11 @@ public sealed class NowInTheatersServiceTests
             }
 
             IReadOnlyList<MovieProviderSummary> summaries;
-            if (releaseRegion.Equals("US", StringComparison.OrdinalIgnoreCase))
+            if (SummariesOverride is not null)
+            {
+                summaries = SummariesOverride;
+            }
+            else if (releaseRegion.Equals("US", StringComparison.OrdinalIgnoreCase))
             {
                 summaries =
                 [
@@ -141,7 +185,7 @@ public sealed class NowInTheatersServiceTests
                         "tt1",
                         "US Movie",
                         "Overview",
-                        new DateOnly(2026, 1, 1),
+                        DateOnly.FromDateTime(DateTime.UtcNow),
                         "/poster.jpg",
                         7m,
                         10),
@@ -158,7 +202,7 @@ public sealed class NowInTheatersServiceTests
                         "tt2",
                         "Cinema One",
                         "Overview",
-                        new DateOnly(2026, 1, 1),
+                        DateOnly.FromDateTime(DateTime.UtcNow),
                         "/poster.jpg",
                         7m,
                         10),

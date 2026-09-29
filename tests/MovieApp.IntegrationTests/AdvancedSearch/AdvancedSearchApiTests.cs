@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Contracts.Auth;
 using MovieApp.IntegrationTests.Auth;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Infrastructure.Providers;
 using MovieApp.Contracts.Search;
 
 namespace MovieApp.IntegrationTests.AdvancedSearch;
@@ -222,6 +223,10 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         var tvResponse = await _client.GetAsync("/api/tvshows/search?q=breaking");
         Assert.Equal(HttpStatusCode.OK, tvResponse.StatusCode);
+
+        var recentResponse = await _client.GetAsync(
+            $"/api/movies/search?q={FakeMovieDataProvider.RecentReleaseQueryToken}");
+        Assert.Equal(HttpStatusCode.OK, recentResponse.StatusCode);
     }
 
     private Task<string> RegisterAndGetTokenAsync(string prefix) =>

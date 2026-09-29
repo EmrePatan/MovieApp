@@ -1,11 +1,15 @@
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Search;
 
 namespace MovieApp.Infrastructure.Providers.Tmdb;
 
 internal static class TmdbAdvancedDiscoverQueryBuilder
 {
-    public static string BuildMovieQuery(AdvancedDiscoverProviderCriteria criteria)
+    public static string BuildMovieQuery(
+        AdvancedDiscoverProviderCriteria criteria,
+        int minVoteCountWhenWatchProvider = AdvancedDiscoverOptions.DefaultMinVoteCountWhenWatchProvider)
     {
         var parameters = new List<string>
         {
@@ -14,14 +18,16 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             "include_adult=false"
         };
 
-        AppendSharedFilters(parameters, criteria);
+        AppendSharedFilters(parameters, criteria, minVoteCountWhenWatchProvider);
         AppendMovieYearFilters(parameters, criteria);
         AppendMovieOnlyFilters(parameters, criteria);
 
         return string.Join('&', parameters);
     }
 
-    public static string BuildTvQuery(AdvancedDiscoverProviderCriteria criteria)
+    public static string BuildTvQuery(
+        AdvancedDiscoverProviderCriteria criteria,
+        int minVoteCountWhenWatchProvider = AdvancedDiscoverOptions.DefaultMinVoteCountWhenWatchProvider)
     {
         var parameters = new List<string>
         {
@@ -30,13 +36,16 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             "include_adult=false"
         };
 
-        AppendSharedFilters(parameters, criteria);
+        AppendSharedFilters(parameters, criteria, minVoteCountWhenWatchProvider);
         AppendTvYearFilters(parameters, criteria);
 
         return string.Join('&', parameters);
     }
 
-    private static void AppendSharedFilters(List<string> parameters, AdvancedDiscoverProviderCriteria criteria)
+    private static void AppendSharedFilters(
+        List<string> parameters,
+        AdvancedDiscoverProviderCriteria criteria,
+        int minVoteCountWhenWatchProvider)
     {
         if (criteria.GenreTmdbIds.Count > 0)
         {
@@ -57,9 +66,14 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
                 $"vote_average.lte={criteria.MaxRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
 
-        if (criteria.MinVoteCount.HasValue)
+        var effectiveMinVoteCount = AdvancedDiscoverVoteCountPolicy.ResolveMinVoteCount(
+            criteria.MinVoteCount,
+            criteria.WatchProviderIds.Count > 0,
+            minVoteCountWhenWatchProvider);
+
+        if (effectiveMinVoteCount.HasValue)
         {
-            parameters.Add($"vote_count.gte={criteria.MinVoteCount.Value}");
+            parameters.Add($"vote_count.gte={effectiveMinVoteCount.Value}");
         }
 
         if (criteria.MinRuntimeMinutes.HasValue)

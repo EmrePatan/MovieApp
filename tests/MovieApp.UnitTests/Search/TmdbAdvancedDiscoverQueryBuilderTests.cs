@@ -19,6 +19,47 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         Assert.Contains("primary_release_date.lte=2024-12-31", query);
         Assert.Contains("sort_by=primary_release_date.desc", query);
         Assert.DoesNotContain("first_air_date", query);
+        Assert.DoesNotContain("vote_count.gte", query);
+    }
+
+    [Fact]
+    public void BuildMovieQueryAppliesWatchProviderVoteFloorOnlyWhenProvidersArePresent()
+    {
+        var withProviders = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            watchRegion: "TR",
+            watchProviderIds: [8]));
+        var withoutProviders = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            watchRegion: "TR",
+            watchMonetizationTypes: [WatchMonetizationType.Stream]));
+
+        Assert.Contains("with_watch_providers=8", withProviders);
+        Assert.Contains("vote_count.gte=200", withProviders);
+        Assert.DoesNotContain("with_watch_providers", withoutProviders);
+        Assert.DoesNotContain("vote_count.gte", withoutProviders);
+    }
+
+    [Fact]
+    public void BuildTvQueryRaisesCallerVoteCountToWatchProviderFloor()
+    {
+        var raised = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(CreateCriteria(
+            watchRegion: "US",
+            watchProviderIds: [8, 337],
+            minVoteCount: 40));
+        var callerWins = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(
+            CreateCriteria(
+                watchRegion: "US",
+                watchProviderIds: [8],
+                minVoteCount: 800),
+            minVoteCountWhenWatchProvider: 200);
+        var disabledFloor = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(
+            CreateCriteria(watchRegion: "US", watchProviderIds: [8]),
+            minVoteCountWhenWatchProvider: 0);
+
+        Assert.Contains("with_watch_providers=8|337", raised);
+        Assert.Contains("vote_count.gte=200", raised);
+        Assert.DoesNotContain("vote_count.gte=40", raised);
+        Assert.Contains("vote_count.gte=800", callerWins);
+        Assert.DoesNotContain("vote_count.gte", disabledFloor);
     }
 
     [Fact]

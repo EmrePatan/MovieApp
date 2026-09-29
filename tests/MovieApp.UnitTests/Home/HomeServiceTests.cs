@@ -1030,7 +1030,7 @@ public sealed class HomeServiceTests
                 null,
                 new DateOnly(2021, 1, 1),
                 7m,
-                50,
+                2000,
                 2021);
 
             return new PaginatedResult<SearchItem>([item], 1, criteria.PageSize, 1, 1);
@@ -1077,7 +1077,7 @@ public sealed class HomeServiceTests
                 null,
                 new DateOnly(2021, 1, 1),
                 7m,
-                50,
+                2000,
                 2021);
 
             return new PaginatedResult<SearchItem>([item], 1, criteria.PageSize, 1, 1);

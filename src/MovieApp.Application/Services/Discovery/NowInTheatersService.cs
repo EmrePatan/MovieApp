@@ -23,6 +23,7 @@ public sealed class NowInTheatersService(
     ICacheService cacheService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
+    IOptions<NowInTheatersOptions> nowInTheatersOptions,
     ILogger<NowInTheatersService> logger) : INowInTheatersService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
@@ -64,14 +65,21 @@ public sealed class NowInTheatersService(
             throw new SearchProviderUnavailableException();
         }
 
-        var movieIds = await movieRepository.EnsureFromSummariesAsync(searchResult.Results, cancellationToken);
-        var items = MapMovieResults(searchResult.Results, movieIds);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var maxAgeDays = Math.Max(0, nowInTheatersOptions.Value.MaxAgeDays);
+        var currentReleases = searchResult.Results
+            .Where(summary => NowInTheatersReleaseWindow.Includes(summary.ReleaseDate, today, maxAgeDays))
+            .ToList();
+        var droppedCount = searchResult.Results.Count - currentReleases.Count;
+
+        var movieIds = await movieRepository.EnsureFromSummariesAsync(currentReleases, cancellationToken);
+        var items = MapMovieResults(currentReleases, movieIds);
 
         var canonical = DiscoverBrowseMerger.CreateSingleTypeResult(
             items,
             normalizedCriteria.Page,
             normalizedCriteria.PageSize,
-            searchResult.TotalCount);
+            Math.Max(0, searchResult.TotalCount - droppedCount));
         var result = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
             canonical,
             contentLocale,

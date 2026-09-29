@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Providers.Tmdb.TmdbMapping;
@@ -6,7 +8,9 @@ using MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 namespace MovieApp.Infrastructure.Providers.Tmdb;
 
-public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataProvider
+public sealed class TmdbMovieDataProvider(
+    TmdbApiClient apiClient,
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : IMovieDataProvider
 {
     public async Task<MovieProviderSearchResult> SearchMoviesAsync(
         string query,
@@ -76,7 +80,9 @@ public sealed class TmdbMovieDataProvider(TmdbApiClient apiClient) : IMovieDataP
         AdvancedDiscoverProviderCriteria criteria,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(criteria);
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(
+            criteria,
+            TmdbAdvancedDiscoverVoteFloor.Resolve(advancedDiscoverOptions));
         var response = await apiClient.GetCanonicalAsync<TmdbMovieSearchResponseJson>(
             $"discover/movie?{query}",
             cancellationToken);

@@ -54,7 +54,7 @@ public sealed class FakeNowInTheatersMovieCatalog : INowInTheatersMovieCatalog
             ImdbId: $"tt{tmdbId}",
             Title: title,
             Overview: $"{title} is currently playing in theaters.",
-            ReleaseDate: new DateOnly(2026, 3, 1),
+            ReleaseDate: DateOnly.FromDateTime(DateTime.UtcNow),
             PosterPath: $"/fake/{tmdbId}-poster.jpg",
             VoteAverage: 7.5m,
             VoteCount: 120);

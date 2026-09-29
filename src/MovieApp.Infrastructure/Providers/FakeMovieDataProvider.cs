@@ -23,6 +23,9 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
     public const string PosterlessExternalId = "fake-tmdb-900050";
     public const int PosterlessTmdbId = 900050;
     public const string PosterlessTitle = "Posterless Title";
+    public const string RecentReleaseQueryToken = "fresh-release";
+    public const string RecentReleaseExternalId = "fake-tmdb-900080";
+    public const int RecentReleaseTmdbId = 900080;
 
     private const string InterstellarTitleToken = "interstellar";
 
@@ -102,6 +105,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult(CreatePagedResult(CreateDuplicateImdbSummaries(), page, pageSize));
         }
 
+        if (normalizedQuery.Contains(RecentReleaseQueryToken, StringComparison.Ordinal))
+        {
+            return Task.FromResult(CreatePagedResult([ToSummary(CreateRecentReleaseDetails())], page, pageSize));
+        }
+
         if (MatchesCatalogTitle(normalizedQuery, QueryNormalizer.Normalize(PosterlessTitle)))
         {
             return Task.FromResult(CreatePagedResult([ToSummary(PosterlessDetails)], page, pageSize));
@@ -161,6 +169,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult<MovieProviderDetails?>(PosterlessDetails);
         }
 
+        if (string.Equals(externalId, RecentReleaseExternalId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<MovieProviderDetails?>(CreateRecentReleaseDetails());
+        }
+
         if (int.TryParse(externalId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var tmdbId))
         {
             if (tmdbId == InterstellarTmdbId)
@@ -171,6 +184,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             if (tmdbId == PosterlessTmdbId)
             {
                 return Task.FromResult<MovieProviderDetails?>(PosterlessDetails);
+            }
+
+            if (tmdbId == RecentReleaseTmdbId)
+            {
+                return Task.FromResult<MovieProviderDetails?>(CreateRecentReleaseDetails());
             }
         }
 
@@ -195,6 +213,24 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
     private static bool MatchesCatalogTitle(string normalizedQuery, string normalizedTitle) =>
         normalizedQuery.Length >= AdvancedSearchValidator.MinimumQueryLength &&
         normalizedTitle.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
+
+    private static MovieProviderDetails CreateRecentReleaseDetails() =>
+        new(
+            ExternalId: RecentReleaseExternalId,
+            TmdbId: RecentReleaseTmdbId,
+            TvdbId: null,
+            ImdbId: "tt9000080",
+            Title: "Fresh Release",
+            OriginalTitle: "Fresh Release",
+            Overview: "A recent theatrical release used by discovery fixtures.",
+            ReleaseDate: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-7),
+            RuntimeMinutes: 110,
+            PosterPath: "/fake/fresh-release-poster.jpg",
+            BackdropPath: "/fake/fresh-release-backdrop.jpg",
+            OriginalLanguage: "en",
+            VoteAverage: 7.4m,
+            VoteCount: 220,
+            Genres: ["Drama"]);
 
     private static MovieProviderSummary ToSummary(MovieProviderDetails details) =>
         new(
