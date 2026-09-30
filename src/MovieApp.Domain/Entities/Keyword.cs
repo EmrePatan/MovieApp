@@ -31,4 +31,6 @@ public sealed class Keyword
     public ICollection<MovieKeywordSource> MovieKeywordSources { get; set; } = [];
 
     public ICollection<TvShowKeywordSource> TvShowKeywordSources { get; set; } = [];
+
+    public ICollection<KeywordLocalization> Localizations { get; set; } = [];
 }

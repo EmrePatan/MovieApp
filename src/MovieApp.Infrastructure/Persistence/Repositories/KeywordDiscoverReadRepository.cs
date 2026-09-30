@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Services.Keywords;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -11,37 +13,62 @@ public sealed class KeywordDiscoverReadRepository(ApplicationDbContext dbContext
 {
     public async Task<PaginatedResult<KeywordDiscoverItem>> SearchAsync(
         string query,
+        string contentLocale,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var locale = KeywordDiscoverLocalizationSupport.NormalizeLocale(contentLocale);
+        var englishLocale = SupportedContentLocales.EnglishUnitedStates;
+        var isEnglishLocale = string.Equals(locale, englishLocale, StringComparison.OrdinalIgnoreCase);
+
         var trimmed = query.Trim();
         var pattern = $"%{trimmed}%";
+        var normalizedQuery = KeywordDiscoverLocalizationSupport.NormalizeSearchName(trimmed);
+        var normalizedPattern = string.IsNullOrEmpty(normalizedQuery) ? pattern : $"%{normalizedQuery}%";
+        var hasNormalizedQuery = normalizedQuery.Length > 0;
 
-        var baseQuery = dbContext.Keywords
-            .AsNoTracking()
-            .Where(keyword => keyword.ExternalReferences.Any(reference =>
-                reference.Provider == KeywordProvider.Tmdb))
-            .Where(keyword =>
-                EF.Functions.ILike(keyword.Name, pattern) ||
-                (keyword.CanonicalName != null && EF.Functions.ILike(keyword.CanonicalName, pattern)));
+        var totalCount = await KeywordDiscoverSearchQuery.BuildMatchingKeywordIds(
+                dbContext,
+                locale,
+                englishLocale,
+                isEnglishLocale,
+                pattern,
+                normalizedPattern)
+            .CountAsync(cancellationToken);
 
-        var totalCount = await baseQuery.CountAsync(cancellationToken);
+        if (totalCount == 0)
+        {
+            return new PaginatedResult<KeywordDiscoverItem>(
+                [],
+                page,
+                pageSize,
+                0,
+                0);
+        }
 
-        var items = await baseQuery
-            .OrderBy(keyword => keyword.Name)
-            .ThenBy(keyword => keyword.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(keyword => new KeywordDiscoverItem(keyword.Id, keyword.Name))
-            .ToListAsync(cancellationToken);
+        var offset = (page - 1) * pageSize;
+        var pageRows = await KeywordDiscoverSearchQuery.GetRankedPageAsync(
+            dbContext,
+            locale,
+            englishLocale,
+            isEnglishLocale,
+            trimmed,
+            pattern,
+            normalizedPattern,
+            hasNormalizedQuery,
+            offset,
+            pageSize,
+            cancellationToken);
 
-        var totalPages = totalCount == 0
-            ? 0
-            : (int)Math.Ceiling(totalCount / (double)pageSize);
+        var pageItems = pageRows
+            .Select(row => new KeywordDiscoverItem(row.KeywordId, row.DisplayName))
+            .ToList();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
         return new PaginatedResult<KeywordDiscoverItem>(
-            items,
+            pageItems,
             page,
             pageSize,
             totalCount,

@@ -31,6 +31,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<KeywordExternalReference> KeywordExternalReferences => Set<KeywordExternalReference>();
 
+    public DbSet<KeywordLocalization> KeywordLocalizations => Set<KeywordLocalization>();
+
     public DbSet<MovieKeywordSource> MovieKeywordSources => Set<MovieKeywordSource>();
 
     public DbSet<TvShowKeywordSource> TvShowKeywordSources => Set<TvShowKeywordSource>();

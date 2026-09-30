@@ -374,6 +374,7 @@ public sealed class DiscoveryController(
 
             var result = await keywordDiscoverReadRepository.SearchAsync(
                 query!.Trim(),
+                Request.ResolveContentLocale(),
                 resolvedPage,
                 resolvedPageSize,
                 cancellationToken);

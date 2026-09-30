@@ -317,6 +317,7 @@ public sealed class AdvancedDiscoverServiceTests
     {
         public Task<MovieApp.Application.Models.Movies.PaginatedResult<MovieApp.Application.Models.Discovery.KeywordDiscoverItem>> SearchAsync(
             string query,
+            string contentLocale,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default) =>

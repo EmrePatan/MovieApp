@@ -7,6 +7,7 @@ public interface IKeywordDiscoverReadRepository
 {
     Task<PaginatedResult<KeywordDiscoverItem>> SearchAsync(
         string query,
+        string contentLocale,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
