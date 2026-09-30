@@ -1,13 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Keywords;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Persistence.Keywords;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
-public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : IKeywordCatalogRepository
+public sealed class KeywordCatalogRepository(
+    ApplicationDbContext dbContext,
+    IOptions<KeywordGraphOptions> keywordGraphOptions) : IKeywordCatalogRepository
 {
+    private readonly bool _providerAwareSyncEnabled = keywordGraphOptions.Value.ProviderAwareSyncEnabled;
+
     public async Task<KeywordEnrichmentTarget?> GetMovieKeywordTargetAsync(
         Guid movieId,
         CancellationToken cancellationToken = default)
@@ -59,6 +66,12 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
             return;
         }
 
+        if (_providerAwareSyncEnabled)
+        {
+            await SyncMovieKeywordsProviderAwareAsync(movie, keywords, syncedAtUtc, cancellationToken);
+            return;
+        }
+
         await SyncMovieKeywordsWithContextAsync(movie, keywords, syncedAtUtc, cancellationToken);
     }
 
@@ -77,7 +90,110 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
             return;
         }
 
+        if (_providerAwareSyncEnabled)
+        {
+            await SyncTvShowKeywordsProviderAwareAsync(tvShow, keywords, syncedAtUtc, cancellationToken);
+            return;
+        }
+
         await SyncTvShowKeywordsWithContextAsync(tvShow, keywords, syncedAtUtc, cancellationToken);
+    }
+
+    private async Task SyncMovieKeywordsProviderAwareAsync(
+        Movie movie,
+        IReadOnlyList<ProviderKeywordSummary> keywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var dedupedKeywords = DeduplicateKeywords(keywords);
+
+        if (IsNpgsql())
+        {
+            await dbContext.Database.ExecuteInRetriableTransactionAsync(
+                async ct =>
+                {
+                    var incomingKeywordIds = await ResolveIncomingKeywordIdsAsync(dedupedKeywords, syncedAtUtc, ct);
+                    await KeywordGraphMaterializer.ReconcileTmdbMovieSourcesAsync(
+                        dbContext,
+                        movie.Id,
+                        incomingKeywordIds,
+                        syncedAtUtc,
+                        ct);
+                    await dbContext.SaveChangesAsync(ct);
+                    await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, ct);
+                    movie.KeywordsSyncedAtUtc = syncedAtUtc;
+                    await dbContext.SaveChangesAsync(ct);
+                },
+                cancellationToken);
+            return;
+        }
+
+        var inMemoryIncoming = await ResolveIncomingKeywordIdsAsync(dedupedKeywords, syncedAtUtc, cancellationToken);
+        await KeywordGraphMaterializer.ReconcileTmdbMovieSourcesAsync(
+            dbContext,
+            movie.Id,
+            inMemoryIncoming,
+            syncedAtUtc,
+            cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, cancellationToken);
+        movie.KeywordsSyncedAtUtc = syncedAtUtc;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SyncTvShowKeywordsProviderAwareAsync(
+        TvShow tvShow,
+        IReadOnlyList<ProviderKeywordSummary> keywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var dedupedKeywords = DeduplicateKeywords(keywords);
+
+        if (IsNpgsql())
+        {
+            await dbContext.Database.ExecuteInRetriableTransactionAsync(
+                async ct =>
+                {
+                    var incomingKeywordIds = await ResolveIncomingKeywordIdsAsync(dedupedKeywords, syncedAtUtc, ct);
+                    await KeywordGraphMaterializer.ReconcileTmdbTvShowSourcesAsync(
+                        dbContext,
+                        tvShow.Id,
+                        incomingKeywordIds,
+                        syncedAtUtc,
+                        ct);
+                    await dbContext.SaveChangesAsync(ct);
+                    await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, ct);
+                    tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
+                    await dbContext.SaveChangesAsync(ct);
+                },
+                cancellationToken);
+            return;
+        }
+
+        var inMemoryIncoming = await ResolveIncomingKeywordIdsAsync(dedupedKeywords, syncedAtUtc, cancellationToken);
+        await KeywordGraphMaterializer.ReconcileTmdbTvShowSourcesAsync(
+            dbContext,
+            tvShow.Id,
+            inMemoryIncoming,
+            syncedAtUtc,
+            cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, cancellationToken);
+        tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<HashSet<Guid>> ResolveIncomingKeywordIdsAsync(
+        IReadOnlyList<ProviderKeywordSummary> dedupedKeywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (dedupedKeywords.Count == 0)
+        {
+            return [];
+        }
+
+        return await EnsureCanonicalKeywordIdsAsync(dedupedKeywords, syncedAtUtc, cancellationToken);
     }
 
     private Task SyncMovieKeywordsWithContextAsync(
@@ -114,6 +230,11 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
                 }
 
                 movie.KeywordsSyncedAtUtc = syncedAtUtc;
+                await MirrorTmdbMovieSourcesForLegacySyncAsync(
+                    movie.Id,
+                    linkedKeywordIds,
+                    syncedAtUtc,
+                    cancellationToken);
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken);
@@ -152,8 +273,37 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
                 }
 
                 tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
+                await MirrorTmdbTvShowSourcesForLegacySyncAsync(
+                    tvShow.Id,
+                    linkedKeywordIds,
+                    syncedAtUtc,
+                    cancellationToken);
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
+            cancellationToken);
+
+    private Task MirrorTmdbMovieSourcesForLegacySyncAsync(
+        Guid movieId,
+        IReadOnlySet<Guid> tmdbKeywordIds,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        KeywordGraphMaterializer.ReconcileTmdbMovieSourcesAsync(
+            dbContext,
+            movieId,
+            tmdbKeywordIds,
+            syncedAtUtc,
+            cancellationToken);
+
+    private Task MirrorTmdbTvShowSourcesForLegacySyncAsync(
+        Guid tvShowId,
+        IReadOnlySet<Guid> tmdbKeywordIds,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        KeywordGraphMaterializer.ReconcileTmdbTvShowSourcesAsync(
+            dbContext,
+            tvShowId,
+            tmdbKeywordIds,
+            syncedAtUtc,
             cancellationToken);
 
     private async Task SynchronizeTitleKeywordsAsync(
@@ -197,7 +347,11 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
         Dictionary<int, Keyword> canonicalKeywords;
         if (missingKeywords.Count > 0 && IsNpgsql())
         {
-            await InsertMissingKeywordsWithOnConflictAsync(missingKeywords, syncedAtUtc, cancellationToken);
+            await KeywordGraphTmdbKeywordDualWrite.InsertMissingKeywordsWithDualWriteAsync(
+                dbContext,
+                missingKeywords,
+                syncedAtUtc,
+                cancellationToken);
             canonicalKeywords = await LoadKeywordsByTmdbIdAsync(dedupedKeywords, cancellationToken);
         }
         else
@@ -210,29 +364,57 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
             canonicalKeywords = existingKeywords;
         }
 
-        ApplyNameUpdates(canonicalKeywords, dedupedKeywords, syncedAtUtc);
+        if (!IsNpgsql())
+        {
+            KeywordGraphTmdbKeywordDualWrite.ApplyMetadataAndNameUpdates(
+                canonicalKeywords,
+                dedupedKeywords,
+                syncedAtUtc);
+            await KeywordGraphTmdbKeywordDualWrite.EnsureTmdbExternalReferencesAsync(
+                dbContext,
+                canonicalKeywords.Values.ToList(),
+                syncedAtUtc,
+                cancellationToken);
+            foreach (var keyword in canonicalKeywords.Values)
+            {
+                await KeywordGraphTmdbKeywordDualWrite.AssertTmdbExternalReferenceOwnershipAsync(
+                    dbContext,
+                    keyword,
+                    cancellationToken);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            var trackedKeywords = await dbContext.Keywords
+                .Where(keyword => dedupedKeywords.Select(summary => summary.TmdbKeywordId).Contains(keyword.TmdbKeywordId))
+                .ToListAsync(cancellationToken);
+            var trackedByTmdbId = trackedKeywords.ToDictionary(keyword => keyword.TmdbKeywordId);
+            KeywordGraphTmdbKeywordDualWrite.ApplyMetadataAndNameUpdates(
+                trackedByTmdbId,
+                dedupedKeywords,
+                syncedAtUtc);
+            await KeywordGraphTmdbKeywordDualWrite.EnsureTmdbExternalReferencesAsync(
+                dbContext,
+                trackedKeywords,
+                syncedAtUtc,
+                cancellationToken);
+            foreach (var keyword in trackedKeywords)
+            {
+                await KeywordGraphTmdbKeywordDualWrite.AssertTmdbExternalReferenceOwnershipAsync(
+                    dbContext,
+                    keyword,
+                    cancellationToken);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            canonicalKeywords = trackedByTmdbId;
+        }
 
         return canonicalKeywords.Values
             .Select(keyword => keyword.Id)
             .ToHashSet();
-    }
-
-    private async Task InsertMissingKeywordsWithOnConflictAsync(
-        IReadOnlyList<ProviderKeywordSummary> keywords,
-        DateTime syncedAtUtc,
-        CancellationToken cancellationToken)
-    {
-        foreach (var keyword in keywords)
-        {
-            var keywordId = Guid.NewGuid();
-            await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                 INSERT INTO keywords ("Id", "TmdbKeywordId", "Name", "CreatedAt", "UpdatedAt")
-                 VALUES ({keywordId}, {keyword.TmdbKeywordId}, {keyword.Name}, {syncedAtUtc}, {syncedAtUtc})
-                 ON CONFLICT ("TmdbKeywordId") DO NOTHING
-                 """,
-                cancellationToken);
-        }
     }
 
     private void AddMissingKeywordsToContext(
@@ -245,34 +427,11 @@ public sealed class KeywordCatalogRepository(ApplicationDbContext dbContext) : I
             var keyword = new Keyword
             {
                 Id = Guid.NewGuid(),
-                TmdbKeywordId = keywordSummary.TmdbKeywordId,
-                Name = keywordSummary.Name,
-                CreatedAt = syncedAtUtc,
-                UpdatedAt = syncedAtUtc
             };
 
+            KeywordGraphTmdbKeywordDualWrite.PrepareNewKeywordEntity(keyword, keywordSummary, syncedAtUtc);
             dbContext.Keywords.Add(keyword);
             keywordsByTmdbId[keywordSummary.TmdbKeywordId] = keyword;
-        }
-    }
-
-    private static void ApplyNameUpdates(
-        Dictionary<int, Keyword> canonicalKeywords,
-        IReadOnlyList<ProviderKeywordSummary> providerKeywords,
-        DateTime syncedAtUtc)
-    {
-        foreach (var keywordSummary in providerKeywords)
-        {
-            if (!canonicalKeywords.TryGetValue(keywordSummary.TmdbKeywordId, out var keyword))
-            {
-                continue;
-            }
-
-            if (!string.Equals(keyword.Name, keywordSummary.Name, StringComparison.Ordinal))
-            {
-                keyword.Name = keywordSummary.Name;
-                keyword.UpdatedAt = syncedAtUtc;
-            }
         }
     }
 

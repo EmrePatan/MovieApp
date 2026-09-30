@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Abstractions.Keywords;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Infrastructure.Caching;
@@ -14,6 +15,7 @@ using MovieApp.Infrastructure.Health;
 using MovieApp.Infrastructure.Email;
 using MovieApp.Infrastructure.Identity;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Infrastructure.Persistence.Keywords;
 using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.PushNotifications;
@@ -108,6 +110,11 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(CatalogKeywordBackfillOptions.SectionName))
             .ValidateOnStart();
 
+        services.AddOptions<KeywordGraphOptions>()
+            .Bind(configuration.GetSection(KeywordGraphOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<KeywordGraphOptions>, KeywordGraphOptionsValidator>();
         services.AddSingleton<IValidateOptions<CatalogKeywordBackfillOptions>, CatalogKeywordBackfillOptionsValidator>();
         services.AddSingleton<IValidateOptions<CatalogGenreBackfillOptions>, CatalogGenreBackfillOptionsValidator>();
 
@@ -224,6 +231,7 @@ public static class DependencyInjection
         services.AddScoped<IMovieRegionalReleaseRepository, MovieRegionalReleaseRepository>();
 
         services.AddScoped<IKeywordCatalogRepository, KeywordCatalogRepository>();
+        services.AddScoped<IKeywordGraphReconciliationService, KeywordGraphReconciliationService>();
 
         services.AddScoped<ICatalogKeywordBackfillRepository, CatalogKeywordBackfillRepository>();
         services.AddScoped<ICatalogGenreBackfillRepository, CatalogGenreBackfillRepository>();

@@ -13,7 +13,7 @@ public sealed class KeywordCatalogRepositoryTests
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context, 27205);
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
         var syncedAtUtc = new DateTime(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
 
         await repository.SyncMovieKeywordsAsync(
@@ -31,7 +31,7 @@ public sealed class KeywordCatalogRepositoryTests
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context, 27205);
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
 
         await repository.SyncMovieKeywordsAsync(
             movie.Id,
@@ -61,7 +61,7 @@ public sealed class KeywordCatalogRepositoryTests
         context.Keywords.Add(existingKeyword);
         await context.SaveChangesAsync();
 
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
         await repository.SyncMovieKeywordsAsync(
             movie.Id,
             [new ProviderKeywordSummary(42, "time travel")],
@@ -83,7 +83,7 @@ public sealed class KeywordCatalogRepositoryTests
             new MovieKeyword { MovieId = movie.Id, KeywordId = keywordB.Id });
         await context.SaveChangesAsync();
 
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
         await repository.SyncMovieKeywordsAsync(
             movie.Id,
             [new ProviderKeywordSummary(2, "beta"), new ProviderKeywordSummary(3, "gamma")],
@@ -108,7 +108,7 @@ public sealed class KeywordCatalogRepositoryTests
         context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
         await context.SaveChangesAsync();
 
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
         var syncedAtUtc = DateTime.UtcNow;
         await repository.SyncMovieKeywordsAsync(movie.Id, [], syncedAtUtc);
 
@@ -122,7 +122,7 @@ public sealed class KeywordCatalogRepositoryTests
     {
         await using var context = CreateContext();
         var tvShow = await SeedTvShowAsync(context, 1396);
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
 
         await repository.SyncTvShowKeywordsAsync(
             tvShow.Id,
@@ -139,7 +139,7 @@ public sealed class KeywordCatalogRepositoryTests
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context, 27205);
         var tvShow = await SeedTvShowAsync(context, 1396);
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
 
         await repository.SyncMovieKeywordsAsync(
             movie.Id,
@@ -160,7 +160,7 @@ public sealed class KeywordCatalogRepositoryTests
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context, 27205);
-        var repository = new KeywordCatalogRepository(context);
+        var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
         var keywords = new[] { new ProviderKeywordSummary(42, "time travel") };
 
         await repository.SyncMovieKeywordsAsync(movie.Id, keywords, DateTime.UtcNow);

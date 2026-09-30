@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
@@ -84,7 +86,7 @@ public sealed class KeywordCatalogRepositoryConcurrencyIntegrationTests
         Task.Run(async () =>
         {
             await using var context = CatalogPersistenceFixture.CreateContext();
-            var repository = new KeywordCatalogRepository(context);
+            var repository = new KeywordCatalogRepository(context, Options.Create(new KeywordGraphOptions()));
             barrier.SignalAndWait();
             await repository.SyncMovieKeywordsAsync(movieId, [keyword], syncedAtUtc);
         });
@@ -97,7 +99,7 @@ public sealed class KeywordCatalogRepositoryConcurrencyIntegrationTests
         Task.Run(async () =>
         {
             await using var context = CatalogPersistenceFixture.CreateContext();
-            var repository = new KeywordCatalogRepository(context);
+            var repository = new KeywordCatalogRepository(context, Options.Create(new KeywordGraphOptions()));
             barrier.SignalAndWait();
             await repository.SyncTvShowKeywordsAsync(tvShowId, [keyword], syncedAtUtc);
         });
