@@ -30,14 +30,7 @@ public sealed class S3CompatibleUserAvatarBlobStorage : IUserAvatarBlobStorage, 
         CancellationToken cancellationToken = default)
     {
         using var stream = new MemoryStream(content.ToArray());
-        var request = new PutObjectRequest
-        {
-            BucketName = _bucketName,
-            Key = storageKey,
-            InputStream = stream,
-            ContentType = contentType,
-            AutoCloseStream = true,
-        };
+        var request = CreatePutObjectRequest(_bucketName, storageKey, stream, contentType);
         await _client.PutObjectAsync(request, cancellationToken);
     }
 
@@ -52,4 +45,23 @@ public sealed class S3CompatibleUserAvatarBlobStorage : IUserAvatarBlobStorage, 
     }
 
     public void Dispose() => _client.Dispose();
+
+    internal static PutObjectRequest CreatePutObjectRequest(
+        string bucketName,
+        string storageKey,
+        Stream inputStream,
+        string contentType)
+    {
+        return new PutObjectRequest
+        {
+            BucketName = bucketName,
+            Key = storageKey,
+            InputStream = inputStream,
+            ContentType = contentType,
+            AutoCloseStream = true,
+            // AWSSDK.S3 v4 defaults UseChunkEncoding to true, which signs uploads as
+            // STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER. Many S3-compatible endpoints reject that.
+            UseChunkEncoding = false,
+        };
+    }
 }
