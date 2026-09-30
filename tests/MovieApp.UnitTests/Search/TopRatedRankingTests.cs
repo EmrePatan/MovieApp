@@ -38,7 +38,7 @@ public sealed class TopRatedRankingTests
                 Id = movieB,
                 Title = "Bravo Film",
                 VoteAverage = 8m,
-                VoteCount = 200,
+                VoteCount = 1500,
                 CreatedAt = utcNow,
                 UpdatedAt = utcNow
             },
@@ -47,7 +47,7 @@ public sealed class TopRatedRankingTests
                 Id = movieA,
                 Title = "Alpha Film",
                 VoteAverage = 8m,
-                VoteCount = 200,
+                VoteCount = 1500,
                 CreatedAt = utcNow,
                 UpdatedAt = utcNow
             });

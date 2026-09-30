@@ -54,6 +54,13 @@ public sealed class DiscoverBrowseService(
                 contentLocale,
                 cancellationToken);
         }
+        else if (criteria.Mode == DiscoverBrowseMode.TopRated && !HasSupplementalBrowseFilters(criteria))
+        {
+            result = await discoveryService.GetTopRatedAsync(
+                new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
+                contentLocale,
+                cancellationToken);
+        }
         else
         {
             var providerCriteria = await BuildProviderCriteriaAsync(criteria, cancellationToken);

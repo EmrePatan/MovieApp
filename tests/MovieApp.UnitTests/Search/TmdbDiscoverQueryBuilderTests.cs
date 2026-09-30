@@ -27,7 +27,19 @@ public sealed class TmdbDiscoverQueryBuilderTests
             sort: DiscoverBrowseSort.RatingDesc));
 
         Assert.Contains(
-            $"vote_count.gte={DiscoverCatalogSortPolicy.TopRatedMinimumVoteCount}",
+            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
+            query);
+    }
+
+    [Fact]
+    public void BuildMovieQuery_TopRatedBrowseModeUsesCuratedVoteFloor()
+    {
+        var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            mode: DiscoverBrowseMode.TopRated,
+            sort: DiscoverBrowseSort.RatingDesc));
+
+        Assert.Contains(
+            $"vote_count.gte={DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount}",
             query);
     }
 
@@ -95,7 +107,9 @@ public sealed class TmdbDiscoverQueryBuilderTests
             mode: DiscoverBrowseMode.Trending,
             sort: DiscoverBrowseSort.RatingDesc));
 
-        Assert.Contains("vote_count.gte=50", query);
+        Assert.Contains(
+            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
+            query);
     }
 
     [Fact]

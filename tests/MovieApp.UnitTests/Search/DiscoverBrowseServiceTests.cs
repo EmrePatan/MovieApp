@@ -128,6 +128,26 @@ public sealed class DiscoverBrowseServiceTests
     }
 
     [Fact]
+    public async Task BrowseAsyncTopRatedWithoutFiltersUsesCatalogDiscoveryService()
+    {
+        var discoveryTracker = new DiscoveryServiceCallTracker();
+        var movieTracker = new MovieDataProviderCallTracker();
+        var service = CreateService(
+            new DiscoverBrowseFakeCacheService(null),
+            movieTracker,
+            new TvShowDataProviderCallTracker(),
+            discoveryTracker);
+
+        var result = await service.BrowseAsync(CreateCriteria(
+            SearchContentType.All,
+            DiscoverBrowseMode.TopRated), ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(1, discoveryTracker.TopRatedCallCount);
+        Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
+        Assert.Single(result.Items);
+    }
+
+    [Fact]
     public async Task BrowseAsyncNewReleasesWithFiltersUsesProviderPath()
     {
         var discoveryTracker = new DiscoveryServiceCallTracker();
@@ -358,6 +378,8 @@ public sealed class DiscoverBrowseServiceTests
     {
         public int NewReleasesCallCount { get; private set; }
 
+        public int TopRatedCallCount { get; private set; }
+
         public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -375,8 +397,19 @@ public sealed class DiscoverBrowseServiceTests
                 1));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
+            DiscoveryCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            TopRatedCallCount++;
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                [CreateSearchItem("movie", Guid.NewGuid())],
+                criteria.Page,
+                criteria.PageSize,
+                1,
+                1));
+        }
 
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

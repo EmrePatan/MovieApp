@@ -186,7 +186,9 @@ public sealed class WorldCinemaServiceTests
 
         Assert.Contains("with_origin_country=IR", query);
         Assert.Contains("sort_by=vote_average.desc", query);
-        Assert.Contains("vote_count.gte=25", query);
+        Assert.Contains(
+            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
+            query);
         Assert.Contains("include_adult=false", query);
     }
 
@@ -199,7 +201,9 @@ public sealed class WorldCinemaServiceTests
 
         Assert.Contains("with_origin_country=IR", query);
         Assert.Contains("sort_by=vote_average.desc", query);
-        Assert.Contains("vote_count.gte=20", query);
+        Assert.Contains(
+            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
+            query);
         Assert.Contains("include_adult=false", query);
     }
 

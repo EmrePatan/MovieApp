@@ -40,7 +40,7 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
             sort: AdvancedDiscoverSort.RatingDesc));
 
         Assert.Contains(
-            $"vote_count.gte={DiscoverCatalogSortPolicy.TopRatedMinimumVoteCount}",
+            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
             query);
     }
 

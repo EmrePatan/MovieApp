@@ -8,9 +8,19 @@ namespace MovieApp.Application.Services.Search;
 public static class DiscoverCatalogSortPolicy
 {
     /// <summary>
-    /// Established browse Top Rated mode floor (see <c>TmdbDiscoverQueryBuilder.TopRatedMinimumVoteCount</c>).
+    /// Curated Top Rated / Highest Rated list floor (home shelf, browse mode, catalog top-rated query).
     /// </summary>
-    public const int TopRatedMinimumVoteCount = 50;
+    public const int CuratedTopRatedListMinimumVoteCount = 1000;
+
+    /// <summary>
+    /// Rating-ranked sort floor for non-curated browse modes (e.g. user sorts Trending by rating).
+    /// </summary>
+    public const int RatingRankedSortMinimumVoteCount = 50;
+
+    /// <summary>
+    /// Browse <see cref="DiscoverBrowseMode.TopRated"/> TMDB discover floor.
+    /// </summary>
+    public const int TopRatedMinimumVoteCount = CuratedTopRatedListMinimumVoteCount;
 
     /// <summary>
     /// Centralized future-release cap: UTC today + horizon days (product fallback).
@@ -41,14 +51,11 @@ public static class DiscoverCatalogSortPolicy
 
         if (mode == DiscoverBrowseMode.TopRated)
         {
-            floor = TopRatedMinimumVoteCount;
+            floor = CuratedTopRatedListMinimumVoteCount;
         }
-
-        if (RequiresRatingVoteFloor(effectiveSort))
+        else if (RequiresRatingVoteFloor(effectiveSort))
         {
-            floor = floor.HasValue
-                ? Math.Max(floor.Value, TopRatedMinimumVoteCount)
-                : TopRatedMinimumVoteCount;
+            floor = RatingRankedSortMinimumVoteCount;
         }
 
         if (requestedMinVoteCount is null)
@@ -74,8 +81,8 @@ public static class DiscoverCatalogSortPolicy
         if (RequiresRatingVoteFloor(sort))
         {
             floor = floor.HasValue
-                ? Math.Max(floor.Value, TopRatedMinimumVoteCount)
-                : TopRatedMinimumVoteCount;
+                ? Math.Max(floor.Value, RatingRankedSortMinimumVoteCount)
+                : RatingRankedSortMinimumVoteCount;
         }
 
         if (requestedMinVoteCount is null)

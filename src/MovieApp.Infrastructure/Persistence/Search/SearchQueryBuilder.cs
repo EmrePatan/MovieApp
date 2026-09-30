@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Search;
@@ -217,24 +218,28 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => ApplyNewReleaseWindow(
+            SearchContentType.Movie => ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
                 BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                 today,
-                maxAgeDays),
-            SearchContentType.Tv => ApplyNewReleaseWindow(
+                maxAgeDays)),
+            SearchContentType.Tv => ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
                 BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                 today,
-                maxAgeDays),
-            _ => ApplyNewReleaseWindow(
+                maxAgeDays)),
+            _ => ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
                     BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                     today,
-                    maxAgeDays)
-                .Concat(ApplyNewReleaseWindow(
+                    maxAgeDays))
+                .Concat(ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
                     BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                     today,
-                    maxAgeDays))
+                    maxAgeDays)))
         };
     }
+
+    private static IQueryable<SearchItemProjection> ApplyNewReleasesPosterRequirement(
+        IQueryable<SearchItemProjection> query) =>
+        query.Where(item => item.PosterUrl != null && item.PosterUrl != string.Empty);
 
     private static IQueryable<SearchItemProjection> ApplyNewReleaseWindow(
         IQueryable<SearchItemProjection> query,
@@ -269,16 +274,18 @@ internal static class SearchQueryBuilder
             criteria.Page,
             criteria.PageSize);
 
+        var minimumVotes = DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount;
+
         return criteria.Type switch
         {
             SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.VoteCount > 0),
+                .Where(item => item.VoteCount >= minimumVotes),
             SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.VoteCount > 0),
+                .Where(item => item.VoteCount >= minimumVotes),
             _ => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.VoteCount > 0)
+                .Where(item => item.VoteCount >= minimumVotes)
                 .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                    .Where(item => item.VoteCount > 0))
+                    .Where(item => item.VoteCount >= minimumVotes))
         };
     }
 
