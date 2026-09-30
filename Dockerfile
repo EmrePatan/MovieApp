@@ -18,10 +18,13 @@ COPY src/MovieApp.Contracts/MovieApp.Contracts.csproj src/MovieApp.Contracts/
 COPY src/MovieApp.Application/MovieApp.Application.csproj src/MovieApp.Application/
 COPY src/MovieApp.Infrastructure/MovieApp.Infrastructure.csproj src/MovieApp.Infrastructure/
 COPY src/MovieApp.Api/MovieApp.Api.csproj src/MovieApp.Api/
+COPY tools/ContentSearchTitleOps/ContentSearchTitleOps.csproj tools/ContentSearchTitleOps/
 
-RUN dotnet restore src/MovieApp.Api/MovieApp.Api.csproj
+RUN dotnet restore src/MovieApp.Api/MovieApp.Api.csproj \
+    && dotnet restore tools/ContentSearchTitleOps/ContentSearchTitleOps.csproj
 
 COPY src/ src/
+COPY tools/ContentSearchTitleOps/ tools/ContentSearchTitleOps/
 
 WORKDIR /src/src/MovieApp.Api
 RUN dotnet publish MovieApp.Api.csproj \
@@ -31,11 +34,20 @@ RUN dotnet publish MovieApp.Api.csproj \
     /p:UseAppHost=false \
     /p:InformationalVersion=${MOVIEAPP_SOURCE_VERSION}
 
+WORKDIR /src/tools/ContentSearchTitleOps
+RUN dotnet publish ContentSearchTitleOps.csproj \
+    -c ${BUILD_CONFIGURATION} \
+    -o /app/ops \
+    --no-restore \
+    /p:UseAppHost=false \
+    /p:InformationalVersion=${MOVIEAPP_SOURCE_VERSION}
+
 FROM base AS final
 ARG MOVIEAPP_SOURCE_VERSION=unknown
 ENV MOVIEAPP_SOURCE_VERSION=${MOVIEAPP_SOURCE_VERSION}
 WORKDIR /app
 COPY --from=build /app/publish .
+COPY --from=build /app/ops ./ops
 
 USER root
 RUN apt-get update \
