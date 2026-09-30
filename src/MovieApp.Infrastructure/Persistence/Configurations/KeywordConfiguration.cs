@@ -16,9 +16,6 @@ internal sealed class KeywordConfiguration : IEntityTypeConfiguration<Keyword>
         builder.Property(keyword => keyword.Id)
             .ValueGeneratedNever();
 
-        builder.Property(keyword => keyword.TmdbKeywordId)
-            .IsRequired();
-
         builder.Property(keyword => keyword.Name)
             .IsRequired()
             .HasMaxLength(ConfigurationConstants.NameMaxLength);

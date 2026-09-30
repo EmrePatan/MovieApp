@@ -98,7 +98,12 @@ internal static class KeywordGraphTmdbKeywordDualWrite
 
         foreach (var keyword in keywords)
         {
-            var expectedExternalId = keyword.TmdbKeywordId.ToString(CultureInfo.InvariantCulture);
+            if (!keyword.TmdbKeywordId.HasValue)
+            {
+                continue;
+            }
+
+            var expectedExternalId = keyword.TmdbKeywordId.Value.ToString(CultureInfo.InvariantCulture);
             if (keyword.ExternalReferences.Any(reference =>
                     reference.Provider == KeywordProvider.Tmdb &&
                     string.Equals(reference.ExternalId, expectedExternalId, StringComparison.Ordinal)))
@@ -169,12 +174,12 @@ internal static class KeywordGraphTmdbKeywordDualWrite
         var tmdbIds = keywords.Select(keyword => keyword.TmdbKeywordId).Distinct().ToList();
         var insertedKeywords = await dbContext.Keywords
             .AsNoTracking()
-            .Where(keyword => tmdbIds.Contains(keyword.TmdbKeywordId))
+            .Where(keyword => keyword.TmdbKeywordId != null && tmdbIds.Contains(keyword.TmdbKeywordId.Value))
             .ToListAsync(cancellationToken);
 
         foreach (var keyword in insertedKeywords)
         {
-            var externalId = keyword.TmdbKeywordId.ToString(CultureInfo.InvariantCulture);
+            var externalId = keyword.TmdbKeywordId!.Value.ToString(CultureInfo.InvariantCulture);
             await dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"""
                  INSERT INTO keyword_external_references ("Provider", "ExternalId", "KeywordId", "ExternalName", "CreatedAt")
@@ -192,7 +197,12 @@ internal static class KeywordGraphTmdbKeywordDualWrite
         Keyword keyword,
         CancellationToken cancellationToken)
     {
-        var expectedExternalId = keyword.TmdbKeywordId.ToString(CultureInfo.InvariantCulture);
+        if (!keyword.TmdbKeywordId.HasValue)
+        {
+            return;
+        }
+
+        var expectedExternalId = keyword.TmdbKeywordId.Value.ToString(CultureInfo.InvariantCulture);
         var owner = await dbContext.KeywordExternalReferences
             .AsNoTracking()
             .FirstOrDefaultAsync(

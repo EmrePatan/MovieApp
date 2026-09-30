@@ -6,7 +6,7 @@ public sealed class Keyword
 {
     public Guid Id { get; set; }
 
-    public int TmdbKeywordId { get; set; }
+    public int? TmdbKeywordId { get; set; }
 
     public string Name { get; set; } = string.Empty;
 

@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Keywords;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+
 namespace MovieApp.Infrastructure.Persistence.Keywords;
 
 public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbContext) : IKeywordGraphReconciliationService
@@ -25,17 +26,12 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
                 await ReconcileKeywordMetadataAndReferencesAsync(cancellationToken);
         }
 
-        var movieSourcesCreated = await BackfillMovieTmdbSourcesFromJoinsAsync(cancellationToken);
-        var tvSourcesCreated = await BackfillTvTmdbSourcesFromJoinsAsync(cancellationToken);
-
         return await BuildResultAsync(
             conflicts,
             keywordsProcessed,
             canonicalNamesUpdated,
             normalizedNamesUpdated,
             externalReferencesCreated,
-            movieSourcesCreated,
-            tvSourcesCreated,
             cancellationToken);
     }
 
@@ -48,8 +44,6 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
             canonicalNamesUpdated: 0,
             normalizedNamesUpdated: 0,
             externalReferencesCreated: 0,
-            movieSourcesCreated: 0,
-            tvSourcesCreated: 0,
             cancellationToken);
     }
 
@@ -80,7 +74,14 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
                 continue;
             }
 
-            var expected = keyword.TmdbKeywordId.ToString(CultureInfo.InvariantCulture);
+            if (keyword.TmdbKeywordId is null)
+            {
+                conflicts.Add(
+                    $"Keyword {keyword.Id} has TMDB external reference ExternalId={reference.ExternalId} but TmdbKeywordId is null.");
+                continue;
+            }
+
+            var expected = keyword.TmdbKeywordId.Value.ToString(CultureInfo.InvariantCulture);
             if (!string.Equals(reference.ExternalId, expected, StringComparison.Ordinal))
             {
                 conflicts.Add(
@@ -94,20 +95,35 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
             conflicts.Add($"Keyword {group.Key} has multiple TMDB external references.");
         }
 
-        var allKeywordsWithTmdbId = await dbContext.Keywords
+        var tmdbBackedKeywords = await dbContext.Keywords
             .AsNoTracking()
+            .Where(keyword => keyword.TmdbKeywordId != null)
             .Select(keyword => new { keyword.Id, keyword.TmdbKeywordId })
             .ToListAsync(cancellationToken);
 
         var refsByExternalId = tmdbRefs.ToLookup(reference => reference.ExternalId);
-        foreach (var keyword in allKeywordsWithTmdbId)
+        foreach (var keyword in tmdbBackedKeywords)
         {
-            var expected = keyword.TmdbKeywordId.ToString(CultureInfo.InvariantCulture);
+            var expected = keyword.TmdbKeywordId!.Value.ToString(CultureInfo.InvariantCulture);
             var owners = refsByExternalId[expected].ToList();
             if (owners.Count > 1 && owners.Select(owner => owner.KeywordId).Distinct().Count() > 1)
             {
                 conflicts.Add($"TMDB external id {expected} is associated with multiple keyword identities.");
             }
+        }
+
+        var allExternalReferences = await dbContext.KeywordExternalReferences
+            .AsNoTracking()
+            .Select(reference => new { reference.Provider, reference.ExternalId, reference.KeywordId })
+            .ToListAsync(cancellationToken);
+
+        foreach (var shared in allExternalReferences
+                     .GroupBy(reference => (reference.Provider, reference.ExternalId))
+                     .Where(group => group.Select(reference => reference.KeywordId).Distinct().Count() > 1))
+        {
+            var sample = shared.First();
+            conflicts.Add(
+                $"External id {sample.ExternalId} for provider {sample.Provider} is associated with multiple keyword identities.");
         }
 
         return conflicts;
@@ -151,9 +167,10 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
                 }
             }
 
+            var tmdbBackedKeywords = batch.Where(keyword => keyword.TmdbKeywordId.HasValue).ToList();
             await KeywordGraphTmdbKeywordDualWrite.EnsureTmdbExternalReferencesAsync(
                 dbContext,
-                batch,
+                tmdbBackedKeywords,
                 syncedAtUtc,
                 cancellationToken);
 
@@ -166,116 +183,12 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
         return (processed, canonicalUpdated, normalizedUpdated, refsCreated);
     }
 
-    private async Task<int> BackfillMovieTmdbSourcesFromJoinsAsync(CancellationToken cancellationToken)
-    {
-        var backfillTimestampUtc = DateTime.UtcNow;
-        if (IsNpgsql())
-        {
-            return await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                 INSERT INTO movie_keyword_sources ("MovieId", "KeywordId", "Provider", "FirstSeenAtUtc", "LastSeenAtUtc")
-                 SELECT mk."MovieId", mk."KeywordId", 'Tmdb', {backfillTimestampUtc}, {backfillTimestampUtc}
-                 FROM movie_keywords mk
-                 WHERE NOT EXISTS (
-                     SELECT 1
-                     FROM movie_keyword_sources mks
-                     WHERE mks."MovieId" = mk."MovieId"
-                       AND mks."KeywordId" = mk."KeywordId"
-                       AND mks."Provider" = 'Tmdb')
-                 """,
-                cancellationToken);
-        }
-
-        var joins = await dbContext.MovieKeywords.AsNoTracking().ToListAsync(cancellationToken);
-        var existing = await dbContext.MovieKeywordSources
-            .AsNoTracking()
-            .Where(source => source.Provider == KeywordProvider.Tmdb)
-            .Select(source => new { source.MovieId, source.KeywordId })
-            .ToListAsync(cancellationToken);
-
-        var existingSet = existing.Select(pair => (pair.MovieId, pair.KeywordId)).ToHashSet();
-        var created = 0;
-        foreach (var join in joins)
-        {
-            if (existingSet.Contains((join.MovieId, join.KeywordId)))
-            {
-                continue;
-            }
-
-            dbContext.MovieKeywordSources.Add(new MovieKeywordSource
-            {
-                MovieId = join.MovieId,
-                KeywordId = join.KeywordId,
-                Provider = KeywordProvider.Tmdb,
-                FirstSeenAtUtc = backfillTimestampUtc,
-                LastSeenAtUtc = backfillTimestampUtc,
-            });
-            created++;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return created;
-    }
-
-    private async Task<int> BackfillTvTmdbSourcesFromJoinsAsync(CancellationToken cancellationToken)
-    {
-        var backfillTimestampUtc = DateTime.UtcNow;
-        if (IsNpgsql())
-        {
-            return await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                 INSERT INTO tv_show_keyword_sources ("TvShowId", "KeywordId", "Provider", "FirstSeenAtUtc", "LastSeenAtUtc")
-                 SELECT tk."TvShowId", tk."KeywordId", 'Tmdb', {backfillTimestampUtc}, {backfillTimestampUtc}
-                 FROM tv_show_keywords tk
-                 WHERE NOT EXISTS (
-                     SELECT 1
-                     FROM tv_show_keyword_sources tks
-                     WHERE tks."TvShowId" = tk."TvShowId"
-                       AND tks."KeywordId" = tk."KeywordId"
-                       AND tks."Provider" = 'Tmdb')
-                 """,
-                cancellationToken);
-        }
-
-        var joins = await dbContext.TvShowKeywords.AsNoTracking().ToListAsync(cancellationToken);
-        var existing = await dbContext.TvShowKeywordSources
-            .AsNoTracking()
-            .Where(source => source.Provider == KeywordProvider.Tmdb)
-            .Select(source => new { source.TvShowId, source.KeywordId })
-            .ToListAsync(cancellationToken);
-
-        var existingSet = existing.Select(pair => (pair.TvShowId, pair.KeywordId)).ToHashSet();
-        var created = 0;
-        foreach (var join in joins)
-        {
-            if (existingSet.Contains((join.TvShowId, join.KeywordId)))
-            {
-                continue;
-            }
-
-            dbContext.TvShowKeywordSources.Add(new TvShowKeywordSource
-            {
-                TvShowId = join.TvShowId,
-                KeywordId = join.KeywordId,
-                Provider = KeywordProvider.Tmdb,
-                FirstSeenAtUtc = backfillTimestampUtc,
-                LastSeenAtUtc = backfillTimestampUtc,
-            });
-            created++;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return created;
-    }
-
     private async Task<KeywordGraphReconciliationResult> BuildResultAsync(
         List<string> conflicts,
         int keywordsProcessed,
         int canonicalNamesUpdated,
         int normalizedNamesUpdated,
         int externalReferencesCreated,
-        int movieSourcesCreated,
-        int tvSourcesCreated,
         CancellationToken cancellationToken)
     {
         var keywordCount = await dbContext.Keywords.CountAsync(cancellationToken);
@@ -287,32 +200,44 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
         var missingNormalized = await dbContext.Keywords
             .CountAsync(keyword => keyword.NormalizedName == null || keyword.NormalizedName == string.Empty, cancellationToken);
 
-        var keywordsWithTmdbId = await dbContext.Keywords.CountAsync(cancellationToken);
-        var keywordsWithTmdbRef = await dbContext.KeywordExternalReferences
-            .Where(reference => reference.Provider == KeywordProvider.Tmdb)
-            .Select(reference => reference.KeywordId)
-            .Distinct()
-            .CountAsync(cancellationToken);
-        var missingTmdbExternalRef = keywordsWithTmdbId - keywordsWithTmdbRef;
+        var missingTmdbExternalRef = await dbContext.Keywords
+            .CountAsync(
+                keyword => keyword.TmdbKeywordId != null &&
+                           !dbContext.KeywordExternalReferences.Any(reference =>
+                               reference.KeywordId == keyword.Id &&
+                               reference.Provider == KeywordProvider.Tmdb),
+                cancellationToken);
 
         var movieJoinCount = await dbContext.MovieKeywords.CountAsync(cancellationToken);
-        var movieTmdbSourceCount = await dbContext.MovieKeywordSources
-            .CountAsync(source => source.Provider == KeywordProvider.Tmdb, cancellationToken);
-        var missingMovieTmdbSource = await dbContext.MovieKeywords
+        var missingMovieKeywordSource = await dbContext.MovieKeywords
             .AsNoTracking()
             .Where(join => !dbContext.MovieKeywordSources.Any(source =>
                 source.MovieId == join.MovieId &&
-                source.KeywordId == join.KeywordId &&
-                source.Provider == KeywordProvider.Tmdb))
+                source.KeywordId == join.KeywordId))
             .CountAsync(cancellationToken);
 
         var tvJoinCount = await dbContext.TvShowKeywords.CountAsync(cancellationToken);
-        var missingTvTmdbSource = await dbContext.TvShowKeywords
+        var missingTvKeywordSource = await dbContext.TvShowKeywords
             .AsNoTracking()
             .Where(join => !dbContext.TvShowKeywordSources.Any(source =>
                 source.TvShowId == join.TvShowId &&
-                source.KeywordId == join.KeywordId &&
-                source.Provider == KeywordProvider.Tmdb))
+                source.KeywordId == join.KeywordId))
+            .CountAsync(cancellationToken);
+
+        var missingMovieMaterializedJoin = await dbContext.MovieKeywordSources
+            .AsNoTracking()
+            .GroupBy(source => new { source.MovieId, source.KeywordId })
+            .Where(group => !dbContext.MovieKeywords.Any(join =>
+                join.MovieId == group.Key.MovieId &&
+                join.KeywordId == group.Key.KeywordId))
+            .CountAsync(cancellationToken);
+
+        var missingTvMaterializedJoin = await dbContext.TvShowKeywordSources
+            .AsNoTracking()
+            .GroupBy(source => new { source.TvShowId, source.KeywordId })
+            .Where(group => !dbContext.TvShowKeywords.Any(join =>
+                join.TvShowId == group.Key.TvShowId &&
+                join.KeywordId == group.Key.KeywordId))
             .CountAsync(cancellationToken);
 
         var conflictingCount = conflicts.Count;
@@ -320,8 +245,10 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
                       missingCanonical == 0 &&
                       missingNormalized == 0 &&
                       missingTmdbExternalRef == 0 &&
-                      missingMovieTmdbSource == 0 &&
-                      missingTvTmdbSource == 0;
+                      missingMovieKeywordSource == 0 &&
+                      missingTvKeywordSource == 0 &&
+                      missingMovieMaterializedJoin == 0 &&
+                      missingTvMaterializedJoin == 0;
 
         return new KeywordGraphReconciliationResult
         {
@@ -329,24 +256,20 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
             CanonicalNamesUpdated = canonicalNamesUpdated,
             NormalizedNamesUpdated = normalizedNamesUpdated,
             ExternalReferencesCreated = externalReferencesCreated,
-            MovieSourcesCreated = movieSourcesCreated,
-            TvSourcesCreated = tvSourcesCreated,
             KeywordCount = keywordCount,
             TmdbExternalReferenceCount = tmdbRefCount,
             MissingCanonicalNameCount = missingCanonical,
             MissingNormalizedNameCount = missingNormalized,
             MissingTmdbExternalRefCount = missingTmdbExternalRef,
             MovieKeywordJoinCount = movieJoinCount,
-            MissingMovieTmdbSourceCount = missingMovieTmdbSource,
+            MissingMovieKeywordSourceCount = missingMovieKeywordSource,
+            MissingMovieMaterializedJoinCount = missingMovieMaterializedJoin,
             TvShowKeywordJoinCount = tvJoinCount,
-            MissingTvTmdbSourceCount = missingTvTmdbSource,
+            MissingTvShowKeywordSourceCount = missingTvKeywordSource,
+            MissingTvShowMaterializedJoinCount = missingTvMaterializedJoin,
             ConflictingExternalReferenceCount = conflictingCount,
             Conflicts = conflicts,
             IsReadyForProviderAwareSync = isReady,
         };
     }
-
-    private bool IsNpgsql() =>
-        dbContext.Database.IsRelational() &&
-        dbContext.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true;
 }

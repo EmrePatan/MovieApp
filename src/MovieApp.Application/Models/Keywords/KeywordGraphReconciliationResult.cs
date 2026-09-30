@@ -10,10 +10,6 @@ public sealed class KeywordGraphReconciliationResult
 
     public int ExternalReferencesCreated { get; init; }
 
-    public int MovieSourcesCreated { get; init; }
-
-    public int TvSourcesCreated { get; init; }
-
     public int KeywordCount { get; init; }
 
     public int TmdbExternalReferenceCount { get; init; }
@@ -26,11 +22,15 @@ public sealed class KeywordGraphReconciliationResult
 
     public int MovieKeywordJoinCount { get; init; }
 
-    public int MissingMovieTmdbSourceCount { get; init; }
+    public int MissingMovieKeywordSourceCount { get; init; }
+
+    public int MissingMovieMaterializedJoinCount { get; init; }
 
     public int TvShowKeywordJoinCount { get; init; }
 
-    public int MissingTvTmdbSourceCount { get; init; }
+    public int MissingTvShowKeywordSourceCount { get; init; }
+
+    public int MissingTvShowMaterializedJoinCount { get; init; }
 
     public int ConflictingExternalReferenceCount { get; init; }
 

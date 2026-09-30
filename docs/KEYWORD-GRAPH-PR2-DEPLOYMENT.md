@@ -18,8 +18,8 @@ PR2 introduces provider-aware TMDB keyword sync behind `KeywordGraph:ProviderAwa
    - `MissingCanonicalNameCount == 0`
    - `MissingNormalizedNameCount == 0`
    - `MissingTmdbExternalRefCount == 0`
-   - `MissingMovieTmdbSourceCount == 0`
-   - `MissingTvTmdbSourceCount == 0`
+   - `MissingMovieKeywordSourceCount == 0`
+   - `MissingTvShowKeywordSourceCount == 0`
    - `ConflictingExternalReferenceCount == 0`
    - `IsReadyForProviderAwareSync == true`
 5. Run `keyword-graph-verify-readiness` again immediately before the config change.

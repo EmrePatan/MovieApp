@@ -301,25 +301,6 @@ public sealed class KeywordGraphProviderAwareSyncTests
         Assert.NotEmpty(result.Conflicts);
     }
 
-    [Fact]
-    public async Task ReconciliationBackfillsTmdbSourcesFromCurrentJoins()
-    {
-        await using var context = CreateContext();
-        var movie = await SeedMovieAsync(context);
-        var keyword = await SeedKeywordAsync(context, 55, "join only");
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
-        await context.SaveChangesAsync();
-
-        var service = new KeywordGraphReconciliationService(context);
-        var first = await service.ReconcileAsync();
-        var second = await service.ReconcileAsync();
-
-        Assert.Equal(1, await context.MovieKeywordSources.CountAsync());
-        Assert.Equal(0, first.MissingMovieTmdbSourceCount);
-        Assert.Equal(0, second.MovieSourcesCreated);
-        Assert.True(second.IsReadyForProviderAwareSync);
-    }
-
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

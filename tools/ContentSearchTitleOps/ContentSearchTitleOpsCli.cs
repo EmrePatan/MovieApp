@@ -64,8 +64,8 @@ internal static class ContentSearchTitleOpsCli
         Console.WriteLine($"keyword_graph_{operation} ready={result.IsReadyForProviderAwareSync}");
         Console.WriteLine($"keywords={result.KeywordCount} tmdb_refs={result.TmdbExternalReferenceCount}");
         Console.WriteLine($"missing_canonical={result.MissingCanonicalNameCount} missing_normalized={result.MissingNormalizedNameCount} missing_tmdb_refs={result.MissingTmdbExternalRefCount}");
-        Console.WriteLine($"movie_joins={result.MovieKeywordJoinCount} missing_movie_tmdb_sources={result.MissingMovieTmdbSourceCount}");
-        Console.WriteLine($"tv_joins={result.TvShowKeywordJoinCount} missing_tv_tmdb_sources={result.MissingTvTmdbSourceCount}");
+        Console.WriteLine($"movie_joins={result.MovieKeywordJoinCount} missing_movie_sources={result.MissingMovieKeywordSourceCount} missing_movie_materialized_joins={result.MissingMovieMaterializedJoinCount}");
+        Console.WriteLine($"tv_joins={result.TvShowKeywordJoinCount} missing_tv_sources={result.MissingTvShowKeywordSourceCount} missing_tv_materialized_joins={result.MissingTvShowMaterializedJoinCount}");
         Console.WriteLine($"conflicts={result.ConflictingExternalReferenceCount}");
         foreach (var conflict in result.Conflicts)
         {

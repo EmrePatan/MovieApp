@@ -387,10 +387,11 @@ public sealed class KeywordCatalogRepository(
         }
         else
         {
+            var tmdbIds = dedupedKeywords.Select(summary => summary.TmdbKeywordId).Distinct().ToList();
             var trackedKeywords = await dbContext.Keywords
-                .Where(keyword => dedupedKeywords.Select(summary => summary.TmdbKeywordId).Contains(keyword.TmdbKeywordId))
+                .Where(keyword => keyword.TmdbKeywordId != null && tmdbIds.Contains(keyword.TmdbKeywordId.Value))
                 .ToListAsync(cancellationToken);
-            var trackedByTmdbId = trackedKeywords.ToDictionary(keyword => keyword.TmdbKeywordId);
+            var trackedByTmdbId = trackedKeywords.ToDictionary(keyword => keyword.TmdbKeywordId!.Value);
             KeywordGraphTmdbKeywordDualWrite.ApplyMetadataAndNameUpdates(
                 trackedByTmdbId,
                 dedupedKeywords,
@@ -455,9 +456,9 @@ public sealed class KeywordCatalogRepository(
             .ToList();
 
         var existingKeywords = await dbContext.Keywords
-            .Where(keyword => tmdbIds.Contains(keyword.TmdbKeywordId))
+            .Where(keyword => keyword.TmdbKeywordId != null && tmdbIds.Contains(keyword.TmdbKeywordId.Value))
             .ToListAsync(cancellationToken);
 
-        return existingKeywords.ToDictionary(keyword => keyword.TmdbKeywordId);
+        return existingKeywords.ToDictionary(keyword => keyword.TmdbKeywordId!.Value);
     }
 }

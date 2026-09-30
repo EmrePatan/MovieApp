@@ -93,7 +93,7 @@ public sealed class ExpandKeywordGraphPr1MigrationInvariantIntegrationTests : IA
                 .AsNoTracking()
                 .SingleAsync(
                     item => item.KeywordId == keyword.Id && item.Provider == KeywordProvider.Tmdb);
-            Assert.Equal(keyword.TmdbKeywordId.ToString(CultureInfo.InvariantCulture), reference.ExternalId);
+            Assert.Equal(keyword.TmdbKeywordId!.Value.ToString(CultureInfo.InvariantCulture), reference.ExternalId);
             Assert.Equal(keyword.Name, reference.ExternalName);
         }
     }

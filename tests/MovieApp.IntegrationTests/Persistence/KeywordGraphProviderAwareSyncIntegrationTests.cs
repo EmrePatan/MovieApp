@@ -107,20 +107,30 @@ public sealed class KeywordGraphProviderAwareSyncIntegrationTests
     }
 
     [Fact]
-    public async Task ReconciliationBackfillsSourcesAndReadinessAgainstPostgreSql()
+    public async Task ReconcileDoesNotInferTmdbSourceFromJoinAgainstPostgreSql()
     {
         await using var setup = CatalogPersistenceFixture.CreateContext();
         var movie = await SeedMovieAsync(setup);
         var keyword = await SeedKeywordAsync(setup, 7777, "legacy");
+        setup.MovieKeywordSources.Add(new MovieKeywordSource
+        {
+            MovieId = movie.Id,
+            KeywordId = keyword.Id,
+            Provider = KeywordProvider.MdbList,
+            FirstSeenAtUtc = DateTime.UtcNow,
+            LastSeenAtUtc = DateTime.UtcNow,
+        });
         setup.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
         await setup.SaveChangesAsync();
 
         await using var reconcileContext = CatalogPersistenceFixture.CreateContext();
         var service = new KeywordGraphReconciliationService(reconcileContext);
-        var result = await service.ReconcileAsync();
+        await service.ReconcileAsync();
 
-        Assert.Equal(0, result.MissingMovieTmdbSourceCount);
-        Assert.True(result.IsReadyForProviderAwareSync);
+        Assert.False(await reconcileContext.MovieKeywordSources.AnyAsync(
+            source => source.MovieId == movie.Id && source.Provider == KeywordProvider.Tmdb));
+        Assert.True(await reconcileContext.MovieKeywordSources.AnyAsync(
+            source => source.MovieId == movie.Id && source.Provider == KeywordProvider.MdbList));
     }
 
     private static async Task<Movie> SeedMovieAsync(ApplicationDbContext context)
