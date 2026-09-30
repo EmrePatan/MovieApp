@@ -21,4 +21,10 @@ public interface IUserExternalLoginRepository
         Guid userId,
         string provider,
         CancellationToken cancellationToken = default);
+
+    Task UpdateProviderPictureUrlAsync(
+        Guid userId,
+        string provider,
+        string? pictureUrl,
+        CancellationToken cancellationToken = default);
 }

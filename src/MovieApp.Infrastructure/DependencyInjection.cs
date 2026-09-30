@@ -23,6 +23,7 @@ using MovieApp.Infrastructure.AiRecommendations;
 using MovieApp.Infrastructure.Providers.AzureTranslator;
 using MovieApp.Infrastructure.Performance;
 using MovieApp.Infrastructure.RateLimiting;
+using MovieApp.Infrastructure.Storage;
 using StackExchange.Redis;
 
 namespace MovieApp.Infrastructure;
@@ -239,6 +240,10 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
 
         services.AddScoped<IUserExternalLoginRepository, UserExternalLoginRepository>();
+
+        services.AddScoped<IUserAvatarReadRepository, UserAvatarReadRepository>();
+        services.AddScoped<IUserAvatarImageProcessor, UserAvatarImageProcessor>();
+        services.AddUserAvatarStorage(configuration);
 
         services.AddMemoryCache();
 

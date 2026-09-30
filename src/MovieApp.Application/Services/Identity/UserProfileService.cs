@@ -18,7 +18,9 @@ public sealed class UserProfileService(
     IProfileStatisticsCache profileStatisticsCache,
     IPasswordHasher passwordHasher,
     IAuthenticationSessionService authenticationSessionService,
-    IAccountReauthenticationService accountReauthenticationService) : IUserProfileService
+    IAccountReauthenticationService accountReauthenticationService,
+    IUserAvatarPresentationService avatarPresentationService,
+    IUserAvatarService avatarService) : IUserProfileService
 {
     private const string InvalidCurrentPasswordMessage = "Current password is incorrect.";
 
@@ -26,8 +28,9 @@ public sealed class UserProfileService(
     {
         var user = await GetCurrentUserForReadAsync(cancellationToken);
         var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
+        var avatar = await avatarPresentationService.GetForUserAsync(user.Id, cancellationToken);
 
-        return UserMapper.ToUserProfileResult(user, linkedProviders);
+        return UserMapper.ToUserProfileResult(user, linkedProviders, avatar);
     }
 
     public async Task<UserProfileResult> UpdateDisplayNameAsync(
@@ -44,8 +47,9 @@ public sealed class UserProfileService(
         user.UpdateDisplayName(displayName, DateTime.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken);
         var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
+        var avatar = await avatarPresentationService.GetForUserAsync(user.Id, cancellationToken);
 
-        return UserMapper.ToUserProfileResult(user, linkedProviders);
+        return UserMapper.ToUserProfileResult(user, linkedProviders, avatar);
     }
 
     public async Task<AuthenticationResult> ChangePasswordAsync(
@@ -120,11 +124,14 @@ public sealed class UserProfileService(
             throw new ValidationException("Social re-authentication is required.");
         }
 
+        var avatarKey = user.CustomAvatarStorageKey;
         var deleted = await userRepository.DeleteAsync(user.Id, cancellationToken);
         if (!deleted)
         {
             throw new NotFoundException("The authenticated user was not found.");
         }
+
+        await avatarService.BestEffortDeleteCustomAvatarAsync(avatarKey, cancellationToken);
     }
 
     private static void ValidatePasswordChangeRequest(string currentPassword, string newPassword)

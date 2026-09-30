@@ -67,4 +67,30 @@ public sealed class UserExternalLoginRepository(ApplicationDbContext dbContext) 
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task UpdateProviderPictureUrlAsync(
+        Guid userId,
+        string provider,
+        string? pictureUrl,
+        CancellationToken cancellationToken = default)
+    {
+        var login = await dbContext.UserExternalLogins
+            .FirstOrDefaultAsync(
+                entry => entry.UserId == userId && entry.Provider == provider,
+                cancellationToken);
+
+        if (login is null)
+        {
+            return;
+        }
+
+        var normalized = string.IsNullOrWhiteSpace(pictureUrl) ? null : pictureUrl.Trim();
+        if (string.Equals(login.ProviderPictureUrl, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        login.SetProviderPictureUrl(normalized);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

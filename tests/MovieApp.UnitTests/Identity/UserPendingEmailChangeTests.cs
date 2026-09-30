@@ -239,7 +239,9 @@ public sealed class UserPendingEmailChangeTests
             new FakeProfileStatisticsCache(),
             new FakePasswordHasher(),
             new FakeAuthenticationSessionService(),
-            new AccountReauthenticationService(new FakeExternalLoginRepository(), new FakePasswordHasher(), []));
+            new AccountReauthenticationService(new FakeExternalLoginRepository(), new FakePasswordHasher(), []),
+            new FakeUserAvatarPresentationService(),
+            new TrackingUserAvatarService());
 
     private static UserCredentialMethodsService CreateCredentialService(
         User user,
@@ -256,6 +258,7 @@ public sealed class UserPendingEmailChangeTests
             new FakeDeliverySecretProtector(),
             new FakeDeliveryEnqueuer(),
             Options.Create(new EmailVerificationOptions { TokenLifetimeMinutes = 60 }),
+            new FakeUserAvatarPresentationService(),
             NullLogger<UserCredentialMethodsService>.Instance);
 
     private static VerifyEmailService CreateVerifyService(
@@ -438,6 +441,13 @@ public sealed class UserPendingEmailChangeTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task UpdateProviderPictureUrlAsync(
+            Guid userId,
+            string provider,
+            string? pictureUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeStatisticsRepository : IUserStatisticsRepository

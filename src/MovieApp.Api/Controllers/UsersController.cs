@@ -18,7 +18,8 @@ namespace MovieApp.Api.Controllers;
 [Route("api/users")]
 public sealed class UsersController(
     IUserProfileService userProfileService,
-    IUserCredentialMethodsService userCredentialMethodsService) : ControllerBase
+    IUserCredentialMethodsService userCredentialMethodsService,
+    IUserAvatarService userAvatarService) : ControllerBase
 {
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
@@ -29,6 +30,83 @@ public sealed class UsersController(
         try
         {
             var profile = await userProfileService.GetCurrentProfileAsync(cancellationToken);
+            return Ok(UserProfileContractMapper.ToUserProfileResponse(profile));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpPost("me/avatar")]
+    [EnableRateLimiting(AccountRateLimitPolicies.AvatarMutation)]
+    [RequestSizeLimit(UserAvatarService.MaxUploadBytes)]
+    [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<UserProfileResponse>> UploadAvatar(
+        IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid avatar request.",
+                "Avatar image file is required."));
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var profile = await userAvatarService.UploadCustomAvatarAsync(
+                stream,
+                file.Length,
+                cancellationToken);
+            return Ok(UserProfileContractMapper.ToUserProfileResponse(profile));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid avatar request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
+    [HttpDelete("me/avatar")]
+    [EnableRateLimiting(AccountRateLimitPolicies.AvatarMutation)]
+    [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<UserProfileResponse>> RemoveAvatar(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var profile = await userAvatarService.RemoveCustomAvatarAsync(cancellationToken);
             return Ok(UserProfileContractMapper.ToUserProfileResponse(profile));
         }
         catch (AuthenticationException exception)

@@ -140,7 +140,9 @@ public sealed class ProfileStatisticsCacheTests
             new AccountReauthenticationService(
                 new FakeExternalLoginRepository(),
                 new FakePasswordHasher(),
-                []));
+                []),
+            new FakeUserAvatarPresentationService(),
+            new TrackingUserAvatarService());
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -351,6 +353,13 @@ public sealed class ProfileStatisticsCacheTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task UpdateProviderPictureUrlAsync(
+            Guid userId,
+            string provider,
+            string? pictureUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeEmailVerificationTokenRepository : IEmailVerificationTokenRepository

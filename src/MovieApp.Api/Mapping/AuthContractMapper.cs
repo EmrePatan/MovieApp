@@ -44,7 +44,8 @@ public static class AuthContractMapper
             result.Email,
             result.UserName,
             result.DisplayName,
-            result.CreatedAt);
+            result.CreatedAt,
+            result.EffectiveAvatarUrl);
 
     public static Application.Models.Identity.ForgotPasswordRequest ToForgotPasswordRequest(
         Contracts.Auth.ForgotPasswordRequest request,

@@ -422,6 +422,13 @@ public sealed class SocialAuthServiceTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task UpdateProviderPictureUrlAsync(
+            Guid userId,
+            string provider,
+            string? pictureUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
 }

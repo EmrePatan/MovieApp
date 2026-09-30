@@ -7,6 +7,7 @@ using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
 
@@ -17,7 +18,8 @@ public sealed class ReviewService(
     IReviewRepository reviewRepository,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IReviewService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    IUserAvatarPresentationService avatarPresentationService) : IReviewService
 {
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
@@ -39,7 +41,7 @@ public sealed class ReviewService(
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndMovieAsync(userId, movieId, cancellationToken);
-        return ReviewMapper.ToResult(createdReview!);
+        return await MapReviewResultAsync(createdReview!, cancellationToken);
     }
 
     public async Task<ReviewResult> CreateTvShowReviewAsync(
@@ -62,7 +64,7 @@ public sealed class ReviewService(
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndTvShowAsync(userId, tvShowId, cancellationToken);
-        return ReviewMapper.ToResult(createdReview!);
+        return await MapReviewResultAsync(createdReview!, cancellationToken);
     }
 
     public async Task<ReviewResult> UpdateMovieReviewAsync(
@@ -82,7 +84,7 @@ public sealed class ReviewService(
 
         review.UpdateContent(content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.UpdateAsync(review, cancellationToken);
-        return ReviewMapper.ToResult(review);
+        return await MapReviewResultAsync(review, cancellationToken);
     }
 
     public async Task<ReviewResult> UpdateTvShowReviewAsync(
@@ -102,7 +104,7 @@ public sealed class ReviewService(
 
         review.UpdateContent(content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.UpdateAsync(review, cancellationToken);
-        return ReviewMapper.ToResult(review);
+        return await MapReviewResultAsync(review, cancellationToken);
     }
 
     public async Task DeleteMovieReviewAsync(Guid movieId, CancellationToken cancellationToken = default)
@@ -143,7 +145,7 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        return ReviewMapper.ToResult(review);
+        return await MapReviewResultAsync(review, cancellationToken);
     }
 
     public async Task<ReviewResult> GetCurrentUserTvShowReviewAsync(
@@ -158,7 +160,7 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        return ReviewMapper.ToResult(review);
+        return await MapReviewResultAsync(review, cancellationToken);
     }
 
     public async Task<ReviewListPageResult> GetMovieReviewsAsync(
@@ -185,7 +187,7 @@ public sealed class ReviewService(
             cancellationToken);
 
         return new ReviewListPageResult(
-            ToPaginatedResult(reviews, page, pageSize, totalCount),
+            await ToPaginatedResultAsync(reviews, page, pageSize, totalCount, cancellationToken),
             reviewScoreDistribution);
     }
 
@@ -238,8 +240,14 @@ public sealed class ReviewService(
             cancellationToken);
 
         return new ReviewListPageResult(
-            ToPaginatedResult(reviews, page, pageSize, totalCount),
+            await ToPaginatedResultAsync(reviews, page, pageSize, totalCount, cancellationToken),
             reviewScoreDistribution);
+    }
+
+    private async Task<ReviewResult> MapReviewResultAsync(Review review, CancellationToken cancellationToken)
+    {
+        var avatar = await avatarPresentationService.GetForUserAsync(review.UserId, cancellationToken);
+        return ReviewMapper.ToResult(review, userRating: null, avatar.EffectiveAvatarUrl);
     }
 
     private static void ValidateRatingStars(int? ratingStars)
@@ -285,15 +293,27 @@ public sealed class ReviewService(
         }
     }
 
-    private static PaginatedResult<ReviewResult> ToPaginatedResult(
+    private async Task<PaginatedResult<ReviewResult>> ToPaginatedResultAsync(
         IReadOnlyList<PublicReviewListItem> reviews,
         int page,
         int pageSize,
-        int totalCount)
+        int totalCount,
+        CancellationToken cancellationToken)
     {
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
+        var userIds = reviews
+            .Select(item => item.Review.UserId)
+            .Distinct()
+            .ToList();
+        var avatars = await avatarPresentationService.GetForUsersAsync(userIds, cancellationToken);
         var items = reviews
-            .Select(item => ReviewMapper.ToResult(item.Review, item.UserRating))
+            .Select(item =>
+            {
+                var effectiveAvatarUrl = avatars.TryGetValue(item.Review.UserId, out var avatar)
+                    ? avatar.EffectiveAvatarUrl
+                    : null;
+                return ReviewMapper.ToResult(item.Review, item.UserRating, effectiveAvatarUrl);
+            })
             .ToList();
         return new PaginatedResult<ReviewResult>(items, page, pageSize, totalCount, totalPages);
     }

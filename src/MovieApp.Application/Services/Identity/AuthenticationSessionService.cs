@@ -14,6 +14,7 @@ public sealed class AuthenticationSessionService(
     ITokenService tokenService,
     IRefreshTokenRepository refreshTokenRepository,
     IUserRepository userRepository,
+    IUserAvatarPresentationService avatarPresentationService,
     IApplicationDbContext applicationDbContext,
     IOptions<RefreshTokenOptions> refreshTokenOptions) : IAuthenticationSessionService
 {
@@ -23,11 +24,12 @@ public sealed class AuthenticationSessionService(
     {
         var accessToken = tokenService.CreateAccessToken(UserMapper.ToTokenUserContext(user));
         var refresh = await CreateRefreshTokenAsync(user.Id, cancellationToken);
+        var avatar = await avatarPresentationService.GetForUserAsync(user.Id, cancellationToken);
 
         return new AuthenticationResult(
             accessToken.AccessToken,
             accessToken.ExpiresAt,
-            UserMapper.ToCurrentUserResult(user),
+            UserMapper.ToCurrentUserResult(user, avatar),
             refresh.RawToken,
             refresh.ExpiresAtUtc);
     }

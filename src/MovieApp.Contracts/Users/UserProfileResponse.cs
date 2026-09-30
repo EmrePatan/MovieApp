@@ -8,4 +8,8 @@ public sealed record UserProfileResponse(
     DateTime CreatedAt,
     bool HasPassword,
     IReadOnlyList<string> LinkedProviders,
-    string? PendingEmail = null);
+    string? PendingEmail = null,
+    string? CustomAvatarUrl = null,
+    string? ProviderAvatarUrl = null,
+    string? EffectiveAvatarUrl = null,
+    string AvatarKind = "initials");

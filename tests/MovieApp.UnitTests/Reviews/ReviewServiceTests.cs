@@ -2,8 +2,10 @@ using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
+using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Ratings;
@@ -85,6 +87,47 @@ public sealed class ReviewServiceTests
     }
 
     [Fact]
+    public async Task GetMovieReviewsAsyncMapsAuthorEffectiveAvatarUrlsInBatch()
+    {
+        var authorA = Guid.NewGuid();
+        var authorB = Guid.NewGuid();
+        var reviewA = Review.CreateForMovie(authorA, MovieId, "Review A", "en-US", DateTime.UtcNow);
+        reviewA.User = new User { Id = authorA, DisplayName = "Author A" };
+        var reviewB = Review.CreateForMovie(authorB, MovieId, "Review B", "en-US", DateTime.UtcNow);
+        reviewB.User = new User { Id = authorB, DisplayName = "Author B" };
+
+        var publicReviews = new List<PublicReviewListItem>
+        {
+            new(reviewA, null),
+            new(reviewB, 8),
+        };
+
+        var avatarPresentation = new BatchUserAvatarPresentationService(
+            new Dictionary<Guid, string>
+            {
+                [authorA] = "https://cdn.example.com/a.webp",
+                [authorB] = "https://google.example/b.jpg",
+            });
+
+        var repository = new FakeReviewRepository(moviePublicReviews: publicReviews);
+        var service = CreateService(repository, CreateMovie(), avatarPresentation);
+
+        var result = await service.GetMovieReviewsAsync(
+            MovieId,
+            page: 1,
+            pageSize: 20,
+            ReviewListSort.Newest);
+
+        Assert.Equal(2, result.Page.Items.Count);
+        Assert.Equal(1, avatarPresentation.GetForUsersBatchCallCount);
+        Assert.Equal(2, avatarPresentation.LastBatchUserIds!.Count);
+        Assert.Contains(authorA, avatarPresentation.LastBatchUserIds);
+        Assert.Contains(authorB, avatarPresentation.LastBatchUserIds);
+        Assert.Equal("https://cdn.example.com/a.webp", result.Page.Items[0].Author.EffectiveAvatarUrl);
+        Assert.Equal("https://google.example/b.jpg", result.Page.Items[1].Author.EffectiveAvatarUrl);
+    }
+
+    [Fact]
     public async Task GetMovieReviewsAsyncReturnsUnfilteredReviewScoreDistribution()
     {
         var distribution = RatingMapper.CreateEmptyDistribution().ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -110,13 +153,17 @@ public sealed class ReviewServiceTests
         Assert.Equal(2, RatingStarMapping.ToStarBucket(4));
     }
 
-    private static ReviewService CreateService(FakeReviewRepository repository, Movie? movie) =>
+    private static ReviewService CreateService(
+        FakeReviewRepository repository,
+        Movie? movie,
+        IUserAvatarPresentationService? avatarPresentationService = null) =>
         new(
             new FakeCurrentUser(UserId),
             repository,
             new FakeMovieRepository(movie),
             new FakeTvShowRepository(null),
-            new FakeUserAnalyticsCacheInvalidator());
+            new FakeUserAnalyticsCacheInvalidator(),
+            avatarPresentationService ?? new MovieApp.UnitTests.Identity.FakeUserAvatarPresentationService());
 
     private static Movie CreateMovie() =>
         new()
@@ -134,10 +181,44 @@ public sealed class ReviewServiceTests
         public Guid? UserId => userId;
     }
 
+    private sealed class BatchUserAvatarPresentationService(IReadOnlyDictionary<Guid, string> effectiveUrlsByUserId)
+        : IUserAvatarPresentationService
+    {
+        public int GetForUsersBatchCallCount { get; private set; }
+
+        public List<Guid>? LastBatchUserIds { get; private set; }
+
+        public UserAvatarPresentation Present(UserAvatarSources sources) =>
+            UserAvatarResolver.Resolve(sources, static _ => null);
+
+        public Task<UserAvatarPresentation> GetForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new UserAvatarPresentation(null, null, null, UserAvatarKind.Initials));
+
+        public Task<IReadOnlyDictionary<Guid, UserAvatarPresentation>> GetForUsersAsync(
+            IReadOnlyCollection<Guid> userIds,
+            CancellationToken cancellationToken = default)
+        {
+            GetForUsersBatchCallCount++;
+            LastBatchUserIds = userIds.ToList();
+
+            var result = new Dictionary<Guid, UserAvatarPresentation>();
+            foreach (var userId in userIds)
+            {
+                if (effectiveUrlsByUserId.TryGetValue(userId, out var url))
+                {
+                    result[userId] = new UserAvatarPresentation(null, url, url, UserAvatarKind.Provider);
+                }
+            }
+
+            return Task.FromResult<IReadOnlyDictionary<Guid, UserAvatarPresentation>>(result);
+        }
+    }
+
     private sealed class FakeReviewRepository(
         bool existsForMovie = false,
         Review? trackedMovieReview = null,
-        IReadOnlyDictionary<int, int>? reviewScoreDistribution = null) : IReviewRepository
+        IReadOnlyDictionary<int, int>? reviewScoreDistribution = null,
+        IReadOnlyList<PublicReviewListItem>? moviePublicReviews = null) : IReviewRepository
     {
         private Review? _createdReview;
 
@@ -226,8 +307,11 @@ public sealed class ReviewServiceTests
             int pageSize,
             ReviewListSort sort,
             int? ratingStars = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
+            CancellationToken cancellationToken = default)
+        {
+            var reviews = moviePublicReviews ?? [];
+            return Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>((reviews, reviews.Count));
+        }
 
         public Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForTvShowAsync(
             Guid tvShowId,

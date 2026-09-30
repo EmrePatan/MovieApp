@@ -15,7 +15,11 @@ public static class UserProfileContractMapper
             result.CreatedAt,
             result.HasPassword,
             result.LinkedProviders,
-            result.PendingEmail);
+            result.PendingEmail,
+            result.CustomAvatarUrl,
+            result.ProviderAvatarUrl,
+            result.EffectiveAvatarUrl,
+            ToAvatarKindContract(result.AvatarKind));
 
     public static UserProfileResponse ToUserProfileResponse(CurrentUserResult result) =>
         new(
@@ -25,7 +29,23 @@ public static class UserProfileContractMapper
             result.DisplayName,
             result.CreatedAt,
             false,
-            []);
+            [],
+            null,
+            null,
+            null,
+            result.EffectiveAvatarUrl,
+            ToAvatarKindContract(
+                string.IsNullOrWhiteSpace(result.EffectiveAvatarUrl)
+                    ? UserAvatarKind.Initials
+                    : UserAvatarKind.Custom));
+
+    private static string ToAvatarKindContract(UserAvatarKind kind) =>
+        kind switch
+        {
+            UserAvatarKind.Custom => "custom",
+            UserAvatarKind.Provider => "provider",
+            _ => "initials",
+        };
 
     public static UserProfileAuthResponse ToUserProfileAuthResponse(AuthenticationResult result) =>
         new(

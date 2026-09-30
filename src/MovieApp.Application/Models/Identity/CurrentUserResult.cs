@@ -5,4 +5,5 @@ public sealed record CurrentUserResult(
     string Email,
     string UserName,
     string DisplayName,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? EffectiveAvatarUrl = null);

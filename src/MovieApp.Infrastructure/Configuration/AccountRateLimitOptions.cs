@@ -15,5 +15,9 @@ public sealed class AccountRateLimitOptions
     public int AccountDeletionPermitLimit { get; set; } = 3;
 
     public int AccountDeletionWindowMinutes { get; set; } = 60;
+
+    public int AvatarMutationPermitLimit { get; set; } = 10;
+
+    public int AvatarMutationWindowMinutes { get; set; } = 15;
 }
 

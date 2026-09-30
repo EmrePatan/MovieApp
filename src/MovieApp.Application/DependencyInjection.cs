@@ -100,6 +100,8 @@ public static class DependencyInjection
         services.AddScoped<IUserProfileService, UserProfileService>();
         services.AddScoped<IAccountReauthenticationService, AccountReauthenticationService>();
         services.AddScoped<IUserCredentialMethodsService, UserCredentialMethodsService>();
+        services.AddScoped<IUserAvatarPresentationService, UserAvatarPresentationService>();
+        services.AddScoped<IUserAvatarService, UserAvatarService>();
         services.AddScoped<IForgotPasswordService, ForgotPasswordService>();
         services.AddScoped<IResetPasswordService, ResetPasswordService>();
         services.AddScoped<IVerifyEmailService, VerifyEmailService>();

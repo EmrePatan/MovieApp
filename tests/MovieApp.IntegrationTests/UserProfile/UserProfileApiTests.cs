@@ -531,6 +531,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var payload = await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
         Assert.NotNull(payload);
         Assert.Equal(email, payload.Email);
+        Assert.Null(payload.EffectiveAvatarUrl);
     }
 
     private Task<string> RegisterAndGetTokenAsync(

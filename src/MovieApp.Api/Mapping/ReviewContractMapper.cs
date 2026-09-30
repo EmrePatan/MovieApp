@@ -8,7 +8,10 @@ public static class ReviewContractMapper
     public static ReviewResponse ToResponse(ReviewResult result) =>
         new(
             result.Id,
-            new ReviewAuthorResponse(result.Author.Id, result.Author.DisplayName),
+            new ReviewAuthorResponse(
+                result.Author.Id,
+                result.Author.DisplayName,
+                result.Author.EffectiveAvatarUrl),
             result.Content,
             result.CreatedAt,
             result.UpdatedAt,

@@ -26,6 +26,7 @@ public sealed class UserCredentialMethodsService(
     IEmailVerificationDeliverySecretProtector deliverySecretProtector,
     IEmailVerificationDeliveryEnqueuer deliveryEnqueuer,
     IOptions<EmailVerificationOptions> emailVerificationOptions,
+    IUserAvatarPresentationService avatarPresentationService,
     ILogger<UserCredentialMethodsService> logger) : IUserCredentialMethodsService
 {
     public const string EmailChangeRequestedMessage =
@@ -63,6 +64,7 @@ public sealed class UserCredentialMethodsService(
             targetIdentity.Subject,
             targetIdentity.Email,
             DateTime.UtcNow);
+        externalLogin.SetProviderPictureUrl(targetIdentity.ProviderPictureUrl);
 
         await externalLoginRepository.CreateAsync(externalLogin, cancellationToken);
 
@@ -325,11 +327,14 @@ public sealed class UserCredentialMethodsService(
         }
     }
 
-    private static Task<UserProfileResult> MapProfileAsync(
+    private async Task<UserProfileResult> MapProfileAsync(
         User user,
         IReadOnlyList<string> linkedProviders,
-        CancellationToken cancellationToken) =>
-        Task.FromResult(UserMapper.ToUserProfileResult(user, linkedProviders));
+        CancellationToken cancellationToken)
+    {
+        var avatar = await avatarPresentationService.GetForUserAsync(user.Id, cancellationToken);
+        return UserMapper.ToUserProfileResult(user, linkedProviders, avatar);
+    }
 
     private async Task<User> GetCurrentUserForUpdateAsync(CancellationToken cancellationToken)
     {

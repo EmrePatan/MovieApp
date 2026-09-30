@@ -8,7 +8,8 @@ namespace MovieApp.Application.Services.Identity;
 
 public sealed class GetCurrentUserService(
     ICurrentUser currentUser,
-    IUserRepository userRepository) : IGetCurrentUserService
+    IUserRepository userRepository,
+    IUserAvatarPresentationService avatarPresentationService) : IGetCurrentUserService
 {
     public async Task<CurrentUserResult> GetCurrentUserAsync(CancellationToken cancellationToken = default)
     {
@@ -23,6 +24,7 @@ public sealed class GetCurrentUserService(
             throw new NotFoundException("The authenticated user was not found.");
         }
 
-        return UserMapper.ToCurrentUserResult(user);
+        var avatar = await avatarPresentationService.GetForUserAsync(user.Id, cancellationToken);
+        return UserMapper.ToCurrentUserResult(user, avatar);
     }
 }

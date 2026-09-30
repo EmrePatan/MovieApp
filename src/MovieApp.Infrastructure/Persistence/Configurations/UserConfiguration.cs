@@ -37,6 +37,9 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(ConfigurationConstants.NameMaxLength);
 
+        builder.Property(user => user.CustomAvatarStorageKey)
+            .HasMaxLength(512);
+
         builder.Property(user => user.IsActive)
             .IsRequired();
 

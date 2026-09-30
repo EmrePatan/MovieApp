@@ -153,6 +153,18 @@ public sealed class AuthApiTests(AuthApiFixture fixture)
     }
 
     [Fact]
+    public async Task AvatarMutationsRequireAuthentication()
+    {
+        var deleteResponse = await _client.DeleteAsync("/api/users/me/avatar");
+        Assert.Equal(HttpStatusCode.Unauthorized, deleteResponse.StatusCode);
+
+        using var multipart = new MultipartFormDataContent();
+        multipart.Add(new ByteArrayContent([0xFF, 0xD8, 0xFF]), "file", "avatar.jpg");
+        var postResponse = await _client.PostAsync("/api/users/me/avatar", multipart);
+        Assert.Equal(HttpStatusCode.Unauthorized, postResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task GetCurrentUserWithInvalidTokenReturnsUnauthorized()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");

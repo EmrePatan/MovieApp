@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Storage;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
@@ -110,6 +111,35 @@ public sealed class UserProfileServiceTests
         var user = CreateUser();
         var repository = new FakeUserRepository(user);
         var service = CreateService(user, repository, passwordShouldVerify: true);
+
+        await service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null));
+
+        Assert.Equal(1, repository.DeleteCount);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncAttemptsAvatarCleanupAfterUserDeletion()
+    {
+        var user = CreateUser();
+        user.SetCustomAvatarStorageKey("avatars/delete-me.webp", DateTime.UtcNow);
+        var repository = new FakeUserRepository(user);
+        var avatarService = new TrackingUserAvatarService();
+        var service = CreateService(user, repository, passwordShouldVerify: true, avatarService: avatarService);
+
+        await service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null));
+
+        Assert.Equal(1, repository.DeleteCount);
+        Assert.Equal(["avatars/delete-me.webp"], avatarService.DeletedKeys);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncSucceedsWhenAvatarCleanupFails()
+    {
+        var user = CreateUser();
+        user.SetCustomAvatarStorageKey("avatars/delete-me.webp", DateTime.UtcNow);
+        var repository = new FakeUserRepository(user);
+        var avatarService = CreateUserAvatarServiceWithFailingBlobDelete(user);
+        var service = CreateService(user, repository, passwordShouldVerify: true, avatarService: avatarService);
 
         await service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null));
 
@@ -266,6 +296,7 @@ public sealed class UserProfileServiceTests
         UserStatisticsResult? statistics = null,
         bool passwordShouldVerify = true,
         bool newPasswordMatchesCurrent = false,
+        IUserAvatarService? avatarService = null,
         params FakeSocialIdentityTokenVerifier[] socialVerifiers)
     {
         repository ??= new FakeUserRepository(user);
@@ -285,7 +316,38 @@ public sealed class UserProfileServiceTests
             new FakeProfileStatisticsCache(),
             passwordHasher,
             new FakeAuthenticationSessionService(),
-            accountReauthenticationService);
+            accountReauthenticationService,
+            new FakeUserAvatarPresentationService(),
+            avatarService ?? new TrackingUserAvatarService());
+    }
+
+    private static UserAvatarService CreateUserAvatarServiceWithFailingBlobDelete(User user) =>
+        new(
+            new FakeCurrentUser(user.Id),
+            new FakeUserRepository(user),
+            new FakeExternalLoginRepository(),
+            new StubUserAvatarImageProcessor(),
+            new ThrowingAvatarBlobStorage(),
+            new FakeUserAvatarPresentationService(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<UserAvatarService>.Instance);
+
+    private sealed class StubUserAvatarImageProcessor : IUserAvatarImageProcessor
+    {
+        public Task<ProcessedUserAvatarImage> ProcessUploadAsync(Stream uploadStream, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class ThrowingAvatarBlobStorage : IUserAvatarBlobStorage
+    {
+        public Task PutAsync(
+            string storageKey,
+            ReadOnlyMemory<byte> content,
+            string contentType,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Simulated avatar blob delete failure.");
     }
 
     private static User CreateUser() =>
@@ -443,6 +505,13 @@ public sealed class UserProfileServiceTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task UpdateProviderPictureUrlAsync(
+            Guid userId,
+            string provider,
+            string? pictureUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeEmailVerificationTokenRepository : IEmailVerificationTokenRepository

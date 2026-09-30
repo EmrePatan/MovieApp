@@ -5,4 +5,5 @@ public sealed record VerifiedSocialIdentity(
     string Subject,
     string? Email,
     bool IsEmailVerified,
-    string? DisplayName);
+    string? DisplayName,
+    string? ProviderPictureUrl = null);

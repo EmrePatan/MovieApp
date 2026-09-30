@@ -29,6 +29,9 @@ internal sealed class UserExternalLoginConfiguration : IEntityTypeConfiguration<
         builder.Property(login => login.EmailAtLinkTime)
             .HasMaxLength(320);
 
+        builder.Property(login => login.ProviderPictureUrl)
+            .HasMaxLength(2048);
+
         builder.Property(login => login.CreatedAt)
             .IsRequired();
 

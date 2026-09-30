@@ -1,3 +1,6 @@
 namespace MovieApp.Contracts.Reviews;
 
-public sealed record ReviewAuthorResponse(Guid Id, string DisplayName);
+public sealed record ReviewAuthorResponse(
+    Guid Id,
+    string DisplayName,
+    string? EffectiveAvatarUrl = null);

@@ -212,6 +212,7 @@ public sealed class UserCredentialMethodsServiceTests
             new CredentialFakeDeliverySecretProtector(),
             new CredentialFakeDeliveryEnqueuer(),
             Options.Create(new EmailVerificationOptions { TokenLifetimeMinutes = 60 }),
+            new FakeUserAvatarPresentationService(),
             NullLogger<UserCredentialMethodsService>.Instance);
     }
 
@@ -322,6 +323,13 @@ public sealed class UserCredentialMethodsServiceTests
 
         public Task<bool> DeleteAsync(Guid userId, string provider, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+
+        public Task UpdateProviderPictureUrlAsync(
+            Guid userId,
+            string provider,
+            string? pictureUrl,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class CredentialFakeSocialVerifier(string provider, VerifiedSocialIdentity identity)

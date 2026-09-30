@@ -14,6 +14,8 @@ public sealed class UserExternalLogin
 
     public string? EmailAtLinkTime { get; set; }
 
+    public string? ProviderPictureUrl { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public User User { get; set; } = null!;
@@ -37,7 +39,13 @@ public sealed class UserExternalLogin
             Provider = normalizedProvider,
             ProviderSubject = providerSubject.Trim(),
             EmailAtLinkTime = string.IsNullOrWhiteSpace(emailAtLinkTime) ? null : emailAtLinkTime.Trim(),
+            ProviderPictureUrl = null,
             CreatedAt = utcNow,
         };
+    }
+
+    public void SetProviderPictureUrl(string? pictureUrl)
+    {
+        ProviderPictureUrl = string.IsNullOrWhiteSpace(pictureUrl) ? null : pictureUrl.Trim();
     }
 }

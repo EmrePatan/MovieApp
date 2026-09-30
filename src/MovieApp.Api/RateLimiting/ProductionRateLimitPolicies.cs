@@ -18,6 +18,8 @@ public static class AccountRateLimitPolicies
     public const string ChangeEmail = "account-change-email";
 
     public const string DeleteAccount = "account-delete";
+
+    public const string AvatarMutation = "account-avatar-mutation";
 }
 
 public static class ReviewTranslationRateLimitPolicies

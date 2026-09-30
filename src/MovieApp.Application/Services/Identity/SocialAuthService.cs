@@ -168,6 +168,7 @@ public sealed class SocialAuthService(
             identity.Subject,
             identity.Email,
             utcNow);
+        externalLogin.SetProviderPictureUrl(identity.ProviderPictureUrl);
 
         try
         {
@@ -227,6 +228,11 @@ public sealed class SocialAuthService(
 
         var persistenceStopwatch = Stopwatch.StartNew();
         await userRepository.UpdateAsync(user, cancellationToken);
+        await ExternalLoginPictureSync.RefreshGooglePictureIfPresentAsync(
+            externalLoginRepository,
+            user.Id,
+            identity,
+            cancellationToken);
         perf.PersistenceMs += persistenceStopwatch.ElapsedMilliseconds;
 
         return await IssueSessionAsync(user, perf, cancellationToken);

@@ -18,6 +18,8 @@ public sealed class User
 
     public string DisplayName { get; set; } = string.Empty;
 
+    public string? CustomAvatarStorageKey { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; }
@@ -116,6 +118,30 @@ public sealed class User
             CreatedAt = utcNow,
             UpdatedAt = utcNow,
         };
+    }
+
+    public void SetCustomAvatarStorageKey(string storageKey, DateTime utcNow)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("Inactive users cannot update their avatar.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(storageKey);
+
+        CustomAvatarStorageKey = storageKey.Trim();
+        UpdatedAt = utcNow;
+    }
+
+    public void ClearCustomAvatarStorageKey(DateTime utcNow)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("Inactive users cannot update their avatar.");
+        }
+
+        CustomAvatarStorageKey = null;
+        UpdatedAt = utcNow;
     }
 
     public void UpdateDisplayName(string displayName, DateTime utcNow)
