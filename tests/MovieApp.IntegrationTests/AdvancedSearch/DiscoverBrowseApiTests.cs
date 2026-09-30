@@ -50,6 +50,7 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
     public async Task BrowseSupportsMovieOnlyModeAndPaginationMetadata()
     {
         await fixture.ResetAsync();
+        await SeedTopRatedBrowseCatalogAsync();
 
         var response = await _client.GetAsync("/api/discovery/browse?mode=top_rated&type=movie&page=1&pageSize=1");
         var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
@@ -66,6 +67,7 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
     public async Task BrowseSupportsTvOnlyPageSizeInvariant()
     {
         await fixture.ResetAsync();
+        await SeedTopRatedBrowseCatalogAsync();
 
         var response = await _client.GetAsync("/api/discovery/browse?mode=top_rated&type=tv&page=1&pageSize=1");
         var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
@@ -94,6 +96,7 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
     public async Task BrowseMovieOnlyPageSizeOneReturnsDeterministicOrdering()
     {
         await fixture.ResetAsync();
+        await SeedTopRatedBrowseCatalogAsync();
 
         var first = await _client.GetFromJsonAsync<SearchResponse>(
             "/api/discovery/browse?mode=top_rated&type=movie&page=1&pageSize=1");
@@ -321,6 +324,12 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
                 CreatedAt = DateTime.UtcNow,
             });
         await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedTopRatedBrowseCatalogAsync()
+    {
+        await using var context = CreateContext();
+        await AdvancedSearchBrowseCatalogSeed.SeedTopRatedCatalogAsync(context);
     }
 
     private static ApplicationDbContext CreateContext()
