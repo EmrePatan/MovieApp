@@ -45,6 +45,16 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
     }
 
     [Fact]
+    public void BuildMovieQuery_PopularityWithUserMinVoteCount5000()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            sort: AdvancedDiscoverSort.PopularityDesc,
+            minVoteCount: 5000));
+
+        Assert.Contains("vote_count.gte=5000", query);
+    }
+
+    [Fact]
     public void BuildMovieQueryAppliesWatchProviderVoteFloorOnlyWhenProvidersArePresent()
     {
         var withProviders = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
