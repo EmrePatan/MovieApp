@@ -619,6 +619,37 @@ public sealed class HomeServiceTests
         Assert.Contains(recommended.Items, item => item.Id == recommendedItems[0].Id);
     }
 
+    [Theory]
+    [InlineData(10, 80)]
+    [InlineData(20, 80)]
+    public async Task GetHomePersonalizedAsyncUsesHomeScoredPoolCapForRecommendationDepth(
+        int sectionSize,
+        int expectedDepth)
+    {
+        var recommendations = new FakeRecommendationService(
+        [
+            new RecommendationSection(
+                "recommended-for-you",
+                "Recommended For You",
+                Enumerable.Range(1, sectionSize).Select(seed => CreateRecommendationItem("movie", seed)).ToList())
+        ]);
+        var service = CreateService(
+            recommendationService: recommendations,
+            options: new HomeOptions
+            {
+                DefaultSectionSize = sectionSize,
+                MaximumSectionSize = 20,
+                HeroSectionSize = 10
+            });
+
+        await service.GetHomePersonalizedAsync(
+            new HomeCriteria(SearchContentType.All, sectionSize),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(expectedDepth, recommendations.LastSectionItemCount);
+        Assert.False(recommendations.LastDiversify);
+    }
+
     [Fact]
     public async Task HomeRequestsScoredPoolBelowSqlCandidateBudget()
     {
@@ -660,6 +691,7 @@ public sealed class HomeServiceTests
 
         Assert.Equal(500, recommendationOptions.MaximumCandidates);
         Assert.NotNull(personalizedRecommendations.LastSectionItemCount);
+        Assert.Equal(80, personalizedRecommendations.LastSectionItemCount);
         Assert.InRange(personalizedRecommendations.LastSectionItemCount.Value, heroWindow, 80);
         Assert.NotEqual(recommendationOptions.MaximumCandidates, personalizedRecommendations.LastSectionItemCount);
         Assert.Equal(personalizedRecommendations.LastSectionItemCount, homeRecommendations.LastSectionItemCount);
@@ -692,7 +724,7 @@ public sealed class HomeServiceTests
 
         Assert.Equal(RecommendationContentType.Tv, recommendations.LastContentType);
         Assert.False(recommendations.LastDiversify);
-        Assert.Equal(40, recommendations.LastSectionItemCount);
+        Assert.Equal(80, recommendations.LastSectionItemCount);
         Assert.Equal(10, recommended.Items.Count);
         Assert.All(recommended.Items, item => Assert.Equal("tv", item.ContentType));
     }

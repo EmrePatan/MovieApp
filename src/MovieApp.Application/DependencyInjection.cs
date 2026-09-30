@@ -199,6 +199,7 @@ public static class DependencyInjection
         services.AddScoped<IContentSearchTitleProviderEnrichmentService, ContentSearchTitleProviderEnrichmentService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<ISearchHistoryService, SearchHistoryService>();
+        services.AddSingleton<IKeywordAffinityPreferenceBuilder, KeywordAffinityPreferenceBuilder>();
         services.AddScoped<IRecommendationService, RecommendationService>();
         services.AddScoped<IHomeGlobalSectionsProvider, HomeGlobalSectionsProvider>();
         services.AddScoped<IHotThisWeekTrendingSnapshotService, HotThisWeekTrendingSnapshotService>();

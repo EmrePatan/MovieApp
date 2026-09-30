@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Abstractions.Keywords;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Caching;
@@ -156,6 +157,9 @@ public sealed class RecommendationQueryFanOutTests
             new FakeCurrentUser(CurrentUserId),
             cacheService ?? new PassthroughCacheService(),
             new MovieApp.UnitTests.Search.SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            new KeywordAffinityPreferenceBuilder(
+                new EmptyKeywordCatalogStatisticsProvider(),
+                Options.Create(new KeywordCatalogStatisticsOptions { Enabled = false })),
             Options.Create(new RecommendationOptions
             {
                 MinimumPersonalizationInteractions = 1,
@@ -606,5 +610,12 @@ public sealed class RecommendationQueryFanOutTests
                 CreateService(repository, new CountingDiscoveryService()));
             return services.BuildServiceProvider().CreateScope();
         }
+    }
+
+    private sealed class EmptyKeywordCatalogStatisticsProvider : IKeywordCatalogStatisticsProvider
+    {
+        public IKeywordCatalogStatisticsSnapshot Current => KeywordCatalogStatisticsSnapshot.Empty;
+
+        public bool IsFrequencyAwareActive => false;
     }
 }

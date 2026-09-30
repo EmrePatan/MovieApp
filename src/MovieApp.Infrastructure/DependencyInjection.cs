@@ -15,6 +15,8 @@ using MovieApp.Infrastructure.Health;
 using MovieApp.Infrastructure.Email;
 using MovieApp.Infrastructure.Identity;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Infrastructure.Persistence.Recommendations;
+using MovieApp.Infrastructure.Keywords;
 using MovieApp.Infrastructure.Persistence.Keywords;
 using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Application.Abstractions.RateLimiting;
@@ -70,6 +72,16 @@ public static class DependencyInjection
         services.AddSingleton<IValidateOptions<SocialAuthOptions>, SocialAuthOptionsValidator>();
 
         services.Configure<RecommendationOptions>(configuration.GetSection(RecommendationOptions.SectionName));
+
+        services.AddOptions<KeywordCatalogStatisticsOptions>()
+            .Bind(configuration.GetSection(KeywordCatalogStatisticsOptions.SectionName));
+
+        services.AddSingleton<KeywordCatalogStatisticsProvider>();
+        services.AddSingleton<IKeywordCatalogStatisticsProvider>(provider =>
+            provider.GetRequiredService<KeywordCatalogStatisticsProvider>());
+        services.AddSingleton<IKeywordCatalogStatisticsLoader, KeywordCatalogStatisticsLoader>();
+        services.AddSingleton<IKeywordCatalogStatisticsRefreshService, KeywordCatalogStatisticsRefreshService>();
+        services.AddHostedService<KeywordCatalogStatisticsWarmupHostedService>();
 
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
 

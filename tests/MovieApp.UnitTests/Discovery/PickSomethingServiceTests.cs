@@ -7,7 +7,9 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Abstractions.Keywords;
 using MovieApp.Application.Services.Discovery;
+using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.UnitTests.Search;
@@ -249,12 +251,25 @@ public sealed class PickSomethingServiceTests
             repository,
             discoveryService,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            CreateKeywordAffinityPreferenceBuilder(),
             currentUser,
             Options.Create(new RecommendationOptions
             {
                 MinimumPersonalizationInteractions = 1,
                 MaximumCandidates = 50
             }));
+
+    private static KeywordAffinityPreferenceBuilder CreateKeywordAffinityPreferenceBuilder() =>
+        new(
+            new EmptyKeywordCatalogStatisticsProvider(),
+            Options.Create(new KeywordCatalogStatisticsOptions { Enabled = false }));
+
+    private sealed class EmptyKeywordCatalogStatisticsProvider : IKeywordCatalogStatisticsProvider
+    {
+        public IKeywordCatalogStatisticsSnapshot Current => KeywordCatalogStatisticsSnapshot.Empty;
+
+        public bool IsFrequencyAwareActive => false;
+    }
 
     private static PickSomethingCriteria CreateCriteria(
         RecommendationContentType mediaType,

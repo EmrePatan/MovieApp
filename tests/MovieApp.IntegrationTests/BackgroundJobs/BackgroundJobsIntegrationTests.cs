@@ -160,6 +160,11 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
             {
                 Enabled = true
             }),
+            Options.Create(new KeywordCatalogStatisticsOptions
+            {
+                Enabled = true,
+                RefreshCron = "0 3 * * *"
+            }),
             NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 
     private static async Task SeedFanoutDiscoveryDataAsync()

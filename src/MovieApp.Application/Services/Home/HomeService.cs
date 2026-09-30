@@ -575,11 +575,10 @@ public sealed class HomeService(
         var heroWindow = sectionSize
             + Math.Max(0, _options.HeroSectionSize)
             + Math.Max(0, _recommendationOptions.HomeRecommendationSurplus);
-        // sectionSize * 4 is headroom for genre interleave and diversity caps
-        // (~40 at the default rail of 10) without returning the SQL candidate budget as scored rows.
-        var headroom = Math.Max(heroWindow, Math.Max(0, sectionSize) * 4);
+        // HomeScoredPoolCap is the deepest scored slice passed to SelectHomeRecommended
+        // (not the SQL MaximumCandidates budget).
         var upper = Math.Max(heroWindow, HomeScoredPoolCap);
-        return Math.Clamp(headroom, heroWindow, upper);
+        return Math.Clamp(upper, heroWindow, upper);
     }
 
     private static IReadOnlyList<RecommendationItem> FilterRecommendationItems(

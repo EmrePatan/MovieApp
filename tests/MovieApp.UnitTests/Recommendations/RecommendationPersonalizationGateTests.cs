@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Abstractions.Keywords;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
 using MovieApp.UnitTests.Search;
@@ -26,6 +27,7 @@ public sealed class RecommendationPersonalizationGateTests
             new FakeCurrentUser(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")),
             new PassthroughCacheService(),
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
+            CreateKeywordAffinityPreferenceBuilder(),
             Options.Create(new RecommendationOptions
             {
                 MinimumPersonalizationInteractions = 3,
@@ -161,5 +163,17 @@ public sealed class RecommendationPersonalizationGateTests
             CandidateFetchCount++;
             return Task.FromResult<IReadOnlyList<PersonalizedCandidateProfile>>([]);
         }
+    }
+
+    private static KeywordAffinityPreferenceBuilder CreateKeywordAffinityPreferenceBuilder() =>
+        new(
+            new EmptyKeywordCatalogStatisticsProvider(),
+            Options.Create(new KeywordCatalogStatisticsOptions { Enabled = false }));
+
+    private sealed class EmptyKeywordCatalogStatisticsProvider : IKeywordCatalogStatisticsProvider
+    {
+        public IKeywordCatalogStatisticsSnapshot Current => KeywordCatalogStatisticsSnapshot.Empty;
+
+        public bool IsFrequencyAwareActive => false;
     }
 }

@@ -21,6 +21,8 @@ public static class RecurringJobIds
 
     public const string HotThisWeekTrendingRefresh = "movieapp:hot-this-week-trending-refresh";
 
+    public const string KeywordCatalogStatisticsRefresh = "movieapp:keyword-catalog-statistics-refresh";
+
     public static IReadOnlyList<string> All =>
     [
         TmdbTvChanges,
@@ -36,6 +38,7 @@ public static class RecurringJobIds
         CatalogGenreBackfill,
         TvUpcomingEpisodeSync,
         NotificationInboxCleanup,
-        HotThisWeekTrendingRefresh
+        HotThisWeekTrendingRefresh,
+        KeywordCatalogStatisticsRefresh
     ];
 }

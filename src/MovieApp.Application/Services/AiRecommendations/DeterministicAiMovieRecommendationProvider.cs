@@ -19,6 +19,7 @@ namespace MovieApp.Application.Services.AiRecommendations;
 public sealed class DeterministicAiMovieRecommendationProvider(
     IRecommendationRepository recommendationRepository,
     IDiscoveryService discoveryService,
+    IKeywordAffinityPreferenceBuilder keywordAffinityPreferenceBuilder,
     IOptions<RecommendationOptions> recommendationOptions) : IDeterministicAiMovieRecommendationProvider
 {
     public async Task<AiProviderGenerationResult> GenerateAsync(
@@ -90,7 +91,7 @@ public sealed class DeterministicAiMovieRecommendationProvider(
             context.Signals,
             settings,
             utcNow);
-        var keywordPreferences = KeywordAffinityScorer.BuildKeywordPreferences(
+        var keywordPreferences = keywordAffinityPreferenceBuilder.Build(
             context.Signals,
             settings,
             utcNow);

@@ -86,7 +86,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         registrar.RegisterRecurringJobs();
         registrar.RegisterRecurringJobs();
 
-        Assert.Equal(10, manager.AddedOrUpdated.Count);
+        Assert.Equal(11, manager.AddedOrUpdated.Count);
     }
 
     [Fact]
@@ -221,6 +221,11 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             Options.Create(new HotThisWeekTrendingRefreshOptions
             {
                 Enabled = true
+            }),
+            Options.Create(new KeywordCatalogStatisticsOptions
+            {
+                Enabled = true,
+                RefreshCron = "0 3 * * *"
             }),
             NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 }

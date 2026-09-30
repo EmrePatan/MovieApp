@@ -25,6 +25,7 @@ public sealed class RecommendationService(
     ICurrentUser currentUser,
     ICacheService cacheService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
+    IKeywordAffinityPreferenceBuilder keywordAffinityPreferenceBuilder,
     IOptions<RecommendationOptions> options,
     ILogger<RecommendationService> logger,
     IServiceScopeFactory? scopeFactory = null) : IRecommendationService
@@ -317,7 +318,7 @@ public sealed class RecommendationService(
             context.Signals,
             _options,
             utcNow);
-        var keywordPreferences = KeywordAffinityScorer.BuildKeywordPreferences(
+        var keywordPreferences = keywordAffinityPreferenceBuilder.Build(
             context.Signals,
             _options,
             utcNow);

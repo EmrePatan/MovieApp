@@ -286,4 +286,13 @@ internal static partial class BackgroundJobLogMessages
         int providerItemCount,
         int mappedItemCount,
         int skippedItemCount);
+
+    [LoggerMessage(
+        EventId = 6016,
+        Level = LogLevel.Warning,
+        Message = "Keyword catalog statistics refresh failed: reason={Reason} durationMs={DurationMilliseconds}")]
+    internal static partial void LogKeywordCatalogStatisticsRefreshFailed(
+        ILogger logger,
+        string reason,
+        long durationMilliseconds);
 }

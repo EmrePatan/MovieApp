@@ -1,3 +1,4 @@
+using MovieApp.Application.Abstractions.Keywords;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Recommendations;
 
@@ -8,9 +9,21 @@ public static class KeywordAffinityScorer
     public static IReadOnlyDictionary<Guid, decimal> BuildKeywordPreferences(
         IReadOnlyList<UserBehaviorSignal> signals,
         RecommendationOptions options,
-        DateTime utcNow)
+        DateTime utcNow) =>
+        BuildKeywordPreferences(signals, options, utcNow, catalogStatistics: null, statisticsOptions: null);
+
+    public static IReadOnlyDictionary<Guid, decimal> BuildKeywordPreferences(
+        IReadOnlyList<UserBehaviorSignal> signals,
+        RecommendationOptions options,
+        DateTime utcNow,
+        IKeywordCatalogStatisticsSnapshot? catalogStatistics,
+        KeywordCatalogStatisticsOptions? statisticsOptions)
     {
+        var useFrequencyAware = statisticsOptions?.Enabled == true &&
+                                catalogStatistics is { IsAvailable: true };
+
         var preferences = new Dictionary<Guid, decimal>();
+        var genericDampeningFactor = statisticsOptions?.GenericDampeningFactor ?? 0.5d;
 
         foreach (var signal in signals)
         {
@@ -30,10 +43,25 @@ public static class KeywordAffinityScorer
 
             foreach (var keywordId in keywordIds)
             {
-                preferences[keywordId] = preferences.GetValueOrDefault(keywordId) + perKeywordContribution;
+                var weightedContribution = perKeywordContribution;
+                if (useFrequencyAware)
+                {
+                    var multiplier = KeywordCatalogStatisticsMath.GetPreferenceWeightMultiplier(
+                        catalogStatistics,
+                        keywordId,
+                        genericDampeningFactor);
+                    weightedContribution *= (decimal)multiplier;
+                }
+
+                preferences[keywordId] = preferences.GetValueOrDefault(keywordId) + weightedContribution;
             }
         }
 
+        return NormalizePreferences(preferences);
+    }
+
+    internal static IReadOnlyDictionary<Guid, decimal> NormalizePreferences(Dictionary<Guid, decimal> preferences)
+    {
         if (preferences.Count == 0)
         {
             return preferences;

@@ -25,6 +25,8 @@ public static class BackgroundJobsServiceCollectionExtensions
             configuration.GetSection(NotificationRetentionOptions.SectionName));
         services.Configure<HotThisWeekTrendingRefreshOptions>(
             configuration.GetSection(HotThisWeekTrendingRefreshOptions.SectionName));
+        services.Configure<KeywordCatalogStatisticsOptions>(
+            configuration.GetSection(KeywordCatalogStatisticsOptions.SectionName));
 
         var backgroundJobs = configuration
             .GetSection(BackgroundJobsOptions.SectionName)
@@ -93,6 +95,7 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.AddScoped<TvUpcomingEpisodeSyncJob>();
         services.AddScoped<NotificationInboxCleanupJob>();
         services.AddScoped<HotThisWeekTrendingRefreshJob>();
+        services.AddScoped<KeywordCatalogStatisticsRefreshJob>();
 
         return services;
     }

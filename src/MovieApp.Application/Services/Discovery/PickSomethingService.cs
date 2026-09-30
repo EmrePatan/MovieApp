@@ -19,6 +19,7 @@ public sealed class PickSomethingService(
     IRecommendationRepository recommendationRepository,
     IDiscoveryService discoveryService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
+    IKeywordAffinityPreferenceBuilder keywordAffinityPreferenceBuilder,
     ICurrentUser currentUser,
     IOptions<RecommendationOptions> options) : IPickSomethingService
 {
@@ -135,7 +136,7 @@ public sealed class PickSomethingService(
             context.Signals,
             _options,
             utcNow);
-        var keywordPreferences = KeywordAffinityScorer.BuildKeywordPreferences(
+        var keywordPreferences = keywordAffinityPreferenceBuilder.Build(
             context.Signals,
             _options,
             utcNow);
