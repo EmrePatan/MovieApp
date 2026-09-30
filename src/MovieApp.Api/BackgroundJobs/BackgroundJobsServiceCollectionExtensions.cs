@@ -15,6 +15,8 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.Configure<BackgroundJobsOptions>(configuration.GetSection(BackgroundJobsOptions.SectionName));
         services.Configure<CatalogKeywordBackfillOptions>(
             configuration.GetSection(CatalogKeywordBackfillOptions.SectionName));
+        services.Configure<MdbListKeywordBackfillOptions>(
+            configuration.GetSection(MdbListKeywordBackfillOptions.SectionName));
         services.Configure<CatalogGenreBackfillOptions>(
             configuration.GetSection(CatalogGenreBackfillOptions.SectionName));
         services.Configure<TvUpcomingEpisodeSyncOptions>(
@@ -86,6 +88,7 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.AddScoped<PushReceiptJob>();
         services.AddScoped<CatalogKeywordBackfillJob>();
         services.AddScoped<ICatalogKeywordBackfillJobEnqueuer, CatalogKeywordBackfillJobEnqueuer>();
+        services.AddScoped<MdbListKeywordBackfillJob>();
         services.AddScoped<CatalogGenreBackfillJob>();
         services.AddScoped<TvUpcomingEpisodeSyncJob>();
         services.AddScoped<NotificationInboxCleanupJob>();

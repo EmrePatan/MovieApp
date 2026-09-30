@@ -204,6 +204,11 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
                 Enabled = keywordBackfillEnabled,
                 RecurringCron = "0 * * * *"
             }),
+            Options.Create(new MdbListKeywordBackfillOptions
+            {
+                Enabled = false,
+                RecurringCron = "0 * * * *"
+            }),
             Options.Create(new CatalogGenreBackfillOptions
             {
                 Enabled = genreBackfillEnabled,

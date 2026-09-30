@@ -207,6 +207,30 @@ public sealed class SearchCatalogKeywordIngestionTests
             DateTime syncedAtUtc,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<KeywordEnrichmentTarget?> GetMovieMdbListKeywordTargetAsync(Guid movieId, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.GetMovieMdbListKeywordTargetAsync(movieId, cancellationToken);
+
+        public Task<KeywordEnrichmentTarget?> GetTvShowMdbListKeywordTargetAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.GetTvShowMdbListKeywordTargetAsync(tvShowId, cancellationToken);
+
+        public Task<Guid?> FindMovieIdByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.FindMovieIdByTmdbIdAsync(tmdbId, cancellationToken);
+
+        public Task<Guid?> FindTvShowIdByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.FindTvShowIdByTmdbIdAsync(tmdbId, cancellationToken);
+
+        public Task<MdbListKeywordIngestionResult> ApplyMovieMdbListKeywordIngestionAsync(Guid movieId, IReadOnlyList<MdbListKeywordTransportItem> providerKeywords, DateTime syncedAtUtc, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.ApplyMovieMdbListKeywordIngestionAsync(movieId, providerKeywords, syncedAtUtc, cancellationToken);
+
+        public Task<MdbListKeywordIngestionResult> ApplyTvShowMdbListKeywordIngestionAsync(Guid tvShowId, IReadOnlyList<MdbListKeywordTransportItem> providerKeywords, DateTime syncedAtUtc, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.ApplyTvShowMdbListKeywordIngestionAsync(tvShowId, providerKeywords, syncedAtUtc, cancellationToken);
+
+        public Task<int> CountMovieMdbListSourcesAsync(Guid movieId, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.CountMovieMdbListSourcesAsync(movieId, cancellationToken);
+
+        public Task<int> CountTvShowMdbListSourcesAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
+            KeywordCatalogRepositoryMdbListNoOp.CountTvShowMdbListSourcesAsync(tvShowId, cancellationToken);
     }
 
     private sealed class NoOpMovieCatalogDetailsCacheInvalidator : IMovieCatalogDetailsCacheInvalidator

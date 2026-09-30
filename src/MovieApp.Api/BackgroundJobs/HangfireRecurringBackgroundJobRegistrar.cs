@@ -10,6 +10,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
     IOptions<BackgroundJobsOptions> backgroundJobsOptions,
     IOptions<PushNotificationsOptions> pushNotificationsOptions,
     IOptions<CatalogKeywordBackfillOptions> catalogKeywordBackfillOptions,
+    IOptions<MdbListKeywordBackfillOptions> mdbListKeywordBackfillOptions,
     IOptions<CatalogGenreBackfillOptions> catalogGenreBackfillOptions,
     IOptions<TvUpcomingEpisodeSyncOptions> tvUpcomingEpisodeSyncOptions,
     IOptions<HotThisWeekTrendingRefreshOptions> hotThisWeekTrendingRefreshOptions,
@@ -131,6 +132,19 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         else
         {
             SkipRecurringJob(RecurringJobIds.CatalogKeywordBackfill, "CatalogKeywordBackfill:Enabled=false");
+        }
+
+        if (mdbListKeywordBackfillOptions.Value.Enabled)
+        {
+            recurringJobManager.AddOrUpdate<MdbListKeywordBackfillJob>(
+                RecurringJobIds.MdbListKeywordBackfill,
+                job => job.ExecuteAsync(),
+                mdbListKeywordBackfillOptions.Value.RecurringCron,
+                UtcOptions);
+        }
+        else
+        {
+            SkipRecurringJob(RecurringJobIds.MdbListKeywordBackfill, "MdbListKeywordBackfill:Enabled=false");
         }
 
         if (catalogGenreBackfillOptions.Value.Enabled)

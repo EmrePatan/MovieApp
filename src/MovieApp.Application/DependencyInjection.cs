@@ -188,6 +188,9 @@ public static class DependencyInjection
         services.AddSingleton<ICatalogKeywordReadPathScheduler, BackgroundCatalogKeywordReadPathScheduler>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();
         services.AddScoped<ICatalogKeywordBackfillService, CatalogKeywordBackfillService>();
+        services.AddScoped<IMdbListKeywordIngestionService, MdbListKeywordIngestionService>();
+        services.AddScoped<IMdbListKeywordBackfillItemProcessor, MdbListKeywordBackfillItemProcessor>();
+        services.AddScoped<IMdbListKeywordBackfillService, MdbListKeywordBackfillService>();
         services.AddScoped<ICatalogGenreBackfillItemProcessor, CatalogGenreBackfillItemProcessor>();
         services.AddScoped<ICatalogGenreBackfillService, CatalogGenreBackfillService>();
         services.AddScoped<ICatalogProviderUpsertService, CatalogProviderUpsertService>();

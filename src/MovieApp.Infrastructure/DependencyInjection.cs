@@ -110,12 +110,17 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(CatalogKeywordBackfillOptions.SectionName))
             .ValidateOnStart();
 
+        services.AddOptions<MdbListKeywordBackfillOptions>()
+            .Bind(configuration.GetSection(MdbListKeywordBackfillOptions.SectionName))
+            .ValidateOnStart();
+
         services.AddOptions<KeywordGraphOptions>()
             .Bind(configuration.GetSection(KeywordGraphOptions.SectionName))
             .ValidateOnStart();
 
         services.AddSingleton<IValidateOptions<KeywordGraphOptions>, KeywordGraphOptionsValidator>();
         services.AddSingleton<IValidateOptions<CatalogKeywordBackfillOptions>, CatalogKeywordBackfillOptionsValidator>();
+        services.AddSingleton<IValidateOptions<MdbListKeywordBackfillOptions>, MdbListKeywordBackfillOptionsValidator>();
         services.AddSingleton<IValidateOptions<CatalogGenreBackfillOptions>, CatalogGenreBackfillOptionsValidator>();
 
         services.AddOptions<TvUpcomingEpisodeSyncOptions>()
@@ -234,6 +239,7 @@ public static class DependencyInjection
         services.AddScoped<IKeywordGraphReconciliationService, KeywordGraphReconciliationService>();
 
         services.AddScoped<ICatalogKeywordBackfillRepository, CatalogKeywordBackfillRepository>();
+        services.AddScoped<IMdbListKeywordBackfillRepository, MdbListKeywordBackfillRepository>();
         services.AddScoped<ICatalogGenreBackfillRepository, CatalogGenreBackfillRepository>();
 
         services.AddScoped<IPersonRepository, PersonRepository>();

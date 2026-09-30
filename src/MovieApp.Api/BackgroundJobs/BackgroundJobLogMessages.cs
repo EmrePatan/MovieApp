@@ -128,6 +128,32 @@ internal static partial class BackgroundJobLogMessages
     internal static partial void LogCatalogKeywordBackfillDisabled(ILogger logger);
 
     [LoggerMessage(
+        EventId = 6020,
+        Level = LogLevel.Information,
+        Message = "MDBList keyword backfill is disabled; skipping execution.")]
+    internal static partial void LogMdbListKeywordBackfillDisabled(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 6021,
+        Level = LogLevel.Information,
+        Message = "MDBList keyword backfill completed: no eligible candidates.")]
+    internal static partial void LogMdbListKeywordBackfillNoCandidates(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 6022,
+        Level = LogLevel.Information,
+        Message = "MDBList keyword backfill completed: selected={Selected} succeeded={Succeeded} failed={Failed} skipped={Skipped} movies={MoviesProcessed} tv={TvShowsProcessed} durationMs={DurationMs}")]
+    internal static partial void LogMdbListKeywordBackfillCompleted(
+        ILogger logger,
+        int selected,
+        int succeeded,
+        int failed,
+        int skipped,
+        int moviesProcessed,
+        int tvShowsProcessed,
+        long durationMs);
+
+    [LoggerMessage(
         EventId = 6010,
         Level = LogLevel.Information,
         Message = "Catalog keyword backfill completed: no eligible candidates. coverage={Synced}/{Eligible} ({CoveragePercent}%)")]

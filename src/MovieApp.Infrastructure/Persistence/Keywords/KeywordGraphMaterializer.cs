@@ -36,15 +36,30 @@ internal static class KeywordGraphMaterializer
         await ApplyTvShowKeywordUnionAsync(dbContext, tvShowId, sourceKeywordIds, cancellationToken);
     }
 
-    public static async Task ReconcileTmdbMovieSourcesAsync(
+    public static Task ReconcileTmdbMovieSourcesAsync(
         ApplicationDbContext dbContext,
         Guid movieId,
+        IReadOnlySet<Guid> incomingKeywordIds,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        ReconcileProviderMovieSourcesAsync(
+            dbContext,
+            movieId,
+            KeywordProvider.Tmdb,
+            incomingKeywordIds,
+            syncedAtUtc,
+            cancellationToken);
+
+    private static async Task ReconcileProviderMovieSourcesAsync(
+        ApplicationDbContext dbContext,
+        Guid movieId,
+        KeywordProvider provider,
         IReadOnlySet<Guid> incomingKeywordIds,
         DateTime syncedAtUtc,
         CancellationToken cancellationToken)
     {
         var currentSources = await dbContext.MovieKeywordSources
-            .Where(source => source.MovieId == movieId && source.Provider == KeywordProvider.Tmdb)
+            .Where(source => source.MovieId == movieId && source.Provider == provider)
             .ToListAsync(cancellationToken);
 
         var currentKeywordIds = currentSources.Select(source => source.KeywordId).ToHashSet();
@@ -60,7 +75,7 @@ internal static class KeywordGraphMaterializer
             {
                 MovieId = movieId,
                 KeywordId = keywordId,
-                Provider = KeywordProvider.Tmdb,
+                Provider = provider,
                 FirstSeenAtUtc = syncedAtUtc,
                 LastSeenAtUtc = syncedAtUtc,
             });
@@ -72,15 +87,58 @@ internal static class KeywordGraphMaterializer
         }
     }
 
-    public static async Task ReconcileTmdbTvShowSourcesAsync(
+    public static async Task ReconcileMdbListMovieSourcesAsync(
+        ApplicationDbContext dbContext,
+        Guid movieId,
+        IReadOnlySet<Guid> incomingKeywordIds,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        await ReconcileProviderMovieSourcesAsync(
+            dbContext,
+            movieId,
+            KeywordProvider.MdbList,
+            incomingKeywordIds,
+            syncedAtUtc,
+            cancellationToken);
+
+    public static async Task ReconcileMdbListTvShowSourcesAsync(
         ApplicationDbContext dbContext,
         Guid tvShowId,
+        IReadOnlySet<Guid> incomingKeywordIds,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        await ReconcileProviderTvShowSourcesAsync(
+            dbContext,
+            tvShowId,
+            KeywordProvider.MdbList,
+            incomingKeywordIds,
+            syncedAtUtc,
+            cancellationToken);
+
+    public static Task ReconcileTmdbTvShowSourcesAsync(
+        ApplicationDbContext dbContext,
+        Guid tvShowId,
+        IReadOnlySet<Guid> incomingKeywordIds,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        ReconcileProviderTvShowSourcesAsync(
+            dbContext,
+            tvShowId,
+            KeywordProvider.Tmdb,
+            incomingKeywordIds,
+            syncedAtUtc,
+            cancellationToken);
+
+    private static async Task ReconcileProviderTvShowSourcesAsync(
+        ApplicationDbContext dbContext,
+        Guid tvShowId,
+        KeywordProvider provider,
         IReadOnlySet<Guid> incomingKeywordIds,
         DateTime syncedAtUtc,
         CancellationToken cancellationToken)
     {
         var currentSources = await dbContext.TvShowKeywordSources
-            .Where(source => source.TvShowId == tvShowId && source.Provider == KeywordProvider.Tmdb)
+            .Where(source => source.TvShowId == tvShowId && source.Provider == provider)
             .ToListAsync(cancellationToken);
 
         var currentKeywordIds = currentSources.Select(source => source.KeywordId).ToHashSet();
@@ -96,7 +154,7 @@ internal static class KeywordGraphMaterializer
             {
                 TvShowId = tvShowId,
                 KeywordId = keywordId,
-                Provider = KeywordProvider.Tmdb,
+                Provider = provider,
                 FirstSeenAtUtc = syncedAtUtc,
                 LastSeenAtUtc = syncedAtUtc,
             });

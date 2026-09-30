@@ -5,7 +5,9 @@ using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Movies;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Search;
+using MovieApp.Application.Models.Keywords;
 using MovieApp.Domain.Enums;
 using System.Data.Common;
 using MovieApp.Infrastructure.Persistence;
@@ -40,6 +42,8 @@ internal static class ContentSearchTitleOpsCli
             "keyword-graph-verify-readiness" => await RunKeywordGraphVerifyReadinessAsync(provider),
             "mdb-keywords-movie" => await RunMdbKeywordsMovieAsync(provider, options),
             "mdb-keywords-tv" => await RunMdbKeywordsTvAsync(provider, options),
+            "mdb-keywords-sync-movie" => await RunMdbKeywordsSyncMovieAsync(provider, options),
+            "mdb-keywords-sync-tv" => await RunMdbKeywordsSyncTvAsync(provider, options),
             _ => UnknownCommand(command),
         };
     }
@@ -86,6 +90,48 @@ internal static class ContentSearchTitleOpsCli
             Console.WriteLine($"keyword external_id={keyword.ExternalId} name={keyword.Name}");
         }
 
+        return 0;
+    }
+
+    private static async Task<int> RunMdbKeywordsSyncMovieAsync(ServiceProvider provider, ParsedOptions options)
+    {
+        if (options.TmdbId is not int tmdbId)
+        {
+            Console.Error.WriteLine("mdb-keywords-sync-movie requires --tmdb-id <id>");
+            return 1;
+        }
+
+        return await RunMdbKeywordsSyncAsync(provider, tmdbId, isMovie: true);
+    }
+
+    private static async Task<int> RunMdbKeywordsSyncTvAsync(ServiceProvider provider, ParsedOptions options)
+    {
+        if (options.TmdbId is not int tmdbId)
+        {
+            Console.Error.WriteLine("mdb-keywords-sync-tv requires --tmdb-id <id>");
+            return 1;
+        }
+
+        return await RunMdbKeywordsSyncAsync(provider, tmdbId, isMovie: false);
+    }
+
+    private static async Task<int> RunMdbKeywordsSyncAsync(ServiceProvider provider, int tmdbId, bool isMovie)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        var ingestion = scope.ServiceProvider.GetRequiredService<IMdbListKeywordIngestionService>();
+        var result = isMovie
+            ? await ingestion.IngestMovieByTmdbIdAsync(tmdbId)
+            : await ingestion.IngestTvShowByTmdbIdAsync(tmdbId);
+
+        if (result.Status != MdbListKeywordIngestionStatus.Succeeded || result.Stats is null)
+        {
+            Console.WriteLine($"mdb_keywords_sync status={result.Status}");
+            return result.Status == MdbListKeywordIngestionStatus.CatalogNotFound ? 1 : 2;
+        }
+
+        var stats = result.Stats;
+        Console.WriteLine(
+            $"mdb_keywords_sync status={result.Status} provider_keywords={stats.ProviderKeywordCount} promoted={stats.PromotedCanonicalCount} skipped_no_match={stats.SkippedNoMatchCount} skipped_ambiguous={stats.SkippedAmbiguousCount} external_refs_created={stats.ExternalReferencesCreated} external_refs_reused={stats.ExternalReferencesReused} mdb_sources={result.MdbListSourceCount} synced_at_utc={result.MdbListKeywordsSyncedAtUtc:O}");
         return 0;
     }
 
@@ -361,6 +407,8 @@ internal static class ContentSearchTitleOpsCli
               keyword-graph-verify-readiness
               mdb-keywords-movie --tmdb-id <id>
               mdb-keywords-tv --tmdb-id <id>
+              mdb-keywords-sync-movie --tmdb-id <id>
+              mdb-keywords-sync-tv --tmdb-id <id>
 
             Configuration: appsettings.json + environment (PostgreSql__*, Tmdb__ApiKey, MDBList__ApiKey).
             Keyword graph ops are explicit one-shot maintenance (no Hangfire / no API).

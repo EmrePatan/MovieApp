@@ -461,4 +461,223 @@ public sealed class KeywordCatalogRepository(
 
         return existingKeywords.ToDictionary(keyword => keyword.TmdbKeywordId!.Value);
     }
+
+    public async Task<KeywordEnrichmentTarget?> GetMovieMdbListKeywordTargetAsync(
+        Guid movieId,
+        CancellationToken cancellationToken = default)
+    {
+        var movie = await dbContext.Movies
+            .AsNoTracking()
+            .Where(existingMovie => existingMovie.Id == movieId)
+            .Select(existingMovie => new { existingMovie.TmdbId, existingMovie.MdbListKeywordsSyncedAtUtc })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (movie is null || movie.TmdbId is null or <= 0)
+        {
+            return null;
+        }
+
+        return new KeywordEnrichmentTarget(movie.TmdbId.Value, movie.MdbListKeywordsSyncedAtUtc);
+    }
+
+    public async Task<KeywordEnrichmentTarget?> GetTvShowMdbListKeywordTargetAsync(
+        Guid tvShowId,
+        CancellationToken cancellationToken = default)
+    {
+        var tvShow = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(existingTvShow => existingTvShow.Id == tvShowId)
+            .Select(existingTvShow => new { existingTvShow.TmdbId, existingTvShow.MdbListKeywordsSyncedAtUtc })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tvShow is null || tvShow.TmdbId is null or <= 0)
+        {
+            return null;
+        }
+
+        return new KeywordEnrichmentTarget(tvShow.TmdbId.Value, tvShow.MdbListKeywordsSyncedAtUtc);
+    }
+
+    public async Task<Guid?> FindMovieIdByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+        await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movie.TmdbId == tmdbId)
+            .Select(movie => (Guid?)movie.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<Guid?> FindTvShowIdByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+        await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShow.TmdbId == tmdbId)
+            .Select(tvShow => (Guid?)tvShow.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<MdbListKeywordIngestionResult> ApplyMovieMdbListKeywordIngestionAsync(
+        Guid movieId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        ApplyMdbListKeywordIngestionAsync(
+            movieId,
+            isMovie: true,
+            providerKeywords,
+            syncedAtUtc,
+            cancellationToken);
+
+    public Task<MdbListKeywordIngestionResult> ApplyTvShowMdbListKeywordIngestionAsync(
+        Guid tvShowId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken) =>
+        ApplyMdbListKeywordIngestionAsync(
+            tvShowId,
+            isMovie: false,
+            providerKeywords,
+            syncedAtUtc,
+            cancellationToken);
+
+    public async Task<int> CountMovieMdbListSourcesAsync(Guid movieId, CancellationToken cancellationToken = default) =>
+        await dbContext.MovieKeywordSources
+            .AsNoTracking()
+            .CountAsync(
+                source => source.MovieId == movieId && source.Provider == Domain.Enums.KeywordProvider.MdbList,
+                cancellationToken);
+
+    public async Task<int> CountTvShowMdbListSourcesAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
+        await dbContext.TvShowKeywordSources
+            .AsNoTracking()
+            .CountAsync(
+                source => source.TvShowId == tvShowId && source.Provider == Domain.Enums.KeywordProvider.MdbList,
+                cancellationToken);
+
+    private async Task<MdbListKeywordIngestionResult> ApplyMdbListKeywordIngestionAsync(
+        Guid contentId,
+        bool isMovie,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (isMovie)
+        {
+            var movie = await dbContext.Movies.FirstOrDefaultAsync(existing => existing.Id == contentId, cancellationToken);
+            if (movie is null)
+            {
+                return new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.CatalogNotFound);
+            }
+
+            MdbListKeywordResolutionStats stats;
+            if (IsNpgsql())
+            {
+                stats = await dbContext.Database.ExecuteInRetriableTransactionAsync(
+                    async ct =>
+                    {
+                        var resolution = await MdbListKeywordGraphResolver.ResolveAsync(
+                            dbContext,
+                            providerKeywords,
+                            syncedAtUtc,
+                            ct);
+                        await dbContext.SaveChangesAsync(ct);
+                        await KeywordGraphMaterializer.ReconcileMdbListMovieSourcesAsync(
+                            dbContext,
+                            movie.Id,
+                            resolution.PromotedKeywordIds,
+                            syncedAtUtc,
+                            ct);
+                        await dbContext.SaveChangesAsync(ct);
+                        await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, ct);
+                        movie.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
+                        await dbContext.SaveChangesAsync(ct);
+                        return resolution.Stats;
+                    },
+                    cancellationToken);
+            }
+            else
+            {
+                var resolution = await MdbListKeywordGraphResolver.ResolveAsync(
+                    dbContext,
+                    providerKeywords,
+                    syncedAtUtc,
+                    cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await KeywordGraphMaterializer.ReconcileMdbListMovieSourcesAsync(
+                    dbContext,
+                    movie.Id,
+                    resolution.PromotedKeywordIds,
+                    syncedAtUtc,
+                    cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, cancellationToken);
+                movie.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                stats = resolution.Stats;
+            }
+
+            var sourceCount = await CountMovieMdbListSourcesAsync(movie.Id, cancellationToken);
+            return new MdbListKeywordIngestionResult(
+                MdbListKeywordIngestionStatus.Succeeded,
+                stats,
+                sourceCount,
+                movie.MdbListKeywordsSyncedAtUtc);
+        }
+
+        var tvShow = await dbContext.TvShows.FirstOrDefaultAsync(existing => existing.Id == contentId, cancellationToken);
+        if (tvShow is null)
+        {
+            return new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.CatalogNotFound);
+        }
+
+        MdbListKeywordResolutionStats tvStats;
+        if (IsNpgsql())
+        {
+            tvStats = await dbContext.Database.ExecuteInRetriableTransactionAsync(
+                async ct =>
+                {
+                    var resolution = await MdbListKeywordGraphResolver.ResolveAsync(
+                        dbContext,
+                        providerKeywords,
+                        syncedAtUtc,
+                        ct);
+                    await dbContext.SaveChangesAsync(ct);
+                    await KeywordGraphMaterializer.ReconcileMdbListTvShowSourcesAsync(
+                        dbContext,
+                        tvShow.Id,
+                        resolution.PromotedKeywordIds,
+                        syncedAtUtc,
+                        ct);
+                    await dbContext.SaveChangesAsync(ct);
+                    await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, ct);
+                    tvShow.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
+                    await dbContext.SaveChangesAsync(ct);
+                    return resolution.Stats;
+                },
+                cancellationToken);
+        }
+        else
+        {
+            var resolution = await MdbListKeywordGraphResolver.ResolveAsync(
+                dbContext,
+                providerKeywords,
+                syncedAtUtc,
+                cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await KeywordGraphMaterializer.ReconcileMdbListTvShowSourcesAsync(
+                dbContext,
+                tvShow.Id,
+                resolution.PromotedKeywordIds,
+                syncedAtUtc,
+                cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, cancellationToken);
+            tvShow.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            tvStats = resolution.Stats;
+        }
+
+        var tvSourceCount = await CountTvShowMdbListSourcesAsync(tvShow.Id, cancellationToken);
+        return new MdbListKeywordIngestionResult(
+            MdbListKeywordIngestionStatus.Succeeded,
+            tvStats,
+            tvSourceCount,
+            tvShow.MdbListKeywordsSyncedAtUtc);
+    }
 }
