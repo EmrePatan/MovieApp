@@ -28,6 +28,8 @@ public sealed class AdvancedDiscoverCacheKeysTests
             null,
             [],
             [],
+            [],
+            [],
             AdvancedDiscoverSort.PopularityDesc,
             1,
             20);

@@ -1,4 +1,4 @@
-namespace MovieApp.Application.Models.Search;
+﻿namespace MovieApp.Application.Models.Search;
 
 public sealed record AdvancedDiscoverCriteria(
     SearchContentType MediaType,
@@ -20,6 +20,8 @@ public sealed record AdvancedDiscoverCriteria(
     string? WatchRegion,
     IReadOnlyList<int> WatchProviderIds,
     IReadOnlyList<WatchMonetizationType> WatchMonetizationTypes,
+    IReadOnlyList<Guid> KeywordIds,
+    IReadOnlyList<TvDiscoverStatus> TvStatuses,
     AdvancedDiscoverSort Sort,
     int Page,
     int PageSize);

@@ -20,6 +20,7 @@ public sealed class AdvancedDiscoverService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IGenreReadRepository genreReadRepository,
+    IKeywordDiscoverReadRepository keywordDiscoverReadRepository,
     ICacheService cacheService,
     ILogger<AdvancedDiscoverService> logger,
     ITransactionalStreamOfferFilter? transactionalStreamOfferFilter = null) : IAdvancedDiscoverService
@@ -91,6 +92,14 @@ public sealed class AdvancedDiscoverService(
             };
         }
 
+        IReadOnlyList<int> keywordTmdbIds = [];
+        if (criteria.KeywordIds.Count > 0)
+        {
+            keywordTmdbIds = await keywordDiscoverReadRepository.ResolveTmdbKeywordIdsAsync(
+                criteria.KeywordIds,
+                cancellationToken);
+        }
+
         return new AdvancedDiscoverProviderCriteria(
             criteria.Page,
             genreTmdbIds,
@@ -117,6 +126,8 @@ public sealed class AdvancedDiscoverService(
                 : WatchProviderRegionValidator.Normalize(criteria.WatchRegion),
             criteria.WatchProviderIds,
             criteria.WatchMonetizationTypes,
+            keywordTmdbIds,
+            criteria.TvStatuses,
             criteria.Sort);
     }
 

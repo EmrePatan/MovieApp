@@ -17,8 +17,16 @@ public sealed class FakeDiscoverProviderTests
                 1,
                 [],
                 null,
+                null,
+                null,
                 8.0m,
                 null,
+                null,
+                null,
+                null,
+                null,
+                [],
+                [],
                 null),
             CancellationToken.None);
 
@@ -38,7 +46,15 @@ public sealed class FakeDiscoverProviderTests
                 [],
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 "en",
+                null,
+                [],
+                [],
                 null),
             CancellationToken.None);
 

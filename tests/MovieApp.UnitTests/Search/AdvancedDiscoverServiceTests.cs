@@ -76,6 +76,7 @@ public sealed class AdvancedDiscoverServiceTests
             movieRepository,
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
+            new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<AdvancedDiscoverService>.Instance);
 
@@ -142,6 +143,7 @@ public sealed class AdvancedDiscoverServiceTests
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
+            new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<AdvancedDiscoverService>.Instance);
 
@@ -164,6 +166,8 @@ public sealed class AdvancedDiscoverServiceTests
             null,
             [],
             null,
+            [],
+            [],
             [],
             [],
             AdvancedDiscoverSort.PopularityDesc,
@@ -307,5 +311,21 @@ public sealed class AdvancedDiscoverServiceTests
 
         public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
+    }
+
+    private sealed class FakeKeywordDiscoverReadRepository : MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository
+    {
+        public Task<MovieApp.Application.Models.Movies.PaginatedResult<MovieApp.Application.Models.Discovery.KeywordDiscoverItem>> SearchAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MovieApp.Application.Models.Movies.PaginatedResult<MovieApp.Application.Models.Discovery.KeywordDiscoverItem>(
+                [], page, pageSize, 0, 0));
+
+        public Task<IReadOnlyList<int>> ResolveTmdbKeywordIdsAsync(
+            IReadOnlyList<Guid> keywordIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<int>>([]);
     }
 }

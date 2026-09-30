@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Caching;
@@ -21,6 +21,14 @@ public static class AdvancedDiscoverCacheKeys
         var monetizationSegment = criteria.WatchMonetizationTypes.Count == 0
             ? "wm"
             : string.Join('-', criteria.WatchMonetizationTypes.OrderBy(type => type));
+
+        var keywordSegment = criteria.KeywordIds.Count == 0
+            ? "kw"
+            : string.Join('-', criteria.KeywordIds.OrderBy(id => id));
+
+        var tvStatusSegment = criteria.TvStatuses.Count == 0
+            ? "tvs"
+            : string.Join('-', criteria.TvStatuses.OrderBy(status => status));
 
         return string.Join(
             ':',
@@ -46,6 +54,8 @@ public static class AdvancedDiscoverCacheKeys
             criteria.WatchRegion?.Trim().ToUpperInvariant() ?? "wr",
             providerSegment,
             monetizationSegment,
+            keywordSegment,
+            tvStatusSegment,
             criteria.Sort.ToString(),
             criteria.Page.ToString(CultureInfo.InvariantCulture),
             criteria.PageSize.ToString(CultureInfo.InvariantCulture));

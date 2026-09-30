@@ -28,6 +28,8 @@ public sealed class AdvancedDiscoverWatchFilterValidatorTests
             null,
             [8],
             [WatchMonetizationType.Stream],
+            [],
+            [],
             AdvancedDiscoverSort.PopularityDesc,
             1,
             20);

@@ -80,6 +80,7 @@ public sealed class DiscoverBrowseServiceTests
             movieRepository,
             tvRepository,
             new FakeGenreReadRepository(),
+            new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<DiscoverBrowseService>.Instance);
 
@@ -146,6 +147,14 @@ public sealed class DiscoverBrowseServiceTests
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [],
+                [],
+                null,
                 1,
                 20),
             ContentLocaleResolver.EnglishUnitedStates);
@@ -187,6 +196,7 @@ public sealed class DiscoverBrowseServiceTests
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
+            new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<DiscoverBrowseService>.Instance);
 
@@ -200,6 +210,14 @@ public sealed class DiscoverBrowseServiceTests
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
             null,
             1,
             20);
@@ -377,5 +395,21 @@ public sealed class DiscoverBrowseServiceTests
 
         public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
+    }
+
+    private sealed class FakeKeywordDiscoverReadRepository : MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository
+    {
+        public Task<MovieApp.Application.Models.Movies.PaginatedResult<MovieApp.Application.Models.Discovery.KeywordDiscoverItem>> SearchAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MovieApp.Application.Models.Movies.PaginatedResult<MovieApp.Application.Models.Discovery.KeywordDiscoverItem>(
+                [], page, pageSize, 0, 0));
+
+        public Task<IReadOnlyList<int>> ResolveTmdbKeywordIdsAsync(
+            IReadOnlyList<Guid> keywordIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<int>>([]);
     }
 }

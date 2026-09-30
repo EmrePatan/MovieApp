@@ -1,4 +1,4 @@
-using MovieApp.Application.Models.Search;
+﻿using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Models.Providers;
 
@@ -22,4 +22,6 @@ public sealed record AdvancedDiscoverProviderCriteria(
     string? WatchRegion,
     IReadOnlyList<int> WatchProviderIds,
     IReadOnlyList<WatchMonetizationType> WatchMonetizationTypes,
+    IReadOnlyList<int> KeywordTmdbIds,
+    IReadOnlyList<TvDiscoverStatus> TvStatuses,
     AdvancedDiscoverSort Sort);

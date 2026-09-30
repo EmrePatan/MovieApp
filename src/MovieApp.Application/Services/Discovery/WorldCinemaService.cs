@@ -65,17 +65,17 @@ public sealed class WorldCinemaService(
     internal static AdvancedDiscoverCriteria ToAdvancedDiscoverCriteria(WorldCinemaCriteria criteria) =>
         new(
             criteria.MediaType,
-            [],
-            GenreMatchMode.All,
+            criteria.GenreIds,
+            criteria.GenreMatch,
             null,
-            null,
-            null,
-            null,
-            null,
-            ResolveTopRatedMinimumVoteCount(criteria.MediaType, criteria.Sort),
-            null,
-            null,
-            null,
+            criteria.YearFrom,
+            criteria.YearTo,
+            criteria.MinRating,
+            criteria.MaxRating,
+            ResolveEffectiveMinVoteCount(criteria),
+            criteria.MinRuntimeMinutes,
+            criteria.MaxRuntimeMinutes,
+            criteria.OriginalLanguage,
             criteria.OriginCountry.Trim().ToUpperInvariant(),
             null,
             null,
@@ -83,9 +83,27 @@ public sealed class WorldCinemaService(
             null,
             [],
             [],
+            criteria.KeywordIds,
+            criteria.TvStatuses,
             criteria.Sort,
             criteria.Page,
             criteria.PageSize);
+
+    internal static int? ResolveEffectiveMinVoteCount(WorldCinemaCriteria criteria)
+    {
+        var floor = ResolveTopRatedMinimumVoteCount(criteria.MediaType, criteria.Sort);
+        if (floor is null)
+        {
+            return criteria.MinVoteCount;
+        }
+
+        if (criteria.MinVoteCount is null)
+        {
+            return floor;
+        }
+
+        return Math.Max(criteria.MinVoteCount.Value, floor.Value);
+    }
 
     internal static int? ResolveTopRatedMinimumVoteCount(
         SearchContentType mediaType,

@@ -1,4 +1,4 @@
-using MovieApp.Application.Models.Common;
+﻿using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Search;
 
 namespace MovieApp.Application.Validation;
@@ -22,7 +22,10 @@ public static class DiscoverBrowseValidator
             return paginationValidation;
         }
 
-        var yearValidation = AdvancedSearchValidator.ValidateYear(criteria.Year);
+        var yearValidation = AdvancedDiscoverValidator.ValidateYearSelection(
+            criteria.Year,
+            criteria.YearFrom,
+            criteria.YearTo);
         if (!yearValidation.IsValid)
         {
             return yearValidation;
@@ -34,13 +37,63 @@ public static class DiscoverBrowseValidator
             return ratingValidation;
         }
 
+        var voteCountValidation = AdvancedDiscoverValidator.ValidateVoteCount(criteria.MinVoteCount);
+        if (!voteCountValidation.IsValid)
+        {
+            return voteCountValidation;
+        }
+
+        var runtimeValidation = AdvancedDiscoverValidator.ValidateRuntime(
+            criteria.MinRuntimeMinutes,
+            criteria.MaxRuntimeMinutes);
+        if (!runtimeValidation.IsValid)
+        {
+            return runtimeValidation;
+        }
+
         var languageValidation = ValidateLanguage(criteria.Language);
         if (!languageValidation.IsValid)
         {
             return languageValidation;
         }
 
+        var originCountryValidation = AdvancedDiscoverValidator.ValidateOriginCountry(criteria.OriginCountry);
+        if (!originCountryValidation.IsValid)
+        {
+            return originCountryValidation;
+        }
+
+        var keywordValidation = AdvancedDiscoverValidator.ValidateKeywordIds(criteria.KeywordIds);
+        if (!keywordValidation.IsValid)
+        {
+            return keywordValidation;
+        }
+
+        var tvStatusValidation = ValidateBrowseTvStatuses(criteria.Type, criteria.TvStatuses);
+        if (!tvStatusValidation.IsValid)
+        {
+            return tvStatusValidation;
+        }
+
         return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateBrowseTvStatuses(
+        SearchContentType type,
+        IReadOnlyList<TvDiscoverStatus> tvStatuses)
+    {
+        if (tvStatuses.Count == 0)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        if (type == SearchContentType.Movie)
+        {
+            return SearchQueryValidationResult.Failure(
+                "TV status filters are only supported for TV.");
+        }
+
+        return AdvancedDiscoverValidator.ValidateTvStatuses(tvStatuses);
     }
 
     public static SearchQueryValidationResult ValidateMode(DiscoverBrowseMode mode) =>

@@ -226,6 +226,8 @@ public sealed class WorldCinemaServiceTests
             null,
             [],
             [],
+            [],
+            [],
             AdvancedDiscoverSort.RatingDesc,
             1,
             20);
@@ -257,6 +259,8 @@ public sealed class WorldCinemaServiceTests
             null,
             [],
             null,
+            [],
+            [],
             [],
             [],
             criteria.Sort);

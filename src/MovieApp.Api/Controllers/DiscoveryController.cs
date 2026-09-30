@@ -26,7 +26,8 @@ public sealed class DiscoveryController(
     IOnTvThisWeekService onTvThisWeekService,
     IWorldCinemaService worldCinemaService,
     IExplorePreviewService explorePreviewService,
-    IPickSomethingService pickSomethingService) : ControllerBase
+    IPickSomethingService pickSomethingService,
+    MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository keywordDiscoverReadRepository) : ControllerBase
 {
     [HttpGet("pick-something")]
     [ProducesResponseType(typeof(PickSomethingResponse), StatusCodes.Status200OK)]
@@ -252,11 +253,40 @@ public sealed class DiscoveryController(
         [FromQuery] string? sort,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] string[]? genreId,
+        [FromQuery] string? genreMatch,
+        [FromQuery] int? yearFrom,
+        [FromQuery] int? yearTo,
+        [FromQuery] decimal? minRating,
+        [FromQuery] decimal? maxRating,
+        [FromQuery] int? minVoteCount,
+        [FromQuery] int? minRuntimeMinutes,
+        [FromQuery] int? maxRuntimeMinutes,
+        [FromQuery] string? originalLanguage,
+        [FromQuery] string[]? keywordId,
+        [FromQuery] string[]? tvStatus,
         CancellationToken cancellationToken)
     {
         try
         {
-            var criteria = BuildWorldCinemaCriteria(mediaType, originCountry, sort, page, pageSize);
+            var criteria = BuildWorldCinemaCriteria(
+                mediaType,
+                originCountry,
+                sort,
+                page,
+                pageSize,
+                genreId,
+                genreMatch,
+                yearFrom,
+                yearTo,
+                minRating,
+                maxRating,
+                minVoteCount,
+                minRuntimeMinutes,
+                maxRuntimeMinutes,
+                originalLanguage,
+                keywordId,
+                tvStatus);
             var result = await worldCinemaService.GetWorldCinemaAsync(
                 criteria,
                 Request.ResolveContentLocale(),
@@ -317,6 +347,48 @@ public sealed class DiscoveryController(
         }
     }
 
+    [HttpGet("keywords")]
+    [ProducesResponseType(typeof(DiscoveryKeywordsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<DiscoveryKeywordsResponse>> SearchKeywords(
+        [FromQuery] string? query,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var queryValidation = AdvancedDiscoverValidator.ValidateKeywordSearchQuery(query);
+            if (!queryValidation.IsValid)
+            {
+                throw new ValidationException(queryValidation.ErrorMessage!);
+            }
+
+            var resolvedPage = page ?? SearchPaginationDefaults.DefaultPage;
+            var resolvedPageSize = pageSize ?? SearchPaginationDefaults.DefaultPageSize;
+            var paginationValidation = AdvancedSearchValidator.ValidatePagination(resolvedPage, resolvedPageSize);
+            if (!paginationValidation.IsValid)
+            {
+                throw new ValidationException(paginationValidation.ErrorMessage!);
+            }
+
+            var result = await keywordDiscoverReadRepository.SearchAsync(
+                query!.Trim(),
+                resolvedPage,
+                resolvedPageSize,
+                cancellationToken);
+
+            return Ok(DiscoveryContractMapper.ToKeywordsResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid keyword search request.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("advanced")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -343,6 +415,8 @@ public sealed class DiscoveryController(
         [FromQuery] string? watchRegion,
         [FromQuery] string[]? watchProviderId,
         [FromQuery] string[]? watchMonetizationType,
+        [FromQuery] string[]? keywordId,
+        [FromQuery] string[]? tvStatus,
         [FromQuery] string? sort,
         CancellationToken cancellationToken)
     {
@@ -370,6 +444,8 @@ public sealed class DiscoveryController(
                 watchRegion,
                 watchProviderId,
                 watchMonetizationType,
+                keywordId,
+                tvStatus,
                 sort);
 
             var result = await advancedDiscoverService.DiscoverAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
@@ -395,8 +471,16 @@ public sealed class DiscoveryController(
         [FromQuery] int? pageSize,
         [FromQuery] string[]? genreId,
         [FromQuery] int? year,
+        [FromQuery] int? yearFrom,
+        [FromQuery] int? yearTo,
         [FromQuery] decimal? minRating,
+        [FromQuery] int? minVoteCount,
+        [FromQuery] int? minRuntimeMinutes,
+        [FromQuery] int? maxRuntimeMinutes,
         [FromQuery] string? language,
+        [FromQuery(Name = "originCountry")] string? originCountry,
+        [FromQuery] string[]? keywordId,
+        [FromQuery] string[]? tvStatus,
         [FromQuery] string? sort,
         CancellationToken cancellationToken)
     {
@@ -409,8 +493,16 @@ public sealed class DiscoveryController(
                 pageSize,
                 genreId,
                 year,
+                yearFrom,
+                yearTo,
                 minRating,
+                minVoteCount,
+                minRuntimeMinutes,
+                maxRuntimeMinutes,
                 language,
+                originCountry,
+                keywordId,
+                tvStatus,
                 sort);
 
             var result = await discoverBrowseService.BrowseAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
@@ -430,7 +522,19 @@ public sealed class DiscoveryController(
         string? originCountry,
         string? sort,
         int? page,
-        int? pageSize)
+        int? pageSize,
+        string[]? genreId,
+        string? genreMatch,
+        int? yearFrom,
+        int? yearTo,
+        decimal? minRating,
+        decimal? maxRating,
+        int? minVoteCount,
+        int? minRuntimeMinutes,
+        int? maxRuntimeMinutes,
+        string? originalLanguage,
+        string[]? keywordId,
+        string[]? tvStatus)
     {
         var mediaTypeValidation = WorldCinemaValidator.ValidateMediaTypeValue(mediaType ?? "movie");
         if (!mediaTypeValidation.IsValid)
@@ -450,15 +554,40 @@ public sealed class DiscoveryController(
             throw new ValidationException(sortValidation.ErrorMessage!);
         }
 
+        var genreMatchValidation = AdvancedDiscoverValidator.ValidateGenreMatchValue(genreMatch);
+        if (!genreMatchValidation.IsValid)
+        {
+            throw new ValidationException(genreMatchValidation.ErrorMessage!);
+        }
+
+        var tvStatusValuesValidation = AdvancedDiscoverValidator.ValidateTvStatusValues(tvStatus);
+        if (!tvStatusValuesValidation.IsValid)
+        {
+            throw new ValidationException(tvStatusValuesValidation.ErrorMessage!);
+        }
+
         _ = AdvancedSearchValidator.TryParseType(mediaType ?? "movie", out var contentType);
         _ = AdvancedDiscoverValidator.TryParseSort(sort, out var discoverSort);
+        _ = AdvancedDiscoverValidator.TryParseGenreMatch(genreMatch, out var parsedGenreMatch);
 
         var criteria = new WorldCinemaCriteria(
             contentType,
             originCountry!.Trim(),
             discoverSort,
             page ?? SearchPaginationDefaults.DefaultPage,
-            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+            AdvancedDiscoverValidator.ParseGenreIds(genreId),
+            parsedGenreMatch,
+            yearFrom,
+            yearTo,
+            minRating,
+            maxRating,
+            minVoteCount,
+            minRuntimeMinutes,
+            maxRuntimeMinutes,
+            originalLanguage,
+            AdvancedDiscoverValidator.ParseKeywordIds(keywordId),
+            AdvancedDiscoverValidator.ParseTvStatuses(tvStatus));
 
         var validation = WorldCinemaValidator.Validate(criteria);
         if (!validation.IsValid)
@@ -529,6 +658,8 @@ public sealed class DiscoveryController(
         string? watchRegion,
         string[]? watchProviderId,
         string[]? watchMonetizationType,
+        string[]? keywordId,
+        string[]? tvStatus,
         string? sort)
     {
         var mediaTypeValidation = AdvancedDiscoverValidator.ValidateMediaType(mediaType);
@@ -562,6 +693,12 @@ public sealed class DiscoveryController(
             throw new ValidationException(releaseTypeValidation.ErrorMessage!);
         }
 
+        var tvStatusValuesValidation = AdvancedDiscoverValidator.ValidateTvStatusValues(tvStatus);
+        if (!tvStatusValuesValidation.IsValid)
+        {
+            throw new ValidationException(tvStatusValuesValidation.ErrorMessage!);
+        }
+
         _ = AdvancedSearchValidator.TryParseType(mediaType, out var contentType);
         _ = AdvancedDiscoverValidator.TryParseSort(sort, out var discoverSort);
         _ = AdvancedDiscoverValidator.TryParseGenreMatch(genreMatch, out var parsedGenreMatch);
@@ -588,6 +725,8 @@ public sealed class DiscoveryController(
                 : WatchProviderRegionValidator.Normalize(watchRegion),
             AdvancedDiscoverValidator.ParseWatchProviderIds(watchProviderId),
             AdvancedDiscoverValidator.ParseWatchMonetizationTypes(watchMonetizationType),
+            AdvancedDiscoverValidator.ParseKeywordIds(keywordId),
+            AdvancedDiscoverValidator.ParseTvStatuses(tvStatus),
             discoverSort,
             page ?? SearchPaginationDefaults.DefaultPage,
             pageSize ?? SearchPaginationDefaults.DefaultPageSize);
@@ -624,8 +763,16 @@ public sealed class DiscoveryController(
         int? pageSize,
         string[]? genreId,
         int? year,
+        int? yearFrom,
+        int? yearTo,
         decimal? minRating,
+        int? minVoteCount,
+        int? minRuntimeMinutes,
+        int? maxRuntimeMinutes,
         string? language,
+        string? originCountry,
+        string[]? keywordId,
+        string[]? tvStatus,
         string? sort)
     {
         var modeValidation = DiscoverBrowseValidator.ValidateMode(mode);
@@ -646,6 +793,12 @@ public sealed class DiscoveryController(
             throw new ValidationException(sortValidation.ErrorMessage!);
         }
 
+        var tvStatusValuesValidation = AdvancedDiscoverValidator.ValidateTvStatusValues(tvStatus);
+        if (!tvStatusValuesValidation.IsValid)
+        {
+            throw new ValidationException(tvStatusValuesValidation.ErrorMessage!);
+        }
+
         _ = DiscoverBrowseValidator.TryParseMode(mode, out var browseMode);
         _ = AdvancedSearchValidator.TryParseType(type, out var contentType);
         _ = DiscoverBrowseValidator.TryParseSort(sort, out var browseSort);
@@ -655,8 +808,16 @@ public sealed class DiscoveryController(
             contentType,
             DiscoverBrowseValidator.ParseGenreIds(genreId, null),
             year,
+            yearFrom,
+            yearTo,
             minRating,
+            minVoteCount,
+            minRuntimeMinutes,
+            maxRuntimeMinutes,
             language,
+            originCountry,
+            AdvancedDiscoverValidator.ParseKeywordIds(keywordId),
+            AdvancedDiscoverValidator.ParseTvStatuses(tvStatus),
             browseSort,
             page ?? SearchPaginationDefaults.DefaultPage,
             pageSize ?? SearchPaginationDefaults.DefaultPageSize);

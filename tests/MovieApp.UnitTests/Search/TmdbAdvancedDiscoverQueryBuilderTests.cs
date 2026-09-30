@@ -161,6 +161,28 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         Assert.Contains($"sort_by={expectedSortBy}", query);
     }
 
+
+    [Fact]
+    public void BuildMovieQueryAppendsKeywordsWithOrDelimiter()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            keywordTmdbIds: [1701, 9715]));
+
+        Assert.Contains("with_keywords=1701|9715", query);
+        Assert.DoesNotContain("with_status", query);
+    }
+
+    [Fact]
+    public void BuildTvQueryAppendsKeywordsAndStatuses()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildTvQuery(CreateCriteria(
+            keywordTmdbIds: [9715],
+            tvStatuses: [TvDiscoverStatus.Ended, TvDiscoverStatus.ReturningSeries]));
+
+        Assert.Contains("with_keywords=9715", query);
+        Assert.Contains("with_status=0|3", query);
+    }
+
     private static AdvancedDiscoverProviderCriteria CreateCriteria(
         int page = 1,
         IReadOnlyList<int>? genreTmdbIds = null,
@@ -181,6 +203,8 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         string? watchRegion = null,
         IReadOnlyList<int>? watchProviderIds = null,
         IReadOnlyList<WatchMonetizationType>? watchMonetizationTypes = null,
+        IReadOnlyList<int>? keywordTmdbIds = null,
+        IReadOnlyList<TvDiscoverStatus>? tvStatuses = null,
         AdvancedDiscoverSort sort = AdvancedDiscoverSort.PopularityDesc) =>
         new(
             page,
@@ -202,5 +226,7 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
             watchRegion,
             watchProviderIds ?? [],
             watchMonetizationTypes ?? [],
+            keywordTmdbIds ?? [],
+            tvStatuses ?? [],
             sort);
 }

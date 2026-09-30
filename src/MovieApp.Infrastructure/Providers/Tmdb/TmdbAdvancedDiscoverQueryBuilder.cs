@@ -1,4 +1,4 @@
-using MovieApp.Application.Configuration;
+﻿using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
@@ -21,6 +21,7 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
         AppendSharedFilters(parameters, criteria, minVoteCountWhenWatchProvider);
         AppendMovieYearFilters(parameters, criteria);
         AppendMovieOnlyFilters(parameters, criteria);
+        AppendKeywords(parameters, criteria.KeywordTmdbIds);
 
         return string.Join('&', parameters);
     }
@@ -38,6 +39,8 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
 
         AppendSharedFilters(parameters, criteria, minVoteCountWhenWatchProvider);
         AppendTvYearFilters(parameters, criteria);
+        AppendKeywords(parameters, criteria.KeywordTmdbIds);
+        AppendTvStatuses(parameters, criteria.TvStatuses);
 
         return string.Join('&', parameters);
     }
@@ -165,6 +168,31 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
 
             parameters.Add($"with_release_type={string.Join('|', releaseTypeIds)}");
         }
+    }
+
+    private static void AppendKeywords(List<string> parameters, IReadOnlyList<int> keywordTmdbIds)
+    {
+        if (keywordTmdbIds.Count == 0)
+        {
+            return;
+        }
+
+        parameters.Add($"with_keywords={string.Join('|', keywordTmdbIds)}");
+    }
+
+    private static void AppendTvStatuses(List<string> parameters, IReadOnlyList<TvDiscoverStatus> tvStatuses)
+    {
+        if (tvStatuses.Count == 0)
+        {
+            return;
+        }
+
+        var statusIds = tvStatuses
+            .Distinct()
+            .OrderBy(status => (int)status)
+            .Select(status => ((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        parameters.Add($"with_status={string.Join('|', statusIds)}");
     }
 
     private static void AppendMovieYearFilters(List<string> parameters, AdvancedDiscoverProviderCriteria criteria)

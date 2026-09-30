@@ -1,4 +1,5 @@
-using MovieApp.Application.Models.Discovery;
+﻿using MovieApp.Application.Models.Discovery;
+using MovieApp.Application.Models.Movies;
 using MovieApp.Contracts.Discovery;
 
 namespace MovieApp.Api.Mapping;
@@ -13,6 +14,16 @@ public static class DiscoveryContractMapper
             watchRegion,
             mediaType,
             providers.Select(ToWatchProviderResponse).ToList());
+
+    public static DiscoveryKeywordsResponse ToKeywordsResponse(PaginatedResult<KeywordDiscoverItem> result) =>
+        new(
+            result.Items.Select(item => new DiscoveryKeywordResponse(item.KeywordId, item.Name)).ToList(),
+            result.Page,
+            result.PageSize,
+            result.TotalCount,
+            result.TotalPages,
+            result.HasNextPage,
+            result.HasPreviousPage);
 
     private static DiscoveryWatchProviderResponse ToWatchProviderResponse(DiscoveryWatchProviderItem provider) =>
         new(

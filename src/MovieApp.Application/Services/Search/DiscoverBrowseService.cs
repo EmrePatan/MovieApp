@@ -21,6 +21,7 @@ public sealed class DiscoverBrowseService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IGenreReadRepository genreReadRepository,
+    IKeywordDiscoverReadRepository keywordDiscoverReadRepository,
     ICacheService cacheService,
     ILogger<DiscoverBrowseService> logger) : IDiscoverBrowseService
 {
@@ -104,13 +105,31 @@ public sealed class DiscoverBrowseService(
             };
         }
 
+        IReadOnlyList<int> keywordTmdbIds = [];
+        if (criteria.KeywordIds.Count > 0)
+        {
+            keywordTmdbIds = await keywordDiscoverReadRepository.ResolveTmdbKeywordIdsAsync(
+                criteria.KeywordIds,
+                cancellationToken);
+        }
+
         return new DiscoverProviderCriteria(
             criteria.Mode,
             criteria.Page,
             genreTmdbIds,
             criteria.Year,
+            criteria.YearFrom,
+            criteria.YearTo,
             criteria.MinRating,
+            criteria.MinVoteCount,
+            criteria.MinRuntimeMinutes,
+            criteria.MaxRuntimeMinutes,
             criteria.Language?.Trim().ToLowerInvariant(),
+            string.IsNullOrWhiteSpace(criteria.OriginCountry)
+                ? null
+                : criteria.OriginCountry.Trim().ToUpperInvariant(),
+            keywordTmdbIds,
+            criteria.TvStatuses,
             criteria.Sort);
     }
 
@@ -319,8 +338,16 @@ public sealed class DiscoverBrowseService(
     private static bool HasSupplementalBrowseFilters(DiscoverBrowseCriteria criteria) =>
         criteria.GenreIds.Count > 0 ||
         criteria.Year.HasValue ||
+        criteria.YearFrom.HasValue ||
+        criteria.YearTo.HasValue ||
         criteria.MinRating.HasValue ||
+        criteria.MinVoteCount.HasValue ||
+        criteria.MinRuntimeMinutes.HasValue ||
+        criteria.MaxRuntimeMinutes.HasValue ||
         !string.IsNullOrWhiteSpace(criteria.Language) ||
+        !string.IsNullOrWhiteSpace(criteria.OriginCountry) ||
+        criteria.KeywordIds.Count > 0 ||
+        criteria.TvStatuses.Count > 0 ||
         (criteria.Sort.HasValue &&
          criteria.Sort != DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode));
 

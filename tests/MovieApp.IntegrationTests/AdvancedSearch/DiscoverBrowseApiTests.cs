@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using MovieApp.Contracts.Discovery;
 using MovieApp.Contracts.Genres;
 using MovieApp.Contracts.Search;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.IntegrationTests.AdvancedSearch;
@@ -248,12 +250,76 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
         Assert.Equal(first.Items.Select(item => item.Id), second.Items.Select(item => item.Id));
     }
 
+
+    [Fact]
+    public async Task KeywordsEndpointRequiresQuery()
+    {
+        await fixture.ResetAsync();
+
+        var response = await _client.GetAsync("/api/discovery/keywords?page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task KeywordsEndpointReturnsOnlyTmdbMappedKeywords()
+    {
+        await fixture.ResetAsync();
+        await SeedKeywordsAsync();
+
+        var response = await _client.GetAsync("/api/discovery/keywords?query=time&page=1&pageSize=20");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<DiscoveryKeywordsResponse>();
+        Assert.NotNull(payload);
+        Assert.Single(payload.Items);
+        Assert.Equal("time travel", payload.Items[0].Name);
+    }
+
     private static async Task SeedGenresAsync()
     {
         await using var context = CreateContext();
         context.Genres.AddRange(
             new Genre { Id = Guid.NewGuid(), Name = "Drama", CreatedAt = DateTime.UtcNow },
             new Genre { Id = Guid.NewGuid(), Name = "Action", CreatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+    }
+
+
+    private static async Task SeedKeywordsAsync()
+    {
+        await using var context = CreateContext();
+        var tmdbKeyword = new Keyword
+        {
+            Id = Guid.NewGuid(),
+            Name = "time travel",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        var mdbOnly = new Keyword
+        {
+            Id = Guid.NewGuid(),
+            Name = "time loop",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        context.Keywords.AddRange(tmdbKeyword, mdbOnly);
+        context.KeywordExternalReferences.AddRange(
+            new KeywordExternalReference
+            {
+                KeywordId = tmdbKeyword.Id,
+                Provider = KeywordProvider.Tmdb,
+                ExternalId = "9715",
+                ExternalName = "time travel",
+                CreatedAt = DateTime.UtcNow,
+            },
+            new KeywordExternalReference
+            {
+                KeywordId = mdbOnly.Id,
+                Provider = KeywordProvider.MdbList,
+                ExternalId = "42",
+                ExternalName = "time loop",
+                CreatedAt = DateTime.UtcNow,
+            });
         await context.SaveChangesAsync();
     }
 

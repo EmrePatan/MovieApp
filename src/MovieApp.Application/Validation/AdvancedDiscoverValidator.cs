@@ -112,6 +112,18 @@ public static class AdvancedDiscoverValidator
             return movieOnlyValidation;
         }
 
+        var keywordValidation = ValidateKeywordIds(criteria.KeywordIds);
+        if (!keywordValidation.IsValid)
+        {
+            return keywordValidation;
+        }
+
+        var tvStatusValidation = ValidateTvStatuses(criteria.MediaType, criteria.TvStatuses);
+        if (!tvStatusValidation.IsValid)
+        {
+            return tvStatusValidation;
+        }
+
         return Enum.IsDefined(criteria.Sort)
             ? SearchQueryValidationResult.Success()
             : SearchQueryValidationResult.Failure("Sort is not supported.");
@@ -660,5 +672,194 @@ public static class AdvancedDiscoverValidator
             default:
                 return false;
         }
+    }
+
+    public const int MaximumKeywords = 20;
+    public const int MaximumTvStatuses = 6;
+    public const int MinimumKeywordSearchQueryLength = 1;
+    public const int MaximumKeywordSearchQueryLength = 100;
+
+    public static SearchQueryValidationResult ValidateKeywordIds(IReadOnlyList<Guid> keywordIds)
+    {
+        if (keywordIds.Count == 0)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        if (keywordIds.Count > MaximumKeywords)
+        {
+            return SearchQueryValidationResult.Failure(
+                $"A maximum of {MaximumKeywords} keywords is supported.");
+        }
+
+        if (keywordIds.Any(id => id == Guid.Empty))
+        {
+            return SearchQueryValidationResult.Failure("Keyword IDs are invalid.");
+        }
+
+        if (keywordIds.Distinct().Count() != keywordIds.Count)
+        {
+            return SearchQueryValidationResult.Failure("Duplicate keyword IDs are not allowed.");
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateTvStatuses(
+        SearchContentType mediaType,
+        IReadOnlyList<TvDiscoverStatus> tvStatuses)
+    {
+        if (tvStatuses.Count == 0)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        if (mediaType != SearchContentType.Tv)
+        {
+            return SearchQueryValidationResult.Failure(
+                "TV status filters are only supported for TV.");
+        }
+
+        return ValidateTvStatuses(tvStatuses);
+    }
+
+    public static SearchQueryValidationResult ValidateTvStatuses(IReadOnlyList<TvDiscoverStatus> tvStatuses)
+    {
+        if (tvStatuses.Count == 0)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        if (tvStatuses.Count > MaximumTvStatuses)
+        {
+            return SearchQueryValidationResult.Failure(
+                $"A maximum of {MaximumTvStatuses} TV statuses is supported.");
+        }
+
+        if (tvStatuses.Any(status => !Enum.IsDefined(status)))
+        {
+            return SearchQueryValidationResult.Failure("TV status is not supported.");
+        }
+
+        if (tvStatuses.Distinct().Count() != tvStatuses.Count)
+        {
+            return SearchQueryValidationResult.Failure("Duplicate TV statuses are not allowed.");
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateTvStatusValues(IEnumerable<string>? values)
+    {
+        if (values is null)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (!TryParseTvStatus(value, out _))
+            {
+                return SearchQueryValidationResult.Failure(
+                    "TV status must be one of: returning_series, planned, in_production, ended, canceled, pilot.");
+            }
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static IReadOnlyList<TvDiscoverStatus> ParseTvStatuses(IEnumerable<string>? values)
+    {
+        if (values is null)
+        {
+            return [];
+        }
+
+        var statuses = new List<TvDiscoverStatus>();
+
+        foreach (var rawValue in values)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                continue;
+            }
+
+            foreach (var segment in rawValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (TryParseTvStatus(segment, out var status))
+                {
+                    statuses.Add(status);
+                }
+            }
+        }
+
+        return statuses.Distinct().ToList();
+    }
+
+    public static bool TryParseTvStatus(string? value, out TvDiscoverStatus status)
+    {
+        status = TvDiscoverStatus.ReturningSeries;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "returning_series":
+            case "0":
+                status = TvDiscoverStatus.ReturningSeries;
+                return true;
+            case "planned":
+            case "1":
+                status = TvDiscoverStatus.Planned;
+                return true;
+            case "in_production":
+            case "2":
+                status = TvDiscoverStatus.InProduction;
+                return true;
+            case "ended":
+            case "3":
+                status = TvDiscoverStatus.Ended;
+                return true;
+            case "canceled":
+            case "cancelled":
+            case "4":
+                status = TvDiscoverStatus.Canceled;
+                return true;
+            case "pilot":
+            case "5":
+                status = TvDiscoverStatus.Pilot;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public static IReadOnlyList<Guid> ParseKeywordIds(IEnumerable<string>? keywordIdValues) =>
+        DiscoverBrowseValidator.ParseGenreIds(keywordIdValues, null);
+
+    public static SearchQueryValidationResult ValidateKeywordSearchQuery(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return SearchQueryValidationResult.Failure("Keyword search query is required.");
+        }
+
+        var trimmed = query.Trim();
+        if (trimmed.Length < MinimumKeywordSearchQueryLength ||
+            trimmed.Length > MaximumKeywordSearchQueryLength)
+        {
+            return SearchQueryValidationResult.Failure(
+                $"Keyword search query must be between {MinimumKeywordSearchQueryLength} and {MaximumKeywordSearchQueryLength} characters.");
+        }
+
+        return SearchQueryValidationResult.Success();
     }
 }

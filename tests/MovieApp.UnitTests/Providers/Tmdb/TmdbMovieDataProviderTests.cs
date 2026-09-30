@@ -111,6 +111,14 @@ public sealed class TmdbMovieDataProviderTests
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [],
+                [],
                 null));
 
         Assert.Contains("language=en-US", handler.Requests.Single().RequestUri?.Query, StringComparison.Ordinal);

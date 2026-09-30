@@ -261,8 +261,16 @@ internal static class FakeDiscoverCatalog
             criteria.Page,
             criteria.GenreTmdbIds,
             criteria.Year ?? criteria.YearFrom,
+            criteria.YearFrom,
+            criteria.YearTo,
             criteria.MinRating,
+            criteria.MinVoteCount,
+            criteria.MinRuntimeMinutes,
+            criteria.MaxRuntimeMinutes,
             criteria.OriginalLanguage,
+            criteria.OriginCountry,
+            criteria.KeywordTmdbIds,
+            criteria.TvStatuses,
             criteria.Sort switch
             {
                 AdvancedDiscoverSort.RatingDesc => DiscoverBrowseSort.RatingDesc,

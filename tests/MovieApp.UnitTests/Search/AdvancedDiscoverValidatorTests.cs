@@ -129,6 +129,8 @@ public sealed class AdvancedDiscoverValidatorTests
             null,
             [],
             [],
+            [],
+            [],
             AdvancedDiscoverSort.PopularityDesc,
             page,
             pageSize);

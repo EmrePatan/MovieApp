@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -236,6 +236,7 @@ public static class DependencyInjection
         services.AddScoped<IMovieRegionalReleaseRepository, MovieRegionalReleaseRepository>();
 
         services.AddScoped<IKeywordCatalogRepository, KeywordCatalogRepository>();
+        services.AddScoped<IKeywordDiscoverReadRepository, KeywordDiscoverReadRepository>();
         services.AddScoped<IKeywordGraphReconciliationService, KeywordGraphReconciliationService>();
 
         services.AddScoped<ICatalogKeywordBackfillRepository, CatalogKeywordBackfillRepository>();
