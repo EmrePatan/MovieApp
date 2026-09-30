@@ -42,7 +42,11 @@ public sealed class TvShow
 
     public DateTime? KeywordsSyncedAtUtc { get; set; }
 
+    public DateTime? MdbListKeywordsSyncedAtUtc { get; set; }
+
     public ICollection<TvShowGenre> TvShowGenres { get; set; } = [];
+
+    public ICollection<TvShowKeywordSource> TvShowKeywordSources { get; set; } = [];
 
     public ICollection<TvShowKeyword> TvShowKeywords { get; set; } = [];
 

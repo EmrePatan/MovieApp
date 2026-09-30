@@ -29,6 +29,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<TvShowKeyword> TvShowKeywords => Set<TvShowKeyword>();
 
+    public DbSet<KeywordExternalReference> KeywordExternalReferences => Set<KeywordExternalReference>();
+
+    public DbSet<MovieKeywordSource> MovieKeywordSources => Set<MovieKeywordSource>();
+
+    public DbSet<TvShowKeywordSource> TvShowKeywordSources => Set<TvShowKeywordSource>();
+
     public DbSet<Person> People => Set<Person>();
 
     public DbSet<MoviePerson> MoviePeople => Set<MoviePerson>();
