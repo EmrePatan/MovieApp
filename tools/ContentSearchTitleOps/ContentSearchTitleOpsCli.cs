@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Keywords;
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Movies;
@@ -37,8 +38,55 @@ internal static class ContentSearchTitleOpsCli
             "ensure-movie" => await RunEnsureMovieAsync(provider, options),
             "keyword-graph-reconcile" => await RunKeywordGraphReconcileAsync(provider),
             "keyword-graph-verify-readiness" => await RunKeywordGraphVerifyReadinessAsync(provider),
+            "mdb-keywords-movie" => await RunMdbKeywordsMovieAsync(provider, options),
+            "mdb-keywords-tv" => await RunMdbKeywordsTvAsync(provider, options),
             _ => UnknownCommand(command),
         };
+    }
+
+    private static async Task<int> RunMdbKeywordsMovieAsync(ServiceProvider provider, ParsedOptions options)
+    {
+        if (options.TmdbId is not int tmdbId)
+        {
+            Console.Error.WriteLine("mdb-keywords-movie requires --tmdb-id <id>");
+            return 1;
+        }
+
+        return await RunMdbKeywordsAsync(provider, CatalogContentType.Movie, tmdbId);
+    }
+
+    private static async Task<int> RunMdbKeywordsTvAsync(ServiceProvider provider, ParsedOptions options)
+    {
+        if (options.TmdbId is not int tmdbId)
+        {
+            Console.Error.WriteLine("mdb-keywords-tv requires --tmdb-id <id>");
+            return 1;
+        }
+
+        return await RunMdbKeywordsAsync(provider, CatalogContentType.Tv, tmdbId);
+    }
+
+    private static async Task<int> RunMdbKeywordsAsync(
+        ServiceProvider provider,
+        CatalogContentType mediaType,
+        int tmdbId)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        var transport = scope.ServiceProvider.GetRequiredService<IMdbListKeywordTransportProvider>();
+        var result = await transport.FetchKeywordsAsync(mediaType, tmdbId);
+        if (result is null)
+        {
+            Console.WriteLine("mdb_keywords status=unavailable (MDBList not configured or transport failed)");
+            return 2;
+        }
+
+        Console.WriteLine($"mdb_keywords media_type={result.MediaType} tmdb_id={result.TmdbId} not_found={result.IsNotFound} count={result.Keywords.Count}");
+        foreach (var keyword in result.Keywords)
+        {
+            Console.WriteLine($"keyword external_id={keyword.ExternalId} name={keyword.Name}");
+        }
+
+        return 0;
     }
 
     private static async Task<int> RunKeywordGraphReconcileAsync(ServiceProvider provider)
@@ -311,8 +359,10 @@ internal static class ContentSearchTitleOpsCli
               ensure-movie --tmdb-id 378435
               keyword-graph-reconcile
               keyword-graph-verify-readiness
+              mdb-keywords-movie --tmdb-id <id>
+              mdb-keywords-tv --tmdb-id <id>
 
-            Configuration: appsettings.json + environment (PostgreSql__*, Tmdb__ApiKey).
+            Configuration: appsettings.json + environment (PostgreSql__*, Tmdb__ApiKey, MDBList__ApiKey).
             Keyword graph ops are explicit one-shot maintenance (no Hangfire / no API).
             """);
     }

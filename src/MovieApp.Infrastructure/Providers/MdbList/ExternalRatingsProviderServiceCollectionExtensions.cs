@@ -33,6 +33,9 @@ internal static class ExternalRatingsProviderServiceCollectionExtensions
         });
 
         services.AddScoped<MdbListExternalRatingsProvider>();
+        services.AddScoped<MdbListKeywordTransportProvider>();
+        services.AddScoped<IMdbListKeywordTransportProvider>(serviceProvider =>
+            serviceProvider.GetRequiredService<MdbListKeywordTransportProvider>());
         services.AddScoped<NullExternalRatingsProvider>();
         services.AddScoped<IExternalRatingsProvider>(serviceProvider =>
         {

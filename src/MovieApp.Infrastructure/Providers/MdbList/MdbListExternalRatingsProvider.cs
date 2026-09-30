@@ -13,7 +13,11 @@ public sealed class MdbListExternalRatingsProvider(MdbListApiClient apiClient) :
         CancellationToken cancellationToken = default)
     {
         var mediaSegment = mediaType == CatalogContentType.Movie ? "movie" : "show";
-        var response = await apiClient.GetByTmdbIdAsync(mediaSegment, tmdbId, cancellationToken);
+        var response = await apiClient.GetByTmdbIdAsync(
+            mediaSegment,
+            tmdbId,
+            appendToResponse: null,
+            cancellationToken);
         if (response is null)
         {
             return null;

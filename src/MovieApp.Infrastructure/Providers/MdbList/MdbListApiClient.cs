@@ -31,6 +31,7 @@ public sealed class MdbListApiClient
     public async Task<MdbListFetchResponse?> GetByTmdbIdAsync(
         string mediaSegment,
         int tmdbId,
+        IReadOnlyList<string>? appendToResponse = null,
         CancellationToken cancellationToken = default)
     {
         if (!_options.IsConfigured())
@@ -38,7 +39,7 @@ public sealed class MdbListApiClient
             return null;
         }
 
-        var relativePath = $"tmdb/{mediaSegment}/{tmdbId}?apikey={Uri.EscapeDataString(_options.ApiKey)}";
+        var relativePath = BuildTmdbTitleRelativePath(mediaSegment, tmdbId, appendToResponse);
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -93,6 +94,28 @@ public sealed class MdbListApiClient
             return null;
         }
     }
+
+    internal static string BuildTmdbTitleRelativePath(
+        string mediaSegment,
+        int tmdbId,
+        string apiKey,
+        IReadOnlyList<string>? appendToResponse)
+    {
+        var relativePath = $"tmdb/{mediaSegment}/{tmdbId}?apikey={Uri.EscapeDataString(apiKey)}";
+        if (appendToResponse is { Count: > 0 })
+        {
+            var appendValue = string.Join(',', appendToResponse);
+            relativePath += "&append_to_response=" + Uri.EscapeDataString(appendValue);
+        }
+
+        return relativePath;
+    }
+
+    private string BuildTmdbTitleRelativePath(
+        string mediaSegment,
+        int tmdbId,
+        IReadOnlyList<string>? appendToResponse) =>
+        BuildTmdbTitleRelativePath(mediaSegment, tmdbId, _options.ApiKey, appendToResponse);
 
     private static int? TryReadRateLimitRemaining(HttpResponseMessage response)
     {
