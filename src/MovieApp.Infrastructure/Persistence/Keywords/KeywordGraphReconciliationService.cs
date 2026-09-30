@@ -269,7 +269,7 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
     }
 
     private async Task<KeywordGraphReconciliationResult> BuildResultAsync(
-        IReadOnlyList<string> conflicts,
+        List<string> conflicts,
         int keywordsProcessed,
         int canonicalNamesUpdated,
         int normalizedNamesUpdated,

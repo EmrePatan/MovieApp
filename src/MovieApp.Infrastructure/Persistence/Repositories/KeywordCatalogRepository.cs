@@ -184,7 +184,7 @@ public sealed class KeywordCatalogRepository(
     }
 
     private async Task<HashSet<Guid>> ResolveIncomingKeywordIdsAsync(
-        IReadOnlyList<ProviderKeywordSummary> dedupedKeywords,
+        List<ProviderKeywordSummary> dedupedKeywords,
         DateTime syncedAtUtc,
         CancellationToken cancellationToken)
     {
