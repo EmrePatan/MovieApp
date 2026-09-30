@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Configurations;
 
@@ -23,6 +24,19 @@ internal sealed class KeywordLocalizationConfiguration : IEntityTypeConfiguratio
         builder.Property(localization => localization.NormalizedName)
             .IsRequired()
             .HasMaxLength(ConfigurationConstants.NameMaxLength);
+
+        builder.Property(localization => localization.TranslationSource)
+            .IsRequired()
+            .HasDefaultValue(KeywordTranslationSource.Machine);
+
+        builder.Property(localization => localization.ReviewStatus)
+            .IsRequired()
+            .HasDefaultValue(KeywordTranslationReviewStatus.Unreviewed);
+
+        builder.Property(localization => localization.SourceTextHash)
+            .IsRequired()
+            .HasMaxLength(64)
+            .HasDefaultValue(string.Empty);
 
         builder.Property(localization => localization.CreatedAtUtc)
             .IsRequired();

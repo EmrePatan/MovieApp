@@ -50,6 +50,16 @@ public static class SupportedContentLocales
 
     public static IReadOnlyList<string> SupportedLocales => All;
 
+    public static IReadOnlyList<string> KeywordBulkTranslationTargetLocales =>
+    [
+        TurkishTurkey,
+        SpanishSpain,
+        GermanGermany,
+        FrenchFrance,
+        ItalianItaly,
+        PortugueseBrazil,
+    ];
+
     public static string Normalize(string? locale)
     {
         if (string.IsNullOrWhiteSpace(locale))

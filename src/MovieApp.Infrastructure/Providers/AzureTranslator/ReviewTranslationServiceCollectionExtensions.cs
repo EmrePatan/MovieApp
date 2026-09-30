@@ -14,7 +14,7 @@ public static class ReviewTranslationServiceCollectionExtensions
         services.AddOptions<AzureTranslatorOptions>()
             .Bind(configuration.GetSection(AzureTranslatorOptions.SectionName));
 
-        services.AddHttpClient<IReviewTranslationProvider, AzureReviewTranslationProvider>((provider, client) =>
+        services.AddHttpClient<AzureTranslatorApiClient>((provider, client) =>
         {
             var options = provider
                 .GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureTranslatorOptions>>()
@@ -23,6 +23,8 @@ public static class ReviewTranslationServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(Math.Max(3, options.RequestTimeoutSeconds));
             client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
         });
+
+        services.AddScoped<IReviewTranslationProvider, AzureReviewTranslationProvider>();
 
         return services;
     }

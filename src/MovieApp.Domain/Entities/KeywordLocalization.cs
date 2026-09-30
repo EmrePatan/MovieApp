@@ -1,3 +1,5 @@
+using MovieApp.Domain.Enums;
+
 namespace MovieApp.Domain.Entities;
 
 public sealed class KeywordLocalization
@@ -9,6 +11,12 @@ public sealed class KeywordLocalization
     public string Name { get; set; } = string.Empty;
 
     public string NormalizedName { get; set; } = string.Empty;
+
+    public KeywordTranslationSource TranslationSource { get; set; } = KeywordTranslationSource.Machine;
+
+    public KeywordTranslationReviewStatus ReviewStatus { get; set; } = KeywordTranslationReviewStatus.Unreviewed;
+
+    public string SourceTextHash { get; set; } = string.Empty;
 
     public DateTime CreatedAtUtc { get; set; }
 

@@ -168,6 +168,7 @@ public static class DependencyInjection
 
         services.AddAiRecommendations(configuration);
         services.AddReviewTranslation(configuration);
+        services.AddKeywordTranslation(configuration);
 
         services.AddMovieDataProviders(configuration);
 
@@ -229,6 +230,8 @@ public static class DependencyInjection
         services.AddScoped<IContentSearchTitleSynchronizer, ContentSearchTitleSynchronizer>();
         services.AddScoped<IContentLocalizedPosterRepository, ContentLocalizedPosterRepository>();
         services.AddScoped<IContentLocalizedPosterBackfillRepository, ContentLocalizedPosterBackfillRepository>();
+        services.AddScoped<IKeywordLocalizationBackfillRepository, KeywordLocalizationBackfillRepository>();
+        services.AddScoped<IKeywordLocalizationCoverageRepository, KeywordLocalizationCoverageRepository>();
         services.AddScoped<IContentSearchTitleCatalogBackfillService, ContentSearchTitleCatalogBackfillService>();
         services.AddScoped<IContentSearchTitleProviderEnrichmentRepository, ContentSearchTitleProviderEnrichmentRepository>();
         services.AddScoped<IMovieRepository, MovieRepository>();
