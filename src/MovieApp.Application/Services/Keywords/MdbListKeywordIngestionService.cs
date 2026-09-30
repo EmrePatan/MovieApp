@@ -65,10 +65,85 @@ public sealed class MdbListKeywordIngestionService(
         return await IngestTvShowAsync(tvShowId.Value, cancellationToken);
     }
 
+    public Task<MdbListKeywordIngestionResult> IngestMovieWithProviderKeywordsAsync(
+        Guid movieId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        CancellationToken cancellationToken = default) =>
+        ApplyIngestionAsync(
+            () => keywordCatalogRepository.GetMovieMdbListKeywordTargetAsync(movieId, cancellationToken),
+            CatalogContentType.Movie,
+            movieId,
+            providerKeywords,
+            keywords => keywordCatalogRepository.ApplyMovieMdbListKeywordIngestionAsync(
+                movieId,
+                keywords,
+                DateTime.UtcNow,
+                cancellationToken),
+            cancellationToken);
+
+    public Task<MdbListKeywordIngestionResult> IngestTvShowWithProviderKeywordsAsync(
+        Guid tvShowId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        CancellationToken cancellationToken = default) =>
+        ApplyIngestionAsync(
+            () => keywordCatalogRepository.GetTvShowMdbListKeywordTargetAsync(tvShowId, cancellationToken),
+            CatalogContentType.Tv,
+            tvShowId,
+            providerKeywords,
+            keywords => keywordCatalogRepository.ApplyTvShowMdbListKeywordIngestionAsync(
+                tvShowId,
+                keywords,
+                DateTime.UtcNow,
+                cancellationToken),
+            cancellationToken);
+
+    private Task<MdbListKeywordIngestionResult> IngestAsync(
+        Func<Task<KeywordEnrichmentTarget?>> loadTarget,
+        CatalogContentType mediaType,
+        Guid catalogId,
+        Func<IReadOnlyList<MdbListKeywordTransportItem>, Task<MdbListKeywordIngestionResult>> applyIngestion,
+        CancellationToken cancellationToken) =>
+        IngestAsync(
+            loadTarget,
+            mediaType,
+            catalogId,
+            async () =>
+            {
+                var target = await loadTarget();
+                if (target is null)
+                {
+                    return null;
+                }
+
+                return await transportProvider.FetchKeywordsAsync(mediaType, target.TmdbId, cancellationToken);
+            },
+            transport => transport.Keywords,
+            applyIngestion,
+            cancellationToken);
+
+    private Task<MdbListKeywordIngestionResult> ApplyIngestionAsync(
+        Func<Task<KeywordEnrichmentTarget?>> loadTarget,
+        CatalogContentType mediaType,
+        Guid catalogId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        Func<IReadOnlyList<MdbListKeywordTransportItem>, Task<MdbListKeywordIngestionResult>> applyIngestion,
+        CancellationToken cancellationToken) =>
+        IngestAsync(
+            loadTarget,
+            mediaType,
+            catalogId,
+            () => Task.FromResult<MdbListKeywordsTransportResult?>(
+                new MdbListKeywordsTransportResult(mediaType, 0, providerKeywords, IsNotFound: false)),
+            transport => transport.Keywords,
+            applyIngestion,
+            cancellationToken);
+
     private async Task<MdbListKeywordIngestionResult> IngestAsync(
         Func<Task<KeywordEnrichmentTarget?>> loadTarget,
         CatalogContentType mediaType,
         Guid catalogId,
+        Func<Task<MdbListKeywordsTransportResult?>> fetchTransport,
+        Func<MdbListKeywordsTransportResult, IReadOnlyList<MdbListKeywordTransportItem>> selectKeywords,
         Func<IReadOnlyList<MdbListKeywordTransportItem>, Task<MdbListKeywordIngestionResult>> applyIngestion,
         CancellationToken cancellationToken)
     {
@@ -81,7 +156,7 @@ public sealed class MdbListKeywordIngestionService(
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            var transport = await transportProvider.FetchKeywordsAsync(mediaType, target.TmdbId, cancellationToken);
+            var transport = await fetchTransport();
             if (transport is null)
             {
                 MdbListKeywordIngestionLogMessages.LogTransportUnavailable(
@@ -92,8 +167,18 @@ public sealed class MdbListKeywordIngestionService(
                 return new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.TransportUnavailable);
             }
 
-            var result = await applyIngestion(transport.Keywords);
+            var result = await applyIngestion(selectKeywords(transport));
             stopwatch.Stop();
+
+            if (result.Status == MdbListKeywordIngestionStatus.PersistenceFailed)
+            {
+                MdbListKeywordIngestionLogMessages.LogPersistenceFailed(
+                    logger,
+                    mediaType,
+                    catalogId,
+                    target.TmdbId);
+                return result;
+            }
 
             if (result.Status == MdbListKeywordIngestionStatus.Succeeded && result.Stats is not null)
             {
@@ -166,4 +251,14 @@ internal static partial class MdbListKeywordIngestionLogMessages
         Guid catalogId,
         int tmdbId,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Error,
+        Message = "MDBList keyword persistence failed for {MediaType} {CatalogId} (TMDB {TmdbId}).")]
+    public static partial void LogPersistenceFailed(
+        ILogger logger,
+        CatalogContentType mediaType,
+        Guid catalogId,
+        int tmdbId);
 }

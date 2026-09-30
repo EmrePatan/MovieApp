@@ -9,6 +9,8 @@ namespace MovieApp.Infrastructure.Providers.MdbList;
 
 public sealed class MdbListApiClient
 {
+    public const int MaxBatchMediaInfoIds = 200;
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -95,6 +97,86 @@ public sealed class MdbListApiClient
         }
     }
 
+    public async Task<MdbListBatchFetchResponse?> PostTmdbMediaInfoBatchAsync(
+        string mediaSegment,
+        IReadOnlyList<int> tmdbIds,
+        IReadOnlyList<string> appendToResponse,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_options.IsConfigured() || tmdbIds.Count == 0)
+        {
+            return null;
+        }
+
+        if (tmdbIds.Count > MaxBatchMediaInfoIds)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tmdbIds),
+                tmdbIds.Count,
+                $"MDBList batch requests support at most {MaxBatchMediaInfoIds} ids.");
+        }
+
+        var relativePath = $"tmdb/{mediaSegment}/?apikey={Uri.EscapeDataString(_options.ApiKey)}";
+        var requestBody = new MdbListBatchRequestJson
+        {
+            Ids = tmdbIds.Select(id => id.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToList(),
+            AppendToResponse = appendToResponse.ToList(),
+        };
+
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            using var response = await _httpClient.PostAsJsonAsync(
+                relativePath,
+                requestBody,
+                SerializerOptions,
+                cancellationToken);
+            stopwatch.Stop();
+
+            var telemetry = new MdbListFetchTelemetry(
+                (int)response.StatusCode,
+                stopwatch.ElapsedMilliseconds,
+                TryReadRateLimitRemaining(response),
+                TryReadRateLimitReset(response));
+
+            if ((int)response.StatusCode == 429 || (int)response.StatusCode >= 500)
+            {
+                return null;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                MdbListApiClientLogMessages.LogBatchNonSuccess(
+                    _logger,
+                    mediaSegment,
+                    tmdbIds.Count,
+                    (int)response.StatusCode);
+                return null;
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<List<MdbListBatchTitleResponseJson>>(
+                SerializerOptions,
+                cancellationToken);
+
+            return new MdbListBatchFetchResponse(payload ?? [], telemetry);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            stopwatch.Stop();
+            MdbListApiClientLogMessages.LogBatchTransportFailure(
+                _logger,
+                mediaSegment,
+                tmdbIds.Count,
+                exception);
+            return null;
+        }
+    }
+
     internal static string BuildTmdbTitleRelativePath(
         string mediaSegment,
         int tmdbId,
@@ -150,3 +232,7 @@ public sealed record MdbListFetchTelemetry(
     long LatencyMilliseconds,
     int? RateLimitRemaining,
     DateTimeOffset? RateLimitResetUtc);
+
+public sealed record MdbListBatchFetchResponse(
+    IReadOnlyList<MdbListBatchTitleResponseJson> Payload,
+    MdbListFetchTelemetry Telemetry);

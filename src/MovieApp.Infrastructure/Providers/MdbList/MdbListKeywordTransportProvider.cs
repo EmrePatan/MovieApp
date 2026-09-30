@@ -41,4 +41,36 @@ public sealed class MdbListKeywordTransportProvider(MdbListApiClient apiClient) 
             keywords,
             IsNotFound: false);
     }
+
+    public async Task<MdbListKeywordsBatchTransportResult?> FetchKeywordsBatchAsync(
+        CatalogContentType mediaType,
+        IReadOnlyList<int> tmdbIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (tmdbIds.Count == 0)
+        {
+            return new MdbListKeywordsBatchTransportResult(
+                mediaType,
+                new Dictionary<int, IReadOnlyList<MdbListKeywordTransportItem>>(),
+                new MdbListKeywordTransportTelemetry(200, 0, null, null));
+        }
+
+        var mediaSegment = mediaType == CatalogContentType.Movie ? "movie" : "show";
+        var response = await apiClient.PostTmdbMediaInfoBatchAsync(
+            mediaSegment,
+            tmdbIds,
+            KeywordAppend,
+            cancellationToken);
+
+        if (response is null)
+        {
+            return null;
+        }
+
+        var keywordsByTmdbId = MdbListKeywordBatchMapper.MapBatchResponse(response.Payload);
+        return new MdbListKeywordsBatchTransportResult(
+            mediaType,
+            keywordsByTmdbId,
+            MdbListKeywordBatchMapper.MapTelemetry(response.Telemetry));
+    }
 }

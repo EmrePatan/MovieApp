@@ -6,6 +6,7 @@ public enum MdbListKeywordIngestionStatus
     CatalogNotFound,
     NotEligible,
     TransportUnavailable,
+    PersistenceFailed,
 }
 
 public sealed record MdbListKeywordResolutionStats(

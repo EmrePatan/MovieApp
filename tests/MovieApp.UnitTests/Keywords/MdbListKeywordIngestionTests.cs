@@ -381,8 +381,10 @@ public sealed class MdbListKeywordIngestionTests
     {
         var service = new MdbListKeywordBackfillService(
             new MdbListKeywordBackfillRepository(CreateContext()),
+            new NullMdbListKeywordTransportProvider(),
             new TestScopeFactory(),
-            Options.Create(new MdbListKeywordBackfillOptions { Enabled = false, BatchSize = 100 }));
+            Options.Create(new MdbListKeywordBackfillOptions { Enabled = false, BatchSize = 100 }),
+            NullLogger<MdbListKeywordBackfillService>.Instance);
 
         var candidates = await service.SelectCandidatesAsync(10, []);
         var result = await service.ProcessBatchAsync(candidates);
@@ -452,6 +454,12 @@ public sealed class MdbListKeywordIngestionTests
             int tmdbId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<MdbListKeywordsTransportResult?>(null);
+
+        public Task<MdbListKeywordsBatchTransportResult?> FetchKeywordsBatchAsync(
+            CatalogContentType mediaType,
+            IReadOnlyList<int> tmdbIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<MdbListKeywordsBatchTransportResult?>(null);
     }
 
     private sealed class TestScopeFactory : IServiceScopeFactory
@@ -470,8 +478,8 @@ public sealed class MdbListKeywordIngestionTests
         private sealed class TestServiceProvider : IServiceProvider
         {
             public object? GetService(Type serviceType) =>
-                serviceType == typeof(IMdbListKeywordBackfillItemProcessor)
-                    ? new MdbListKeywordBackfillItemProcessor(new NullMdbListKeywordIngestionService())
+                serviceType == typeof(IMdbListKeywordIngestionService)
+                    ? new NullMdbListKeywordIngestionService()
                     : null;
         }
 
@@ -487,6 +495,18 @@ public sealed class MdbListKeywordIngestionTests
                 Task.FromResult(new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.Succeeded));
 
             public Task<MdbListKeywordIngestionResult> IngestTvShowByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+                Task.FromResult(new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.Succeeded));
+
+            public Task<MdbListKeywordIngestionResult> IngestMovieWithProviderKeywordsAsync(
+                Guid movieId,
+                IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+                CancellationToken cancellationToken = default) =>
+                Task.FromResult(new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.Succeeded));
+
+            public Task<MdbListKeywordIngestionResult> IngestTvShowWithProviderKeywordsAsync(
+                Guid tvShowId,
+                IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+                CancellationToken cancellationToken = default) =>
                 Task.FromResult(new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.Succeeded));
         }
     }

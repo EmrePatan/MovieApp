@@ -19,4 +19,14 @@ public interface IMdbListKeywordIngestionService
     Task<MdbListKeywordIngestionResult> IngestTvShowByTmdbIdAsync(
         int tmdbId,
         CancellationToken cancellationToken = default);
+
+    Task<MdbListKeywordIngestionResult> IngestMovieWithProviderKeywordsAsync(
+        Guid movieId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        CancellationToken cancellationToken = default);
+
+    Task<MdbListKeywordIngestionResult> IngestTvShowWithProviderKeywordsAsync(
+        Guid tvShowId,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        CancellationToken cancellationToken = default);
 }

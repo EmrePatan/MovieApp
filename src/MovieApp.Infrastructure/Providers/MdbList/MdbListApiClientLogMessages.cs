@@ -23,4 +23,24 @@ internal static partial class MdbListApiClientLogMessages
         string mediaSegment,
         int tmdbId,
         int statusCode);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Debug,
+        Message = "MDBList batch request failed for {MediaSegment} count:{Count}")]
+    public static partial void LogBatchTransportFailure(
+        ILogger logger,
+        string mediaSegment,
+        int count,
+        Exception exception);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Debug,
+        Message = "MDBList batch non-success for {MediaSegment} count:{Count} status:{StatusCode}")]
+    public static partial void LogBatchNonSuccess(
+        ILogger logger,
+        string mediaSegment,
+        int count,
+        int statusCode);
 }

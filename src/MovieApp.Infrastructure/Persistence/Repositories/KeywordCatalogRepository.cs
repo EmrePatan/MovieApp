@@ -557,6 +557,28 @@ public sealed class KeywordCatalogRepository(
         DateTime syncedAtUtc,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            return await ApplyMdbListKeywordIngestionCoreAsync(
+                contentId,
+                isMovie,
+                providerKeywords,
+                syncedAtUtc,
+                cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return new MdbListKeywordIngestionResult(MdbListKeywordIngestionStatus.PersistenceFailed);
+        }
+    }
+
+    private async Task<MdbListKeywordIngestionResult> ApplyMdbListKeywordIngestionCoreAsync(
+        Guid contentId,
+        bool isMovie,
+        IReadOnlyList<MdbListKeywordTransportItem> providerKeywords,
+        DateTime syncedAtUtc,
+        CancellationToken cancellationToken)
+    {
         if (isMovie)
         {
             var movie = await dbContext.Movies.FirstOrDefaultAsync(existing => existing.Id == contentId, cancellationToken);

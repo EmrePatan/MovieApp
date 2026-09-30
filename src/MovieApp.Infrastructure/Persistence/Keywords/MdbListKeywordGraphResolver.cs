@@ -115,23 +115,29 @@ internal static class MdbListKeywordGraphResolver
             }
 
             var canonicalKeywordId = matches[0];
-            promotedKeywordIds.Add(canonicalKeywordId);
+            var ownerKeywordId = await MdbListKeywordExternalReferenceEnsure.EnsureAsync(
+                dbContext,
+                externalId,
+                canonicalKeywordId,
+                keyword.Name.Trim(),
+                syncedAtUtc,
+                cancellationToken);
 
-            dbContext.KeywordExternalReferences.Add(new KeywordExternalReference
-            {
-                KeywordId = canonicalKeywordId,
-                Provider = KeywordProvider.MdbList,
-                ExternalId = externalId,
-                ExternalName = keyword.Name.Trim(),
-                CreatedAt = syncedAtUtc,
-            });
-
+            promotedKeywordIds.Add(ownerKeywordId);
             existingReferences[externalId] = new KeywordExternalReference
             {
-                KeywordId = canonicalKeywordId,
+                KeywordId = ownerKeywordId,
                 ExternalId = externalId,
             };
-            referencesCreated++;
+
+            if (ownerKeywordId == canonicalKeywordId)
+            {
+                referencesCreated++;
+            }
+            else
+            {
+                referencesReused++;
+            }
         }
 
         var stats = new MdbListKeywordResolutionStats(

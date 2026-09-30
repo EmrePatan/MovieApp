@@ -189,6 +189,95 @@ public sealed class MdbListKeywordTransportTests
             path);
     }
 
+    [Fact]
+    public async Task BatchKeywordFetchUsesOfficialPostContract()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(request =>
+        {
+            Assert.Equal(HttpMethod.Post, request.Method);
+            var path = request.RequestUri!.PathAndQuery;
+            Assert.Contains("tmdb/movie/", path, StringComparison.Ordinal);
+            Assert.Contains("apikey=", path, StringComparison.Ordinal);
+            Assert.DoesNotContain("append_to_response=", path, StringComparison.Ordinal);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var document = JsonDocument.Parse(body);
+            Assert.Equal(JsonValueKind.Array, document.RootElement.GetProperty("append_to_response").ValueKind);
+            Assert.Equal("keyword", document.RootElement.GetProperty("append_to_response")[0].GetString());
+            Assert.Equal(JsonValueKind.Array, document.RootElement.GetProperty("ids").ValueKind);
+            Assert.Equal("578", document.RootElement.GetProperty("ids")[0].GetString());
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    [
+                      {
+                        "ids": { "tmdb": 578 },
+                        "keywords": [ { "id": 96, "name": "monk" } ]
+                      }
+                    ]
+                    """)
+            };
+        });
+
+        var apiClient = CreateApiClient(handler);
+        var provider = new MdbListKeywordTransportProvider(apiClient);
+        var result = await provider.FetchKeywordsBatchAsync(CatalogContentType.Movie, [578]);
+
+        Assert.NotNull(result);
+        Assert.True(result!.KeywordsByTmdbId.ContainsKey(578));
+        Assert.Equal("monk", result.KeywordsByTmdbId[578][0].Name);
+        Assert.Equal(96, result.KeywordsByTmdbId[578][0].ExternalId);
+    }
+
+    [Fact]
+    public async Task BatchKeywordFetchRejectsMoreThanTwoHundredIds()
+    {
+        var apiClient = CreateApiClient(new MockHttpMessageHandler());
+        var ids = Enumerable.Range(1, 201).ToList();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            apiClient.PostTmdbMediaInfoBatchAsync("movie", ids, ["keyword"]));
+    }
+
+    [Fact]
+    public async Task BatchKeywordFetchMapsEachItemBackToTmdbId()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                [
+                  { "ids": { "tmdb": 10 }, "keywords": [] },
+                  { "ids": { "tmdb": 20 }, "keywords": [ { "id": 1, "name": "a" } ] }
+                ]
+                """)
+        });
+
+        var provider = new MdbListKeywordTransportProvider(CreateApiClient(handler));
+        var result = await provider.FetchKeywordsBatchAsync(CatalogContentType.Tv, [10, 20]);
+
+        Assert.NotNull(result);
+        Assert.True(result!.KeywordsByTmdbId.ContainsKey(10));
+        Assert.Empty(result.KeywordsByTmdbId[10]);
+        Assert.Single(result.KeywordsByTmdbId[20]);
+    }
+
+    [Fact]
+    public async Task BatchKeywordFetchReturnsNullOnServerErrorWithoutThrowing()
+    {
+        var handler = new MockHttpMessageHandler();
+        handler.EnqueueResponse(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        var provider = new MdbListKeywordTransportProvider(CreateApiClient(handler));
+        var result = await provider.FetchKeywordsBatchAsync(CatalogContentType.Movie, [1]);
+
+        Assert.Null(result);
+    }
+
     private static MdbListApiClient CreateApiClient(MockHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)

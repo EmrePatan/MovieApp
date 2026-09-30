@@ -9,4 +9,9 @@ public interface IMdbListKeywordTransportProvider
         CatalogContentType mediaType,
         int tmdbId,
         CancellationToken cancellationToken = default);
+
+    Task<MdbListKeywordsBatchTransportResult?> FetchKeywordsBatchAsync(
+        CatalogContentType mediaType,
+        IReadOnlyList<int> tmdbIds,
+        CancellationToken cancellationToken = default);
 }
