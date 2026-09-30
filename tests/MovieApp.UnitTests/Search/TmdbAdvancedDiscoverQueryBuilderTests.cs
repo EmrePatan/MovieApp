@@ -1,5 +1,6 @@
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers.Tmdb;
 
 namespace MovieApp.UnitTests.Search;
@@ -20,6 +21,27 @@ public sealed class TmdbAdvancedDiscoverQueryBuilderTests
         Assert.Contains("sort_by=primary_release_date.desc", query);
         Assert.DoesNotContain("first_air_date", query);
         Assert.DoesNotContain("vote_count.gte", query);
+    }
+
+    [Fact]
+    public void BuildMovieQuery_NewestWithoutYearRangeCapsFutureReleases()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            sort: AdvancedDiscoverSort.Newest));
+
+        var cutoff = DiscoverCatalogSortPolicy.GetFutureReleaseCutoffDate(DateTime.UtcNow);
+        Assert.Contains($"primary_release_date.lte={cutoff:yyyy-MM-dd}", query);
+    }
+
+    [Fact]
+    public void BuildMovieQuery_RatingDescAppliesVoteQualityFloor()
+    {
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            sort: AdvancedDiscoverSort.RatingDesc));
+
+        Assert.Contains(
+            $"vote_count.gte={DiscoverCatalogSortPolicy.TopRatedMinimumVoteCount}",
+            query);
     }
 
     [Fact]

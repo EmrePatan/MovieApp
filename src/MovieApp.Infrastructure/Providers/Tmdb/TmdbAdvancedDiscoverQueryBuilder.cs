@@ -74,6 +74,11 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             criteria.WatchProviderIds.Count > 0,
             minVoteCountWhenWatchProvider);
 
+        effectiveMinVoteCount = DiscoverCatalogSortPolicy.ResolveAdvancedMinVoteCount(
+            criteria.Sort,
+            effectiveMinVoteCount,
+            null);
+
         if (effectiveMinVoteCount.HasValue)
         {
             parameters.Add($"vote_count.gte={effectiveMinVoteCount.Value}");
@@ -208,9 +213,10 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             parameters.Add($"primary_release_date.gte={criteria.YearFrom.Value:0000}-01-01");
         }
 
-        if (criteria.YearTo.HasValue)
+        var upperBound = ResolveAdvancedMovieReleaseUpperBound(criteria);
+        if (upperBound.HasValue)
         {
-            parameters.Add($"primary_release_date.lte={criteria.YearTo.Value:0000}-12-31");
+            parameters.Add($"primary_release_date.lte={upperBound.Value:yyyy-MM-dd}");
         }
     }
 
@@ -227,10 +233,47 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             parameters.Add($"first_air_date.gte={criteria.YearFrom.Value:0000}-01-01");
         }
 
-        if (criteria.YearTo.HasValue)
+        var upperBound = ResolveAdvancedTvReleaseUpperBound(criteria);
+        if (upperBound.HasValue)
         {
-            parameters.Add($"first_air_date.lte={criteria.YearTo.Value:0000}-12-31");
+            parameters.Add($"first_air_date.lte={upperBound.Value:yyyy-MM-dd}");
         }
+    }
+
+    private static DateOnly? ResolveAdvancedMovieReleaseUpperBound(AdvancedDiscoverProviderCriteria criteria)
+    {
+        if (criteria.Year.HasValue)
+        {
+            return null;
+        }
+
+        DateOnly? userUpper = criteria.YearTo.HasValue
+            ? new DateOnly(criteria.YearTo.Value, 12, 31)
+            : null;
+
+        DateOnly? futureCap = DiscoverCatalogSortPolicy.RequiresFutureReleaseCap(criteria.Sort)
+            ? DiscoverCatalogSortPolicy.GetFutureReleaseCutoffDate(DateTime.UtcNow)
+            : null;
+
+        return DiscoverCatalogSortPolicy.ResolveReleaseUpperBound(userUpper, futureCap, null);
+    }
+
+    private static DateOnly? ResolveAdvancedTvReleaseUpperBound(AdvancedDiscoverProviderCriteria criteria)
+    {
+        if (criteria.Year.HasValue)
+        {
+            return null;
+        }
+
+        DateOnly? userUpper = criteria.YearTo.HasValue
+            ? new DateOnly(criteria.YearTo.Value, 12, 31)
+            : null;
+
+        DateOnly? futureCap = DiscoverCatalogSortPolicy.RequiresFutureReleaseCap(criteria.Sort)
+            ? DiscoverCatalogSortPolicy.GetFutureReleaseCutoffDate(DateTime.UtcNow)
+            : null;
+
+        return DiscoverCatalogSortPolicy.ResolveReleaseUpperBound(userUpper, futureCap, null);
     }
 
     private static string MapMovieSort(AdvancedDiscoverSort sort) =>
