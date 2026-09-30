@@ -99,16 +99,20 @@ public sealed class TransactionalStreamOfferFilterTests
 
         public Dictionary<int, WatchProvidersResult> TvOffers { get; } = [];
 
-        public int MovieCallCount { get; private set; }
+        private int _movieCallCount;
 
-        public int TvCallCount { get; private set; }
+        private int _tvCallCount;
+
+        public int MovieCallCount => _movieCallCount;
+
+        public int TvCallCount => _tvCallCount;
 
         public Task<WatchProvidersResult> GetMovieWatchProvidersAsync(
             int tmdbId,
             string region,
             CancellationToken cancellationToken = default)
         {
-            MovieCallCount++;
+            Interlocked.Increment(ref _movieCallCount);
             return Task.FromResult(MovieOffers.TryGetValue(tmdbId, out var offers)
                 ? offers
                 : new WatchProvidersResult(region, [], null));
@@ -119,7 +123,7 @@ public sealed class TransactionalStreamOfferFilterTests
             string region,
             CancellationToken cancellationToken = default)
         {
-            TvCallCount++;
+            Interlocked.Increment(ref _tvCallCount);
             return Task.FromResult(TvOffers.TryGetValue(tmdbId, out var offers)
                 ? offers
                 : new WatchProvidersResult(region, [], null));
