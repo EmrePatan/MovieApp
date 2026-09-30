@@ -238,7 +238,10 @@ Per-job launch checklist:
 | `CatalogKeywordBackfill:Enabled` | `CatalogKeywordBackfill__Enabled` | `false` until validated |
 | `CatalogKeywordBackfill:BatchSize` | `CatalogKeywordBackfill__BatchSize` | `25` (valid range 1–200) |
 | `CatalogKeywordBackfill:MaxConcurrency` | `CatalogKeywordBackfill__MaxConcurrency` | `2` (valid range 1–8) |
+| `CatalogKeywordBackfill:DelayBetweenItemsMs` | `CatalogKeywordBackfill__DelayBetweenItemsMs` | `200` (valid range 0–60000; minimum interval between TMDB keyword call **starts** per execution) |
 | `CatalogKeywordBackfill:RecurringCron` | `CatalogKeywordBackfill__RecurringCron` | `0 * * * *` |
+
+**Temporary production backlog burn-down** (after validation; keep `CatalogGenreBackfill__Enabled=false` unless genre gaps are separately prioritized): `CatalogKeywordBackfill__Enabled=true`, `BatchSize=50`, `MaxConcurrency=2`, `DelayBetweenItemsMs=200`, hourly cron — ~50 titles/hour (~2.1 days for ~2,500 pending), ~one `movie/{id}/keywords` or `tv/{id}/keywords` request per title.
 
 ### Bounded validation (before enabling recurring)
 

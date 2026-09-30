@@ -20,11 +20,17 @@ public sealed class CatalogKeywordBackfillJob(
             RecurringJobIds.CatalogKeywordBackfill,
             async () =>
             {
+                if (!options.Value.Enabled)
+                {
+                    BackgroundJobLogMessages.LogCatalogKeywordBackfillDisabled(logger);
+                    return;
+                }
+
                 var batchSize = options.Value.BatchSize;
                 var coverageBefore = await backfillService.GetCoverageAsync(CancellationToken.None);
                 var stopwatch = Stopwatch.StartNew();
 
-                var candidates = await backfillService.SelectCandidatesAsync(batchSize, CancellationToken.None);
+                var candidates = await backfillService.SelectCandidatesAsync(batchSize, [], CancellationToken.None);
                 if (candidates.Count == 0)
                 {
                     BackgroundJobLogMessages.LogCatalogKeywordBackfillNoCandidates(

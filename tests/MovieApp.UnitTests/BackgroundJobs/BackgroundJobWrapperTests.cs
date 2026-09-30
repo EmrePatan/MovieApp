@@ -120,13 +120,30 @@ public sealed class BackgroundJobWrapperTests
         var backfillService = new FakeCatalogKeywordBackfillService();
         var job = new CatalogKeywordBackfillJob(
             backfillService,
-            Options.Create(new CatalogKeywordBackfillOptions { BatchSize = 25 }),
+            Options.Create(new CatalogKeywordBackfillOptions { Enabled = true, BatchSize = 25 }),
             NullLogger<CatalogKeywordBackfillJob>.Instance);
 
         await job.ExecuteAsync();
 
         Assert.Equal(25, backfillService.SelectedBatchSize);
         Assert.Equal(1, backfillService.ProcessBatchCalls);
+        Assert.Equal(2, backfillService.GetCoverageCalls);
+    }
+
+    [Fact]
+    public async Task CatalogKeywordBackfillJob_WhenDisabled_SkipsWork()
+    {
+        var backfillService = new FakeCatalogKeywordBackfillService();
+        var job = new CatalogKeywordBackfillJob(
+            backfillService,
+            Options.Create(new CatalogKeywordBackfillOptions { Enabled = false, BatchSize = 25 }),
+            NullLogger<CatalogKeywordBackfillJob>.Instance);
+
+        await job.ExecuteAsync();
+
+        Assert.Equal(0, backfillService.GetCoverageCalls);
+        Assert.Equal(0, backfillService.SelectCandidatesCalls);
+        Assert.Equal(0, backfillService.ProcessBatchCalls);
     }
 
     private sealed class FakeCatalogKeywordBackfillService : ICatalogKeywordBackfillService
@@ -135,10 +152,16 @@ public sealed class BackgroundJobWrapperTests
 
         public int ProcessBatchCalls { get; private set; }
 
+        public int GetCoverageCalls { get; private set; }
+
+        public int SelectCandidatesCalls { get; private set; }
+
         public Task<IReadOnlyList<CatalogKeywordBackfillCandidate>> SelectCandidatesAsync(
             int batchSize,
+            IReadOnlyCollection<Guid> excludeIds,
             CancellationToken cancellationToken = default)
         {
+            SelectCandidatesCalls++;
             SelectedBatchSize = batchSize;
             return Task.FromResult<IReadOnlyList<CatalogKeywordBackfillCandidate>>(
                 [new CatalogKeywordBackfillCandidate(Guid.NewGuid(), "movie", 1)]);
@@ -158,8 +181,11 @@ public sealed class BackgroundJobWrapperTests
                 0));
         }
 
-        public Task<CatalogKeywordCoverageSnapshot> GetCoverageAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new CatalogKeywordCoverageSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        public Task<CatalogKeywordCoverageSnapshot> GetCoverageAsync(CancellationToken cancellationToken = default)
+        {
+            GetCoverageCalls++;
+            return Task.FromResult(new CatalogKeywordCoverageSnapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        }
     }
 
     private sealed class FakeTmdbChangesSyncService : ITmdbTvChangesSyncService

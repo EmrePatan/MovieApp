@@ -10,5 +10,7 @@ public sealed class CatalogKeywordBackfillOptions
 
     public int MaxConcurrency { get; set; } = 2;
 
+    public int DelayBetweenItemsMs { get; set; } = 200;
+
     public string RecurringCron { get; set; } = "0 * * * *";
 }

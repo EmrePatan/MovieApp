@@ -6,6 +6,7 @@ public interface ICatalogKeywordBackfillService
 {
     Task<IReadOnlyList<CatalogKeywordBackfillCandidate>> SelectCandidatesAsync(
         int batchSize,
+        IReadOnlyCollection<Guid> excludeIds,
         CancellationToken cancellationToken = default);
 
     Task<CatalogKeywordBackfillBatchResult> ProcessBatchAsync(

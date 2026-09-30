@@ -122,6 +122,12 @@ internal static partial class BackgroundJobLogMessages
         int skippedNotReleased);
 
     [LoggerMessage(
+        EventId = 6018,
+        Level = LogLevel.Information,
+        Message = "Catalog keyword backfill is disabled; skipping execution.")]
+    internal static partial void LogCatalogKeywordBackfillDisabled(ILogger logger);
+
+    [LoggerMessage(
         EventId = 6010,
         Level = LogLevel.Information,
         Message = "Catalog keyword backfill completed: no eligible candidates. coverage={Synced}/{Eligible} ({CoveragePercent}%)")]

@@ -13,6 +13,7 @@ public sealed class CatalogKeywordBackfillService(
 {
     public async Task<IReadOnlyList<CatalogKeywordBackfillCandidate>> SelectCandidatesAsync(
         int batchSize,
+        IReadOnlyCollection<Guid> excludeIds,
         CancellationToken cancellationToken = default)
     {
         var effectiveBatchSize = Math.Clamp(batchSize, 1, options.Value.BatchSize);
@@ -25,10 +26,10 @@ public sealed class CatalogKeywordBackfillService(
         var tvTarget = effectiveBatchSize - movieTarget;
         var selected = new List<CatalogKeywordBackfillCandidate>(effectiveBatchSize);
 
-        var movies = await backfillRepository.SelectMovieCandidatesAsync(movieTarget, [], cancellationToken);
+        var movies = await backfillRepository.SelectMovieCandidatesAsync(movieTarget, excludeIds, cancellationToken);
         selected.AddRange(movies);
 
-        var tvs = await backfillRepository.SelectTvShowCandidatesAsync(tvTarget, [], cancellationToken);
+        var tvs = await backfillRepository.SelectTvShowCandidatesAsync(tvTarget, excludeIds, cancellationToken);
         selected.AddRange(tvs);
 
         var remaining = effectiveBatchSize - selected.Count;
@@ -38,12 +39,13 @@ public sealed class CatalogKeywordBackfillService(
         }
 
         var selectedIds = selected.Select(candidate => candidate.CatalogId).ToHashSet();
+        var combinedExclude = excludeIds.Concat(selectedIds).ToHashSet();
 
         if (movies.Count < movieTarget)
         {
             var additionalTvShows = await backfillRepository.SelectTvShowCandidatesAsync(
                 remaining,
-                selectedIds,
+                combinedExclude,
                 cancellationToken);
             selected.AddRange(additionalTvShows);
         }
@@ -51,7 +53,7 @@ public sealed class CatalogKeywordBackfillService(
         {
             var additionalMovies = await backfillRepository.SelectMovieCandidatesAsync(
                 remaining,
-                selectedIds,
+                combinedExclude,
                 cancellationToken);
             selected.AddRange(additionalMovies);
         }
@@ -69,7 +71,9 @@ public sealed class CatalogKeywordBackfillService(
         }
 
         var maxConcurrency = Math.Max(1, options.Value.MaxConcurrency);
+        var itemDelayMs = Math.Max(0, options.Value.DelayBetweenItemsMs);
         using var concurrencyLimiter = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+        var itemPacing = itemDelayMs > 0 ? new CatalogKeywordBackfillItemPacingCoordinator() : null;
         var succeeded = 0;
         var failed = 0;
         var skipped = 0;
@@ -82,6 +86,11 @@ public sealed class CatalogKeywordBackfillService(
 
             try
             {
+                if (itemPacing is not null)
+                {
+                    await itemPacing.WaitForNextStartSlotAsync(itemDelayMs, cancellationToken);
+                }
+
                 await using var scope = scopeFactory.CreateAsyncScope();
                 var processor = scope.ServiceProvider.GetRequiredService<ICatalogKeywordBackfillItemProcessor>();
 
@@ -134,6 +143,36 @@ public sealed class CatalogKeywordBackfillService(
             case CatalogKeywordBackfillItemOutcome.Skipped:
                 Interlocked.Increment(ref skipped);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Ensures a minimum interval between provider call starts while allowing up to MaxConcurrency in-flight work.
+    /// </summary>
+    private sealed class CatalogKeywordBackfillItemPacingCoordinator
+    {
+        private readonly object _sync = new();
+        private DateTime _nextAllowedStartUtc = DateTime.MinValue;
+
+        public async Task WaitForNextStartSlotAsync(int delayMs, CancellationToken cancellationToken)
+        {
+            TimeSpan wait;
+            lock (_sync)
+            {
+                var now = DateTime.UtcNow;
+                wait = _nextAllowedStartUtc - now;
+                if (wait < TimeSpan.Zero)
+                {
+                    wait = TimeSpan.Zero;
+                }
+
+                _nextAllowedStartUtc = (wait > TimeSpan.Zero ? _nextAllowedStartUtc : now).AddMilliseconds(delayMs);
+            }
+
+            if (wait > TimeSpan.Zero)
+            {
+                await Task.Delay(wait, cancellationToken);
+            }
         }
     }
 }

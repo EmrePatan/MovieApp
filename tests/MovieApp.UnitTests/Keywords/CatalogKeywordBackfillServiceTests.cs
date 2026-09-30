@@ -17,7 +17,7 @@ public sealed class CatalogKeywordBackfillServiceTests
         var repository = CreateRepository(movieCount: 100, tvCount: 100);
         var service = CreateService(repository);
 
-        var selected = await service.SelectCandidatesAsync(25);
+        var selected = await service.SelectCandidatesAsync(25, []);
 
         Assert.Equal(25, selected.Count);
     }
@@ -28,7 +28,7 @@ public sealed class CatalogKeywordBackfillServiceTests
         var repository = CreateRepository(movieCount: 100, tvCount: 100);
         var service = CreateService(repository);
 
-        var selected = await service.SelectCandidatesAsync(20);
+        var selected = await service.SelectCandidatesAsync(20, []);
 
         Assert.Equal(10, selected.Count(candidate => candidate.ContentType == "movie"));
         Assert.Equal(10, selected.Count(candidate => candidate.ContentType == "tv"));
@@ -40,10 +40,48 @@ public sealed class CatalogKeywordBackfillServiceTests
         var repository = CreateRepository(movieCount: 2, tvCount: 100);
         var service = CreateService(repository);
 
-        var selected = await service.SelectCandidatesAsync(20);
+        var selected = await service.SelectCandidatesAsync(20, []);
 
         Assert.Equal(2, selected.Count(candidate => candidate.ContentType == "movie"));
         Assert.Equal(18, selected.Count(candidate => candidate.ContentType == "tv"));
+    }
+
+    [Fact]
+    public async Task SelectCandidatesAsyncAllocatesTwelveMoviesAndThirteenTvShowsForBatchSize25()
+    {
+        var repository = CreateRepository(movieCount: 100, tvCount: 100);
+        var service = CreateService(repository);
+
+        var selected = await service.SelectCandidatesAsync(25, []);
+
+        Assert.Equal(12, selected.Count(candidate => candidate.ContentType == "movie"));
+        Assert.Equal(13, selected.Count(candidate => candidate.ContentType == "tv"));
+    }
+
+    [Fact]
+    public async Task SelectCandidatesAsyncFillsUnusedTvCapacityWithMovies()
+    {
+        var repository = CreateRepository(movieCount: 100, tvCount: 2);
+        var service = CreateService(repository);
+
+        var selected = await service.SelectCandidatesAsync(20, []);
+
+        Assert.Equal(18, selected.Count(candidate => candidate.ContentType == "movie"));
+        Assert.Equal(2, selected.Count(candidate => candidate.ContentType == "tv"));
+    }
+
+    [Fact]
+    public async Task SelectCandidatesAsyncHonorsExcludeIds()
+    {
+        var excludedMovie = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-000000000001");
+        var repository = CreateRepository(movieCount: 5, tvCount: 0);
+        repository.MovieCandidates[0] = excludedMovie;
+        var service = CreateService(repository);
+
+        var selected = await service.SelectCandidatesAsync(3, [excludedMovie]);
+
+        Assert.DoesNotContain(selected, candidate => candidate.CatalogId == excludedMovie);
+        Assert.Equal(3, selected.Count);
     }
 
     [Fact]
@@ -110,6 +148,65 @@ public sealed class CatalogKeywordBackfillServiceTests
     }
 
     [Fact]
+    public async Task ProcessBatchAsyncWithZeroItemDelayDoesNotAddPacing()
+    {
+        var repository = CreateRepository();
+        var ingestion = new StartTimestampKeywordIngestionService();
+        var service = CreateService(repository, ingestion, delayBetweenItemsMs: 0);
+
+        var candidates = Enumerable.Range(0, 4)
+            .Select(index => new CatalogKeywordBackfillCandidate(
+                Guid.Parse($"aaaaaaaa-aaaa-aaaa-aaaa-{index:D012}"),
+                "movie",
+                index + 1))
+            .ToList();
+
+        await service.ProcessBatchAsync(candidates);
+
+        Assert.True(ingestion.MaxStartGapMs < 50);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsyncAppliesConfiguredItemPacing()
+    {
+        var repository = CreateRepository();
+        var ingestion = new StartTimestampKeywordIngestionService();
+        var service = CreateService(repository, ingestion, delayBetweenItemsMs: 120, maxConcurrency: 1);
+
+        var candidates = Enumerable.Range(0, 3)
+            .Select(index => new CatalogKeywordBackfillCandidate(
+                Guid.Parse($"aaaaaaaa-aaaa-aaaa-aaaa-{index:D012}"),
+                "movie",
+                index + 1))
+            .ToList();
+
+        await service.ProcessBatchAsync(candidates);
+
+        Assert.True(ingestion.MaxStartGapMs >= 100);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsyncRespectsCancellationDuringItemPacing()
+    {
+        var repository = CreateRepository();
+        var ingestion = new StartTimestampKeywordIngestionService();
+        var service = CreateService(repository, ingestion, delayBetweenItemsMs: 500, maxConcurrency: 1);
+        using var cancellation = new CancellationTokenSource();
+
+        var candidates = Enumerable.Range(0, 4)
+            .Select(index => new CatalogKeywordBackfillCandidate(
+                Guid.Parse($"aaaaaaaa-aaaa-aaaa-aaaa-{index:D012}"),
+                "movie",
+                index + 1))
+            .ToList();
+
+        cancellation.CancelAfter(150);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.ProcessBatchAsync(candidates, cancellation.Token));
+    }
+
+    [Fact]
     public async Task ProcessBatchAsyncUsesIndependentScopePerConcurrentWorker()
     {
         var tracker = new ConcurrentScopeTracker();
@@ -125,6 +222,7 @@ public sealed class CatalogKeywordBackfillServiceTests
         {
             options.BatchSize = 25;
             options.MaxConcurrency = 2;
+            options.DelayBetweenItemsMs = 0;
         });
 
         await using var provider = services.BuildServiceProvider();
@@ -146,7 +244,8 @@ public sealed class CatalogKeywordBackfillServiceTests
         FakeBackfillRepository repository,
         ICatalogKeywordIngestionService? ingestion = null,
         int batchSize = 25,
-        int maxConcurrency = 2)
+        int maxConcurrency = 2,
+        int delayBetweenItemsMs = 0)
     {
         var processor = new CatalogKeywordBackfillItemProcessor(
             repository,
@@ -159,7 +258,8 @@ public sealed class CatalogKeywordBackfillServiceTests
             Options.Create(new CatalogKeywordBackfillOptions
             {
                 BatchSize = batchSize,
-                MaxConcurrency = maxConcurrency
+                MaxConcurrency = maxConcurrency,
+                DelayBetweenItemsMs = delayBetweenItemsMs
             }));
     }
 
@@ -267,6 +367,34 @@ public sealed class CatalogKeywordBackfillServiceTests
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class StartTimestampKeywordIngestionService : ICatalogKeywordIngestionService
+    {
+        private readonly object _lock = new();
+        private DateTime? _lastStartUtc;
+
+        public long MaxStartGapMs { get; private set; }
+
+        public Task TryEnrichMovieKeywordsAsync(Guid movieId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default)
+        {
+            var startUtc = DateTime.UtcNow;
+            lock (_lock)
+            {
+                if (_lastStartUtc.HasValue)
+                {
+                    var gapMs = (long)(startUtc - _lastStartUtc.Value).TotalMilliseconds;
+                    MaxStartGapMs = Math.Max(MaxStartGapMs, gapMs);
+                }
+
+                _lastStartUtc = startUtc;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task TryEnrichTvShowKeywordsAsync(Guid tvShowId, bool refreshKeywords, IReadOnlyList<ProviderKeywordSummary>? prefetchedKeywords = null, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class ConcurrencyTrackingKeywordIngestionService : ICatalogKeywordIngestionService

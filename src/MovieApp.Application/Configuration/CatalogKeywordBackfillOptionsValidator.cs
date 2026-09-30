@@ -25,6 +25,11 @@ public sealed class CatalogKeywordBackfillOptionsValidator : IValidateOptions<Ca
                 $"CatalogKeywordBackfill:MaxConcurrency must be between {MinimumConcurrency} and {MaximumConcurrency}.");
         }
 
+        if (options.DelayBetweenItemsMs < 0 || options.DelayBetweenItemsMs > 60_000)
+        {
+            failures.Add("CatalogKeywordBackfill:DelayBetweenItemsMs must be between 0 and 60000.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.RecurringCron))
         {
             failures.Add("CatalogKeywordBackfill:RecurringCron must not be empty.");
