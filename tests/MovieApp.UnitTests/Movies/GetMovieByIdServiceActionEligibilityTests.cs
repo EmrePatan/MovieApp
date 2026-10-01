@@ -86,7 +86,8 @@ public sealed class GetMovieByIdServiceActionEligibilityTests
             new NullMovieDataProvider(),
             new NoOpCatalogProviderUpsertService(),
             new NoOpCacheService(),
-            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository(),
+            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
 
     private static Movie CreateMovie(DateOnly? releaseDate) =>
         new()

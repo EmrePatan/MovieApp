@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCollectionService, GetCollectionService>();
         services.AddScoped<IDetailLocalizationOverlayService, DetailLocalizationOverlayService>();
         services.AddScoped<ISummaryLocalizationOverlayService, SummaryLocalizationOverlayService>();
+        services.AddScoped<SearchItemCatalogMetadataEnricher>();
         services.AddScoped<IContentLocalizedPosterSynchronizer, ContentLocalizedPosterSynchronizer>();
         services.AddScoped<IContentLocalizedPosterBackfillService, ContentLocalizedPosterBackfillService>();
         services.AddScoped<IKeywordLocalizationBackfillService, KeywordLocalizationBackfillService>();
@@ -75,7 +76,8 @@ public static class DependencyInjection
             sp.GetRequiredService<IContentLocalizedPosterSynchronizer>(),
             sp.GetRequiredService<ITvShowDataProvider>(),
             sp.GetRequiredService<ITvShowExternalIdLookup>(),
-            sp.GetRequiredService<IDetailLocalizationOverlayService>()));
+            sp.GetRequiredService<IDetailLocalizationOverlayService>(),
+            sp.GetRequiredService<ICatalogTitleKeywordReadRepository>()));
         services.AddScoped<ITvShowExternalIdLookup, TvShowExternalIdLookup>();
         services.AddScoped<IGetTvShowByTmdbIdService, GetTvShowByTmdbIdService>();
         services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();

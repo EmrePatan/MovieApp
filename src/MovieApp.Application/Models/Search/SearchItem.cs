@@ -14,4 +14,5 @@ public sealed record SearchItem(
     int? Year,
     int? TmdbId = null,
     string? KnownForDepartment = null,
-    decimal Popularity = 0);
+    decimal Popularity = 0,
+    IReadOnlyList<string>? Genres = null);

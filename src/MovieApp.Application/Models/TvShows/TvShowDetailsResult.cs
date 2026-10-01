@@ -17,6 +17,7 @@ public sealed record TvShowDetailsResult(
     int VoteCount,
     string Status,
     IReadOnlyList<string> Genres,
+    IReadOnlyList<string> Keywords,
     IReadOnlyList<SeasonSummaryResult> Seasons,
     bool CanFollow,
     string? PrimaryOriginCountryCode = null);

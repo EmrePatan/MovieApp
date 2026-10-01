@@ -31,7 +31,8 @@ public static class SearchContractMapper
             item.VoteCount,
             item.Year,
             item.TmdbId,
-            item.KnownForDepartment);
+            item.KnownForDepartment,
+            item.Genres ?? []);
 
     public static SearchAutocompleteResponse ToAutocompleteResponse(IReadOnlyList<SearchSuggestion> items) =>
         new(items.Select(item => new SearchAutocompleteItemResponse(

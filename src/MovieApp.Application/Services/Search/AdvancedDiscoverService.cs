@@ -23,6 +23,7 @@ public sealed class AdvancedDiscoverService(
     IKeywordDiscoverReadRepository keywordDiscoverReadRepository,
     ICacheService cacheService,
     ILogger<AdvancedDiscoverService> logger,
+    SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher,
     ITransactionalStreamOfferFilter? transactionalStreamOfferFilter = null) : IAdvancedDiscoverService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(10);
@@ -61,6 +62,8 @@ public sealed class AdvancedDiscoverService(
                 cancellationToken),
             _ => throw new ValidationException("Media type must be movie or tv.")
         };
+
+        result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,

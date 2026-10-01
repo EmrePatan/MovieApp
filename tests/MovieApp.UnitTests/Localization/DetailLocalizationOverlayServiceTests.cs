@@ -143,6 +143,7 @@ public sealed class DetailLocalizationOverlayServiceTests
             "Ended",
             ["Drama"],
             [],
+            [],
             false);
 
         var result = service.ApplyLoadedTvShowOverlay(
@@ -246,6 +247,7 @@ public sealed class DetailLocalizationOverlayServiceTests
             8.7m,
             100,
             ["Adventure"],
+            [],
             null,
             true,
             false,

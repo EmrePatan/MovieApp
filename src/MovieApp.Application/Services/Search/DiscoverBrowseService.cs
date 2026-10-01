@@ -23,7 +23,8 @@ public sealed class DiscoverBrowseService(
     IGenreReadRepository genreReadRepository,
     IKeywordDiscoverReadRepository keywordDiscoverReadRepository,
     ICacheService cacheService,
-    ILogger<DiscoverBrowseService> logger) : IDiscoverBrowseService
+    ILogger<DiscoverBrowseService> logger,
+    SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher) : IDiscoverBrowseService
 {
     private static readonly TimeSpan BrowseCacheTtl = TimeSpan.FromMinutes(10);
 
@@ -80,6 +81,8 @@ public sealed class DiscoverBrowseService(
                 _ => await BrowseAllAsync(criteria, contentLocale, cancellationToken)
             };
         }
+
+        result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,

@@ -47,6 +47,7 @@ public static class TvShowContractMapper
             result.VoteCount,
             result.Status,
             result.Genres,
+            result.Keywords,
             result.Seasons.Select(ToSeasonSummaryResponse).ToList(),
             result.CanFollow);
 

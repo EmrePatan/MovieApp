@@ -7,6 +7,7 @@ using MovieApp.Application.Models.Localization;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Search;
 
 namespace MovieApp.Application.Services.Localization;
 
@@ -14,13 +15,16 @@ public sealed class SummaryLocalizationOverlayService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IDetailLocalizationOverlayService detailLocalizationOverlayService,
-    IContentLocalizedPosterRepository contentLocalizedPosterRepository) : ISummaryLocalizationOverlayService
+    IContentLocalizedPosterRepository contentLocalizedPosterRepository,
+    SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher) : ISummaryLocalizationOverlayService
 {
     public async Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
         PaginatedResult<SearchItem> canonical,
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
+        canonical = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(canonical, cancellationToken);
+
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || canonical.Items.Count == 0)
         {
             return canonical;

@@ -342,6 +342,7 @@ public static class DependencyInjection
         services.AddScoped<ISearchRepository, SearchRepository>();
 
         services.AddScoped<IGenreReadRepository, GenreReadRepository>();
+        services.AddScoped<ICatalogTitleKeywordReadRepository, CatalogTitleKeywordReadRepository>();
 
         services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 

@@ -10,6 +10,7 @@ using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
+using MovieApp.UnitTests.Persistence;
 
 namespace MovieApp.UnitTests.Localization;
 
@@ -99,7 +100,9 @@ public sealed class ListLocalizationStage2Tests
             canonical,
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(canonical, result);
+        Assert.Equal(canonical.Items[0].Title, result.Items[0].Title);
+        Assert.Equal(canonical.Items[0].Overview, result.Items[0].Overview);
+        Assert.Empty(result.Items[0].Genres ?? []);
     }
 
     [Fact]
@@ -291,7 +294,35 @@ public sealed class ListLocalizationStage2Tests
             new DetailLocalizationOverlayService(
                 localizedDetailDataProvider ?? new NullLocalizedDetailDataProvider(),
                 cache),
-            new EmptyContentLocalizedPosterRepository());
+            new EmptyContentLocalizedPosterRepository(),
+            new SearchItemCatalogMetadataEnricher(new EmptyGenreReadRepository()));
+
+    private sealed class EmptyGenreReadRepository : IGenreReadRepository
+    {
+        public Task<IReadOnlyList<(Guid Id, string Name)>> GetAllOrderedByNameAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<(Guid Id, string Name)>>([]);
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetNamesByIdsAsync(
+            IReadOnlyList<Guid> genreIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+        public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Guid?>(null);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByMovieIdsAsync(
+            IReadOnlyList<Guid> movieIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            GenreReadRepositoryTestDefaults.EmptyMovieGenresAsync(movieIds, maxGenresPerItem, cancellationToken);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByTvShowIdsAsync(
+            IReadOnlyList<Guid> tvShowIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            GenreReadRepositoryTestDefaults.EmptyTvGenresAsync(tvShowIds, maxGenresPerItem, cancellationToken);
+    }
 
     private static SearchItem CreateMovieItem(Guid id, string title, int tmdbId) =>
         new(

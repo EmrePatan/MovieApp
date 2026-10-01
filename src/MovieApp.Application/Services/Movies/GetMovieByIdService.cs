@@ -8,6 +8,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.MovieFollows;
@@ -26,6 +27,7 @@ public sealed class GetMovieByIdService(
     ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
+    ICatalogTitleKeywordReadRepository catalogTitleKeywordReadRepository,
     IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
@@ -65,7 +67,11 @@ public sealed class GetMovieByIdService(
         var cachedEntry = await cacheService.GetAsync<MovieDetailsCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
-            return await ApplyOverlayAsync(id, cachedEntry.Result, contentLocale, cancellationToken);
+            return await FinalizeMovieDetailsAsync(
+                id,
+                cachedEntry.Result,
+                contentLocale,
+                cancellationToken);
         }
 
         var movie = prefetchedMovie ?? await movieRepository.GetByIdAsync(id, cancellationToken);
@@ -85,14 +91,35 @@ public sealed class GetMovieByIdService(
 
         if (overlayTask is null)
         {
-            return await ApplyLocalizedPosterOverlayAsync(id, result, contentLocale, cancellationToken);
+            return await FinalizeMovieDetailsAsync(id, result, contentLocale, cancellationToken);
         }
 
         var localized = detailLocalizationOverlayService!.ApplyLoadedMovieOverlay(
             result,
             await overlayTask,
             contentLocale);
-        return await ApplyLocalizedPosterOverlayAsync(id, localized, contentLocale, cancellationToken);
+        localized = await ApplyLocalizedPosterOverlayAsync(id, localized, contentLocale, cancellationToken);
+        return await DetailKeywordOverlay.ApplyMovieKeywordsAsync(
+            catalogTitleKeywordReadRepository,
+            id,
+            localized,
+            contentLocale,
+            cancellationToken);
+    }
+
+    private async Task<MovieDetailsResult> FinalizeMovieDetailsAsync(
+        Guid movieId,
+        MovieDetailsResult result,
+        string? contentLocale,
+        CancellationToken cancellationToken)
+    {
+        result = await ApplyOverlayAsync(movieId, result, contentLocale, cancellationToken);
+        return await DetailKeywordOverlay.ApplyMovieKeywordsAsync(
+            catalogTitleKeywordReadRepository,
+            movieId,
+            result,
+            contentLocale,
+            cancellationToken);
     }
 
     private Task<Models.Localization.MovieDetailLocalizationData?>? StartMovieOverlay(

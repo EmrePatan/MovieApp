@@ -41,6 +41,7 @@ public static class MovieContractMapper
             result.VoteAverage,
             result.VoteCount,
             result.Genres,
+            result.Keywords,
             result.Collection is null
                 ? null
                 : new MovieCollectionSummaryResponse(

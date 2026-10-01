@@ -170,6 +170,24 @@ public sealed class HomeTopRatedServiceTests
             LastRequestedGenreName = name;
             return Task.FromResult(animationGenreId);
         }
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByMovieIdsAsync(
+            IReadOnlyList<Guid> movieIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            MovieApp.UnitTests.Persistence.GenreReadRepositoryTestDefaults.EmptyMovieGenresAsync(
+                movieIds,
+                maxGenresPerItem,
+                cancellationToken);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByTvShowIdsAsync(
+            IReadOnlyList<Guid> tvShowIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            MovieApp.UnitTests.Persistence.GenreReadRepositoryTestDefaults.EmptyTvGenresAsync(
+                tvShowIds,
+                maxGenresPerItem,
+                cancellationToken);
     }
 
     private sealed class FakeSearchRepository : ISearchRepository

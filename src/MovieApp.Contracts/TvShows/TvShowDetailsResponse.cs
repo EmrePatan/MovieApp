@@ -17,5 +17,6 @@ public sealed record TvShowDetailsResponse(
     int VoteCount,
     string Status,
     IReadOnlyList<string> Genres,
+    IReadOnlyList<string> Keywords,
     IReadOnlyList<SeasonSummaryResponse> Seasons,
     bool CanFollow);

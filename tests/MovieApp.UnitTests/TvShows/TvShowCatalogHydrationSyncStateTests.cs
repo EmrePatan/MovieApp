@@ -71,7 +71,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
             GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
-            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
+            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay,
+            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
 
         await service.GetByIdAsync(TvShowId);
 
@@ -107,6 +108,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             0,
             "Ended",
             [],
+            [],
             [cachedSeason],
             CanFollow: false);
 
@@ -124,7 +126,8 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
             GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
-            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
+            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay,
+            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
 
         await service.GetByIdAsync(TvShowId);
 

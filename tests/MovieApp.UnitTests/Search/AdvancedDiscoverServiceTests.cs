@@ -7,6 +7,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
+using MovieApp.UnitTests.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MovieApp.UnitTests.Search;
@@ -78,7 +79,8 @@ public sealed class AdvancedDiscoverServiceTests
             new FakeGenreReadRepository(),
             new FakeKeywordDiscoverReadRepository(),
             cache,
-            NullLogger<AdvancedDiscoverService>.Instance);
+            NullLogger<AdvancedDiscoverService>.Instance,
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
 
         var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -145,7 +147,8 @@ public sealed class AdvancedDiscoverServiceTests
             new FakeGenreReadRepository(),
             new FakeKeywordDiscoverReadRepository(),
             cache,
-            NullLogger<AdvancedDiscoverService>.Instance);
+            NullLogger<AdvancedDiscoverService>.Instance,
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
 
     private static AdvancedDiscoverCriteria CreateCriteria(SearchContentType type) =>
         new(
@@ -311,6 +314,18 @@ public sealed class AdvancedDiscoverServiceTests
 
         public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByMovieIdsAsync(
+            IReadOnlyList<Guid> movieIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            GenreReadRepositoryTestDefaults.EmptyMovieGenresAsync(movieIds, maxGenresPerItem, cancellationToken);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByTvShowIdsAsync(
+            IReadOnlyList<Guid> tvShowIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            GenreReadRepositoryTestDefaults.EmptyTvGenresAsync(tvShowIds, maxGenresPerItem, cancellationToken);
     }
 
     private sealed class FakeKeywordDiscoverReadRepository : MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository

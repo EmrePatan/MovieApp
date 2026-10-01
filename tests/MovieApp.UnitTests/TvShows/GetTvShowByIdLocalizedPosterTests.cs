@@ -37,7 +37,8 @@ public sealed class GetTvShowByIdLocalizedPosterTests
             GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer,
             GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
-            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay);
+            GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay,
+            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
 
         var result = await service.GetByIdAsync(TvShowId, ContentLocaleResolver.TurkishTurkey);
 
@@ -59,6 +60,8 @@ public sealed class GetTvShowByIdLocalizedPosterTests
         services.AddSingleton(
             GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer);
         services.AddSingleton(GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider);
+        services.AddSingleton<ICatalogTitleKeywordReadRepository>(
+            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
         services.AddSingleton<IGetTvShowByIdService, GetTvShowByIdService>();
 
         var provider = services.BuildServiceProvider();
@@ -85,6 +88,7 @@ public sealed class GetTvShowByIdLocalizedPosterTests
             VoteCount: 6,
             Status: "Canceled",
             Genres: ["Drama"],
+            Keywords: [],
             Seasons:
             [
                 new SeasonSummaryResult(

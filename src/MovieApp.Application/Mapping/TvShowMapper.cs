@@ -44,6 +44,7 @@ public static class TvShowMapper
                 .Select(tvShowGenre => tvShowGenre.Genre.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList(),
+            [],
             tvShow.Seasons
                 .OrderBy(season => season.SeasonNumber)
                 .Select(ToSeasonSummaryResult)

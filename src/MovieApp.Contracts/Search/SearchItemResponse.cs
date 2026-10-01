@@ -13,4 +13,5 @@ public sealed record SearchItemResponse(
     int VoteCount,
     int? Year,
     int? TmdbId = null,
-    string? KnownForDepartment = null);
+    string? KnownForDepartment = null,
+    IReadOnlyList<string>? Genres = null);

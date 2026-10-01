@@ -1455,6 +1455,24 @@ public sealed class HomeServiceTests
 
         public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByMovieIdsAsync(
+            IReadOnlyList<Guid> movieIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            MovieApp.UnitTests.Persistence.GenreReadRepositoryTestDefaults.EmptyMovieGenresAsync(
+                movieIds,
+                maxGenresPerItem,
+                cancellationToken);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByTvShowIdsAsync(
+            IReadOnlyList<Guid> tvShowIds,
+            int maxGenresPerItem,
+            CancellationToken cancellationToken = default) =>
+            MovieApp.UnitTests.Persistence.GenreReadRepositoryTestDefaults.EmptyTvGenresAsync(
+                tvShowIds,
+                maxGenresPerItem,
+                cancellationToken);
     }
 
     private sealed class PassthroughSearchRepository : ISearchRepository

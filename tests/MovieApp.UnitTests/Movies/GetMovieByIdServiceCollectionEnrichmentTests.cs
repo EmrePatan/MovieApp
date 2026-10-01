@@ -128,7 +128,8 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
             movieDataProvider,
             catalogProviderUpsertService,
             cacheService ?? new NoOpCacheService(),
-            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository());
+            new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository(),
+            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
 
     private static Movie CreateMovie(int? tmdbCollectionId, string? collectionName = null) =>
         new()

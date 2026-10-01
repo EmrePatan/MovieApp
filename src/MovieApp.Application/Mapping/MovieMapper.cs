@@ -39,6 +39,7 @@ public static class MovieMapper
                 .Select(movieGenre => movieGenre.Genre.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList(),
+            [],
             ToCollectionSummary(movie),
             IsReleased: true,
             CanFollowForRelease: true,
