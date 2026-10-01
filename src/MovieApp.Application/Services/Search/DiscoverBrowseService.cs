@@ -65,7 +65,16 @@ public sealed class DiscoverBrowseService(
         else
         {
             var providerCriteria = await BuildProviderCriteriaAsync(criteria, cancellationToken);
-
+            if (DiscoverKeywordFilterGuard.IsUnresolvedKeywordFilter(
+                    criteria.KeywordIds,
+                    providerCriteria.KeywordTmdbIds))
+            {
+                result = DiscoverKeywordFilterGuard.CreateEmptyBrowseResult(
+                    criteria.Page,
+                    criteria.PageSize);
+            }
+            else
+            {
             result = criteria.Type switch
             {
                 SearchContentType.Movie => await BrowseMoviesAsync(
@@ -80,6 +89,7 @@ public sealed class DiscoverBrowseService(
                     cancellationToken),
                 _ => await BrowseAllAsync(criteria, contentLocale, cancellationToken)
             };
+            }
         }
 
         result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);

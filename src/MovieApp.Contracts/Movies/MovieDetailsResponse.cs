@@ -1,3 +1,5 @@
+using MovieApp.Contracts.Catalog;
+
 namespace MovieApp.Contracts.Movies;
 
 public sealed record MovieDetailsResponse(
@@ -14,7 +16,7 @@ public sealed record MovieDetailsResponse(
     decimal VoteAverage,
     int VoteCount,
     IReadOnlyList<string> Genres,
-    IReadOnlyList<string> Keywords,
+    IReadOnlyList<CatalogKeywordSummaryResponse> Keywords,
     MovieCollectionSummaryResponse? Collection,
     bool IsReleased,
     bool CanFollowForRelease,

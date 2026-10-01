@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Collections;
 
 namespace MovieApp.Application.Models.Movies;
@@ -18,7 +19,7 @@ public sealed record MovieDetailsResult(
     decimal VoteAverage,
     int VoteCount,
     IReadOnlyList<string> Genres,
-    IReadOnlyList<string> Keywords,
+    IReadOnlyList<CatalogKeywordSummary> Keywords,
     MovieCollectionSummaryResult? Collection,
     bool IsReleased,
     bool CanFollowForRelease,

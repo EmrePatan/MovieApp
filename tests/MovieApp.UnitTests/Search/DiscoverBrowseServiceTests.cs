@@ -187,6 +187,97 @@ public sealed class DiscoverBrowseServiceTests
     }
 
     [Fact]
+    public async Task BrowseAsyncWithUnresolvedKeywordFilterReturnsEmptyWithoutProviderCall()
+    {
+        var cache = new DiscoverBrowseFakeCacheService(null);
+        var movieTracker = new MovieDataProviderCallTracker();
+        var keywordRepository = new ConfigurableKeywordDiscoverReadRepository([]);
+        var service = new DiscoverBrowseService(
+            new DiscoveryServiceCallTracker(),
+            new FakeMovieDataProvider(movieTracker),
+            new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
+            new SummaryMovieRepository(),
+            new SummaryTvShowRepository(),
+            new FakeGenreReadRepository(),
+            keywordRepository,
+            cache,
+            NullLogger<DiscoverBrowseService>.Instance,
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+
+        var keywordId = Guid.NewGuid();
+        var criteria = new DiscoverBrowseCriteria(
+            DiscoverBrowseMode.Trending,
+            SearchContentType.Movie,
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [keywordId],
+            [],
+            null,
+            1,
+            20);
+
+        var result = await service.BrowseAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Empty(result.Items);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
+        Assert.Equal([keywordId], keywordRepository.LastResolvedKeywordIds);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncWithResolvedKeywordFilterCallsProvider()
+    {
+        var cache = new DiscoverBrowseFakeCacheService(null);
+        var movieTracker = new MovieDataProviderCallTracker();
+        var keywordRepository = new ConfigurableKeywordDiscoverReadRepository([1234]);
+        var service = new DiscoverBrowseService(
+            new DiscoveryServiceCallTracker(),
+            new FakeMovieDataProvider(movieTracker),
+            new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
+            new SummaryMovieRepository(),
+            new SummaryTvShowRepository(),
+            new FakeGenreReadRepository(),
+            keywordRepository,
+            cache,
+            NullLogger<DiscoverBrowseService>.Instance,
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+
+        var criteria = new DiscoverBrowseCriteria(
+            DiscoverBrowseMode.Trending,
+            SearchContentType.Movie,
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [Guid.NewGuid()],
+            [],
+            null,
+            1,
+            20);
+
+        var result = await service.BrowseAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.NotEmpty(result.Items);
+        Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
+    }
+
+    [Fact]
     public async Task BrowseAsyncCachesSuccessfulResponses()
     {
         var cache = new DiscoverBrowseFakeCacheService(null);
@@ -445,8 +536,13 @@ public sealed class DiscoverBrowseServiceTests
             GenreReadRepositoryTestDefaults.EmptyTvGenresAsync(tvShowIds, maxGenresPerItem, cancellationToken);
     }
 
-    private sealed class FakeKeywordDiscoverReadRepository : MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository
+    private sealed class FakeKeywordDiscoverReadRepository() : ConfigurableKeywordDiscoverReadRepository([]);
+
+    private class ConfigurableKeywordDiscoverReadRepository(IReadOnlyList<int> resolvedTmdbIds)
+        : MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository
     {
+        public IReadOnlyList<Guid> LastResolvedKeywordIds { get; private set; } = [];
+
         public Task<MovieApp.Application.Models.Movies.PaginatedResult<MovieApp.Application.Models.Discovery.KeywordDiscoverItem>> SearchAsync(
             string query,
             string contentLocale,
@@ -458,7 +554,10 @@ public sealed class DiscoverBrowseServiceTests
 
         public Task<IReadOnlyList<int>> ResolveTmdbKeywordIdsAsync(
             IReadOnlyList<Guid> keywordIds,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<int>>([]);
+            CancellationToken cancellationToken = default)
+        {
+            LastResolvedKeywordIds = keywordIds;
+            return Task.FromResult(resolvedTmdbIds);
+        }
     }
 }

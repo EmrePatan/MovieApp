@@ -47,6 +47,14 @@ public sealed class AdvancedDiscoverService(
         }
 
         var providerCriteria = await BuildProviderCriteriaAsync(criteria, cancellationToken);
+        if (DiscoverKeywordFilterGuard.IsUnresolvedKeywordFilter(
+                criteria.KeywordIds,
+                providerCriteria.KeywordTmdbIds))
+        {
+            return DiscoverKeywordFilterGuard.CreateEmptyBrowseResult(
+                criteria.Page,
+                criteria.PageSize);
+        }
 
         PaginatedResult<SearchItem> result = criteria.MediaType switch
         {

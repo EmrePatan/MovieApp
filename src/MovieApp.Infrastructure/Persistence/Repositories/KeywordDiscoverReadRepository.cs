@@ -94,29 +94,7 @@ public sealed class KeywordDiscoverReadRepository(ApplicationDbContext dbContext
             return [];
         }
 
-        var references = await dbContext.KeywordExternalReferences
-            .AsNoTracking()
-            .Where(reference =>
-                reference.Provider == KeywordProvider.Tmdb &&
-                distinctIds.Contains(reference.KeywordId))
-            .Select(reference => new { reference.KeywordId, reference.ExternalId })
-            .ToListAsync(cancellationToken);
-
-        var tmdbIdsByKeywordId = new Dictionary<Guid, int>();
-        foreach (var reference in references)
-        {
-            if (!int.TryParse(
-                    reference.ExternalId,
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out var tmdbKeywordId) ||
-                tmdbKeywordId <= 0)
-            {
-                continue;
-            }
-
-            tmdbIdsByKeywordId.TryAdd(reference.KeywordId, tmdbKeywordId);
-        }
+        var tmdbIdsByKeywordId = await LoadTmdbKeywordIdsAsync(distinctIds, cancellationToken);
 
         var resolved = new List<int>();
         var seen = new HashSet<int>();
@@ -134,5 +112,60 @@ public sealed class KeywordDiscoverReadRepository(ApplicationDbContext dbContext
         }
 
         return resolved;
+    }
+
+    private async Task<Dictionary<Guid, int>> LoadTmdbKeywordIdsAsync(
+        IReadOnlyList<Guid> keywordIds,
+        CancellationToken cancellationToken)
+    {
+        var tmdbIdsByKeywordId = new Dictionary<Guid, int>();
+
+        var references = await dbContext.KeywordExternalReferences
+            .AsNoTracking()
+            .Where(reference =>
+                reference.Provider == KeywordProvider.Tmdb &&
+                keywordIds.Contains(reference.KeywordId))
+            .Select(reference => new { reference.KeywordId, reference.ExternalId })
+            .ToListAsync(cancellationToken);
+
+        foreach (var reference in references)
+        {
+            if (!int.TryParse(
+                    reference.ExternalId,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var tmdbKeywordId) ||
+                tmdbKeywordId <= 0)
+            {
+                continue;
+            }
+
+            tmdbIdsByKeywordId.TryAdd(reference.KeywordId, tmdbKeywordId);
+        }
+
+        var unresolvedIds = keywordIds.Where(id => !tmdbIdsByKeywordId.ContainsKey(id)).ToList();
+        if (unresolvedIds.Count == 0)
+        {
+            return tmdbIdsByKeywordId;
+        }
+
+        var columnMappings = await dbContext.Keywords
+            .AsNoTracking()
+            .Where(keyword =>
+                unresolvedIds.Contains(keyword.Id) &&
+                keyword.TmdbKeywordId != null &&
+                keyword.TmdbKeywordId > 0)
+            .Select(keyword => new { keyword.Id, keyword.TmdbKeywordId })
+            .ToListAsync(cancellationToken);
+
+        foreach (var mapping in columnMappings)
+        {
+            if (mapping.TmdbKeywordId is int tmdbKeywordId && tmdbKeywordId > 0)
+            {
+                tmdbIdsByKeywordId.TryAdd(mapping.Id, tmdbKeywordId);
+            }
+        }
+
+        return tmdbIdsByKeywordId;
     }
 }

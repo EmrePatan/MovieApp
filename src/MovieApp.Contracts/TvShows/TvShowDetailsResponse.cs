@@ -1,3 +1,4 @@
+using MovieApp.Contracts.Catalog;
 using MovieApp.Contracts.Movies;
 
 namespace MovieApp.Contracts.TvShows;
@@ -17,6 +18,6 @@ public sealed record TvShowDetailsResponse(
     int VoteCount,
     string Status,
     IReadOnlyList<string> Genres,
-    IReadOnlyList<string> Keywords,
+    IReadOnlyList<CatalogKeywordSummaryResponse> Keywords,
     IReadOnlyList<SeasonSummaryResponse> Seasons,
     bool CanFollow);

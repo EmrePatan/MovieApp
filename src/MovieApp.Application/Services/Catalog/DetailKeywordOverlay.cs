@@ -18,7 +18,7 @@ public static class DetailKeywordOverlay
             ? SupportedContentLocales.EnglishUnitedStates
             : contentLocale;
 
-        var keywords = await keywordReadRepository.GetLocalizedKeywordNamesForMovieAsync(
+        var keywords = await keywordReadRepository.GetLocalizedKeywordsForMovieAsync(
             movieId,
             locale,
             CatalogDisplayLimits.MaxDetailKeywords,
@@ -38,7 +38,7 @@ public static class DetailKeywordOverlay
             ? SupportedContentLocales.EnglishUnitedStates
             : contentLocale;
 
-        var keywords = await keywordReadRepository.GetLocalizedKeywordNamesForTvShowAsync(
+        var keywords = await keywordReadRepository.GetLocalizedKeywordsForTvShowAsync(
             tvShowId,
             locale,
             CatalogDisplayLimits.MaxDetailKeywords,

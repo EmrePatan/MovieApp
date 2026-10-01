@@ -1,5 +1,6 @@
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Contracts.Catalog;
 using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.TvShows;
 
@@ -47,7 +48,7 @@ public static class TvShowContractMapper
             result.VoteCount,
             result.Status,
             result.Genres,
-            result.Keywords,
+            result.Keywords.Select(keyword => new CatalogKeywordSummaryResponse(keyword.Id, keyword.Name)).ToList(),
             result.Seasons.Select(ToSeasonSummaryResponse).ToList(),
             result.CanFollow);
 

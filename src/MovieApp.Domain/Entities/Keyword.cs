@@ -33,4 +33,6 @@ public sealed class Keyword
     public ICollection<TvShowKeywordSource> TvShowKeywordSources { get; set; } = [];
 
     public ICollection<KeywordLocalization> Localizations { get; set; } = [];
+
+    public KeywordDisplayProfile? DisplayProfile { get; set; }
 }

@@ -199,6 +199,7 @@ public sealed class KeywordCatalogStatisticsTests
         var service = new KeywordCatalogStatisticsRefreshService(
             new FailingKeywordCatalogStatisticsLoader(),
             provider,
+            new NoOpKeywordDisplayProfileRefreshService(),
             Options.Create(EnabledStatisticsOptions()),
             NullLogger<KeywordCatalogStatisticsRefreshService>.Instance);
 
@@ -219,6 +220,7 @@ public sealed class KeywordCatalogStatisticsTests
         var service = new KeywordCatalogStatisticsRefreshService(
             new StubKeywordCatalogStatisticsLoader(loadResult),
             provider,
+            new NoOpKeywordDisplayProfileRefreshService(),
             Options.Create(EnabledStatisticsOptions()),
             NullLogger<KeywordCatalogStatisticsRefreshService>.Instance);
 
@@ -312,5 +314,16 @@ public sealed class KeywordCatalogStatisticsTests
     {
         public Task<KeywordCatalogStatisticsLoadResult?> LoadAsync(CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("simulated load failure");
+    }
+
+    private sealed class NoOpKeywordDisplayProfileRefreshService : IKeywordDisplayProfileRefreshService
+    {
+        public Task<KeywordDisplayProfileRefreshResult> RefreshAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new KeywordDisplayProfileRefreshResult(
+                Succeeded: true,
+                ProfilesWritten: 0,
+                DisplayableCount: 0,
+                DurationMilliseconds: 0,
+                FailureReason: null));
     }
 }

@@ -1,4 +1,5 @@
 using MovieApp.Application.Models.Movies;
+using MovieApp.Contracts.Catalog;
 using MovieApp.Contracts.Movies;
 
 namespace MovieApp.Api.Mapping;
@@ -41,7 +42,7 @@ public static class MovieContractMapper
             result.VoteAverage,
             result.VoteCount,
             result.Genres,
-            result.Keywords,
+            result.Keywords.Select(keyword => new CatalogKeywordSummaryResponse(keyword.Id, keyword.Name)).ToList(),
             result.Collection is null
                 ? null
                 : new MovieCollectionSummaryResponse(

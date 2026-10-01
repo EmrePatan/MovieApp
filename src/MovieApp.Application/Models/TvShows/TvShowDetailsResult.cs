@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Catalog;
+
 namespace MovieApp.Application.Models.TvShows;
 
 public sealed record TvShowDetailsResult(
@@ -17,7 +19,7 @@ public sealed record TvShowDetailsResult(
     int VoteCount,
     string Status,
     IReadOnlyList<string> Genres,
-    IReadOnlyList<string> Keywords,
+    IReadOnlyList<CatalogKeywordSummary> Keywords,
     IReadOnlyList<SeasonSummaryResult> Seasons,
     bool CanFollow,
     string? PrimaryOriginCountryCode = null);

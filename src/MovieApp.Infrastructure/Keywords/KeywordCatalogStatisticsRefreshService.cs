@@ -9,6 +9,7 @@ namespace MovieApp.Infrastructure.Keywords;
 public sealed class KeywordCatalogStatisticsRefreshService(
     IKeywordCatalogStatisticsLoader loader,
     KeywordCatalogStatisticsProvider provider,
+    IKeywordDisplayProfileRefreshService displayProfileRefreshService,
     IOptions<KeywordCatalogStatisticsOptions> options,
     ILogger<KeywordCatalogStatisticsRefreshService> logger) : IKeywordCatalogStatisticsRefreshService
 {
@@ -67,6 +68,8 @@ public sealed class KeywordCatalogStatisticsRefreshService(
             }
 
             provider.Publish(snapshot);
+
+            _ = await displayProfileRefreshService.RefreshAsync(cancellationToken);
 
             KeywordCatalogStatisticsLogMessages.LogRefreshCompleted(
                 logger,

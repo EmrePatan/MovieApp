@@ -25,6 +25,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<Keyword> Keywords => Set<Keyword>();
 
+    public DbSet<KeywordDisplayProfile> KeywordDisplayProfiles => Set<KeywordDisplayProfile>();
+
     public DbSet<MovieKeyword> MovieKeywords => Set<MovieKeyword>();
 
     public DbSet<TvShowKeyword> TvShowKeywords => Set<TvShowKeyword>();

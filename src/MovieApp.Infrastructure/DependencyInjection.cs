@@ -83,6 +83,11 @@ public static class DependencyInjection
         services.AddSingleton<IKeywordCatalogStatisticsRefreshService, KeywordCatalogStatisticsRefreshService>();
         services.AddHostedService<KeywordCatalogStatisticsWarmupHostedService>();
 
+        services.AddOptions<KeywordDisplayProfileOptions>()
+            .Bind(configuration.GetSection(KeywordDisplayProfileOptions.SectionName));
+        services.AddSingleton<KeywordDisplayProfileLoader>();
+        services.AddSingleton<IKeywordDisplayProfileRefreshService, KeywordDisplayProfileRefreshService>();
+
         services.Configure<HomeOptions>(configuration.GetSection(HomeOptions.SectionName));
 
         services.Configure<InsightsOptions>(configuration.GetSection(InsightsOptions.SectionName));

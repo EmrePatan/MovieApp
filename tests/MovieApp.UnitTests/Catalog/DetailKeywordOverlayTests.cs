@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.Localization;
@@ -11,7 +12,11 @@ public sealed class DetailKeywordOverlayTests
     public async Task ApplyMovieKeywordsAsync_UsesRepositoryResults()
     {
         var movieId = Guid.NewGuid();
-        var repository = new FakeKeywordRepository(["time travel", "friendship"]);
+        var keywordId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var repository = new FakeKeywordRepository([
+            new CatalogKeywordSummary(keywordId, "time travel"),
+            new CatalogKeywordSummary(Guid.Parse("22222222-2222-2222-2222-222222222222"), "friendship"),
+        ]);
         var canonical = CreateMovie(movieId);
 
         var result = await DetailKeywordOverlay.ApplyMovieKeywordsAsync(
@@ -21,7 +26,9 @@ public sealed class DetailKeywordOverlayTests
             ContentLocaleResolver.SpanishSpain,
             CancellationToken.None);
 
-        Assert.Equal(["time travel", "friendship"], result.Keywords);
+        Assert.Equal(2, result.Keywords.Count);
+        Assert.Equal(keywordId, result.Keywords[0].Id);
+        Assert.Equal("time travel", result.Keywords[0].Name);
         Assert.Equal(ContentLocaleResolver.SpanishSpain, repository.LastLocale);
     }
 
@@ -65,11 +72,12 @@ public sealed class DetailKeywordOverlayTests
             false,
             false);
 
-    private sealed class FakeKeywordRepository(IReadOnlyList<string> keywords) : ICatalogTitleKeywordReadRepository
+    private sealed class FakeKeywordRepository(IReadOnlyList<CatalogKeywordSummary> keywords)
+        : ICatalogTitleKeywordReadRepository
     {
         public string? LastLocale { get; private set; }
 
-        public Task<IReadOnlyList<string>> GetLocalizedKeywordNamesForMovieAsync(
+        public Task<IReadOnlyList<CatalogKeywordSummary>> GetLocalizedKeywordsForMovieAsync(
             Guid movieId,
             string contentLocale,
             int maxCount,
@@ -79,11 +87,11 @@ public sealed class DetailKeywordOverlayTests
             return Task.FromResult(keywords);
         }
 
-        public Task<IReadOnlyList<string>> GetLocalizedKeywordNamesForTvShowAsync(
+        public Task<IReadOnlyList<CatalogKeywordSummary>> GetLocalizedKeywordsForTvShowAsync(
             Guid tvShowId,
             string contentLocale,
             int maxCount,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<string>>([]);
+            Task.FromResult<IReadOnlyList<CatalogKeywordSummary>>([]);
     }
 }
