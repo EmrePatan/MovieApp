@@ -9,30 +9,38 @@ internal static class TmdbDiscoverQueryBuilder
 {
     public const int TopRatedMinimumVoteCount = DiscoverCatalogSortPolicy.TopRatedMinimumVoteCount;
 
-    public static string BuildMovieQuery(DiscoverProviderCriteria criteria)
+    public static string BuildMovieQuery(
+        DiscoverProviderCriteria criteria,
+        NewReleasesDiscoverConstraints? newReleases = null)
     {
+        var constraints = newReleases ?? NewReleasesDiscoverConstraints.ForMovies(null);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var parameters = new List<string>
         {
             $"page={criteria.Page}",
             $"sort_by={MapMovieSort(criteria)}"
         };
 
-        AppendSharedFilters(parameters, criteria, includeTvStatuses: false);
-        AppendMovieYearFilters(parameters, criteria);
+        AppendSharedFilters(parameters, criteria, includeTvStatuses: false, constraints);
+        AppendMovieYearFilters(parameters, criteria, constraints, today);
 
         return string.Join('&', parameters);
     }
 
-    public static string BuildTvQuery(DiscoverProviderCriteria criteria)
+    public static string BuildTvQuery(
+        DiscoverProviderCriteria criteria,
+        NewReleasesDiscoverConstraints? newReleases = null)
     {
+        var constraints = newReleases ?? NewReleasesDiscoverConstraints.ForTvShows(null);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var parameters = new List<string>
         {
             $"page={criteria.Page}",
             $"sort_by={MapTvSort(criteria)}"
         };
 
-        AppendSharedFilters(parameters, criteria, includeTvStatuses: true);
-        AppendTvYearFilters(parameters, criteria);
+        AppendSharedFilters(parameters, criteria, includeTvStatuses: true, constraints);
+        AppendTvYearFilters(parameters, criteria, constraints, today);
 
         return string.Join('&', parameters);
     }
@@ -40,7 +48,8 @@ internal static class TmdbDiscoverQueryBuilder
     private static void AppendSharedFilters(
         List<string> parameters,
         DiscoverProviderCriteria criteria,
-        bool includeTvStatuses)
+        bool includeTvStatuses,
+        NewReleasesDiscoverConstraints newReleases)
     {
         parameters.Add("include_adult=false");
 
@@ -54,7 +63,7 @@ internal static class TmdbDiscoverQueryBuilder
             parameters.Add($"vote_average.gte={criteria.MinRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
 
-        var effectiveMinVoteCount = ResolveEffectiveMinVoteCount(criteria);
+        var effectiveMinVoteCount = ResolveEffectiveMinVoteCount(criteria, newReleases);
         if (effectiveMinVoteCount.HasValue)
         {
             parameters.Add($"vote_count.gte={effectiveMinVoteCount.Value}");
@@ -97,23 +106,34 @@ internal static class TmdbDiscoverQueryBuilder
         }
     }
 
-    private static int? ResolveEffectiveMinVoteCount(DiscoverProviderCriteria criteria)
+    private static int? ResolveEffectiveMinVoteCount(
+        DiscoverProviderCriteria criteria,
+        NewReleasesDiscoverConstraints newReleases)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
+        int? newReleasesFloor = criteria.Mode == DiscoverBrowseMode.NewReleases && newReleases.MinVoteCount > 0
+            ? newReleases.MinVoteCount
+            : null;
+
         return DiscoverCatalogSortPolicy.ResolveBrowseMinVoteCount(
             criteria.Mode,
             effectiveSort,
-            criteria.MinVoteCount);
+            criteria.MinVoteCount,
+            newReleasesFloor);
     }
 
-    private static void AppendMovieYearFilters(List<string> parameters, DiscoverProviderCriteria criteria)
+    private static void AppendMovieYearFilters(
+        List<string> parameters,
+        DiscoverProviderCriteria criteria,
+        NewReleasesDiscoverConstraints newReleases,
+        DateOnly today)
     {
         if (criteria.Year.HasValue)
         {
             parameters.Add($"primary_release_year={criteria.Year.Value}");
             if (criteria.Mode == DiscoverBrowseMode.NewReleases)
             {
-                parameters.Add($"primary_release_date.lte={DateOnly.FromDateTime(DateTime.UtcNow):yyyy-MM-dd}");
+                parameters.Add($"primary_release_date.lte={today:yyyy-MM-dd}");
             }
 
             return;
@@ -123,22 +143,30 @@ internal static class TmdbDiscoverQueryBuilder
         {
             parameters.Add($"primary_release_date.gte={criteria.YearFrom.Value:0000}-01-01");
         }
+        else if (ShouldApplyNewReleasesRecentWindow(criteria, newReleases.MaxAgeDays))
+        {
+            parameters.Add($"primary_release_date.gte={today.AddDays(-newReleases.MaxAgeDays):yyyy-MM-dd}");
+        }
 
-        var upperBound = ResolveMovieReleaseUpperBound(criteria);
+        var upperBound = ResolveMovieReleaseUpperBound(criteria, today);
         if (upperBound.HasValue)
         {
             parameters.Add($"primary_release_date.lte={upperBound.Value:yyyy-MM-dd}");
         }
     }
 
-    private static void AppendTvYearFilters(List<string> parameters, DiscoverProviderCriteria criteria)
+    private static void AppendTvYearFilters(
+        List<string> parameters,
+        DiscoverProviderCriteria criteria,
+        NewReleasesDiscoverConstraints newReleases,
+        DateOnly today)
     {
         if (criteria.Year.HasValue)
         {
             parameters.Add($"first_air_date_year={criteria.Year.Value}");
             if (criteria.Mode == DiscoverBrowseMode.NewReleases)
             {
-                parameters.Add($"first_air_date.lte={DateOnly.FromDateTime(DateTime.UtcNow):yyyy-MM-dd}");
+                parameters.Add($"first_air_date.lte={today:yyyy-MM-dd}");
             }
 
             return;
@@ -148,36 +176,49 @@ internal static class TmdbDiscoverQueryBuilder
         {
             parameters.Add($"first_air_date.gte={criteria.YearFrom.Value:0000}-01-01");
         }
+        else if (ShouldApplyNewReleasesRecentWindow(criteria, newReleases.MaxAgeDays))
+        {
+            parameters.Add($"first_air_date.gte={today.AddDays(-newReleases.MaxAgeDays):yyyy-MM-dd}");
+        }
 
-        var upperBound = ResolveTvReleaseUpperBound(criteria);
+        var upperBound = ResolveTvReleaseUpperBound(criteria, today);
         if (upperBound.HasValue)
         {
             parameters.Add($"first_air_date.lte={upperBound.Value:yyyy-MM-dd}");
         }
     }
 
-    private static DateOnly? ResolveMovieReleaseUpperBound(DiscoverProviderCriteria criteria)
+    private static bool ShouldApplyNewReleasesRecentWindow(
+        DiscoverProviderCriteria criteria,
+        int maxAgeDays) =>
+        criteria.Mode == DiscoverBrowseMode.NewReleases
+        && maxAgeDays > 0
+        && !criteria.Year.HasValue
+        && !criteria.YearFrom.HasValue
+        && !criteria.YearTo.HasValue;
+
+    private static DateOnly? ResolveMovieReleaseUpperBound(DiscoverProviderCriteria criteria, DateOnly today)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
-        return ResolveReleaseUpperBound(criteria, effectiveSort, isMovie: true);
+        return ResolveReleaseUpperBound(criteria, effectiveSort, today);
     }
 
-    private static DateOnly? ResolveTvReleaseUpperBound(DiscoverProviderCriteria criteria)
+    private static DateOnly? ResolveTvReleaseUpperBound(DiscoverProviderCriteria criteria, DateOnly today)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
-        return ResolveReleaseUpperBound(criteria, effectiveSort, isMovie: false);
+        return ResolveReleaseUpperBound(criteria, effectiveSort, today);
     }
 
     private static DateOnly? ResolveReleaseUpperBound(
         DiscoverProviderCriteria criteria,
         DiscoverBrowseSort effectiveSort,
-        bool isMovie)
+        DateOnly today)
     {
         if (criteria.Year.HasValue)
         {
             if (criteria.Mode == DiscoverBrowseMode.NewReleases)
             {
-                return DateOnly.FromDateTime(DateTime.UtcNow);
+                return today;
             }
 
             return null;
@@ -188,11 +229,11 @@ internal static class TmdbDiscoverQueryBuilder
             : null;
 
         DateOnly? newReleasesCap = criteria.Mode == DiscoverBrowseMode.NewReleases
-            ? DateOnly.FromDateTime(DateTime.UtcNow)
+            ? today
             : null;
 
         DateOnly? futureCap = DiscoverCatalogSortPolicy.RequiresFutureReleaseCap(effectiveSort)
-            ? DiscoverCatalogSortPolicy.GetFutureReleaseCutoffDate(DateTime.UtcNow)
+            ? today.AddDays(DiscoverCatalogSortPolicy.FutureReleaseHorizonDays)
             : null;
 
         return DiscoverCatalogSortPolicy.ResolveReleaseUpperBound(userUpper, futureCap, newReleasesCap);

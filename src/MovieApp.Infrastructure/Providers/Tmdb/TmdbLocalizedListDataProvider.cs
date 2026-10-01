@@ -9,7 +9,8 @@ namespace MovieApp.Infrastructure.Providers.Tmdb;
 
 public sealed class TmdbLocalizedListDataProvider(
     TmdbApiClient apiClient,
-    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : ILocalizedListDataProvider
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null,
+    IOptions<NewReleasesOptions>? newReleasesOptions = null) : ILocalizedListDataProvider
 {
     public async Task<MovieProviderSearchResult> SearchMoviesAsync(
         string query,
@@ -84,7 +85,9 @@ public sealed class TmdbLocalizedListDataProvider(
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(criteria);
+        var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(
+            criteria,
+            NewReleasesDiscoverConstraints.ForMovies(newReleasesOptions));
         var response = await apiClient.GetLocalizedAsync<TmdbMovieSearchResponseJson>(
             $"discover/movie?{query}",
             contentLocale,
@@ -98,7 +101,9 @@ public sealed class TmdbLocalizedListDataProvider(
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbDiscoverQueryBuilder.BuildTvQuery(criteria);
+        var query = TmdbDiscoverQueryBuilder.BuildTvQuery(
+            criteria,
+            NewReleasesDiscoverConstraints.ForTvShows(newReleasesOptions));
         var response = await apiClient.GetLocalizedAsync<TmdbTvSearchResponseJson>(
             $"discover/tv?{query}",
             contentLocale,

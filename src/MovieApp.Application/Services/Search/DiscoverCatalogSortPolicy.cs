@@ -45,7 +45,8 @@ public static class DiscoverCatalogSortPolicy
     public static int? ResolveBrowseMinVoteCount(
         DiscoverBrowseMode mode,
         DiscoverBrowseSort effectiveSort,
-        int? requestedMinVoteCount)
+        int? requestedMinVoteCount,
+        int? newReleasesVoteFloor = null)
     {
         int? floor = null;
 
@@ -56,6 +57,13 @@ public static class DiscoverCatalogSortPolicy
         else if (RequiresRatingVoteFloor(effectiveSort))
         {
             floor = RatingRankedSortMinimumVoteCount;
+        }
+
+        if (mode == DiscoverBrowseMode.NewReleases && newReleasesVoteFloor is > 0)
+        {
+            floor = floor.HasValue
+                ? Math.Max(floor.Value, newReleasesVoteFloor.Value)
+                : newReleasesVoteFloor.Value;
         }
 
         if (requestedMinVoteCount is null)

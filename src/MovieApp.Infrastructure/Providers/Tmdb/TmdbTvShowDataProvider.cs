@@ -11,7 +11,8 @@ namespace MovieApp.Infrastructure.Providers.Tmdb;
 
 public sealed class TmdbTvShowDataProvider(
     TmdbApiClient apiClient,
-    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : ITvShowDataProvider
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null,
+    IOptions<NewReleasesOptions>? newReleasesOptions = null) : ITvShowDataProvider
 {
     public async Task<TvShowProviderSearchResult> SearchTvShowsAsync(
         string query,
@@ -50,7 +51,9 @@ public sealed class TmdbTvShowDataProvider(
         DiscoverProviderCriteria criteria,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbDiscoverQueryBuilder.BuildTvQuery(criteria);
+        var query = TmdbDiscoverQueryBuilder.BuildTvQuery(
+            criteria,
+            NewReleasesDiscoverConstraints.ForTvShows(newReleasesOptions));
         var response = await apiClient.GetCanonicalAsync<TmdbTvSearchResponseJson>(
             $"discover/tv?{query}",
             cancellationToken);

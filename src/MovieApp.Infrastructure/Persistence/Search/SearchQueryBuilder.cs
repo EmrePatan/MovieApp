@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
@@ -203,7 +204,9 @@ internal static class SearchQueryBuilder
         ApplicationDbContext dbContext,
         DiscoveryCriteria criteria,
         DateOnly today,
-        int maxAgeDays)
+        int maxAgeDays,
+        int minVoteCountMovie = NewReleasesOptions.DefaultMinVoteCountMovie,
+        int minVoteCountTv = NewReleasesOptions.DefaultMinVoteCountTv)
     {
         var searchCriteria = new SearchCriteria(
             null,
@@ -218,28 +221,53 @@ internal static class SearchQueryBuilder
 
         return criteria.Type switch
         {
-            SearchContentType.Movie => ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
+            SearchContentType.Movie => ApplyNewReleasesConstraints(
                 BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                 today,
-                maxAgeDays)),
-            SearchContentType.Tv => ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
+                maxAgeDays,
+                minVoteCountMovie),
+            SearchContentType.Tv => ApplyNewReleasesConstraints(
                 BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                 today,
-                maxAgeDays)),
-            _ => ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
+                maxAgeDays,
+                minVoteCountTv),
+            _ => ApplyNewReleasesConstraints(
                     BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                     today,
-                    maxAgeDays))
-                .Concat(ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(
+                    maxAgeDays,
+                    minVoteCountMovie)
+                .Concat(ApplyNewReleasesConstraints(
                     BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty),
                     today,
-                    maxAgeDays)))
+                    maxAgeDays,
+                    minVoteCountTv))
         };
     }
+
+    private static IQueryable<SearchItemProjection> ApplyNewReleasesConstraints(
+        IQueryable<SearchItemProjection> query,
+        DateOnly today,
+        int maxAgeDays,
+        int minVoteCount) =>
+        ApplyNewReleasesVoteFloor(
+            ApplyNewReleasesPosterRequirement(ApplyNewReleaseWindow(query, today, maxAgeDays)),
+            minVoteCount);
 
     private static IQueryable<SearchItemProjection> ApplyNewReleasesPosterRequirement(
         IQueryable<SearchItemProjection> query) =>
         query.Where(item => item.PosterUrl != null && item.PosterUrl != string.Empty);
+
+    private static IQueryable<SearchItemProjection> ApplyNewReleasesVoteFloor(
+        IQueryable<SearchItemProjection> query,
+        int minVoteCount)
+    {
+        if (minVoteCount <= 0)
+        {
+            return query;
+        }
+
+        return query.Where(item => item.VoteCount >= minVoteCount);
+    }
 
     private static IQueryable<SearchItemProjection> ApplyNewReleaseWindow(
         IQueryable<SearchItemProjection> query,
