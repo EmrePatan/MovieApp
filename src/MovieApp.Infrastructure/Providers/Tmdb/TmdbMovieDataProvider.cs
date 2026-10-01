@@ -10,7 +10,8 @@ namespace MovieApp.Infrastructure.Providers.Tmdb;
 
 public sealed class TmdbMovieDataProvider(
     TmdbApiClient apiClient,
-    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null) : IMovieDataProvider
+    IOptions<AdvancedDiscoverOptions>? advancedDiscoverOptions = null,
+    IOptions<NewReleasesOptions>? newReleasesOptions = null) : IMovieDataProvider
 {
     public async Task<MovieProviderSearchResult> SearchMoviesAsync(
         string query,
@@ -49,7 +50,9 @@ public sealed class TmdbMovieDataProvider(
         DiscoverProviderCriteria criteria,
         CancellationToken cancellationToken = default)
     {
-        var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(criteria);
+        var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(
+            criteria,
+            NewReleasesDiscoverConstraints.ForMovies(newReleasesOptions));
         var response = await apiClient.GetCanonicalAsync<TmdbMovieSearchResponseJson>(
             $"discover/movie?{query}",
             cancellationToken);

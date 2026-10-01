@@ -211,15 +211,24 @@ public sealed class SearchRepository(
         DiscoveryCriteria criteria,
         CancellationToken cancellationToken = default)
     {
+        var configured = newReleasesOptions?.Value;
         var maxAgeDays = Math.Max(
             0,
-            newReleasesOptions?.Value.MaxAgeDays ?? NewReleasesOptions.DefaultMaxAgeDays);
+            configured?.MaxAgeDays ?? NewReleasesOptions.DefaultMaxAgeDays);
+        var minVoteCountMovie = Math.Max(
+            0,
+            configured?.MinVoteCountMovie ?? NewReleasesOptions.DefaultMinVoteCountMovie);
+        var minVoteCountTv = Math.Max(
+            0,
+            configured?.MinVoteCountTv ?? NewReleasesOptions.DefaultMinVoteCountTv);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var combinedQuery = SearchQueryBuilder.BuildNewReleasesQuery(
             dbContext,
             criteria,
             today,
-            maxAgeDays);
+            maxAgeDays,
+            minVoteCountMovie,
+            minVoteCountTv);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder

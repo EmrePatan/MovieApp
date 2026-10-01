@@ -48,4 +48,64 @@ public sealed class DiscoverCatalogSortPolicyTests
 
         Assert.Equal(DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount, effective);
     }
+
+    [Fact]
+    public void ResolveBrowseMinVoteCount_NewReleasesUsesCallerFloor()
+    {
+        var effective = DiscoverCatalogSortPolicy.ResolveBrowseMinVoteCount(
+            DiscoverBrowseMode.NewReleases,
+            DiscoverBrowseSort.ReleaseDesc,
+            null,
+            newReleasesVoteFloor: 75);
+
+        Assert.Equal(75, effective);
+    }
+
+    [Fact]
+    public void ResolveBrowseMinVoteCount_NewReleasesKeepsStricterUserVoteCount()
+    {
+        var effective = DiscoverCatalogSortPolicy.ResolveBrowseMinVoteCount(
+            DiscoverBrowseMode.NewReleases,
+            DiscoverBrowseSort.ReleaseDesc,
+            500,
+            newReleasesVoteFloor: 75);
+
+        Assert.Equal(500, effective);
+    }
+
+    [Fact]
+    public void ResolveBrowseMinVoteCount_NewReleasesRaisesWeakerUserVoteCount()
+    {
+        var effective = DiscoverCatalogSortPolicy.ResolveBrowseMinVoteCount(
+            DiscoverBrowseMode.NewReleases,
+            DiscoverBrowseSort.ReleaseDesc,
+            10,
+            newReleasesVoteFloor: 75);
+
+        Assert.Equal(75, effective);
+    }
+
+    [Fact]
+    public void ResolveBrowseMinVoteCount_NewReleasesRatingSortUsesTheHigherFloor()
+    {
+        var effective = DiscoverCatalogSortPolicy.ResolveBrowseMinVoteCount(
+            DiscoverBrowseMode.NewReleases,
+            DiscoverBrowseSort.RatingDesc,
+            null,
+            newReleasesVoteFloor: 40);
+
+        Assert.Equal(DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount, effective);
+    }
+
+    [Fact]
+    public void ResolveBrowseMinVoteCount_TrendingIgnoresNewReleasesFloor()
+    {
+        var effective = DiscoverCatalogSortPolicy.ResolveBrowseMinVoteCount(
+            DiscoverBrowseMode.Trending,
+            DiscoverBrowseSort.PopularityDesc,
+            null,
+            newReleasesVoteFloor: 75);
+
+        Assert.Null(effective);
+    }
 }
