@@ -187,6 +187,43 @@ public static partial class KeywordDisplayQualityEvaluator
     private static bool NumericOnly(string[] tokens) =>
         tokens.Length == 1 && tokens[0].All(char.IsDigit);
 
+    /// <summary>
+    /// Extra detail-page themes when too few primary displayable keywords exist on a title.
+    /// Keeps blocklists and shape rules; does not require catalog document-frequency thresholds.
+    /// </summary>
+    public static bool IsEligibleForDetailSupplemental(
+        string canonicalName,
+        KeywordDisplayProfileOptions options)
+    {
+        var normalized = Normalize(canonicalName);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        if (normalized.Length < options.MinimumNameLength ||
+            normalized.Length > options.MaximumNameLength)
+        {
+            return false;
+        }
+
+        var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 0 || tokens.Length > options.MaximumTokenCount)
+        {
+            return false;
+        }
+
+        if (ContainsAny(normalized, RelationshipBoilerplateFragments) ||
+            ContainsAny(normalized, IncidentalObjectOrEventFragments) ||
+            LooksLikePersonName(normalized, tokens) ||
+            NumericOnly(tokens))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     public static string Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? string.Empty

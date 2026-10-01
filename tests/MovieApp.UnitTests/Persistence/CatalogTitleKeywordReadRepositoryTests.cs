@@ -1,7 +1,9 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using MovieApp.Application.Configuration;
 using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
-using Microsoft.EntityFrameworkCore;
 
 namespace MovieApp.UnitTests.Persistence;
 
@@ -33,7 +35,7 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
             new MovieKeyword { MovieId = movieId, KeywordId = hiddenKeyword.Id });
         await context.SaveChangesAsync();
 
-        var repository = new CatalogTitleKeywordReadRepository(context);
+        var repository = CreateRepository(context);
         var keywords = await repository.GetLocalizedKeywordsForMovieAsync(
             movieId,
             "en-US",
@@ -68,13 +70,54 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         await context.SaveChangesAsync();
 
-        var repository = new CatalogTitleKeywordReadRepository(context);
+        var repository = CreateRepository(context);
         var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 3);
 
         Assert.Equal(3, keywords.Count);
     }
 
-    private static Keyword CreateKeyword(string name, bool displayable, int displayRank)
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovie_FillsWithSupplementalThemesWhenDisplayableCountIsLow()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 3,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var displayable = CreateKeyword("zombie apocalypse", displayable: true, displayRank: 200, documentFrequency: 40);
+        var supplemental = CreateKeyword("cult", displayable: false, displayRank: 0, documentFrequency: 8);
+        var blocked = CreateKeyword("photograph", displayable: false, displayRank: 0, documentFrequency: 5);
+
+        context.Keywords.AddRange(displayable, supplemental, blocked);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = displayable.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = supplemental.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = blocked.Id });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(2, keywords.Count);
+        Assert.Equal(displayable.Id, keywords[0].Id);
+        Assert.Equal(supplemental.Id, keywords[1].Id);
+        Assert.DoesNotContain(keywords, keyword => keyword.Name == "photograph");
+    }
+
+    private static CatalogTitleKeywordReadRepository CreateRepository(ApplicationDbContext context) =>
+        new(context, Options.Create(new KeywordDisplayProfileOptions()));
+
+    private static Keyword CreateKeyword(
+        string name,
+        bool displayable,
+        int displayRank,
+        int documentFrequency = 10)
     {
         var keyword = new Keyword
         {
@@ -85,7 +128,7 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
             UpdatedAt = DateTime.UtcNow,
             DisplayProfile = new KeywordDisplayProfile
             {
-                DocumentFrequency = 10,
+                DocumentFrequency = documentFrequency,
                 MovieTitleCount = 5,
                 TvTitleCount = 1,
                 Displayable = displayable,
