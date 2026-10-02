@@ -44,6 +44,7 @@ public sealed class DiscoverBrowseApiTests(AdvancedSearchApiFixture fixture)
         Assert.NotEmpty(payload.Items);
         Assert.Contains(payload.Items, item => item.Type == "movie");
         Assert.Contains(payload.Items, item => item.Type == "tv");
+        Assert.True(payload.TotalCount >= payload.Items.Count);
     }
 
     [Fact]

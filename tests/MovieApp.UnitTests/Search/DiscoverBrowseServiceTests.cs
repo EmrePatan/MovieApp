@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
@@ -63,6 +64,44 @@ public sealed class DiscoverBrowseServiceTests
         Assert.Equal(1, tvTracker.DiscoverTvShowsCallCount);
         Assert.Contains(result.Items, item => item.Type == "movie");
         Assert.Contains(result.Items, item => item.Type == "tv");
+        Assert.True(result.TotalCount >= result.Items.Count);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncTrendingAllCompletesWithoutWalkingProviderPageCap()
+    {
+        const int providerPageSize = 20;
+        const int providerTotalPages = 500;
+        var movies = new CappedDiscoverMovieProvider(providerPageSize, providerTotalPages);
+        var tvShows = new CappedDiscoverTvProvider(providerPageSize, providerTotalPages);
+        var service = CreateService(movies, tvShows);
+
+        var result = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.All, page: 1, pageSize: 5, sort: DiscoverBrowseSort.PopularityDesc),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(5, result.Items.Count);
+        Assert.Equal(providerTotalPages * providerPageSize * 2, result.TotalCount);
+        Assert.Equal(1, movies.DiscoverCallCount);
+        Assert.Equal(1, tvShows.DiscoverCallCount);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncTrendingAllKeepsExhaustedSideTotalWhilePagingTheOther()
+    {
+        const int providerPageSize = 20;
+        var movies = new CappedDiscoverMovieProvider(providerPageSize, totalPages: 1);
+        var tvShows = new CappedDiscoverTvProvider(providerPageSize, totalPages: 500);
+        var service = CreateService(movies, tvShows);
+
+        var result = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.All, page: 2, pageSize: 20),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(20, result.Items.Count);
+        Assert.Equal((1 * providerPageSize) + (500 * providerPageSize), result.TotalCount);
+        Assert.Equal(1, movies.DiscoverCallCount);
+        Assert.Equal(2, tvShows.DiscoverCallCount);
     }
 
     [Fact]
@@ -301,22 +340,36 @@ public sealed class DiscoverBrowseServiceTests
         MovieDataProviderCallTracker movieTracker,
         TvShowDataProviderCallTracker tvTracker,
         DiscoveryServiceCallTracker? discoveryTracker = null) =>
-        new(
-            discoveryTracker ?? new DiscoveryServiceCallTracker(),
+        CreateService(
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
+            cache,
+            discoveryTracker);
+
+    private static DiscoverBrowseService CreateService(
+        IMovieDataProvider movieDataProvider,
+        ITvShowDataProvider tvShowDataProvider,
+        DiscoverBrowseFakeCacheService? cache = null,
+        DiscoveryServiceCallTracker? discoveryTracker = null) =>
+        new(
+            discoveryTracker ?? new DiscoveryServiceCallTracker(),
+            movieDataProvider,
+            tvShowDataProvider,
             new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
             new FakeKeywordDiscoverReadRepository(),
-            cache,
+            cache ?? new DiscoverBrowseFakeCacheService(null),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
 
     private static DiscoverBrowseCriteria CreateCriteria(
         SearchContentType type,
-        DiscoverBrowseMode mode = DiscoverBrowseMode.Trending) =>
+        DiscoverBrowseMode mode = DiscoverBrowseMode.Trending,
+        int page = 1,
+        int pageSize = 20,
+        DiscoverBrowseSort? sort = null) =>
         new(
             mode,
             type,
@@ -332,9 +385,9 @@ public sealed class DiscoverBrowseServiceTests
             null,
             [],
             [],
-            null,
-            1,
-            20);
+            sort,
+            page,
+            pageSize);
 
     private static SearchItem CreateSearchItem(string type, Guid id, string title = "Title") =>
         new(
@@ -558,6 +611,130 @@ public sealed class DiscoverBrowseServiceTests
         {
             LastResolvedKeywordIds = keywordIds;
             return Task.FromResult(resolvedTmdbIds);
+        }
+    }
+
+    private sealed class CappedDiscoverMovieProvider(int itemsPerPage, int totalPages) : IMovieDataProvider
+    {
+        public int DiscoverCallCount { get; private set; }
+
+        public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            DiscoverCallCount++;
+            return Task.FromResult(new MovieProviderSearchResult(
+                CreatePage(criteria.Page, idOffset: 100_000),
+                criteria.Page,
+                itemsPerPage,
+                totalPages * itemsPerPage,
+                totalPages));
+        }
+
+        public Task<MovieProviderSearchResult> SearchMoviesAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieProviderDetails?> GetMovieAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        private List<MovieProviderSummary> CreatePage(int page, int idOffset)
+        {
+            if (page > totalPages)
+            {
+                return [];
+            }
+
+            var start = idOffset + ((page - 1) * itemsPerPage);
+            return Enumerable.Range(start, itemsPerPage)
+                .Select(tmdbId => new MovieProviderSummary(
+                    $"movie-{tmdbId}",
+                    tmdbId,
+                    null,
+                    null,
+                    $"Movie {tmdbId}",
+                    "Overview",
+                    new DateOnly(2024, 1, 1),
+                    "/poster.jpg",
+                    8.0m,
+                    tmdbId))
+                .ToList();
+        }
+    }
+
+    private sealed class CappedDiscoverTvProvider(int itemsPerPage, int totalPages) : ITvShowDataProvider
+    {
+        public int DiscoverCallCount { get; private set; }
+
+        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            DiscoverCallCount++;
+            return Task.FromResult(new TvShowProviderSearchResult(
+                CreatePage(criteria.Page, idOffset: 200_000),
+                criteria.Page,
+                itemsPerPage,
+                totalPages * itemsPerPage,
+                totalPages));
+        }
+
+        public Task<TvShowProviderSearchResult> SearchTvShowsAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderDetails?> GetTvShowAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<SeasonProviderDetails?> GetSeasonAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EpisodeProviderDetails?> GetEpisodeAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            int episodeNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        private List<TvShowProviderSummary> CreatePage(int page, int idOffset)
+        {
+            if (page > totalPages)
+            {
+                return [];
+            }
+
+            var start = idOffset + ((page - 1) * itemsPerPage);
+            return Enumerable.Range(start, itemsPerPage)
+                .Select(tmdbId => new TvShowProviderSummary(
+                    $"tv-{tmdbId}",
+                    tmdbId,
+                    null,
+                    null,
+                    $"Show {tmdbId}",
+                    $"Show {tmdbId}",
+                    "Overview",
+                    new DateOnly(2024, 1, 1),
+                    "/poster.jpg",
+                    null,
+                    "en",
+                    8.0m,
+                    tmdbId))
+                .ToList();
         }
     }
 }
