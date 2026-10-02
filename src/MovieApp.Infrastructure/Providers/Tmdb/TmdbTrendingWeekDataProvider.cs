@@ -10,13 +10,22 @@ public sealed class TmdbTrendingWeekDataProvider(TmdbApiClient apiClient) : ITre
     public async Task<IReadOnlyList<TrendingWeekProviderItem>> GetTrendingWeekAsync(
         CancellationToken cancellationToken = default)
     {
+        var page = await GetTrendingWeekPageAsync(1, cancellationToken);
+        return page.Items;
+    }
+
+    public async Task<TrendingWeekPage> GetTrendingWeekPageAsync(
+        int page,
+        CancellationToken cancellationToken = default)
+    {
+        var query = TmdbTrendingWeekQueryBuilder.BuildQuery(page);
         var response = await apiClient.GetCanonicalAsync<TmdbTrendingResponseJson>(
-            "trending/all/week?page=1",
+            $"trending/all/week?{query}",
             cancellationToken);
 
         if (response is null)
         {
-            return [];
+            return new TrendingWeekPage([], page, 0, 0);
         }
 
         var items = new List<TrendingWeekProviderItem>();
@@ -30,6 +39,10 @@ public sealed class TmdbTrendingWeekDataProvider(TmdbApiClient apiClient) : ITre
             }
         }
 
-        return items;
+        return new TrendingWeekPage(
+            items,
+            response.Page == 0 ? page : response.Page,
+            response.TotalResults,
+            response.TotalPages);
     }
 }

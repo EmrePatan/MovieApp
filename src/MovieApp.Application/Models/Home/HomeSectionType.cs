@@ -9,6 +9,8 @@ public enum HomeSectionType
     BasedOnFavorites,
     ContinueWatching,
     Trending,
+    OnTvThisWeek,
+    NowInTheaters,
     Popular,
     NewReleases,
     TopRated,

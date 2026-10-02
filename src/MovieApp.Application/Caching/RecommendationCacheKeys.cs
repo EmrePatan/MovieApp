@@ -55,9 +55,10 @@ public static class RecommendationCacheKeys
         long generation,
         RecommendationContentType contentType,
         int sectionItemCount,
-        bool diversified = true) =>
+        bool diversified = true,
+        bool includeBecauseYouWatched = true) =>
         ContentLocaleCacheKeySegment.Append(
-            Home(userId, generation, contentType, sectionItemCount, diversified),
+            Home(userId, generation, contentType, sectionItemCount, diversified, includeBecauseYouWatched),
             contentLocale);
 
     public static string Home(Guid userId, long generation = 0) =>
@@ -68,6 +69,7 @@ public static class RecommendationCacheKeys
         long generation,
         RecommendationContentType contentType,
         int sectionItemCount,
-        bool diversified = true) =>
-        $"{HomePrefix}{userId}:{contentType}:{sectionItemCount}:{(diversified ? "div" : "raw")}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
+        bool diversified = true,
+        bool includeBecauseYouWatched = true) =>
+        $"{HomePrefix}{userId}:{contentType}:{sectionItemCount}:{(diversified ? "div" : "raw")}:{(includeBecauseYouWatched ? "byw" : "nobyw")}:{RecommendationAlgorithmVersion.Personalized}:g{generation}";
 }

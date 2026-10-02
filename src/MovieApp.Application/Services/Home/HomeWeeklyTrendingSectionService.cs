@@ -7,7 +7,7 @@ namespace MovieApp.Application.Services.Home;
 
 public sealed class HomeWeeklyTrendingSectionService(
     IHotThisWeekTrendingSnapshotService trendingSnapshotService,
-    IDiscoveryService discoveryService,
+    ITrendingWeekListService trendingWeekListService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService) : IHomeWeeklyTrendingSectionService
 {
     public async Task<IReadOnlyList<SearchItem>> GetTrendingItemsAsync(
@@ -41,7 +41,7 @@ public sealed class HomeWeeklyTrendingSectionService(
             return [];
         }
 
-        var discovery = await discoveryService.GetTrendingAsync(
+        var discovery = await trendingWeekListService.GetPageAsync(
             new DiscoveryCriteria(type, 1, fallbackPageSize),
             contentLocale,
             cancellationToken);

@@ -15,8 +15,11 @@ internal static class DiscoverBrowseMerger
     {
         var effectiveSort = DiscoverBrowseValidator.GetEffectiveSort(criteria);
         var skip = Math.Max(0, (criteria.Page - 1) * criteria.PageSize);
-        var mergedItems = DiscoverBrowseSorter
-            .Sort(movieItems.Concat(tvItems), effectiveSort)
+        var ordered = criteria.Mode == DiscoverBrowseMode.Popular &&
+                      effectiveSort is DiscoverBrowseSort.PopularityDesc or DiscoverBrowseSort.PopularityAsc
+            ? Interleave(movieItems, tvItems)
+            : DiscoverBrowseSorter.Sort(movieItems.Concat(tvItems), effectiveSort);
+        var mergedItems = ordered
             .Skip(skip)
             .Take(criteria.PageSize)
             .ToList();
@@ -30,6 +33,28 @@ internal static class DiscoverBrowseMerger
             criteria.PageSize,
             totalCount,
             totalPages);
+    }
+
+    private static List<SearchItem> Interleave(
+        IReadOnlyList<SearchItem> movieItems,
+        IReadOnlyList<SearchItem> tvItems)
+    {
+        var merged = new List<SearchItem>(movieItems.Count + tvItems.Count);
+        var count = Math.Max(movieItems.Count, tvItems.Count);
+        for (var index = 0; index < count; index++)
+        {
+            if (index < movieItems.Count)
+            {
+                merged.Add(movieItems[index]);
+            }
+
+            if (index < tvItems.Count)
+            {
+                merged.Add(tvItems[index]);
+            }
+        }
+
+        return merged;
     }
 
     public static PaginatedResult<SearchItem> CreateSingleTypeResult(

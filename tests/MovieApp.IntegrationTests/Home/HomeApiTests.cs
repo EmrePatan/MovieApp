@@ -45,9 +45,13 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
         Assert.False(payload.IsPersonalized);
         Assert.Contains(payload.Sections, section => section.Type == "HotThisWeek");
         Assert.Contains(payload.Sections, section => section.Type == "Trending");
-        Assert.Contains(payload.Sections, section => section.Type == "TopRated");
-        Assert.Contains(payload.Sections, section => section.Type == "NewReleases");
+        Assert.Contains(payload.Sections, section => section.Type == "OnTvThisWeek");
+        Assert.Contains(payload.Sections, section => section.Type == "NowInTheaters");
         Assert.DoesNotContain(payload.Sections, section => section.Type == "Popular");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "TopRated");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "NewReleases");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "BecauseYouWatched");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "ContinueWatching");
         Assert.DoesNotContain(payload.Sections, section => section.Type == "RecommendedForYou");
     }
 
@@ -234,8 +238,10 @@ public sealed class HomeApiTests(HomeApiFixture fixture)
         Assert.NotNull(payload);
         Assert.Contains(payload.Sections, section => section.Type == "HotThisWeek");
         Assert.Contains(payload.Sections, section => section.Type == "Trending");
-        Assert.Contains(payload.Sections, section => section.Type == "TopRated");
-        Assert.Contains(payload.Sections, section => section.Type == "NewReleases");
+        Assert.Contains(payload.Sections, section => section.Type == "OnTvThisWeek");
+        Assert.Contains(payload.Sections, section => section.Type == "NowInTheaters");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "TopRated");
+        Assert.DoesNotContain(payload.Sections, section => section.Type == "NewReleases");
         Assert.DoesNotContain(payload.Sections, section => section.Type == "RecommendedForYou");
         Assert.DoesNotContain(payload.Sections, section => section.Type == "ComingUp");
     }

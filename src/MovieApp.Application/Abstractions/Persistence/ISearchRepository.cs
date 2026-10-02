@@ -30,6 +30,18 @@ public interface ISearchRepository
         DiscoveryCriteria criteria,
         CancellationToken cancellationToken = default);
 
+    Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
+        DiscoverBrowseCriteria criteria,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<PaginatedResult<SearchItem>>(
+            new NotSupportedException("Hidden gems is not available on this search repository."));
+
+    Task<PaginatedResult<SearchItem>> GetFilteredTopRatedAsync(
+        DiscoverBrowseCriteria criteria,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<PaginatedResult<SearchItem>>(
+            new NotSupportedException("Filtered top rated is not available on this search repository."));
+
     Task<decimal> GetCatalogMeanVoteAverageAsync(
         SearchContentType type,
         CancellationToken cancellationToken = default);

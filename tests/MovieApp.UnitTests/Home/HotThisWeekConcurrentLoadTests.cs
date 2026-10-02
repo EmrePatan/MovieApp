@@ -21,7 +21,7 @@ public sealed class HotThisWeekConcurrentLoadTests
         var coordinator = new HotThisWeekLoadCoordinator();
         var cache = new TrackingCacheService();
         var snapshot = new CountingSnapshotService(CreateItems());
-        var discovery = new NoOpDiscoveryService();
+        var discovery = new NoOpTrendingWeekListService();
         var service = new HotThisWeekService(
             discovery,
             snapshot,
@@ -65,11 +65,11 @@ public sealed class HotThisWeekConcurrentLoadTests
             throw new NotSupportedException();
     }
 
-    private sealed class NoOpDiscoveryService : IDiscoveryService
+    private sealed class NoOpTrendingWeekListService : ITrendingWeekListService
     {
         public int TrendingCallCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+        public Task<PaginatedResult<SearchItem>> GetPageAsync(
             DiscoveryCriteria criteria,
             string contentLocale,
             CancellationToken cancellationToken = default)
@@ -77,18 +77,6 @@ public sealed class HotThisWeekConcurrentLoadTests
             TrendingCallCount++;
             return Task.FromResult(new PaginatedResult<SearchItem>([], 1, 10, 0, 0));
         }
-
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 
     private sealed class TrackingCacheService : ICacheService

@@ -17,7 +17,7 @@ internal static partial class HomeServiceLogMessages
     [LoggerMessage(
         EventId = 7002,
         Level = LogLevel.Debug,
-        Message = "HomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} CacheWriteMs={CacheWriteMs} HotThisWeekMs={HotThisWeekMs} RecommendedForYouMs={RecommendedForYouMs} ComingUpMs={ComingUpMs} TrendingMs={TrendingMs} TopRatedMs={TopRatedMs} NewReleasesMs={NewReleasesMs}")]
+        Message = "HomePerf Cache={CacheResult} TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} CacheWriteMs={CacheWriteMs} HotThisWeekMs={HotThisWeekMs} RecommendedForYouMs={RecommendedForYouMs} ComingUpMs={ComingUpMs} TrendingMs={TrendingMs} OnTvMs={OnTvMs} NowPlayingMs={NowPlayingMs}")]
     public static partial void LogCacheMiss(
         ILogger logger,
         string cacheResult,
@@ -28,20 +28,20 @@ internal static partial class HomeServiceLogMessages
         long recommendedForYouMs,
         long comingUpMs,
         long trendingMs,
-        long topRatedMs,
-        long newReleasesMs);
+        long onTvMs,
+        long nowPlayingMs);
 
     [LoggerMessage(
         EventId = 7003,
         Level = LogLevel.Information,
-        Message = "HomePerf Browse TotalMs={TotalMs} HotThisWeekMs={HotThisWeekMs} TrendingMs={TrendingMs} TopRatedMs={TopRatedMs} NewReleasesMs={NewReleasesMs} SectionCount={SectionCount}")]
+        Message = "HomePerf Browse TotalMs={TotalMs} HotThisWeekMs={HotThisWeekMs} TrendingMs={TrendingMs} OnTvMs={OnTvMs} NowPlayingMs={NowPlayingMs} SectionCount={SectionCount}")]
     public static partial void LogBrowse(
         ILogger logger,
         long totalMs,
         long hotThisWeekMs,
         long trendingMs,
-        long topRatedMs,
-        long newReleasesMs,
+        long onTvMs,
+        long nowPlayingMs,
         int sectionCount);
 
     [LoggerMessage(

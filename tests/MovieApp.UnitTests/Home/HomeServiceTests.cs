@@ -14,6 +14,8 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Models.WatchHistory;
+using MovieApp.Application.Models.Discovery;
+using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
@@ -85,7 +87,7 @@ public sealed class HomeServiceTests
 
         Assert.False(result.IsPersonalized);
         Assert.Equal(
-            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
+            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.OnTvThisWeek, HomeSectionType.NowInTheaters],
             result.Sections.Select(section => section.Type).ToList());
         Assert.True(cache.WasWritten);
     }
@@ -126,12 +128,13 @@ public sealed class HomeServiceTests
                 HomeSectionType.RecommendedForYou,
                 HomeSectionType.ComingUp,
                 HomeSectionType.Trending,
-                HomeSectionType.TopRated,
-                HomeSectionType.NewReleases
+                HomeSectionType.OnTvThisWeek,
+                HomeSectionType.NowInTheaters
             ],
             result.Sections.Select(section => section.Type).ToList());
 
         var comingUp = result.Sections.Single(section => section.Type == HomeSectionType.ComingUp);
+        Assert.Equal(ComingUpSources.ForYou, comingUp.ComingUpSource);
         Assert.Equal("Coming Up", comingUp.Title);
         Assert.Equal("Next", comingUp.Items[0].EpisodeName);
         Assert.Equal(2, comingUp.Items[0].EpisodeNumber);
@@ -158,16 +161,17 @@ public sealed class HomeServiceTests
     public async Task GetHomeAsyncBuildsPersonalizedSectionsInOrder()
     {
         var discovery = new CountingDiscoveryService();
+        var recommendations = new FakeRecommendationService(
+        [
+            new RecommendationSection("recommended-for-you", "Recommended For You",
+                [CreateRecommendationItem("movie", 1)]),
+            new RecommendationSection("because-you-watched", "Because You Watched",
+                [CreateRecommendationItem("tv", 2)]),
+            new RecommendationSection("similar-to-favorites", "Based On Your Favorites",
+                [CreateRecommendationItem("movie", 3)])
+        ]);
         var service = CreateService(
-            recommendationService: new FakeRecommendationService(
-            [
-                new RecommendationSection("recommended-for-you", "Recommended For You",
-                    [CreateRecommendationItem("movie", 1)]),
-                new RecommendationSection("because-you-watched", "Because You Watched",
-                    [CreateRecommendationItem("tv", 2)]),
-                new RecommendationSection("similar-to-favorites", "Based On Your Favorites",
-                    [CreateRecommendationItem("movie", 3)])
-            ]),
+            recommendationService: recommendations,
             discoveryService: discovery);
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
@@ -178,16 +182,21 @@ public sealed class HomeServiceTests
                 HomeSectionType.HotThisWeek,
                 HomeSectionType.RecommendedForYou,
                 HomeSectionType.Trending,
-                HomeSectionType.TopRated,
-                HomeSectionType.NewReleases
+                HomeSectionType.OnTvThisWeek,
+                HomeSectionType.NowInTheaters
             ],
             result.Sections.Select(section => section.Type).ToList());
+        Assert.False(recommendations.LastIncludeBecauseYouWatched);
         Assert.Equal(0, discovery.TrendingCallCount);
         Assert.Equal(0, discovery.PopularCallCount);
-        Assert.Equal(1, discovery.NewReleasesCallCount);
-        Assert.Equal(1, discovery.TopRatedCallCount);
+        Assert.Equal(0, discovery.NewReleasesCallCount);
+        Assert.Equal(0, discovery.TopRatedCallCount);
         Assert.Equal(0, discovery.GenreCallCount);
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.BecauseYouWatched);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ContinueWatching);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Popular);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.NewReleases);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.TopRated);
     }
 
     [Fact]
@@ -301,13 +310,19 @@ public sealed class HomeServiceTests
 
         Assert.False(result.IsPersonalized);
         Assert.Equal(
-            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
+            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.OnTvThisWeek, HomeSectionType.NowInTheaters],
             result.Sections.Select(section => section.Type).ToList());
         Assert.Equal(0, discovery.TrendingCallCount);
         Assert.Equal(0, discovery.PopularCallCount);
-        Assert.Equal(1, discovery.NewReleasesCallCount);
-        Assert.Equal(1, discovery.TopRatedCallCount);
+        Assert.Equal(0, discovery.NewReleasesCallCount);
+        Assert.Equal(0, discovery.TopRatedCallCount);
         Assert.Equal(0, discovery.GenreCallCount);
+        Assert.DoesNotContain(result.Sections, section => section.Type is
+            HomeSectionType.Popular or
+            HomeSectionType.NewReleases or
+            HomeSectionType.TopRated or
+            HomeSectionType.BecauseYouWatched or
+            HomeSectionType.ContinueWatching);
     }
 
     [Fact]
@@ -439,18 +454,23 @@ public sealed class HomeServiceTests
     public async Task GetHomeAsyncUsesCatalogTrendingFallbackWhenWeeklySnapshotMissing()
     {
         var discovery = new CountingDiscoveryService();
+        var weekList = new FakeTrendingWeekListService(CreateFallbackWeekItems());
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
             discoveryService: discovery,
+            trendingWeekListService: weekList,
             weeklySnapshotItems: []);
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(2, discovery.TrendingCallCount);
+        Assert.Equal(2, weekList.CallCount);
+        Assert.Equal(0, discovery.TrendingCallCount);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
-        Assert.Equal(1, discovery.TopRatedCallCount);
-        Assert.Equal(1, discovery.NewReleasesCallCount);
+        Assert.Equal(0, discovery.TopRatedCallCount);
+        Assert.Equal(0, discovery.NewReleasesCallCount);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.OnTvThisWeek);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NowInTheaters);
     }
 
     [Fact]
@@ -459,13 +479,16 @@ public sealed class HomeServiceTests
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new EmptyTrendingDiscoveryService(),
+            trendingWeekListService: new FakeTrendingWeekListService([]),
             weeklySnapshotItems: []);
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NewReleases);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.TopRated);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.NewReleases);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.OnTvThisWeek);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NowInTheaters);
     }
 
     [Fact]
@@ -478,14 +501,17 @@ public sealed class HomeServiceTests
                     [CreateRecommendationItem("movie", 1)])
             ]),
             weeklySnapshotItems: [],
+            trendingWeekListService: new FakeTrendingWeekListService([]),
             discoveryService: new EmptyTrendingDiscoveryService());
 
         var result = await service.GetHomeAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.HotThisWeek);
         Assert.Contains(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NewReleases);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.TopRated);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.NewReleases);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.OnTvThisWeek);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NowInTheaters);
     }
 
     [Fact]
@@ -502,7 +528,7 @@ public sealed class HomeServiceTests
         var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
-            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.TopRated, HomeSectionType.NewReleases],
+            [HomeSectionType.HotThisWeek, HomeSectionType.Trending, HomeSectionType.OnTvThisWeek, HomeSectionType.NowInTheaters],
             result.Sections.Select(section => section.Type).ToList());
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.RecommendedForYou);
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.ComingUp);
@@ -514,12 +540,15 @@ public sealed class HomeServiceTests
         var service = CreateService(
             recommendationService: new FakeRecommendationService([]),
             discoveryService: new EmptyTrendingDiscoveryService(),
+            trendingWeekListService: new FakeTrendingWeekListService([]),
             weeklySnapshotItems: []);
 
         var result = await service.GetHomeBrowseAsync(new HomeCriteria(SearchContentType.All, 5), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.Trending);
-        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.TopRated);
+        Assert.DoesNotContain(result.Sections, section => section.Type == HomeSectionType.TopRated);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.OnTvThisWeek);
+        Assert.Contains(result.Sections, section => section.Type == HomeSectionType.NowInTheaters);
     }
 
     [Fact]
@@ -924,7 +953,8 @@ public sealed class HomeServiceTests
         IReadOnlyList<SearchItem>? weeklySnapshotItems = null,
         IGetHomeComingUpService? comingUpService = null,
         HomeOptions? options = null,
-        Guid? userId = null)
+        Guid? userId = null,
+        ITrendingWeekListService? trendingWeekListService = null)
     {
         var homeOptions = options ?? new HomeOptions
         {
@@ -942,7 +972,8 @@ public sealed class HomeServiceTests
                 weeklySnapshotItems,
                 comingUpService,
                 cache,
-                homeOptions),
+                homeOptions,
+                trendingWeekListService),
             cache ?? new FakeCacheService(),
             Options.Create(homeOptions),
             Options.Create(new ReleaseRegionOptions()),
@@ -957,7 +988,8 @@ public sealed class HomeServiceTests
         IReadOnlyList<SearchItem>? weeklySnapshotItems = null,
         IGetHomeComingUpService? comingUpService = null,
         ICacheService? sharedCache = null,
-        HomeOptions? options = null)
+        HomeOptions? options = null,
+        ITrendingWeekListService? trendingWeekListService = null)
     {
         var homeOptions = options ?? new HomeOptions
         {
@@ -981,6 +1013,10 @@ public sealed class HomeServiceTests
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService());
         services.AddLogging();
         services.AddSingleton<HotThisWeekLoadCoordinator>();
+        services.AddScoped<ITrendingWeekListService>(_ =>
+            trendingWeekListService ?? new FakeTrendingWeekListService(CreateFallbackWeekItems()));
+        services.AddScoped<IOnTvThisWeekService, FakeOnTvThisWeekService>();
+        services.AddScoped<INowInTheatersService, FakeNowInTheatersService>();
         services.AddScoped<IHotThisWeekService, HotThisWeekService>();
         services.AddScoped<IHomeWeeklyTrendingSectionService, HomeWeeklyTrendingSectionService>();
         services.AddSingleton(Options.Create(new TopRatedOptions()));
@@ -1025,6 +1061,88 @@ public sealed class HomeServiceTests
                     2025);
             })
             .ToList();
+    }
+
+    private static List<SearchItem> CreateFallbackWeekItems() =>
+    [
+        new SearchItem(
+            Guid.Parse("eeeeeeee-eeee-eeee-eeee-000000000020"),
+            "tv",
+            "Week Fallback",
+            null,
+            null,
+            "/poster.jpg",
+            null,
+            new DateOnly(2021, 1, 1),
+            7m,
+            2000,
+            2021)
+    ];
+
+    private sealed class FakeTrendingWeekListService(IReadOnlyList<SearchItem> items) : ITrendingWeekListService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> GetPageAsync(
+            DiscoveryCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            var page = items.Take(criteria.PageSize).ToList();
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                page,
+                criteria.Page,
+                criteria.PageSize,
+                page.Count,
+                page.Count == 0 ? 0 : 1));
+        }
+    }
+
+    private sealed class FakeOnTvThisWeekService : IOnTvThisWeekService
+    {
+        public Task<PaginatedResult<SearchItem>> GetOnTvThisWeekAsync(
+            OnTvThisWeekCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            var item = new SearchItem(
+                Guid.Parse("abababab-abab-abab-abab-abababababab"),
+                "tv",
+                "On Air Drama",
+                null,
+                null,
+                "/poster.jpg",
+                null,
+                new DateOnly(2024, 1, 1),
+                8m,
+                80,
+                2024);
+            return Task.FromResult(new PaginatedResult<SearchItem>([item], 1, criteria.PageSize, 1, 1));
+        }
+    }
+
+    private sealed class FakeNowInTheatersService : INowInTheatersService
+    {
+        public Task<PaginatedResult<SearchItem>> GetNowInTheatersAsync(
+            NowInTheatersCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            var item = new SearchItem(
+                Guid.Parse("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd"),
+                "movie",
+                "Cinema One",
+                null,
+                null,
+                "/poster.jpg",
+                null,
+                new DateOnly(2026, 1, 1),
+                7.5m,
+                120,
+                2026);
+            return Task.FromResult(new PaginatedResult<SearchItem>([item], 1, criteria.PageSize, 1, 1));
+        }
     }
 
     private static HomeItem CreateHomeItem(string type, int seed) =>
@@ -1112,17 +1230,21 @@ public sealed class HomeServiceTests
 
         public bool LastDiversify { get; private set; } = true;
 
+        public bool LastIncludeBecauseYouWatched { get; private set; } = true;
+
         public Task<IReadOnlyList<RecommendationSection>> GetHomeRecommendationsForCurrentUserAsync(
             bool includeColdStartDiscoverySections = true,
             string contentLocale = "en-US",
             RecommendationContentType contentType = RecommendationContentType.All,
             int? sectionItemCount = null,
             bool diversify = true,
+            bool includeBecauseYouWatched = true,
             CancellationToken cancellationToken = default)
         {
             LastContentType = contentType;
             LastSectionItemCount = sectionItemCount;
             LastDiversify = diversify;
+            LastIncludeBecauseYouWatched = includeBecauseYouWatched;
             return Task.FromResult(sections);
         }
     }
@@ -1144,6 +1266,7 @@ public sealed class HomeServiceTests
             RecommendationContentType contentType = RecommendationContentType.All,
             int? sectionItemCount = null,
             bool diversify = true,
+            bool includeBecauseYouWatched = true,
             CancellationToken cancellationToken = default) =>
             Task.FromCanceled<IReadOnlyList<RecommendationSection>>(cancellationToken);
     }

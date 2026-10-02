@@ -76,6 +76,20 @@ public sealed class RecommendationQueryFanOutTests
     }
 
     [Fact]
+    public async Task HomeRecommendationsSkipBecauseYouWatchedWhenDisabled()
+    {
+        var repository = new CountingRecommendationRepository();
+        var service = CreateService(repository, new CountingDiscoveryService());
+
+        var sections = await service.GetHomeRecommendationsForCurrentUserAsync(
+            includeColdStartDiscoverySections: false,
+            includeBecauseYouWatched: false);
+
+        Assert.DoesNotContain(sections, section => section.Key == "because-you-watched");
+        Assert.Equal(0, repository.GetMovieCandidateIdsForSourcesCount);
+    }
+
+    [Fact]
     public async Task BuildSimilarSectionUsesBatchSimilarityRepositoryCalls()
     {
         var repository = new CountingRecommendationRepository();

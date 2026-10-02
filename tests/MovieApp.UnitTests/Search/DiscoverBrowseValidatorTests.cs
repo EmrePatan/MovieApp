@@ -7,8 +7,11 @@ public sealed class DiscoverBrowseValidatorTests
 {
     [Theory]
     [InlineData("trending", DiscoverBrowseMode.Trending)]
+    [InlineData("popular", DiscoverBrowseMode.Popular)]
     [InlineData("top_rated", DiscoverBrowseMode.TopRated)]
     [InlineData("new_releases", DiscoverBrowseMode.NewReleases)]
+    [InlineData("hidden_gems", DiscoverBrowseMode.HiddenGems)]
+    [InlineData("hidden-gems", DiscoverBrowseMode.HiddenGems)]
     public void TryParseModeParsesSupportedValues(string rawMode, DiscoverBrowseMode expectedMode)
     {
         var parsed = DiscoverBrowseValidator.TryParseMode(rawMode, out var mode);
@@ -57,7 +60,9 @@ public sealed class DiscoverBrowseValidatorTests
 
     [Theory]
     [InlineData(DiscoverBrowseMode.Trending, DiscoverBrowseSort.PopularityDesc)]
+    [InlineData(DiscoverBrowseMode.Popular, DiscoverBrowseSort.PopularityDesc)]
     [InlineData(DiscoverBrowseMode.TopRated, DiscoverBrowseSort.RatingDesc)]
+    [InlineData(DiscoverBrowseMode.HiddenGems, DiscoverBrowseSort.RatingDesc)]
     [InlineData(DiscoverBrowseMode.NewReleases, DiscoverBrowseSort.ReleaseDesc)]
     public void GetDefaultSortForModeMatchesBrowseContract(
         DiscoverBrowseMode mode,

@@ -20,7 +20,7 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
     {
         var weekly = CreateWeeklyItems(12);
         var heroItems = weekly.Take(3).ToList();
-        var discovery = new RecordingDiscoveryService([]);
+        var discovery = new RecordingTrendingWeekListService([]);
         var service = CreateService(new FakeSnapshotService(weekly), discovery);
 
         var trending = await service.GetTrendingItemsAsync(
@@ -48,7 +48,7 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
         ];
 
         var heroItems = weekly.Take(1).ToList();
-        var service = CreateService(new FakeSnapshotService(weekly), new RecordingDiscoveryService([]));
+        var service = CreateService(new FakeSnapshotService(weekly), new RecordingTrendingWeekListService([]));
 
         var trending = await service.GetTrendingItemsAsync(
             SearchContentType.All,
@@ -73,7 +73,7 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
         ];
 
         var heroItems = new List<SearchItem> { weekly[1] };
-        var service = CreateService(new FakeSnapshotService(weekly), new RecordingDiscoveryService([]));
+        var service = CreateService(new FakeSnapshotService(weekly), new RecordingTrendingWeekListService([]));
 
         var trending = await service.GetTrendingItemsAsync(
             SearchContentType.Movie,
@@ -90,7 +90,7 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
     {
         var fallbackItems = CreateWeeklyItems(8);
         var heroItems = fallbackItems.Take(3).ToList();
-        var discovery = new RecordingDiscoveryService(fallbackItems);
+        var discovery = new RecordingTrendingWeekListService(fallbackItems);
         var service = CreateService(new FakeSnapshotService(null), discovery);
 
         var trending = await service.GetTrendingItemsAsync(
@@ -136,7 +136,7 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
     {
         var weekly = CreateWeeklyItems(10);
         var hotThisWeek = new HotThisWeekService(
-            new RecordingDiscoveryService([]),
+            new RecordingTrendingWeekListService([]),
             new FakeSnapshotService(weekly),
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService(),
             new NoOpCacheService(),
@@ -153,10 +153,10 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
 
     private static HomeWeeklyTrendingSectionService CreateService(
         FakeSnapshotService snapshotService,
-        RecordingDiscoveryService discoveryService) =>
+        RecordingTrendingWeekListService trendingWeekListService) =>
         new(
             snapshotService,
-            discoveryService,
+            trendingWeekListService,
             new SearchTestDoubles.PassthroughSummaryLocalizationOverlayService());
 
     private static List<SearchItem> CreateWeeklyItems(int count) =>
@@ -205,13 +205,13 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
             throw new NotSupportedException();
     }
 
-    private sealed class RecordingDiscoveryService(IReadOnlyList<SearchItem> trendingItems) : IDiscoveryService
+    private sealed class RecordingTrendingWeekListService(IReadOnlyList<SearchItem> trendingItems) : ITrendingWeekListService
     {
         public int TrendingCallCount { get; private set; }
 
         public int LastTrendingPageSize { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> GetTrendingAsync(
+        public Task<PaginatedResult<SearchItem>> GetPageAsync(
             DiscoveryCriteria criteria,
             string contentLocale,
             CancellationToken cancellationToken = default)
@@ -236,18 +236,6 @@ public sealed class HomeWeeklyTrendingSectionServiceTests
                 items.Count,
                 items.Count == 0 ? 0 : 1));
         }
-
-        public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 
     private sealed class NoOpCacheService : ICacheService

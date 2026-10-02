@@ -24,7 +24,8 @@ public sealed class DiscoverBrowseService(
     IKeywordDiscoverReadRepository keywordDiscoverReadRepository,
     ICacheService cacheService,
     ILogger<DiscoverBrowseService> logger,
-    SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher) : IDiscoverBrowseService
+    SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher,
+    ITrendingWeekListService trendingWeekListService) : IDiscoverBrowseService
 {
     private static readonly TimeSpan BrowseCacheTtl = TimeSpan.FromMinutes(10);
 
@@ -48,17 +49,33 @@ public sealed class DiscoverBrowseService(
 
         PaginatedResult<SearchItem> result;
 
-        if (criteria.Mode == DiscoverBrowseMode.NewReleases && !HasSupplementalBrowseFilters(criteria))
+        if (criteria.Mode == DiscoverBrowseMode.Trending &&
+            !DiscoverBrowseValidator.HasSupplementalFilters(criteria))
+        {
+            result = await trendingWeekListService.GetPageAsync(
+                new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
+                contentLocale,
+                cancellationToken);
+        }
+        else if (criteria.Mode == DiscoverBrowseMode.NewReleases &&
+                 !DiscoverBrowseValidator.HasSupplementalFilters(criteria))
         {
             result = await discoveryService.GetNewReleasesAsync(
                 new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
                 contentLocale,
                 cancellationToken);
         }
-        else if (criteria.Mode == DiscoverBrowseMode.TopRated && !HasSupplementalBrowseFilters(criteria))
+        else if (criteria.Mode == DiscoverBrowseMode.TopRated)
         {
-            result = await discoveryService.GetTopRatedAsync(
-                new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
+            result = await discoveryService.GetTopRatedBrowseAsync(
+                criteria,
+                contentLocale,
+                cancellationToken);
+        }
+        else if (criteria.Mode == DiscoverBrowseMode.HiddenGems)
+        {
+            result = await discoveryService.GetHiddenGemsAsync(
+                criteria,
                 contentLocale,
                 cancellationToken);
         }
@@ -133,7 +150,7 @@ public sealed class DiscoverBrowseService(
                 cancellationToken);
         }
 
-        return new DiscoverProviderCriteria(
+        var providerCriteria = new DiscoverProviderCriteria(
             criteria.Mode,
             criteria.Page,
             genreTmdbIds,
@@ -151,6 +168,19 @@ public sealed class DiscoverBrowseService(
             keywordTmdbIds,
             criteria.TvStatuses,
             criteria.Sort);
+
+        if (criteria.Mode == DiscoverBrowseMode.Popular)
+        {
+            var floor = genreMappingType == SearchContentType.Tv
+                ? PopularDiscoverQuality.MinimumVoteCountTv
+                : PopularDiscoverQuality.MinimumVoteCountMovie;
+            var minVoteCount = providerCriteria.MinVoteCount is int requested
+                ? Math.Max(requested, floor)
+                : floor;
+            providerCriteria = providerCriteria with { MinVoteCount = minVoteCount };
+        }
+
+        return providerCriteria;
     }
 
     private Task<DiscoverProviderCriteria> BuildProviderCriteriaAsync(
@@ -195,7 +225,7 @@ public sealed class DiscoverBrowseService(
             totalPages = searchResult.TotalPages;
             var providerResultCount = searchResult.Results.Count;
 
-            if (criteria.Mode == DiscoverBrowseMode.NewReleases)
+            if (RequiresPoster(criteria.Mode))
             {
                 searchResult = searchResult with
                 {
@@ -272,7 +302,7 @@ public sealed class DiscoverBrowseService(
             totalPages = searchResult.TotalPages;
             var providerResultCount = searchResult.Results.Count;
 
-            if (criteria.Mode == DiscoverBrowseMode.NewReleases)
+            if (RequiresPoster(criteria.Mode))
             {
                 searchResult = searchResult with
                 {
@@ -434,10 +464,12 @@ public sealed class DiscoverBrowseService(
             if (!movieExhausted)
             {
                 movieTotalCount = movieSearchResult.TotalCount;
+                var movieDisplay = FilterPosters(criteria.Mode, movieSearchResult.Results);
+                var movieIngest = FilterPosters(criteria.Mode, movieIngestResult.Results);
                 var movieIds = await movieRepository.EnsureFromSummariesAsync(
-                    movieIngestResult.Results,
+                    movieIngest,
                     cancellationToken);
-                movieItems.AddRange(MapMovieResults(movieSearchResult.Results, movieIds));
+                movieItems.AddRange(MapMovieResults(movieDisplay, movieIds));
                 movieExhausted = movieSearchResult.Results.Count == 0 ||
                                  providerPage >= movieSearchResult.TotalPages;
             }
@@ -445,10 +477,12 @@ public sealed class DiscoverBrowseService(
             if (!tvExhausted)
             {
                 tvTotalCount = tvSearchResult.TotalCount;
+                var tvDisplay = FilterPosters(criteria.Mode, tvSearchResult.Results);
+                var tvIngest = FilterPosters(criteria.Mode, tvIngestResult.Results);
                 var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
-                    tvIngestResult.Results,
+                    tvIngest,
                     cancellationToken);
-                tvItems.AddRange(MapTvResults(tvSearchResult.Results, tvIds));
+                tvItems.AddRange(MapTvResults(tvDisplay, tvIds));
                 tvExhausted = tvSearchResult.Results.Count == 0 ||
                               providerPage >= tvSearchResult.TotalPages;
             }
@@ -526,21 +560,29 @@ public sealed class DiscoverBrowseService(
         }
     }
 
-    private static bool HasSupplementalBrowseFilters(DiscoverBrowseCriteria criteria) =>
-        criteria.GenreIds.Count > 0 ||
-        criteria.Year.HasValue ||
-        criteria.YearFrom.HasValue ||
-        criteria.YearTo.HasValue ||
-        criteria.MinRating.HasValue ||
-        criteria.MinVoteCount.HasValue ||
-        criteria.MinRuntimeMinutes.HasValue ||
-        criteria.MaxRuntimeMinutes.HasValue ||
-        !string.IsNullOrWhiteSpace(criteria.Language) ||
-        !string.IsNullOrWhiteSpace(criteria.OriginCountry) ||
-        criteria.KeywordIds.Count > 0 ||
-        criteria.TvStatuses.Count > 0 ||
-        (criteria.Sort.HasValue &&
-         criteria.Sort != DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode));
+    private static bool RequiresPoster(DiscoverBrowseMode mode) =>
+        mode is DiscoverBrowseMode.NewReleases or DiscoverBrowseMode.Popular;
+
+    private static IReadOnlyList<T> FilterPosters<T>(DiscoverBrowseMode mode, IReadOnlyList<T> summaries)
+        where T : class
+    {
+        if (!RequiresPoster(mode))
+        {
+            return summaries;
+        }
+
+        return summaries
+            .Where(summary => !string.IsNullOrWhiteSpace(PosterPathOf(summary)))
+            .ToList();
+    }
+
+    private static string? PosterPathOf<T>(T summary) =>
+        summary switch
+        {
+            MovieProviderSummary movie => movie.PosterPath,
+            TvShowProviderSummary tvShow => tvShow.PosterPath,
+            _ => null
+        };
 
     private static List<SearchItem> MapMovieResults(
         IReadOnlyList<MovieProviderSummary> summaries,

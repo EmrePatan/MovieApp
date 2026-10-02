@@ -30,4 +30,20 @@ public interface IDiscoveryService
         DiscoveryCriteria criteria,
         string contentLocale,
         CancellationToken cancellationToken = default);
+
+    Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
+        DiscoverBrowseCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<PaginatedResult<SearchItem>>(
+            new NotSupportedException("Hidden gems is not available on this discovery service."));
+
+    Task<PaginatedResult<SearchItem>> GetTopRatedBrowseAsync(
+        DiscoverBrowseCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        GetTopRatedAsync(
+            new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
+            contentLocale,
+            cancellationToken);
 }

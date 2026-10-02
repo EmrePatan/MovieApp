@@ -12,7 +12,7 @@ using MovieApp.Application.Services.Search;
 namespace MovieApp.Application.Services.Home;
 
 public sealed class HotThisWeekService(
-    IDiscoveryService discoveryService,
+    ITrendingWeekListService trendingWeekListService,
     IHotThisWeekTrendingSnapshotService trendingSnapshotService,
     ISummaryLocalizationOverlayService summaryLocalizationOverlayService,
     ICacheService cacheService,
@@ -111,7 +111,7 @@ public sealed class HotThisWeekService(
         {
             role = "TrendingFallback";
             var trendingStopwatch = Stopwatch.StartNew();
-            var discovery = await discoveryService.GetTrendingAsync(
+            var discovery = await trendingWeekListService.GetPageAsync(
                 new DiscoveryCriteria(type, 1, maxItems),
                 contentLocale,
                 cancellationToken);

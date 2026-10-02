@@ -58,6 +58,26 @@ public sealed class TmdbDiscoverQueryBuilderTests
     }
 
     [Fact]
+    public void BuildMovieQuery_PopularModeAppliesVoteFloor()
+    {
+        var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(
+            mode: DiscoverBrowseMode.Popular,
+            sort: DiscoverBrowseSort.PopularityDesc));
+
+        Assert.Contains($"vote_count.gte={PopularDiscoverQuality.MinimumVoteCountMovie}", query);
+    }
+
+    [Fact]
+    public void BuildTvQuery_PopularModeAppliesLowerVoteFloor()
+    {
+        var query = TmdbDiscoverQueryBuilder.BuildTvQuery(CreateCriteria(
+            mode: DiscoverBrowseMode.Popular,
+            sort: DiscoverBrowseSort.PopularityDesc));
+
+        Assert.Contains($"vote_count.gte={PopularDiscoverQuality.MinimumVoteCountTv}", query);
+    }
+
+    [Fact]
     public void BuildMovieQuery_PopularitySortPreservesUserMinVoteCount()
     {
         var query = TmdbDiscoverQueryBuilder.BuildMovieQuery(CreateCriteria(

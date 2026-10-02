@@ -168,7 +168,11 @@ public sealed class SearchRepository(
             criteria.Page,
             criteria.PageSize);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchQueryMatch.Empty);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(
+            dbContext,
+            searchCriteria,
+            SearchQueryMatch.Empty,
+            titlesOnly: true);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder
@@ -195,7 +199,11 @@ public sealed class SearchRepository(
             criteria.Page,
             criteria.PageSize);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchQueryMatch.Empty);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(
+            dbContext,
+            searchCriteria,
+            SearchQueryMatch.Empty,
+            titlesOnly: true);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder
@@ -283,6 +291,79 @@ public sealed class SearchRepository(
         }
 
         return ToPaginatedResult(items, criteria.Page, criteria.PageSize, totalCount);
+    }
+
+    public Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
+        DiscoverBrowseCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var query = CatalogTitleListQuery.BuildHiddenGemsQuery(dbContext, criteria);
+        return PageTitleListAsync(
+            query,
+            criteria.Page,
+            criteria.PageSize,
+            SearchQueryBuilder.ApplyHiddenGemsSort,
+            cancellationToken);
+    }
+
+    public async Task<PaginatedResult<SearchItem>> GetFilteredTopRatedAsync(
+        DiscoverBrowseCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var query = CatalogTitleListQuery.BuildFilteredTopRatedQuery(
+            dbContext,
+            criteria,
+            topRatedOptions.Value.MinVoteCountMovie,
+            topRatedOptions.Value.MinVoteCountTv);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var catalogMean = await GetCatalogMeanVoteAverageAsync(criteria.Type, cancellationToken);
+        var minimumVoteConfidence = topRatedOptions.Value.MinimumVoteConfidence;
+        var skip = (criteria.Page - 1) * criteria.PageSize;
+
+        List<SearchItemProjection> items;
+        if (UsesDatabaseTopRatedRanking())
+        {
+            items = await SearchQueryBuilder
+                .ApplyTopRatedSort(query, catalogMean, minimumVoteConfidence)
+                .Skip(skip)
+                .Take(criteria.PageSize)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            var rankedItems = await query.ToListAsync(cancellationToken);
+            items = rankedItems
+                .OrderByDescending(item => TopRatedScoreCalculator.ComputeWeightedRating(
+                    item.VoteAverage,
+                    item.VoteCount,
+                    catalogMean,
+                    minimumVoteConfidence))
+                .ThenByDescending(item => item.VoteCount)
+                .ThenBy(item => item.Title)
+                .ThenBy(item => item.Type)
+                .ThenBy(item => item.Id)
+                .Skip(skip)
+                .Take(criteria.PageSize)
+                .ToList();
+        }
+
+        return ToPaginatedResult(items, criteria.Page, criteria.PageSize, totalCount);
+    }
+
+    private static async Task<PaginatedResult<SearchItem>> PageTitleListAsync(
+        IQueryable<SearchItemProjection> query,
+        int page,
+        int pageSize,
+        Func<IQueryable<SearchItemProjection>, IQueryable<SearchItemProjection>> sort,
+        CancellationToken cancellationToken)
+    {
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await sort(query)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return ToPaginatedResult(items, page, pageSize, totalCount);
     }
 
     private bool UsesDatabaseTopRatedRanking() =>
@@ -472,7 +553,12 @@ public sealed class SearchRepository(
             criteria.Page,
             criteria.PageSize);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, SearchQueryMatch.Empty, genreName);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(
+            dbContext,
+            searchCriteria,
+            SearchQueryMatch.Empty,
+            genreName,
+            titlesOnly: true);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 
         var items = await SearchQueryBuilder

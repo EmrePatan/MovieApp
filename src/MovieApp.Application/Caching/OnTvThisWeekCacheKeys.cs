@@ -11,6 +11,6 @@ public static class OnTvThisWeekCacheKeys
                 "discovery-on-tv-this-week",
                 criteria.Page,
                 criteria.PageSize,
-                "v2"),
+                "v3"),
             contentLocale);
 }
