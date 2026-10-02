@@ -138,17 +138,18 @@ public sealed class LibraryService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var categoryTasks = LibrarySearchAggregator.Categories
-            .Select(category => CollectCategorySearchMatchesAsync(
+        // Categories are collected sequentially so each page fetch uses one DbContext instance.
+        var categoryMap = new Dictionary<LibraryCategory, IReadOnlyList<LibraryItemResult>>();
+        foreach (var category in LibrarySearchAggregator.Categories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var collected = await CollectCategorySearchMatchesAsync(
                 category,
                 criteria,
                 contentLocale,
-                cancellationToken));
-
-        var categoryResults = await Task.WhenAll(categoryTasks);
-        var categoryMap = categoryResults.ToDictionary(
-            entry => entry.Category,
-            entry => entry.Items);
+                cancellationToken);
+            categoryMap[collected.Category] = collected.Items;
+        }
 
         var merged = LibrarySearchAggregator.MergeByTitlePriority(categoryMap);
         if (merged.Count > LibrarySearchAggregator.MaxCollectedItems)
