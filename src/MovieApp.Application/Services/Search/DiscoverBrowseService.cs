@@ -232,7 +232,7 @@ public sealed class DiscoverBrowseService(
             criteria.Page,
             criteria.PageSize,
             totalCount,
-            clientTotalPages);
+            totalPages);
     }
 
     private async Task<PaginatedResult<SearchItem>> BrowseTvShowsAsync(
