@@ -8,6 +8,13 @@ public sealed class RecommendationOptions
 
     public int MaximumCandidates { get; set; } = 500;
 
+    /// <summary>
+    /// Candidate budget for the Home "Because You Watched" rail. The full recommendation
+    /// endpoint keeps the larger MaximumCandidates budget; Home only needs a bounded pool
+    /// before taking the visible section size.
+    /// </summary>
+    public int HomeBecauseYouWatchedMaximumCandidates { get; set; } = 80;
+
     public int HomeSectionItemCount { get; set; } = 10;
 
     /// <summary>

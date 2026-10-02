@@ -446,7 +446,7 @@ public sealed class RecommendationService(
                 applyDiversity: diversify);
             personalizedStopwatch.Stop();
 
-            becauseYouWatched = await BuildBecauseYouWatchedSectionAsync(context, sectionSize, cancellationToken);
+            becauseYouWatched = await BuildBecauseYouWatchedSectionAsync(context, sectionSize, _options.HomeBecauseYouWatchedMaximumCandidates, cancellationToken);
             becauseYouWatchedStopwatch.Stop();
         }
         else
@@ -460,7 +460,7 @@ public sealed class RecommendationService(
                     applyDiversity: diversify),
                 cancellationToken);
             var becauseYouWatchedTask = RunIsolatedAsync(
-                (service, ct) => service.BuildBecauseYouWatchedSectionAsync(context, sectionSize, ct),
+                (service, ct) => service.BuildBecauseYouWatchedSectionAsync(context, sectionSize, _options.HomeBecauseYouWatchedMaximumCandidates, ct),
                 cancellationToken);
 
             await Task.WhenAll(recommendedTask, becauseYouWatchedTask);
@@ -509,6 +509,7 @@ public sealed class RecommendationService(
     private async Task<IReadOnlyList<RecommendationItem>> BuildBecauseYouWatchedSectionAsync(
         UserRecommendationContext context,
         int sectionSize,
+        int candidateLimit,
         CancellationToken cancellationToken)
     {
         var watchedSources = SelectBecauseYouWatchedSources(context.Signals);
@@ -522,6 +523,7 @@ public sealed class RecommendationService(
             watchedSources,
             context,
             sectionSize,
+            candidateLimit,
             cancellationToken);
 
         RecommendationServiceLogMessages.LogBecauseYouWatched(
@@ -538,6 +540,7 @@ public sealed class RecommendationService(
         IReadOnlyList<UserBehaviorSignal> sourceSignals,
         UserRecommendationContext context,
         int sectionSize,
+        int candidateLimit,
         CancellationToken cancellationToken)
     {
         var aggregated = new Dictionary<(Guid Id, string Type), RecommendationItem>();
@@ -549,6 +552,7 @@ public sealed class RecommendationService(
             movieSignals,
             context.ExcludedMovieIds,
             aggregated,
+            candidateLimit,
             cancellationToken);
         movieAggregateStopwatch.Stop();
 
@@ -557,6 +561,7 @@ public sealed class RecommendationService(
             tvSignals,
             context.ExcludedTvShowIds,
             aggregated,
+            candidateLimit,
             cancellationToken);
         tvAggregateStopwatch.Stop();
 
@@ -583,6 +588,7 @@ public sealed class RecommendationService(
         List<UserBehaviorSignal> movieSignals,
         IReadOnlySet<Guid> excludedMovieIds,
         Dictionary<(Guid Id, string Type), RecommendationItem> aggregated,
+        int candidateLimit,
         CancellationToken cancellationToken)
     {
         if (movieSignals.Count == 0)
@@ -607,7 +613,7 @@ public sealed class RecommendationService(
         var candidateIdsStopwatch = Stopwatch.StartNew();
         var candidateIdsBySource = await recommendationRepository.GetSimilarMovieCandidateIdsForSourcesAsync(
             sourceRequests,
-            _options.MaximumCandidates,
+            candidateLimit,
             cancellationToken);
         candidateIdsStopwatch.Stop();
 
@@ -672,6 +678,7 @@ public sealed class RecommendationService(
         List<UserBehaviorSignal> tvSignals,
         IReadOnlySet<Guid> excludedTvShowIds,
         Dictionary<(Guid Id, string Type), RecommendationItem> aggregated,
+        int candidateLimit,
         CancellationToken cancellationToken)
     {
         if (tvSignals.Count == 0)

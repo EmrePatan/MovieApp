@@ -21,7 +21,7 @@ internal static class TmdbDiscoverQueryBuilder
             $"sort_by={MapMovieSort(criteria)}"
         };
 
-        AppendSharedFilters(parameters, criteria, includeTvStatuses: false, constraints);
+        AppendSharedFilters(parameters, criteria, includeTvStatuses: false, newReleases: constraints, topRatedVoteFloor: DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount);
         AppendMovieYearFilters(parameters, criteria, constraints, today);
 
         return string.Join('&', parameters);
@@ -39,7 +39,7 @@ internal static class TmdbDiscoverQueryBuilder
             $"sort_by={MapTvSort(criteria)}"
         };
 
-        AppendSharedFilters(parameters, criteria, includeTvStatuses: true, constraints);
+        AppendSharedFilters(parameters, criteria, includeTvStatuses: true, newReleases: constraints, topRatedVoteFloor: DiscoverCatalogSortPolicy.TopRatedMinimumVoteCountTv);
         AppendTvYearFilters(parameters, criteria, constraints, today);
 
         return string.Join('&', parameters);
@@ -49,7 +49,8 @@ internal static class TmdbDiscoverQueryBuilder
         List<string> parameters,
         DiscoverProviderCriteria criteria,
         bool includeTvStatuses,
-        NewReleasesDiscoverConstraints newReleases)
+        NewReleasesDiscoverConstraints newReleases,
+        int topRatedVoteFloor)
     {
         parameters.Add("include_adult=false");
 
@@ -63,7 +64,7 @@ internal static class TmdbDiscoverQueryBuilder
             parameters.Add($"vote_average.gte={criteria.MinRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
 
-        var effectiveMinVoteCount = ResolveEffectiveMinVoteCount(criteria, newReleases);
+        var effectiveMinVoteCount = ResolveEffectiveMinVoteCount(criteria, newReleases, topRatedVoteFloor);
         if (effectiveMinVoteCount.HasValue)
         {
             parameters.Add($"vote_count.gte={effectiveMinVoteCount.Value}");
@@ -108,7 +109,8 @@ internal static class TmdbDiscoverQueryBuilder
 
     private static int? ResolveEffectiveMinVoteCount(
         DiscoverProviderCriteria criteria,
-        NewReleasesDiscoverConstraints newReleases)
+        NewReleasesDiscoverConstraints newReleases,
+        int topRatedVoteFloor)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
         int? newReleasesFloor = criteria.Mode == DiscoverBrowseMode.NewReleases && newReleases.MinVoteCount > 0
@@ -119,7 +121,8 @@ internal static class TmdbDiscoverQueryBuilder
             criteria.Mode,
             effectiveSort,
             criteria.MinVoteCount,
-            newReleasesFloor);
+            newReleasesFloor,
+            topRatedVoteFloor);
     }
 
     private static void AppendMovieYearFilters(

@@ -79,12 +79,14 @@ public sealed class KeywordDisplayProfileRefreshService(
             }
 
             await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
             await context.Database.ExecuteSqlRawAsync(
                 """TRUNCATE TABLE keyword_display_profiles;""",
                 cancellationToken);
 
             context.KeywordDisplayProfiles.AddRange(profiles);
             await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             stopwatch.Stop();
             KeywordDisplayProfileLogMessages.LogRefreshCompleted(

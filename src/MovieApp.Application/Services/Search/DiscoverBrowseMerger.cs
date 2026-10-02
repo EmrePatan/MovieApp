@@ -14,8 +14,10 @@ internal static class DiscoverBrowseMerger
         int tvTotalCount)
     {
         var effectiveSort = DiscoverBrowseValidator.GetEffectiveSort(criteria);
+        var skip = Math.Max(0, (criteria.Page - 1) * criteria.PageSize);
         var mergedItems = DiscoverBrowseSorter
             .Sort(movieItems.Concat(tvItems), effectiveSort)
+            .Skip(skip)
             .Take(criteria.PageSize)
             .ToList();
 

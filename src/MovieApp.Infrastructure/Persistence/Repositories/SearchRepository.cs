@@ -244,7 +244,11 @@ public sealed class SearchRepository(
         DiscoveryCriteria criteria,
         CancellationToken cancellationToken = default)
     {
-        var combinedQuery = SearchQueryBuilder.BuildTopRatedQuery(dbContext, criteria);
+        var combinedQuery = SearchQueryBuilder.BuildTopRatedQuery(
+            dbContext,
+            criteria,
+            topRatedOptions.Value.MinVoteCountMovie,
+            topRatedOptions.Value.MinVoteCountTv);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
         var catalogMean = await GetCatalogMeanVoteAverageAsync(criteria.Type, cancellationToken);
         var minimumVoteConfidence = topRatedOptions.Value.MinimumVoteConfidence;
@@ -307,29 +311,40 @@ public sealed class SearchRepository(
         SearchContentType type,
         CancellationToken cancellationToken)
     {
-        var movieAverages = dbContext.Movies
+        var movieVotes = dbContext.Movies
             .AsNoTracking()
             .Where(movie => movie.VoteCount > 0)
-            .Select(movie => movie.VoteAverage);
+            .Select(movie => new { movie.VoteAverage, movie.VoteCount });
 
-        var tvAverages = dbContext.TvShows
+        var tvVotes = dbContext.TvShows
             .AsNoTracking()
             .Where(tvShow => tvShow.VoteCount > 0)
-            .Select(tvShow => tvShow.VoteAverage);
+            .Select(tvShow => new { tvShow.VoteAverage, tvShow.VoteCount });
 
-        IQueryable<decimal> averages = type switch
+        var totalVotesQuery = type switch
         {
-            SearchContentType.Movie => movieAverages,
-            SearchContentType.Tv => tvAverages,
-            _ => movieAverages.Concat(tvAverages)
+            SearchContentType.Movie => movieVotes.Select(item => (long)item.VoteCount),
+            SearchContentType.Tv => tvVotes.Select(item => (long)item.VoteCount),
+            _ => movieVotes.Select(item => (long)item.VoteCount)
+                .Concat(tvVotes.Select(item => (long)item.VoteCount))
         };
 
-        if (!await averages.AnyAsync(cancellationToken))
+        var weightedRatingQuery = type switch
+        {
+            SearchContentType.Movie => movieVotes.Select(item => item.VoteAverage * item.VoteCount),
+            SearchContentType.Tv => tvVotes.Select(item => item.VoteAverage * item.VoteCount),
+            _ => movieVotes.Select(item => item.VoteAverage * item.VoteCount)
+                .Concat(tvVotes.Select(item => item.VoteAverage * item.VoteCount))
+        };
+
+        var totalVotes = await totalVotesQuery.SumAsync(cancellationToken);
+        if (totalVotes <= 0)
         {
             return 6.0m;
         }
 
-        return await averages.AverageAsync(cancellationToken);
+        var weightedRating = await weightedRatingQuery.SumAsync(cancellationToken);
+        return weightedRating / totalVotes;
     }
 
     public async Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithGenreAsync(

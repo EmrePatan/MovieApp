@@ -50,6 +50,53 @@ public sealed class DiscoverBrowseMergerTests
     }
 
     [Fact]
+    public void MergeSkipsAlreadyConsumedMixedItemsForLaterPages()
+    {
+        var criteria = new DiscoverBrowseCriteria(
+            DiscoverBrowseMode.Trending,
+            SearchContentType.All,
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
+            DiscoverBrowseSort.RatingDesc,
+            2,
+            2);
+
+        var movieItems = new[]
+        {
+            CreateItem(Guid.NewGuid(), "movie", voteAverage: 10m, voteCount: 1000),
+            CreateItem(Guid.NewGuid(), "movie", voteAverage: 8m, voteCount: 900)
+        };
+        var tvItems = new[]
+        {
+            CreateItem(Guid.NewGuid(), "tv", voteAverage: 9m, voteCount: 950),
+            CreateItem(Guid.NewGuid(), "tv", voteAverage: 7m, voteCount: 800)
+        };
+
+        var result = DiscoverBrowseMerger.Merge(
+            criteria,
+            movieItems,
+            tvItems,
+            movieTotalCount: 2,
+            tvTotalCount: 2);
+
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(8m, result.Items[0].VoteAverage);
+        Assert.Equal(7m, result.Items[1].VoteAverage);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(2, result.PageSize);
+    }
+
+    [Fact]
     public void CreateSingleTypeResultCapsProviderOverReturnToRequestedPageSize()
     {
         var items = Enumerable.Range(0, 3)

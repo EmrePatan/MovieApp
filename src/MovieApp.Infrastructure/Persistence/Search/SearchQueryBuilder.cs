@@ -289,7 +289,9 @@ internal static class SearchQueryBuilder
 
     public static IQueryable<SearchItemProjection> BuildTopRatedQuery(
         ApplicationDbContext dbContext,
-        DiscoveryCriteria criteria)
+        DiscoveryCriteria criteria,
+        int minimumMovieVotes = DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount,
+        int minimumTvVotes = DiscoverCatalogSortPolicy.TopRatedMinimumVoteCountTv)
     {
         var searchCriteria = new SearchCriteria(
             null,
@@ -302,18 +304,16 @@ internal static class SearchQueryBuilder
             criteria.Page,
             criteria.PageSize);
 
-        var minimumVotes = DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount;
-
         return criteria.Type switch
         {
             SearchContentType.Movie => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.VoteCount >= minimumVotes),
+                .Where(item => item.VoteCount >= minimumMovieVotes),
             SearchContentType.Tv => BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.VoteCount >= minimumVotes),
+                .Where(item => item.VoteCount >= minimumTvVotes),
             _ => BuildMovieQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                .Where(item => item.VoteCount >= minimumVotes)
+                .Where(item => item.VoteCount >= minimumMovieVotes)
                 .Concat(BuildTvShowQuery(dbContext, searchCriteria, SearchQueryMatch.Empty)
-                    .Where(item => item.VoteCount >= minimumVotes))
+                    .Where(item => item.VoteCount >= minimumTvVotes))
         };
     }
 

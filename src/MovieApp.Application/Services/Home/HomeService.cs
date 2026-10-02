@@ -37,7 +37,7 @@ public sealed class HomeService(
     /// 80 still covers the largest home rail (section size 20) after hero dedup plus the
     /// genre, collection, and franchise caps that fill the rail from the scored pool.
     /// </summary>
-    private const int HomeScoredPoolCap = 80;
+    private const int HomeScoredPoolSize = 80;
 
     private static readonly HomeSectionType[] HomeSectionOrder =
     [
@@ -575,10 +575,10 @@ public sealed class HomeService(
         var heroWindow = sectionSize
             + Math.Max(0, _options.HeroSectionSize)
             + Math.Max(0, _recommendationOptions.HomeRecommendationSurplus);
-        // HomeScoredPoolCap is the deepest scored slice passed to SelectHomeRecommended
+        // HomeScoredPoolSize is the target scored pool size passed to SelectHomeRecommended
         // (not the SQL MaximumCandidates budget).
-        var upper = Math.Max(heroWindow, HomeScoredPoolCap);
-        return Math.Clamp(upper, heroWindow, upper);
+        var upper = Math.Max(heroWindow, HomeScoredPoolSize);
+        return upper;
     }
 
     private static IReadOnlyList<RecommendationItem> FilterRecommendationItems(

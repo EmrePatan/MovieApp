@@ -21,6 +21,7 @@ public static class DiscoverCatalogSortPolicy
     /// Browse <see cref="DiscoverBrowseMode.TopRated"/> TMDB discover floor.
     /// </summary>
     public const int TopRatedMinimumVoteCount = CuratedTopRatedListMinimumVoteCount;
+    public const int TopRatedMinimumVoteCountTv = 500;
 
     /// <summary>
     /// Centralized future-release cap: UTC today + horizon days (product fallback).
@@ -46,13 +47,14 @@ public static class DiscoverCatalogSortPolicy
         DiscoverBrowseMode mode,
         DiscoverBrowseSort effectiveSort,
         int? requestedMinVoteCount,
-        int? newReleasesVoteFloor = null)
+        int? newReleasesVoteFloor = null,
+        int topRatedVoteFloor = CuratedTopRatedListMinimumVoteCount)
     {
         int? floor = null;
 
         if (mode == DiscoverBrowseMode.TopRated)
         {
-            floor = CuratedTopRatedListMinimumVoteCount;
+            floor = topRatedVoteFloor;
         }
         else if (RequiresRatingVoteFloor(effectiveSort))
         {

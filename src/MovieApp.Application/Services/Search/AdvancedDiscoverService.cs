@@ -149,44 +149,68 @@ public sealed class AdvancedDiscoverService(
         CancellationToken cancellationToken)
     {
         var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
-        MovieProviderSearchResult searchResult;
-        MovieProviderSearchResult ingestResult;
+        var allItems = new List<SearchItem>();
+        var totalCount = 0;
+        var totalPages = 0;
+        var providerPage = 1;
+        var requiredPrefixSize = criteria.Page * criteria.PageSize;
 
-        if (useLocalizedDisplay)
+        while (providerPage <= 500 && allItems.Count < requiredPrefixSize)
         {
-            var localizedTask = DiscoverMoviesLocalizedSafeAsync(providerCriteria, contentLocale, cancellationToken);
-            var canonicalTask = DiscoverMoviesSafeAsync(providerCriteria, cancellationToken);
-            await Task.WhenAll(localizedTask, canonicalTask);
-            searchResult = await localizedTask;
-            ingestResult = await canonicalTask;
-        }
-        else
-        {
-            searchResult = await DiscoverMoviesSafeAsync(providerCriteria, cancellationToken);
-            ingestResult = searchResult;
+            var pageCriteria = providerCriteria with { Page = providerPage };
+            MovieProviderSearchResult searchResult;
+            MovieProviderSearchResult ingestResult;
+
+            if (useLocalizedDisplay)
+            {
+                var localizedTask = DiscoverMoviesLocalizedSafeAsync(pageCriteria, contentLocale, cancellationToken);
+                var canonicalTask = DiscoverMoviesSafeAsync(pageCriteria, cancellationToken);
+                await Task.WhenAll(localizedTask, canonicalTask);
+                searchResult = await localizedTask;
+                ingestResult = await canonicalTask;
+            }
+            else
+            {
+                searchResult = await DiscoverMoviesSafeAsync(pageCriteria, cancellationToken);
+                ingestResult = searchResult;
+            }
+
+            totalCount = searchResult.TotalCount;
+            totalPages = searchResult.TotalPages;
+            var providerResultCount = searchResult.Results.Count;
+
+            var allowedMovieIds = await ResolveAllowedTmdbIdsAsync(
+                criteria,
+                searchResult.Results.Select(summary => summary.TmdbId)
+                    .Concat(ingestResult.Results.Select(summary => summary.TmdbId)),
+                cancellationToken);
+
+            if (allowedMovieIds is not null)
+            {
+                searchResult = FilterMovies(searchResult, allowedMovieIds);
+                ingestResult = ReferenceEquals(searchResult, ingestResult)
+                    ? searchResult
+                    : FilterMovies(ingestResult, allowedMovieIds);
+            }
+
+            var movieIds = await movieRepository.EnsureFromSummariesAsync(
+                ingestResult.Results,
+                cancellationToken);
+            allItems.AddRange(MapMovieResults(searchResult.Results, movieIds));
+
+            if (providerPage >= totalPages || providerResultCount == 0)
+            {
+                break;
+            }
+
+            providerPage++;
         }
 
-        var allowedMovieIds = await ResolveAllowedTmdbIdsAsync(
-            criteria,
-            searchResult.Results.Select(summary => summary.TmdbId)
-                .Concat(ingestResult.Results.Select(summary => summary.TmdbId)),
-            cancellationToken);
-        if (allowedMovieIds is not null)
-        {
-            searchResult = FilterMovies(searchResult, allowedMovieIds);
-            ingestResult = ReferenceEquals(searchResult, ingestResult)
-                ? searchResult
-                : FilterMovies(ingestResult, allowedMovieIds);
-        }
-
-        var movieIds = await movieRepository.EnsureFromSummariesAsync(ingestResult.Results, cancellationToken);
-        var items = MapMovieResults(searchResult.Results, movieIds);
-
-        return DiscoverBrowseMerger.CreateSingleTypeResult(
-            items,
+        return CreateFilteredPagedResult(
+            allItems,
             criteria.Page,
             criteria.PageSize,
-            searchResult.TotalCount);
+            totalCount);
     }
 
     private async Task<PaginatedResult<SearchItem>> DiscoverTvShowsAsync(
@@ -196,44 +220,94 @@ public sealed class AdvancedDiscoverService(
         CancellationToken cancellationToken)
     {
         var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
-        TvShowProviderSearchResult searchResult;
-        TvShowProviderSearchResult ingestResult;
+        var allItems = new List<SearchItem>();
+        var totalCount = 0;
+        var totalPages = 0;
+        var providerPage = 1;
+        var requiredPrefixSize = criteria.Page * criteria.PageSize;
 
-        if (useLocalizedDisplay)
+        while (providerPage <= 500 && allItems.Count < requiredPrefixSize)
         {
-            var localizedTask = DiscoverTvShowsLocalizedSafeAsync(providerCriteria, contentLocale, cancellationToken);
-            var canonicalTask = DiscoverTvShowsSafeAsync(providerCriteria, cancellationToken);
-            await Task.WhenAll(localizedTask, canonicalTask);
-            searchResult = await localizedTask;
-            ingestResult = await canonicalTask;
-        }
-        else
-        {
-            searchResult = await DiscoverTvShowsSafeAsync(providerCriteria, cancellationToken);
-            ingestResult = searchResult;
+            var pageCriteria = providerCriteria with { Page = providerPage };
+            TvShowProviderSearchResult searchResult;
+            TvShowProviderSearchResult ingestResult;
+
+            if (useLocalizedDisplay)
+            {
+                var localizedTask = DiscoverTvShowsLocalizedSafeAsync(pageCriteria, contentLocale, cancellationToken);
+                var canonicalTask = DiscoverTvShowsSafeAsync(pageCriteria, cancellationToken);
+                await Task.WhenAll(localizedTask, canonicalTask);
+                searchResult = await localizedTask;
+                ingestResult = await canonicalTask;
+            }
+            else
+            {
+                searchResult = await DiscoverTvShowsSafeAsync(pageCriteria, cancellationToken);
+                ingestResult = searchResult;
+            }
+
+            totalCount = searchResult.TotalCount;
+            totalPages = searchResult.TotalPages;
+            var providerResultCount = searchResult.Results.Count;
+
+            var allowedTvIds = await ResolveAllowedTmdbIdsAsync(
+                criteria,
+                searchResult.Results.Select(summary => summary.TmdbId)
+                    .Concat(ingestResult.Results.Select(summary => summary.TmdbId)),
+                cancellationToken);
+
+            if (allowedTvIds is not null)
+            {
+                searchResult = FilterTvShows(searchResult, allowedTvIds);
+                ingestResult = ReferenceEquals(searchResult, ingestResult)
+                    ? searchResult
+                    : FilterTvShows(ingestResult, allowedTvIds);
+            }
+
+            var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
+                ingestResult.Results,
+                cancellationToken);
+            allItems.AddRange(MapTvResults(searchResult.Results, tvIds));
+
+            if (providerPage >= totalPages || providerResultCount == 0)
+            {
+                break;
+            }
+
+            providerPage++;
         }
 
-        var allowedTvIds = await ResolveAllowedTmdbIdsAsync(
-            criteria,
-            searchResult.Results.Select(summary => summary.TmdbId)
-                .Concat(ingestResult.Results.Select(summary => summary.TmdbId)),
-            cancellationToken);
-        if (allowedTvIds is not null)
-        {
-            searchResult = FilterTvShows(searchResult, allowedTvIds);
-            ingestResult = ReferenceEquals(searchResult, ingestResult)
-                ? searchResult
-                : FilterTvShows(ingestResult, allowedTvIds);
-        }
-
-        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(ingestResult.Results, cancellationToken);
-        var items = MapTvResults(searchResult.Results, tvIds);
-
-        return DiscoverBrowseMerger.CreateSingleTypeResult(
-            items,
+        return CreateFilteredPagedResult(
+            allItems,
             criteria.Page,
             criteria.PageSize,
-            searchResult.TotalCount);
+            totalCount);
+    }
+
+    private static PaginatedResult<SearchItem> CreateFilteredPagedResult(
+        IReadOnlyList<SearchItem> items,
+        int page,
+        int pageSize,
+        int providerTotalCount)
+    {
+        var clientTotalPages = providerTotalCount == 0
+            ? 0
+            : (int)Math.Ceiling(providerTotalCount / (double)pageSize);
+        var skip = Math.Max(0, (page - 1) * pageSize);
+        var pageItems = items
+            .Skip(skip)
+            .Take(pageSize)
+            .ToList();
+
+        // The transactional offer filter is evaluated against the fetched prefix only.
+        // Keep TMDB's total as the pagination upper bound instead of subtracting drops
+        // from a single provider page, which made later valid results unreachable.
+        return new PaginatedResult<SearchItem>(
+            pageItems,
+            page,
+            pageSize,
+            providerTotalCount,
+            clientTotalPages);
     }
 
     private async Task<MovieProviderSearchResult> DiscoverMoviesSafeAsync(
