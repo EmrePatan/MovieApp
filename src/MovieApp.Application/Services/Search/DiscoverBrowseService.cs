@@ -360,8 +360,11 @@ public sealed class DiscoverBrowseService(
         var tvExhausted = false;
         var requiredPrefixSize = criteria.Page * criteria.PageSize;
 
-        while (providerPage <= 500 && (!movieExhausted || movieItems.Count < requiredPrefixSize) &&
-               (!tvExhausted || tvItems.Count < requiredPrefixSize))
+        // Keep paging only while a side still needs items and its provider is not exhausted.
+        // "Not exhausted" alone walks TMDB discover's 500-page cap, so trending type=all never returns.
+        while (providerPage <= 500 &&
+               ((!movieExhausted && movieItems.Count < requiredPrefixSize) ||
+                (!tvExhausted && tvItems.Count < requiredPrefixSize)))
         {
             var moviePageCriteria = movieProviderCriteria with { Page = providerPage };
             var tvPageCriteria = tvProviderCriteria with { Page = providerPage };
@@ -428,11 +431,9 @@ public sealed class DiscoverBrowseService(
                     : tvSearchResult;
             }
 
-            movieTotalCount = movieSearchResult.TotalCount;
-            tvTotalCount = tvSearchResult.TotalCount;
-
             if (!movieExhausted)
             {
+                movieTotalCount = movieSearchResult.TotalCount;
                 var movieIds = await movieRepository.EnsureFromSummariesAsync(
                     movieIngestResult.Results,
                     cancellationToken);
@@ -443,6 +444,7 @@ public sealed class DiscoverBrowseService(
 
             if (!tvExhausted)
             {
+                tvTotalCount = tvSearchResult.TotalCount;
                 var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                     tvIngestResult.Results,
                     cancellationToken);
