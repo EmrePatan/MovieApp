@@ -78,15 +78,29 @@ public sealed class KeywordDisplayProfileRefreshService(
                 });
             }
 
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """TRUNCATE TABLE keyword_display_profiles;""",
-                cancellationToken);
+            await using var strategyContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var executionStrategy = strategyContext.Database.CreateExecutionStrategy();
+            await executionStrategy.ExecuteAsync(async ct =>
+            {
+                await using var context = await dbContextFactory.CreateDbContextAsync(ct);
+                await using var transaction = await context.Database.BeginTransactionAsync(ct);
 
-            context.KeywordDisplayProfiles.AddRange(profiles);
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+                try
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        """TRUNCATE TABLE keyword_display_profiles;""",
+                        ct);
+
+                    context.KeywordDisplayProfiles.AddRange(profiles);
+                    await context.SaveChangesAsync(ct);
+                    await transaction.CommitAsync(ct);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(ct);
+                    throw;
+                }
+            }, cancellationToken);
 
             stopwatch.Stop();
             KeywordDisplayProfileLogMessages.LogRefreshCompleted(
