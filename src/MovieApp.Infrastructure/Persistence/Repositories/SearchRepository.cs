@@ -329,12 +329,14 @@ public sealed class SearchRepository(
                 .Concat(tvVotes.Select(item => (long)item.VoteCount))
         };
 
+        // Use double precision for the product so Npgsql does not promote VoteCount to
+        // numeric(5,2) (VoteAverage scale), which overflows for VoteCount >= 1_000.
         var weightedRatingQuery = type switch
         {
-            SearchContentType.Movie => movieVotes.Select(item => item.VoteAverage * item.VoteCount),
-            SearchContentType.Tv => tvVotes.Select(item => item.VoteAverage * item.VoteCount),
-            _ => movieVotes.Select(item => item.VoteAverage * item.VoteCount)
-                .Concat(tvVotes.Select(item => item.VoteAverage * item.VoteCount))
+            SearchContentType.Movie => movieVotes.Select(item => (double)item.VoteAverage * item.VoteCount),
+            SearchContentType.Tv => tvVotes.Select(item => (double)item.VoteAverage * item.VoteCount),
+            _ => movieVotes.Select(item => (double)item.VoteAverage * item.VoteCount)
+                .Concat(tvVotes.Select(item => (double)item.VoteAverage * item.VoteCount))
         };
 
         var totalVotes = await totalVotesQuery.SumAsync(cancellationToken);
@@ -344,7 +346,7 @@ public sealed class SearchRepository(
         }
 
         var weightedRating = await weightedRatingQuery.SumAsync(cancellationToken);
-        return weightedRating / totalVotes;
+        return (decimal)(weightedRating / totalVotes);
     }
 
     public async Task<IReadOnlySet<CatalogContentKey>> GetContentKeysWithGenreAsync(

@@ -172,6 +172,45 @@ public sealed class SearchRepositoryIntegrationTests
         Assert.Equal(0, result.TotalCount);
     }
 
+    [Theory]
+    [InlineData(100)]
+    [InlineData(5_000)]
+    [InlineData(150_000)]
+    public async Task GetCatalogMeanVoteAverageAsyncComputesWeightedMeanForLargeVoteCounts(int dominantVoteCount)
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        await ClearSearchCatalogAsync(context);
+
+        var utcNow = DateTime.UtcNow;
+        context.Movies.AddRange(
+            new MovieApp.Domain.Entities.Movie
+            {
+                Id = Guid.NewGuid(),
+                Title = "Established Hit",
+                VoteAverage = 8m,
+                VoteCount = dominantVoteCount,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            },
+            new MovieApp.Domain.Entities.Movie
+            {
+                Id = Guid.NewGuid(),
+                Title = "Niche Favorite",
+                VoteAverage = 6m,
+                VoteCount = 100,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var mean = await repository.GetCatalogMeanVoteAverageAsync(SearchContentType.Movie);
+
+        var weightedSum = (double)8m * dominantVoteCount + (double)6m * 100;
+        var expectedMean = (decimal)(weightedSum / (dominantVoteCount + 100));
+        Assert.Equal(expectedMean, mean);
+    }
+
     [Fact]
     public async Task GetTrendingAsyncExecutesMixedMovieTvAndPersonSetOperationWithoutTranslationFailure()
     {
