@@ -128,17 +128,18 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         await fixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync();
-        var (firstMovieId, secondMovieId) = await SeedTwoDistinctMoviesAsync();
-        await SendAuthorizedPostAsync($"/api/favorites/movies/{firstMovieId}", token);
-        await SendAuthorizedPostAsync($"/api/favorites/movies/{secondMovieId}", token);
+        var interstellarId = await SeedMovieAsync();
+        var matrixId = await SeedMovieBySearchQueryAsync("matrix");
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{interstellarId}", token);
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{matrixId}", token);
 
         var unfiltered = await GetLibraryAsync("/api/library?category=liked&pageSize=24", token);
         Assert.Equal(2, unfiltered.Items.Count);
 
         var filtered = await GetLibraryAsync("/api/library?category=liked&q=inter", token);
         Assert.Single(filtered.Items);
+        Assert.Equal(interstellarId, filtered.Items[0].Id);
         Assert.Contains("Inter", filtered.Items[0].Title, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(secondMovieId, filtered.Items.Select(item => item.Id));
     }
 
     [Fact]
@@ -147,13 +148,15 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         await fixture.ResetAsync();
 
         var token = await RegisterAndGetTokenAsync();
-        var (firstMovieId, secondMovieId) = await SeedTwoDistinctMoviesAsync();
-        await SendAuthorizedPostAsync($"/api/favorites/movies/{firstMovieId}", token);
-        await SendAuthorizedPostAsync($"/api/watch-history/movies/{secondMovieId}", token);
+        var interstellarId = await SeedMovieAsync();
+        var matrixId = await SeedMovieBySearchQueryAsync("matrix");
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{interstellarId}", token);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{matrixId}", token);
 
         var payload = await GetLibraryAsync("/api/library/search?q=inter&page=1&pageSize=24", token);
 
         Assert.Single(payload.Items);
+        Assert.Equal(interstellarId, payload.Items[0].Id);
         Assert.Contains("Inter", payload.Items[0].Title, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -538,7 +541,12 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
 
     private async Task<Guid> SeedMovieAsync()
     {
-        var response = await _client.GetAsync("/api/movies/search?q=Interstellar");
+        return await SeedMovieBySearchQueryAsync("Interstellar");
+    }
+
+    private async Task<Guid> SeedMovieBySearchQueryAsync(string query)
+    {
+        var response = await _client.GetAsync($"/api/movies/search?q={Uri.EscapeDataString(query)}");
         var payload = await response.Content.ReadFromJsonAsync<MovieSearchResponse>();
         Assert.NotNull(payload);
         Assert.NotEmpty(payload.Items);
