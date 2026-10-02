@@ -32,6 +32,15 @@ public static class LibraryValidator
             return SearchQueryValidationResult.Failure($"Page size cannot exceed {MaxPageSize}.");
         }
 
+        if (!string.IsNullOrWhiteSpace(criteria.Query))
+        {
+            var queryValidation = AdvancedSearchValidator.ValidateQuery(criteria.Query);
+            if (!queryValidation.IsValid)
+            {
+                return queryValidation;
+            }
+        }
+
         return SearchQueryValidationResult.Success();
     }
 
@@ -71,6 +80,28 @@ public static class LibraryValidator
         return AdvancedSearchValidator.TryParseType(mediaType, out _)
             ? SearchQueryValidationResult.Success()
             : SearchQueryValidationResult.Failure("Media type must be one of: all, movie, tv.");
+    }
+
+    public static SearchQueryValidationResult ValidateSearch(LibrarySearchCriteria criteria)
+    {
+        var queryValidation = AdvancedSearchValidator.ValidateQuery(criteria.Query, required: true);
+        if (!queryValidation.IsValid)
+        {
+            return queryValidation;
+        }
+
+        var pagination = SearchPaginationValidator.Validate(criteria.Page, criteria.PageSize);
+        if (!pagination.IsValid)
+        {
+            return pagination;
+        }
+
+        if (criteria.PageSize > MaxPageSize)
+        {
+            return SearchQueryValidationResult.Failure($"Page size cannot exceed {MaxPageSize}.");
+        }
+
+        return SearchQueryValidationResult.Success();
     }
 
     public static bool TryParseCategory(string? category, out LibraryCategory libraryCategory)

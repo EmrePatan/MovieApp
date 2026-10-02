@@ -7,4 +7,5 @@ public sealed record LibraryCriteria(
     SearchContentType MediaType,
     int Page,
     int PageSize,
-    string? Cursor = null);
+    string? Cursor = null,
+    string? Query = null);

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Common;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
@@ -48,12 +49,14 @@ public sealed class LibraryService(
         var useSnapshotTotal = isCursorContinuation && incomingCursor!.SnapshotTotalCount > 0;
         var executeCount = !useSnapshotTotal;
 
+        var titleMatch = SearchTextMatch.FromQuery(criteria.Query);
         var request = new LibraryPageRequest(
             page,
             criteria.PageSize,
             criteria.PageSize + 1,
             incomingCursor,
-            executeCount);
+            executeCount,
+            titleMatch);
 
         long countMs = 0;
         var countStopwatch = Stopwatch.StartNew();
@@ -122,6 +125,84 @@ public sealed class LibraryService(
             totalPages,
             nextCursor,
             hasNextPage);
+    }
+
+    public async Task<PaginatedResult<LibraryItemResult>> SearchLibraryAsync(
+        LibrarySearchCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = LibraryValidator.ValidateSearch(criteria);
+        if (!validation.IsValid)
+        {
+            throw new ValidationException(validation.ErrorMessage!);
+        }
+
+        var categoryTasks = LibrarySearchAggregator.Categories
+            .Select(category => CollectCategorySearchMatchesAsync(
+                category,
+                criteria,
+                contentLocale,
+                cancellationToken));
+
+        var categoryResults = await Task.WhenAll(categoryTasks);
+        var categoryMap = categoryResults.ToDictionary(
+            entry => entry.Category,
+            entry => entry.Items);
+
+        var merged = LibrarySearchAggregator.MergeByTitlePriority(categoryMap);
+        if (merged.Count > LibrarySearchAggregator.MaxCollectedItems)
+        {
+            merged = merged.Take(LibrarySearchAggregator.MaxCollectedItems).ToList();
+        }
+
+        return LibrarySearchAggregator.Paginate(merged, criteria.Page, criteria.PageSize);
+    }
+
+    private async Task<(LibraryCategory Category, IReadOnlyList<LibraryItemResult> Items)> CollectCategorySearchMatchesAsync(
+        LibraryCategory category,
+        LibrarySearchCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        var items = new List<LibraryItemResult>();
+        string? cursor = null;
+        var page = 1;
+        var pagesFetched = 0;
+        var normalizedQuery = QueryNormalizer.Normalize(criteria.Query);
+
+        while (pagesFetched < LibrarySearchAggregator.MaxPagesPerCategory
+            && items.Count < LibrarySearchAggregator.MaxCollectedItems)
+        {
+            var libraryCriteria = new LibraryCriteria(
+                category,
+                criteria.MediaType,
+                page,
+                LibrarySearchAggregator.FetchPageSize,
+                cursor,
+                normalizedQuery);
+
+            var result = await GetLibraryAsync(libraryCriteria, contentLocale, cancellationToken);
+            if (result.Items.Count > 0)
+            {
+                items.AddRange(result.Items);
+            }
+
+            if (!result.HasNextPage)
+            {
+                break;
+            }
+
+            cursor = result.NextCursor;
+            if (string.IsNullOrWhiteSpace(cursor))
+            {
+                page = result.Page + 1;
+            }
+
+            pagesFetched++;
+        }
+
+        return (category, items);
     }
 
     private async Task<IReadOnlyList<LibraryItemResult>> ApplyLocalizedPostersAsync(

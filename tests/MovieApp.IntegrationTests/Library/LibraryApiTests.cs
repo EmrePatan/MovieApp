@@ -123,6 +123,52 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task LibraryQueryFiltersTitlesWithinCategory()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var (firstMovieId, secondMovieId) = await SeedTwoDistinctMoviesAsync();
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{firstMovieId}", token);
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{secondMovieId}", token);
+
+        var unfiltered = await GetLibraryAsync("/api/library?category=liked&pageSize=24", token);
+        Assert.Equal(2, unfiltered.Items.Count);
+
+        var filtered = await GetLibraryAsync("/api/library?category=liked&q=inter", token);
+        Assert.Single(filtered.Items);
+        Assert.Contains("Inter", filtered.Items[0].Title, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(secondMovieId, filtered.Items.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task LibrarySearchEndpointReturnsMatchesAcrossCategoriesInOneResponse()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var (firstMovieId, secondMovieId) = await SeedTwoDistinctMoviesAsync();
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{firstMovieId}", token);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{secondMovieId}", token);
+
+        var payload = await GetLibraryAsync("/api/library/search?q=inter&page=1&pageSize=24", token);
+
+        Assert.Single(payload.Items);
+        Assert.Contains("Inter", payload.Items[0].Title, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LibraryQueryRejectsTooShortSearchText()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var response = await SendAuthorizedGetAsync("/api/library?category=liked&q=t", token);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task WatchingExcludesMovies()
     {
         await fixture.ResetAsync();

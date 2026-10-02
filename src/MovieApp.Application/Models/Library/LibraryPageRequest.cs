@@ -1,3 +1,4 @@
+using MovieApp.Application.Common;
 using MovieApp.Application.Library;
 
 namespace MovieApp.Application.Models.Library;
@@ -7,4 +8,5 @@ public sealed record LibraryPageRequest(
     int PageSize,
     int FetchLimit,
     LibraryKeysetCursor? AfterCursor,
-    bool ExecuteCount);
+    bool ExecuteCount,
+    SearchTextMatch TitleMatch = default);

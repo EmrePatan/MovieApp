@@ -9,4 +9,9 @@ public interface ILibraryService
         LibraryCriteria criteria,
         string contentLocale,
         CancellationToken cancellationToken = default);
+
+    Task<PaginatedResult<LibraryItemResult>> SearchLibraryAsync(
+        LibrarySearchCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default);
 }

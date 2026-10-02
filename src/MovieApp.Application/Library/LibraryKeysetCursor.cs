@@ -31,13 +31,15 @@ public sealed class LibraryKeysetCursor
         Guid userId,
         LibraryCategory category,
         SearchContentType mediaType,
-        int pageSize)
+        int pageSize,
+        string? normalizedQuery = null)
     {
         var builder = new StringBuilder();
         builder.Append(userId.ToString("D")).Append('|');
         builder.Append((int)category).Append('|');
         builder.Append((int)mediaType).Append('|');
-        builder.Append(pageSize.ToString(CultureInfo.InvariantCulture));
+        builder.Append(pageSize.ToString(CultureInfo.InvariantCulture)).Append('|');
+        builder.Append(normalizedQuery ?? string.Empty);
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()));
         return Convert.ToHexString(hash);
     }
@@ -84,7 +86,8 @@ public sealed class LibraryKeysetCursor
                 userId,
                 criteria.Category,
                 criteria.MediaType,
-                criteria.PageSize);
+                criteria.PageSize,
+                criteria.Query);
             if (!string.Equals(parsed.Fingerprint, expectedFingerprint, StringComparison.Ordinal))
             {
                 errorMessage = "Cursor does not match the current library request.";
@@ -144,7 +147,12 @@ public sealed class LibraryKeysetCursor
         new()
         {
             Page = page,
-            Fingerprint = ComputeFingerprint(userId, criteria.Category, criteria.MediaType, criteria.PageSize),
+            Fingerprint = ComputeFingerprint(
+                userId,
+                criteria.Category,
+                criteria.MediaType,
+                criteria.PageSize,
+                criteria.Query),
             SnapshotTotalCount = snapshotTotalCount,
             WatchingInProgress = watchingInProgress,
             SortInstantUtc = sortInstant.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
