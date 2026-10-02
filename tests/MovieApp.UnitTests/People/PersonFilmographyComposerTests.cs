@@ -1,4 +1,5 @@
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Models.People;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.People;
 using MovieApp.Domain.Entities;
@@ -33,16 +34,158 @@ public sealed class PersonFilmographyComposerTests
         Assert.Equal("Missing Movie", result[0].Title);
         Assert.Equal(99, result[0].TmdbId);
         Assert.Null(result[0].CatalogId);
-        Assert.Equal("tv", result[1].MediaType);
-        Assert.Equal(20, result[1].TmdbId);
-        Assert.Equal(tvShowRepository.TvIds[20], result[1].CatalogId);
-        Assert.Equal("movie", result[2].MediaType);
-        Assert.Equal(10, result[2].TmdbId);
-        Assert.Equal(movieRepository.MovieIds[10], result[2].CatalogId);
+        Assert.Equal("movie", result[1].MediaType);
+        Assert.Equal(10, result[1].TmdbId);
+        Assert.Equal(movieRepository.MovieIds[10], result[1].CatalogId);
+        Assert.Equal("tv", result[2].MediaType);
+        Assert.Equal(20, result[2].TmdbId);
+        Assert.Equal(tvShowRepository.TvIds[20], result[2].CatalogId);
         Assert.Equal("Undated Show", result[3].Title);
         Assert.Null(result[3].ReleaseDate);
         Assert.False(movieRepository.EnsureFromSummariesCalled);
         Assert.False(tvShowRepository.EnsureFromSummariesCalled);
+    }
+
+    [Fact]
+    public async Task OrdersHighlyPopularTalkShowAfterLowerPopularityMovie()
+    {
+        var credits = new List<PersonFilmographyCredit>
+        {
+            new(
+                "tv",
+                1,
+                "Late Night",
+                null,
+                "Guest",
+                new DateOnly(2024, 1, 1),
+                500m,
+                6m,
+                [10767]),
+            new(
+                "movie",
+                2,
+                "Indie Film",
+                null,
+                "Lead",
+                new DateOnly(2020, 1, 1),
+                20m,
+                7m,
+                [18]),
+        };
+
+        var result = await PersonFilmographyComposer.ComposeAsync(
+            credits,
+            new FakeMovieRepository(),
+            new FakeTvShowRepository(),
+            CancellationToken.None);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(2, result[0].TmdbId);
+        Assert.Equal(PersonFilmographyKnownForCategories.Movie, result[0].KnownForCategory);
+        Assert.Equal(1, result[1].TmdbId);
+        Assert.Equal(PersonFilmographyKnownForCategories.TalkVarietyReality, result[1].KnownForCategory);
+    }
+
+    [Fact]
+    public async Task OrdersHighlyPopularTalkShowAfterScriptedTelevision()
+    {
+        var credits = new List<PersonFilmographyCredit>
+        {
+            new(
+                "tv",
+                1,
+                "Talk Show",
+                null,
+                "Host",
+                new DateOnly(2024, 1, 1),
+                900m,
+                5m,
+                [10767]),
+            new(
+                "tv",
+                2,
+                "Drama Series",
+                null,
+                "Lead",
+                new DateOnly(2018, 1, 1),
+                30m,
+                8m,
+                [18]),
+        };
+
+        var result = await PersonFilmographyComposer.ComposeAsync(
+            credits,
+            new FakeMovieRepository(),
+            new FakeTvShowRepository(),
+            CancellationToken.None);
+
+        Assert.Equal([2, 1], result.Select(entry => entry.TmdbId).ToArray());
+    }
+
+    [Fact]
+    public async Task OrdersMoviesByPopularityWithinMovieCategory()
+    {
+        var credits = new List<PersonFilmographyCredit>
+        {
+            new("movie", 1, "Smaller", null, "A", new DateOnly(2019, 1, 1), 40m, 7m, [18]),
+            new("movie", 2, "Bigger", null, "B", new DateOnly(2021, 1, 1), 90m, 7m, [18]),
+        };
+
+        var result = await PersonFilmographyComposer.ComposeAsync(
+            credits,
+            new FakeMovieRepository(),
+            new FakeTvShowRepository(),
+            CancellationToken.None);
+
+        Assert.Equal([2, 1], result.Select(entry => entry.TmdbId).ToArray());
+    }
+
+    [Fact]
+    public async Task OrdersScriptedTelevisionByPopularityWithinCategory()
+    {
+        var credits = new List<PersonFilmographyCredit>
+        {
+            new("tv", 1, "Smaller Series", null, "A", new DateOnly(2019, 1, 1), 25m, 7m, [18]),
+            new("tv", 2, "Flagship Series", null, "B", new DateOnly(2021, 1, 1), 95m, 8m, [18]),
+        };
+
+        var result = await PersonFilmographyComposer.ComposeAsync(
+            credits,
+            new FakeMovieRepository(),
+            new FakeTvShowRepository(),
+            CancellationToken.None);
+
+        Assert.Equal([2, 1], result.Select(entry => entry.TmdbId).ToArray());
+    }
+
+    [Fact]
+    public async Task RetainsAllCategoriesAndDoesNotMutateSourceCredits()
+    {
+        var credits = new List<PersonFilmographyCredit>
+        {
+            new("tv", 1, "Talk", null, "Guest", new DateOnly(2024, 1, 1), 500m, 6m, [10767]),
+            new("movie", 2, "Film", null, "Lead", new DateOnly(2020, 1, 1), 20m, 7m, [18]),
+            new("tv", 3, "Doc Series", null, "Narrator", new DateOnly(2015, 1, 1), 300m, 8m, [99]),
+        };
+        var sourceSnapshot = credits.Select(credit => (credit.MediaType, credit.TmdbId, credit.Popularity)).ToList();
+
+        var result = await PersonFilmographyComposer.ComposeAsync(
+            credits,
+            new FakeMovieRepository(),
+            new FakeTvShowRepository(),
+            CancellationToken.None);
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal(
+            sourceSnapshot,
+            credits.Select(credit => (credit.MediaType, credit.TmdbId, credit.Popularity)).ToList());
+        Assert.Equal(
+            [
+                PersonFilmographyKnownForCategories.Movie,
+                PersonFilmographyKnownForCategories.Documentary,
+                PersonFilmographyKnownForCategories.TalkVarietyReality,
+            ],
+            result.Select(entry => entry.KnownForCategory).ToArray());
     }
 
     private sealed class FakeMovieRepository : IMovieRepository

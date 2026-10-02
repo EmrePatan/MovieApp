@@ -40,20 +40,15 @@ internal static class PersonFilmographyComposer
             ? await tvShowRepository.GetExistingIdsByTmdbIdsAsync(tvTmdbIds, cancellationToken)
             : new Dictionary<int, Guid>();
 
-        var dated = actingCredits
-            .Where(credit => credit.ReleaseDate.HasValue)
-            .OrderByDescending(credit => credit.Popularity)
+        var orderedCredits = actingCredits
+            .OrderBy(credit => PersonFilmographyKnownForCategoryOrder.GetPriority(
+                PersonFilmographyKnownForClassifier.Classify(credit)))
+            .ThenByDescending(credit => credit.Popularity)
             .ThenByDescending(credit => credit.VoteAverage)
-            .ThenByDescending(credit => credit.ReleaseDate);
-
-        var undated = actingCredits
-            .Where(credit => !credit.ReleaseDate.HasValue)
-            .OrderByDescending(credit => credit.Popularity)
-            .ThenByDescending(credit => credit.VoteAverage)
+            .ThenByDescending(credit => credit.ReleaseDate ?? DateOnly.MinValue)
             .ThenBy(credit => credit.Title, StringComparer.OrdinalIgnoreCase);
 
-        return dated
-            .Concat(undated)
+        return orderedCredits
             .Select(credit => new PersonFilmographyEntryResult(
                 credit.MediaType,
                 ResolveCatalogId(credit, movieCatalogIds, tvCatalogIds),
