@@ -27,5 +27,7 @@ internal static class PersonContractMapper
             entry.Title,
             entry.PosterPath,
             entry.Character,
-            entry.ReleaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            entry.ReleaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            entry.Popularity,
+            entry.KnownForCategory);
 }

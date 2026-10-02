@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 internal sealed class TmdbPersonJson
@@ -47,4 +49,9 @@ internal sealed class TmdbCombinedCreditCastJson
     public double Popularity { get; init; }
 
     public double VoteAverage { get; init; }
+
+    [JsonPropertyName("genre_ids")]
+    public IReadOnlyList<int> GenreIds { get; init; } = [];
+
+    public string? Type { get; init; }
 }

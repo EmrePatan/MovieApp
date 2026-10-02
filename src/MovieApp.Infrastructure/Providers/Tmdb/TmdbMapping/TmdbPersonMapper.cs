@@ -65,6 +65,8 @@ internal static class TmdbPersonMapper
             credit.Character.Trim(),
             releaseDate,
             Convert.ToDecimal(credit.Popularity),
-            Convert.ToDecimal(credit.VoteAverage));
+            Convert.ToDecimal(credit.VoteAverage),
+            credit.GenreIds,
+            mediaType == "tv" ? credit.Type?.Trim() : null);
     }
 }

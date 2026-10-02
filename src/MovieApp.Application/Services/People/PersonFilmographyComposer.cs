@@ -61,7 +61,9 @@ internal static class PersonFilmographyComposer
                 credit.Title,
                 credit.PosterPath,
                 credit.Character,
-                credit.ReleaseDate))
+                credit.ReleaseDate,
+                credit.Popularity,
+                PersonFilmographyKnownForClassifier.Classify(credit)))
             .ToList();
     }
 

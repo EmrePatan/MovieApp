@@ -19,4 +19,6 @@ public sealed record PersonFilmographyCredit(
     string? Character,
     DateOnly? ReleaseDate,
     decimal Popularity,
-    decimal VoteAverage);
+    decimal VoteAverage,
+    IReadOnlyList<int>? GenreTmdbIds = null,
+    string? TvShowType = null);

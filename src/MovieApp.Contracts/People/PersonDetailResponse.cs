@@ -19,4 +19,6 @@ public sealed record PersonFilmographyEntryResponse(
     string Title,
     string? PosterPath,
     string? Character,
-    string? ReleaseDate);
+    string? ReleaseDate,
+    decimal Popularity,
+    string KnownForCategory);

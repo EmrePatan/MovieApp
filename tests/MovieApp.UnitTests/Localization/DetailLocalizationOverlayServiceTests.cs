@@ -205,7 +205,9 @@ public sealed class DetailLocalizationOverlayServiceTests
                     "Fight Club",
                     "/poster.jpg",
                     "The Narrator",
-                    new DateOnly(1999, 10, 15))
+                    new DateOnly(1999, 10, 15),
+                    80m,
+                    "movie")
             ]);
 
     private static SeasonResult CreateSeason() =>
