@@ -20,21 +20,24 @@ internal static class FakeDiscoverCatalog
             new DateOnly(2024, 6, 15),
             voteAverage: 8.4m,
             voteCount: 5000,
-            language: "en"),
+            language: "en",
+            popularity: 40),
         CreateMovieSummary(
             DiscoverMovieBetaTmdbId,
             "Discover Movie Beta",
             new DateOnly(2023, 3, 10),
             voteAverage: 7.1m,
             voteCount: 900,
-            language: "en"),
+            language: "en",
+            popularity: 200),
         CreateMovieSummary(
             DiscoverMovieFutureTmdbId,
             "Discover Movie Future",
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
             voteAverage: 6.0m,
             voteCount: 10,
-            language: "en")
+            language: "en",
+            popularity: 5)
     ];
 
     private static readonly IReadOnlyList<TvShowProviderSummary> TvSummaries =
@@ -45,14 +48,16 @@ internal static class FakeDiscoverCatalog
             new DateOnly(2024, 5, 1),
             voteAverage: 8.8m,
             voteCount: 4200,
-            language: "en"),
+            language: "en",
+            popularity: 30),
         CreateTvSummary(
             DiscoverTvBetaTmdbId,
             "Discover TV Beta",
             new DateOnly(2022, 11, 20),
             voteAverage: 7.0m,
             voteCount: 700,
-            language: "fr")
+            language: "fr",
+            popularity: 180)
     ];
 
     public static MovieProviderSearchResult DiscoverMovies(
@@ -86,6 +91,11 @@ internal static class FakeDiscoverCatalog
             }
 
             if (criteria.MinRating.HasValue && summary.VoteAverage < criteria.MinRating.Value)
+            {
+                continue;
+            }
+
+            if (criteria.MinVoteCount is int minVoteCount && summary.VoteCount < minVoteCount)
             {
                 continue;
             }
@@ -124,6 +134,11 @@ internal static class FakeDiscoverCatalog
                 continue;
             }
 
+            if (criteria.MinVoteCount is int minVoteCount && summary.VoteCount < minVoteCount)
+            {
+                continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(criteria.Language) &&
                 !string.Equals(summary.OriginalLanguage, criteria.Language, StringComparison.OrdinalIgnoreCase))
             {
@@ -151,7 +166,7 @@ internal static class FakeDiscoverCatalog
         int pageSize)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
-        var sorted = SortMovies(allResults, effectiveSort);
+        var sorted = SortMovies(allResults, criteria.Mode, effectiveSort);
         var totalCount = sorted.Count;
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
         var skip = (criteria.Page - 1) * pageSize;
@@ -171,7 +186,7 @@ internal static class FakeDiscoverCatalog
         int pageSize)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
-        var sorted = SortTvShows(allResults, effectiveSort);
+        var sorted = SortTvShows(allResults, criteria.Mode, effectiveSort);
         var totalCount = sorted.Count;
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
         var skip = (criteria.Page - 1) * pageSize;
@@ -187,8 +202,19 @@ internal static class FakeDiscoverCatalog
 
     private static List<MovieProviderSummary> SortMovies(
         IReadOnlyList<MovieProviderSummary> summaries,
-        DiscoverBrowseSort sort) =>
-        sort switch
+        DiscoverBrowseMode mode,
+        DiscoverBrowseSort sort)
+    {
+        if (mode == DiscoverBrowseMode.Popular &&
+            sort is DiscoverBrowseSort.PopularityDesc or DiscoverBrowseSort.PopularityAsc)
+        {
+            var ordered = sort == DiscoverBrowseSort.PopularityAsc
+                ? summaries.OrderBy(summary => summary.Popularity)
+                : summaries.OrderByDescending(summary => summary.Popularity);
+            return ordered.ThenBy(summary => summary.TmdbId).ToList();
+        }
+
+        return sort switch
         {
             DiscoverBrowseSort.RatingDesc => summaries
                 .OrderByDescending(summary => summary.VoteAverage)
@@ -209,11 +235,23 @@ internal static class FakeDiscoverCatalog
                 .ThenBy(summary => summary.TmdbId)
                 .ToList()
         };
+    }
 
     private static List<TvShowProviderSummary> SortTvShows(
         IReadOnlyList<TvShowProviderSummary> summaries,
-        DiscoverBrowseSort sort) =>
-        sort switch
+        DiscoverBrowseMode mode,
+        DiscoverBrowseSort sort)
+    {
+        if (mode == DiscoverBrowseMode.Popular &&
+            sort is DiscoverBrowseSort.PopularityDesc or DiscoverBrowseSort.PopularityAsc)
+        {
+            var ordered = sort == DiscoverBrowseSort.PopularityAsc
+                ? summaries.OrderBy(summary => summary.Popularity)
+                : summaries.OrderByDescending(summary => summary.Popularity);
+            return ordered.ThenBy(summary => summary.TmdbId).ToList();
+        }
+
+        return sort switch
         {
             DiscoverBrowseSort.RatingDesc => summaries
                 .OrderByDescending(summary => summary.VoteAverage)
@@ -234,6 +272,7 @@ internal static class FakeDiscoverCatalog
                 .ThenBy(summary => summary.TmdbId)
                 .ToList()
         };
+    }
 
     private static MovieProviderSummary CreateMovieSummary(
         int tmdbId,
@@ -241,7 +280,8 @@ internal static class FakeDiscoverCatalog
         DateOnly? releaseDate,
         decimal voteAverage,
         int voteCount,
-        string language) =>
+        string language,
+        decimal popularity = 0) =>
         new(
             ExternalId: $"fake-tmdb-{tmdbId}",
             TmdbId: tmdbId,
@@ -252,7 +292,8 @@ internal static class FakeDiscoverCatalog
             ReleaseDate: releaseDate,
             PosterPath: $"/fake/discover-movie-{tmdbId}.jpg",
             VoteAverage: voteAverage,
-            VoteCount: voteCount);
+            VoteCount: voteCount,
+            Popularity: popularity);
 
     public static DiscoverProviderCriteria MapAdvancedToDiscoverCriteria(
         AdvancedDiscoverProviderCriteria criteria) =>
@@ -285,7 +326,8 @@ internal static class FakeDiscoverCatalog
         DateOnly? firstAirDate,
         decimal voteAverage,
         int voteCount,
-        string language) =>
+        string language,
+        decimal popularity = 0) =>
         new(
             ExternalId: $"fake-tv-{tmdbId}",
             TmdbId: tmdbId,
@@ -299,5 +341,6 @@ internal static class FakeDiscoverCatalog
             BackdropPath: $"/fake/discover-tv-{tmdbId}-backdrop.jpg",
             OriginalLanguage: language,
             VoteAverage: voteAverage,
-            VoteCount: voteCount);
+            VoteCount: voteCount,
+            Popularity: popularity);
 }

@@ -4,4 +4,5 @@ public sealed record HomeSectionResponse(
     string Type,
     string Title,
     IReadOnlyList<HomeItemResponse> Items,
-    int DisplayOrder);
+    int DisplayOrder,
+    string? ComingUpSource = null);

@@ -256,10 +256,10 @@ public sealed class SearchRepositoryIntegrationTests
         var repository = CreateRepository(context);
         var result = await repository.GetTrendingAsync(new DiscoveryCriteria(SearchContentType.All, 1, 10));
 
-        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(2, result.TotalCount);
         Assert.Contains(result.Items, item => item.Type == "movie" && item.Title == "Trending Movie");
         Assert.Contains(result.Items, item => item.Type == "tv" && item.Title == "Trending Show");
-        Assert.Contains(result.Items, item => item.Type == "person" && item.Title == "Trending Person");
+        Assert.DoesNotContain(result.Items, item => item.Type == "person");
     }
 
     internal static async Task ClearSearchCatalogAsync(ApplicationDbContext context)

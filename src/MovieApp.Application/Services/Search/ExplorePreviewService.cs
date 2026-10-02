@@ -29,26 +29,34 @@ public sealed class ExplorePreviewService(
         }
 
         var discoveryCriteria = new DiscoveryCriteria(SearchContentType.All, 1, criteria.SectionSize);
+        var hiddenGemsCriteria = CreateTitleRailCriteria(DiscoverBrowseMode.HiddenGems, criteria.SectionSize);
+        var popularCriteria = CreateTitleRailCriteria(DiscoverBrowseMode.Popular, criteria.SectionSize);
 
-        var trendingTask = RunScopedAsync(
-            (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetTrendingAsync(discoveryCriteria, contentLocale, ct),
+        var hiddenGemsTask = RunScopedAsync(
+            (services, ct) => services.GetRequiredService<IDiscoverBrowseService>()
+                .BrowseAsync(hiddenGemsCriteria, contentLocale, ct),
             cancellationToken);
-        var topRatedTask = RunScopedAsync(
-            (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetTopRatedAsync(discoveryCriteria, contentLocale, ct),
+        var popularTask = RunScopedAsync(
+            (services, ct) => services.GetRequiredService<IDiscoverBrowseService>()
+                .BrowseAsync(popularCriteria, contentLocale, ct),
             cancellationToken);
         var newReleasesTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoveryService>()
                 .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
             cancellationToken);
+        var topRatedTask = RunScopedAsync(
+            (services, ct) => services.GetRequiredService<IDiscoveryService>()
+                .GetTopRatedAsync(discoveryCriteria, contentLocale, ct),
+            cancellationToken);
 
-        await Task.WhenAll(trendingTask, topRatedTask, newReleasesTask);
+        await Task.WhenAll(hiddenGemsTask, popularTask, newReleasesTask, topRatedTask);
 
         var result = new ExplorePreviewResult(
-            await trendingTask,
-            await topRatedTask,
-            await newReleasesTask);
+            DiscoverRailCatalog.Order,
+            await hiddenGemsTask,
+            await popularTask,
+            await newReleasesTask,
+            await topRatedTask);
 
         await cacheService.SetAsync(
             cacheKey,
@@ -66,6 +74,26 @@ public sealed class ExplorePreviewService(
         using var scope = scopeFactory.CreateScope();
         return await operation(scope.ServiceProvider, cancellationToken);
     }
+
+    private static DiscoverBrowseCriteria CreateTitleRailCriteria(DiscoverBrowseMode mode, int sectionSize) =>
+        new(
+            mode,
+            SearchContentType.All,
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            [],
+            null,
+            1,
+            sectionSize);
 
     private static void ValidateCriteria(ExplorePreviewCriteria criteria)
     {

@@ -55,8 +55,11 @@ public sealed class OnTvThisWeekService(
             throw new SearchProviderUnavailableException();
         }
 
-        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(searchResult.Results, cancellationToken);
-        var items = MapTvResults(searchResult.Results, tvIds);
+        var qualified = searchResult.Results
+            .Where(summary => OnTvThisWeekQualityFilter.Include(summary.VoteCount, summary.PosterPath))
+            .ToList();
+        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(qualified, cancellationToken);
+        var items = MapTvResults(qualified, tvIds);
 
         var canonical = DiscoverBrowseMerger.CreateSingleTypeResult(
             items,

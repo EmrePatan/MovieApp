@@ -26,7 +26,8 @@ public static class HomeContractMapper
             section.Type.ToString(),
             section.Title,
             section.Items.Select(ToHomeItemResponse).ToList(),
-            section.DisplayOrder);
+            section.DisplayOrder,
+            section.ComingUpSource);
 
     private static HomeItemResponse ToHomeItemResponse(HomeItem item) =>
         new(

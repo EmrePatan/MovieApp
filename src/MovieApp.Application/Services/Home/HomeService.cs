@@ -8,10 +8,12 @@ using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
+using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Recommendations;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
@@ -45,16 +47,16 @@ public sealed class HomeService(
         HomeSectionType.RecommendedForYou,
         HomeSectionType.ComingUp,
         HomeSectionType.Trending,
-        HomeSectionType.TopRated,
-        HomeSectionType.NewReleases
+        HomeSectionType.OnTvThisWeek,
+        HomeSectionType.NowInTheaters
     ];
 
     private static readonly HomeSectionType[] BrowseSectionOrder =
     [
         HomeSectionType.HotThisWeek,
         HomeSectionType.Trending,
-        HomeSectionType.TopRated,
-        HomeSectionType.NewReleases
+        HomeSectionType.OnTvThisWeek,
+        HomeSectionType.NowInTheaters
     ];
 
     private static readonly HomeSectionType[] PersonalizedSectionOrder =
@@ -104,7 +106,6 @@ public sealed class HomeService(
         }
 
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
-        var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
         var recommendationLimit = RecommendationCandidateLimit(criteria.SectionSize);
 
         var recommendationSectionsTask = RunScopedTimedAsync(
@@ -116,6 +117,7 @@ public sealed class HomeService(
                     MapRecommendationContentType(criteria.Type),
                     recommendationLimit,
                     diversify: false,
+                    includeBecauseYouWatched: false,
                     ct),
             cancellationToken);
 
@@ -132,17 +134,16 @@ public sealed class HomeService(
             (services, ct) => BuildComingUpSectionAsync(services, releaseRegion, contentLocale, ct),
             cancellationToken);
 
-        var topRatedTask = RunScopedTimedAsync(
-            (services, ct) => BuildTopRatedSectionAsync(services, criteria, contentLocale, ct),
+        var onTvTask = RunScopedTimedAsync(
+            (services, ct) => BuildOnTvThisWeekSectionAsync(services, criteria, contentLocale, ct),
             cancellationToken);
 
-        var newReleasesTask = RunScopedTimedAsync(
-            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
-                HomeSectionType.NewReleases,
-                "New Releases",
-                services.GetRequiredService<IDiscoveryService>()
-                    .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
+        var nowPlayingTask = RunScopedTimedAsync(
+            (services, ct) => BuildNowInTheatersSectionAsync(
+                services,
                 criteria,
+                releaseRegionKey,
+                contentLocale,
                 ct),
             cancellationToken);
 
@@ -150,8 +151,8 @@ public sealed class HomeService(
             recommendationSectionsTask,
             weeklySectionsTask,
             comingUpTask,
-            topRatedTask,
-            newReleasesTask);
+            onTvTask,
+            nowPlayingTask);
 
         var (recommendationSections, recommendedForYouMs) = await recommendationSectionsTask;
         var isPersonalized = recommendationSections.Any(section => section.Key == RecommendedForYouKey);
@@ -162,15 +163,15 @@ public sealed class HomeService(
         var trendingSection = weeklySections.Trending;
         var hotThisWeekMs = weeklySectionsMs;
         var trendingMs = weeklySectionsMs;
-        var (topRatedSection, topRatedMs) = await topRatedTask;
-        var (newReleasesSection, newReleasesMs) = await newReleasesTask;
+        var (onTvSection, onTvMs) = await onTvTask;
+        var (nowPlayingSection, nowPlayingMs) = await nowPlayingTask;
 
         var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
         {
             [HomeSectionType.HotThisWeek] = hotThisWeekSection,
             [HomeSectionType.Trending] = trendingSection,
-            [HomeSectionType.TopRated] = topRatedSection,
-            [HomeSectionType.NewReleases] = newReleasesSection
+            [HomeSectionType.OnTvThisWeek] = onTvSection,
+            [HomeSectionType.NowInTheaters] = nowPlayingSection
         };
 
         if (comingUpSection.Items.Count > 0)
@@ -213,8 +214,8 @@ public sealed class HomeService(
             recommendedForYouMs,
             comingUpMs,
             trendingMs,
-            topRatedMs,
-            newReleasesMs);
+            onTvMs,
+            nowPlayingMs);
 
         return result;
     }
@@ -231,7 +232,7 @@ public sealed class HomeService(
         _ = CurrentUserGuard.RequireUserId(currentUser);
 
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
-        var discoveryCriteria = new DiscoveryCriteria(criteria.Type, 1, criteria.SectionSize);
+        var releaseRegionKey = ResolveReleaseRegion(releaseRegion);
 
         var weeklySectionsTask = RunScopedTimedAsync(
             (services, ct) => BuildWeeklyHeroAndTrendingSectionsAsync(
@@ -242,36 +243,35 @@ public sealed class HomeService(
                 ct),
             cancellationToken);
 
-        var topRatedTask = RunScopedTimedAsync(
-            (services, ct) => BuildTopRatedSectionAsync(services, criteria, contentLocale, ct),
+        var onTvTask = RunScopedTimedAsync(
+            (services, ct) => BuildOnTvThisWeekSectionAsync(services, criteria, contentLocale, ct),
             cancellationToken);
 
-        var newReleasesTask = RunScopedTimedAsync(
-            (services, ct) => HomeSectionBuilders.BuildDiscoverySectionAsync(
-                HomeSectionType.NewReleases,
-                "New Releases",
-                services.GetRequiredService<IDiscoveryService>()
-                    .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
+        var nowPlayingTask = RunScopedTimedAsync(
+            (services, ct) => BuildNowInTheatersSectionAsync(
+                services,
                 criteria,
+                releaseRegionKey,
+                contentLocale,
                 ct),
             cancellationToken);
 
-        await Task.WhenAll(weeklySectionsTask, topRatedTask, newReleasesTask);
+        await Task.WhenAll(weeklySectionsTask, onTvTask, nowPlayingTask);
 
         var (weeklySections, weeklySectionsMs) = await weeklySectionsTask;
         var hotThisWeekSection = weeklySections.HotThisWeek;
         var trendingSection = weeklySections.Trending;
         var hotThisWeekMs = weeklySectionsMs;
         var trendingMs = weeklySectionsMs;
-        var (topRatedSection, topRatedMs) = await topRatedTask;
-        var (newReleasesSection, newReleasesMs) = await newReleasesTask;
+        var (onTvSection, onTvMs) = await onTvTask;
+        var (nowPlayingSection, nowPlayingMs) = await nowPlayingTask;
 
         var sectionsByType = new Dictionary<HomeSectionType, HomeSection>
         {
             [HomeSectionType.HotThisWeek] = hotThisWeekSection,
             [HomeSectionType.Trending] = trendingSection,
-            [HomeSectionType.TopRated] = topRatedSection,
-            [HomeSectionType.NewReleases] = newReleasesSection
+            [HomeSectionType.OnTvThisWeek] = onTvSection,
+            [HomeSectionType.NowInTheaters] = nowPlayingSection
         };
 
         var orderedSections = BuildOrderedSections(sectionsByType, BrowseSectionOrder);
@@ -282,8 +282,8 @@ public sealed class HomeService(
             totalStopwatch.ElapsedMilliseconds,
             hotThisWeekMs,
             trendingMs,
-            topRatedMs,
-            newReleasesMs,
+            onTvMs,
+            nowPlayingMs,
             orderedSections.Count);
 
         return new HomeBrowseResult(orderedSections, DateTime.UtcNow);
@@ -312,6 +312,7 @@ public sealed class HomeService(
                     MapRecommendationContentType(criteria.Type),
                     recommendationLimit,
                     diversify: false,
+                    includeBecauseYouWatched: false,
                     ct),
             cancellationToken);
 
@@ -398,26 +399,65 @@ public sealed class HomeService(
             HomeSectionType.ComingUp,
             "Coming Up",
             homeItems,
-            0);
+            0,
+            ComingUpSources.ForYou);
     }
 
-    private static async Task<HomeSection> BuildTopRatedSectionAsync(
+    private static async Task<HomeSection> BuildOnTvThisWeekSectionAsync(
         IServiceProvider services,
         HomeCriteria criteria,
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var items = await services
-            .GetRequiredService<IHomeTopRatedService>()
-            .GetItemsAsync(criteria.Type, criteria.SectionSize, contentLocale, cancellationToken);
+        if (criteria.Type == SearchContentType.Movie)
+        {
+            return new HomeSection(HomeSectionType.OnTvThisWeek, "On TV This Week", [], 0);
+        }
+
+        var result = await services
+            .GetRequiredService<IOnTvThisWeekService>()
+            .GetOnTvThisWeekAsync(
+                new OnTvThisWeekCriteria(1, criteria.SectionSize),
+                contentLocale,
+                cancellationToken);
 
         var homeItems = HomeSectionBuilders.DeduplicateItems(
-            items.Select(HomeMapper.FromSearchItem),
+            result.Items.Select(HomeMapper.FromSearchItem),
             criteria.SectionSize);
 
         return new HomeSection(
-            HomeSectionType.TopRated,
-            "Top Rated",
+            HomeSectionType.OnTvThisWeek,
+            "On TV This Week",
+            HomeSectionBuilders.FilterByType(homeItems, criteria.Type),
+            0);
+    }
+
+    private static async Task<HomeSection> BuildNowInTheatersSectionAsync(
+        IServiceProvider services,
+        HomeCriteria criteria,
+        string releaseRegion,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (criteria.Type == SearchContentType.Tv)
+        {
+            return new HomeSection(HomeSectionType.NowInTheaters, "Now in Theaters", [], 0);
+        }
+
+        var result = await services
+            .GetRequiredService<INowInTheatersService>()
+            .GetNowInTheatersAsync(
+                new NowInTheatersCriteria(releaseRegion, 1, criteria.SectionSize),
+                contentLocale,
+                cancellationToken);
+
+        var homeItems = HomeSectionBuilders.DeduplicateItems(
+            result.Items.Select(HomeMapper.FromSearchItem),
+            criteria.SectionSize);
+
+        return new HomeSection(
+            HomeSectionType.NowInTheaters,
+            "Now in Theaters",
             HomeSectionBuilders.FilterByType(homeItems, criteria.Type),
             0);
     }

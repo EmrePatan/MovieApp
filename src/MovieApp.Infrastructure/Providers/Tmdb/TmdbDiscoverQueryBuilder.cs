@@ -21,7 +21,13 @@ internal static class TmdbDiscoverQueryBuilder
             $"sort_by={MapMovieSort(criteria)}"
         };
 
-        AppendSharedFilters(parameters, criteria, includeTvStatuses: false, newReleases: constraints, topRatedVoteFloor: DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount);
+        AppendSharedFilters(
+            parameters,
+            criteria,
+            includeTvStatuses: false,
+            newReleases: constraints,
+            topRatedVoteFloor: DiscoverCatalogSortPolicy.CuratedTopRatedListMinimumVoteCount,
+            popularVoteFloor: PopularDiscoverQuality.MinimumVoteCountMovie);
         AppendMovieYearFilters(parameters, criteria, constraints, today);
 
         return string.Join('&', parameters);
@@ -39,7 +45,13 @@ internal static class TmdbDiscoverQueryBuilder
             $"sort_by={MapTvSort(criteria)}"
         };
 
-        AppendSharedFilters(parameters, criteria, includeTvStatuses: true, newReleases: constraints, topRatedVoteFloor: DiscoverCatalogSortPolicy.TopRatedMinimumVoteCountTv);
+        AppendSharedFilters(
+            parameters,
+            criteria,
+            includeTvStatuses: true,
+            newReleases: constraints,
+            topRatedVoteFloor: DiscoverCatalogSortPolicy.TopRatedMinimumVoteCountTv,
+            popularVoteFloor: PopularDiscoverQuality.MinimumVoteCountTv);
         AppendTvYearFilters(parameters, criteria, constraints, today);
 
         return string.Join('&', parameters);
@@ -50,7 +62,8 @@ internal static class TmdbDiscoverQueryBuilder
         DiscoverProviderCriteria criteria,
         bool includeTvStatuses,
         NewReleasesDiscoverConstraints newReleases,
-        int topRatedVoteFloor)
+        int topRatedVoteFloor,
+        int popularVoteFloor)
     {
         parameters.Add("include_adult=false");
 
@@ -64,7 +77,11 @@ internal static class TmdbDiscoverQueryBuilder
             parameters.Add($"vote_average.gte={criteria.MinRating.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
 
-        var effectiveMinVoteCount = ResolveEffectiveMinVoteCount(criteria, newReleases, topRatedVoteFloor);
+        var effectiveMinVoteCount = ResolveEffectiveMinVoteCount(
+            criteria,
+            newReleases,
+            topRatedVoteFloor,
+            popularVoteFloor);
         if (effectiveMinVoteCount.HasValue)
         {
             parameters.Add($"vote_count.gte={effectiveMinVoteCount.Value}");
@@ -110,7 +127,8 @@ internal static class TmdbDiscoverQueryBuilder
     private static int? ResolveEffectiveMinVoteCount(
         DiscoverProviderCriteria criteria,
         NewReleasesDiscoverConstraints newReleases,
-        int topRatedVoteFloor)
+        int topRatedVoteFloor,
+        int popularVoteFloor)
     {
         var effectiveSort = criteria.Sort ?? DiscoverBrowseValidator.GetDefaultSortForMode(criteria.Mode);
         int? newReleasesFloor = criteria.Mode == DiscoverBrowseMode.NewReleases && newReleases.MinVoteCount > 0
@@ -122,7 +140,8 @@ internal static class TmdbDiscoverQueryBuilder
             effectiveSort,
             criteria.MinVoteCount,
             newReleasesFloor,
-            topRatedVoteFloor);
+            topRatedVoteFloor,
+            popularVoteFloor);
     }
 
     private static void AppendMovieYearFilters(

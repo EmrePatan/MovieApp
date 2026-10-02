@@ -99,7 +99,8 @@ public static class DiscoverBrowseValidator
     public static SearchQueryValidationResult ValidateMode(DiscoverBrowseMode mode) =>
         Enum.IsDefined(mode)
             ? SearchQueryValidationResult.Success()
-            : SearchQueryValidationResult.Failure("Mode must be one of: trending, top_rated, new_releases.");
+            : SearchQueryValidationResult.Failure(
+                "Mode must be one of: trending, popular, top_rated, new_releases, hidden_gems.");
 
     public static SearchQueryValidationResult ValidateMode(string? mode)
     {
@@ -110,7 +111,8 @@ public static class DiscoverBrowseValidator
 
         return TryParseMode(mode, out _)
             ? SearchQueryValidationResult.Success()
-            : SearchQueryValidationResult.Failure("Mode must be one of: trending, top_rated, new_releases.");
+            : SearchQueryValidationResult.Failure(
+                "Mode must be one of: trending, popular, top_rated, new_releases, hidden_gems.");
     }
 
     public static SearchQueryValidationResult ValidateSort(string? sort)
@@ -157,11 +159,18 @@ public static class DiscoverBrowseValidator
             case "trending":
                 browseMode = DiscoverBrowseMode.Trending;
                 return true;
+            case "popular":
+                browseMode = DiscoverBrowseMode.Popular;
+                return true;
             case "top_rated":
                 browseMode = DiscoverBrowseMode.TopRated;
                 return true;
             case "new_releases":
                 browseMode = DiscoverBrowseMode.NewReleases;
+                return true;
+            case "hidden_gems":
+            case "hidden-gems":
+                browseMode = DiscoverBrowseMode.HiddenGems;
                 return true;
             default:
                 return false;
@@ -212,9 +221,26 @@ public static class DiscoverBrowseValidator
         mode switch
         {
             DiscoverBrowseMode.TopRated => DiscoverBrowseSort.RatingDesc,
+            DiscoverBrowseMode.HiddenGems => DiscoverBrowseSort.RatingDesc,
             DiscoverBrowseMode.NewReleases => DiscoverBrowseSort.ReleaseDesc,
             _ => DiscoverBrowseSort.PopularityDesc
         };
+
+    public static bool HasSupplementalFilters(DiscoverBrowseCriteria criteria) =>
+        criteria.GenreIds.Count > 0 ||
+        criteria.Year.HasValue ||
+        criteria.YearFrom.HasValue ||
+        criteria.YearTo.HasValue ||
+        criteria.MinRating.HasValue ||
+        criteria.MinVoteCount.HasValue ||
+        criteria.MinRuntimeMinutes.HasValue ||
+        criteria.MaxRuntimeMinutes.HasValue ||
+        !string.IsNullOrWhiteSpace(criteria.Language) ||
+        !string.IsNullOrWhiteSpace(criteria.OriginCountry) ||
+        criteria.KeywordIds.Count > 0 ||
+        criteria.TvStatuses.Count > 0 ||
+        (criteria.Sort.HasValue &&
+         criteria.Sort != GetDefaultSortForMode(criteria.Mode));
 
     public static DiscoverBrowseSort GetEffectiveSort(DiscoverBrowseCriteria criteria) =>
         criteria.Sort ?? GetDefaultSortForMode(criteria.Mode);

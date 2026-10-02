@@ -26,8 +26,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
     public const string RecentReleaseQueryToken = "fresh-release";
     public const string RecentReleaseExternalId = "fake-tmdb-900080";
     public const int RecentReleaseTmdbId = 900080;
+    public const string MatrixExternalId = "fake-tmdb-900060";
+    public const int MatrixTmdbId = 900060;
 
     private const string InterstellarTitleToken = "interstellar";
+    private const string MatrixTitleToken = "matrix";
 
     private static readonly MovieProviderDetails InterstellarDetails = new(
         ExternalId: InterstellarExternalId,
@@ -62,6 +65,23 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
         VoteAverage: 5.0m,
         VoteCount: 10,
         Genres: ["Drama"]);
+
+    private static readonly MovieProviderDetails MatrixDetails = new(
+        ExternalId: MatrixExternalId,
+        TmdbId: MatrixTmdbId,
+        TvdbId: null,
+        ImdbId: "tt9000060",
+        Title: "The Matrix",
+        OriginalTitle: "The Matrix",
+        Overview: "A computer hacker learns about the true nature of his reality.",
+        ReleaseDate: new DateOnly(1999, 3, 31),
+        RuntimeMinutes: 136,
+        PosterPath: "/fake/matrix-poster.jpg",
+        BackdropPath: "/fake/matrix-backdrop.jpg",
+        OriginalLanguage: "en",
+        VoteAverage: 8.2m,
+        VoteCount: 20000,
+        Genres: ["Action", "Science Fiction"]);
 
     private static readonly IReadOnlyList<MovieProviderSummary> PagedCatalogSummaries =
         Enumerable.Range(1, PagedCatalogMovieCount)
@@ -115,6 +135,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult(CreatePagedResult([ToSummary(PosterlessDetails)], page, pageSize));
         }
 
+        if (MatchesCatalogTitle(normalizedQuery, MatrixTitleToken))
+        {
+            return Task.FromResult(CreatePagedResult([ToSummary(MatrixDetails)], page, pageSize));
+        }
+
         if (!MatchesCatalogTitle(normalizedQuery, InterstellarTitleToken))
         {
             return Task.FromResult(CreatePagedResult([], page, pageSize));
@@ -164,6 +189,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             return Task.FromResult<MovieProviderDetails?>(InterstellarDetails);
         }
 
+        if (string.Equals(externalId, MatrixExternalId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<MovieProviderDetails?>(MatrixDetails);
+        }
+
         if (string.Equals(externalId, PosterlessExternalId, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<MovieProviderDetails?>(PosterlessDetails);
@@ -179,6 +209,11 @@ public sealed class FakeMovieDataProvider(MovieDataProviderCallTracker callTrack
             if (tmdbId == InterstellarTmdbId)
             {
                 return Task.FromResult<MovieProviderDetails?>(InterstellarDetails);
+            }
+
+            if (tmdbId == MatrixTmdbId)
+            {
+                return Task.FromResult<MovieProviderDetails?>(MatrixDetails);
             }
 
             if (tmdbId == PosterlessTmdbId)

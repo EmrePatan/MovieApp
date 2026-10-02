@@ -187,13 +187,16 @@ internal static class SearchQueryBuilder
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
         SearchQueryMatch queryMatch,
-        string? genreName = null)
+        string? genreName = null,
+        bool titlesOnly = false)
     {
         return criteria.Type switch
         {
             SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, queryMatch, genreName),
             SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, queryMatch, genreName),
             SearchContentType.Person => BuildPersonQuery(dbContext, criteria, queryMatch),
+            _ when titlesOnly => BuildMovieQuery(dbContext, criteria, queryMatch, genreName)
+                .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, genreName)),
             _ => BuildMovieQuery(dbContext, criteria, queryMatch, genreName)
                 .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, genreName))
                 .Concat(BuildPersonQuery(dbContext, criteria, queryMatch))
@@ -393,6 +396,14 @@ internal static class SearchQueryBuilder
                 .OrderByDescending(item => item.ReleaseDate)
                 .ThenBy(item => item.Title));
     }
+
+    public static IQueryable<SearchItemProjection> ApplyHiddenGemsSort(
+        IQueryable<SearchItemProjection> query) =>
+        ApplyDeterministicTieBreak(
+            query
+                .OrderByDescending(item => item.VoteAverage)
+                .ThenByDescending(item => item.VoteCount)
+                .ThenBy(item => item.Title));
 
     public static IQueryable<SearchItemProjection> ApplyTopRatedSort(
         IQueryable<SearchItemProjection> query,

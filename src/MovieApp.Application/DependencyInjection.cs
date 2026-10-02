@@ -179,6 +179,7 @@ public static class DependencyInjection
         services.AddSingleton<DiscoveryCacheLoadCoordinator>();
         services.AddSingleton<HotThisWeekLoadCoordinator>();
         services.AddScoped<IDiscoveryService, DiscoveryService>();
+        services.AddScoped<ITrendingWeekListService, TrendingWeekListService>();
         services.AddScoped<IDiscoverBrowseService, DiscoverBrowseService>();
         services.AddScoped<ITransactionalStreamOfferFilter, TransactionalStreamOfferFilter>();
         services.AddScoped<IAdvancedDiscoverService, AdvancedDiscoverService>();

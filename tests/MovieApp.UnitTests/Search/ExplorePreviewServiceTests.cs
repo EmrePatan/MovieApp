@@ -10,20 +10,25 @@ namespace MovieApp.UnitTests.Search;
 public sealed class ExplorePreviewServiceTests
 {
     [Fact]
-    public async Task GetPreviewAsyncReturnsTrendingTopRatedAndNewReleases()
+    public async Task GetPreviewAsyncReturnsDiscoverRailsWithoutGeneralTrending()
     {
         var discovery = new FakeDiscoveryService();
-        var service = CreateService(discovery, new PassthroughCacheService());
+        var browse = new FakeDiscoverBrowseService();
+        var service = CreateService(discovery, browse, new PassthroughCacheService());
 
         var result = await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.NotEmpty(result.Trending.Items);
-        Assert.NotEmpty(result.TopRated.Items);
+        Assert.Equal(DiscoverRailCatalog.Order, result.RailOrder);
+        Assert.NotEmpty(result.HiddenGems.Items);
+        Assert.NotEmpty(result.Popular.Items);
         Assert.NotEmpty(result.NewReleases.Items);
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.NotEmpty(result.TopRated.Items);
+        Assert.Equal(1, browse.HiddenGemsCallCount);
+        Assert.Equal(1, browse.PopularCallCount);
+        Assert.Equal(0, discovery.TrendingCallCount);
+        Assert.Equal(0, discovery.PopularCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
         Assert.Equal(1, discovery.NewReleasesCallCount);
-        Assert.Equal(0, discovery.PopularCallCount);
         Assert.Equal(0, discovery.GenreCallCount);
     }
 
@@ -31,15 +36,18 @@ public sealed class ExplorePreviewServiceTests
     public async Task GetPreviewAsyncUsesCacheOnSecondRequest()
     {
         var discovery = new FakeDiscoveryService();
+        var browse = new FakeDiscoverBrowseService();
         var cache = new InMemoryCacheService();
-        var service = CreateService(discovery, cache);
+        var service = CreateService(discovery, browse, cache);
 
         await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
         await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(1, discovery.TrendingCallCount);
+        Assert.Equal(1, browse.HiddenGemsCallCount);
+        Assert.Equal(1, browse.PopularCallCount);
         Assert.Equal(1, discovery.TopRatedCallCount);
         Assert.Equal(1, discovery.NewReleasesCallCount);
+        Assert.Equal(0, discovery.TrendingCallCount);
     }
 
     [Fact]
@@ -47,6 +55,7 @@ public sealed class ExplorePreviewServiceTests
     {
         var service = CreateService(
             new FakeDiscoveryService(),
+            new FakeDiscoverBrowseService(),
             new PassthroughCacheService());
 
         await Assert.ThrowsAsync<MovieApp.Application.Exceptions.ValidationException>(() =>
@@ -61,17 +70,21 @@ public sealed class ExplorePreviewServiceTests
 
         var result = await service.GetPreviewAsync(new ExplorePreviewCriteria(10), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.NotEmpty(result.Trending.Items);
+        Assert.Equal(DiscoverRailCatalog.Order, result.RailOrder);
+        Assert.NotEmpty(result.HiddenGems.Items);
+        Assert.NotEmpty(result.Popular.Items);
         Assert.NotEmpty(result.TopRated.Items);
         Assert.NotEmpty(result.NewReleases.Items);
     }
 
     private static ExplorePreviewService CreateService(
         IDiscoveryService discovery,
+        IDiscoverBrowseService browse,
         ICacheService cache)
     {
         var services = new ServiceCollection();
         services.AddScoped<IDiscoveryService>(_ => discovery);
+        services.AddScoped<IDiscoverBrowseService>(_ => browse);
         var provider = services.BuildServiceProvider();
 
         return new ExplorePreviewService(provider.GetRequiredService<IServiceScopeFactory>(), cache);
@@ -83,9 +96,53 @@ public sealed class ExplorePreviewServiceTests
     {
         var services = new ServiceCollection();
         services.AddScoped<IDiscoveryService, TDiscovery>();
+        services.AddScoped<IDiscoverBrowseService, FakeDiscoverBrowseService>();
         var provider = services.BuildServiceProvider();
 
         return new ExplorePreviewService(provider.GetRequiredService<IServiceScopeFactory>(), cache);
+    }
+
+    private sealed class FakeDiscoverBrowseService : IDiscoverBrowseService
+    {
+        public int HiddenGemsCallCount { get; private set; }
+
+        public int PopularCallCount { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> BrowseAsync(
+            DiscoverBrowseCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            if (criteria.Mode == DiscoverBrowseMode.HiddenGems)
+            {
+                HiddenGemsCallCount++;
+            }
+            else if (criteria.Mode == DiscoverBrowseMode.Popular)
+            {
+                PopularCallCount++;
+            }
+
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                [CreateBrowseItem(criteria.Mode.ToString())],
+                1,
+                10,
+                1,
+                1));
+        }
+
+        private static SearchItem CreateBrowseItem(string label) =>
+            new(
+                Guid.NewGuid(),
+                "movie",
+                label,
+                null,
+                null,
+                null,
+                null,
+                new DateOnly(2020, 1, 1),
+                8m,
+                100,
+                2020);
     }
 
     private sealed class FakeDiscoveryService : IDiscoveryService

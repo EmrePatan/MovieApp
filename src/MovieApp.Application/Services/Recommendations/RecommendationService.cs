@@ -191,6 +191,7 @@ public sealed class RecommendationService(
         RecommendationContentType contentType = RecommendationContentType.All,
         int? sectionItemCount = null,
         bool diversify = true,
+        bool includeBecauseYouWatched = true,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
@@ -207,7 +208,8 @@ public sealed class RecommendationService(
             generation,
             contentType,
             resultLimit,
-            diversify);
+            diversify,
+            includeBecauseYouWatched);
         var cached = await cacheService.GetAsync<RecommendationHomeCacheEntry>(cacheKey, cancellationToken);
         cacheLookupStopwatch.Stop();
 
@@ -249,6 +251,7 @@ public sealed class RecommendationService(
                     contentType,
                     resultLimit,
                     diversify,
+                    includeBecauseYouWatched,
                     cancellationToken);
         }
 
@@ -425,6 +428,7 @@ public sealed class RecommendationService(
             RecommendationContentType contentType,
             int resultLimit,
             bool diversify,
+            bool includeBecauseYouWatched,
             CancellationToken cancellationToken)
     {
         var sections = new List<RecommendationSection>();
@@ -436,7 +440,28 @@ public sealed class RecommendationService(
         PaginatedResult<RecommendationItem> recommended;
         IReadOnlyList<RecommendationItem> becauseYouWatched;
 
-        if (scopeFactory is null)
+        if (!includeBecauseYouWatched)
+        {
+            recommended = scopeFactory is null
+                ? await BuildPersonalizedRecommendationsAsync(
+                    context,
+                    criteria,
+                    cancellationToken,
+                    emitPerfLogs: true,
+                    applyDiversity: diversify)
+                : await RunIsolatedAsync(
+                    (service, ct) => service.BuildPersonalizedRecommendationsAsync(
+                        context,
+                        criteria,
+                        ct,
+                        emitPerfLogs: true,
+                        applyDiversity: diversify),
+                    cancellationToken);
+            personalizedStopwatch.Stop();
+            becauseYouWatched = [];
+            becauseYouWatchedStopwatch.Stop();
+        }
+        else if (scopeFactory is null)
         {
             recommended = await BuildPersonalizedRecommendationsAsync(
                 context,

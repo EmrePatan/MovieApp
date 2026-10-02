@@ -49,8 +49,10 @@ public sealed class OnTvThisWeekServiceTests
 
         var result = await service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 20), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.NotEmpty(result.Items);
+        Assert.Single(result.Items);
         Assert.All(result.Items, item => Assert.Equal("tv", item.Type));
+        Assert.Equal("Airing Drama", result.Items[0].Title);
+        Assert.True(result.Items[0].VoteCount >= OnTvThisWeekQualityFilter.MinimumVoteCount);
     }
 
     [Fact]
@@ -119,7 +121,21 @@ public sealed class OnTvThisWeekServiceTests
                         null,
                         "en",
                         7m,
-                        10),
+                        80),
+                    new TvShowProviderSummary(
+                        "fake-tmdb-2",
+                        2,
+                        null,
+                        "tt2",
+                        "Late Night Talk",
+                        "Late Night Talk",
+                        "Overview",
+                        new DateOnly(2024, 1, 1),
+                        null,
+                        null,
+                        "en",
+                        4m,
+                        3),
                 ],
                 page,
                 20,

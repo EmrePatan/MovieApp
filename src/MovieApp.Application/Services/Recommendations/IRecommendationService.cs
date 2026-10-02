@@ -28,5 +28,6 @@ public interface IRecommendationService
         RecommendationContentType contentType = RecommendationContentType.All,
         int? sectionItemCount = null,
         bool diversify = true,
+        bool includeBecauseYouWatched = true,
         CancellationToken cancellationToken = default);
 }

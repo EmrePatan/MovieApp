@@ -48,13 +48,18 @@ public static class DiscoverCatalogSortPolicy
         DiscoverBrowseSort effectiveSort,
         int? requestedMinVoteCount,
         int? newReleasesVoteFloor = null,
-        int topRatedVoteFloor = CuratedTopRatedListMinimumVoteCount)
+        int topRatedVoteFloor = CuratedTopRatedListMinimumVoteCount,
+        int? popularVoteFloor = null)
     {
         int? floor = null;
 
         if (mode == DiscoverBrowseMode.TopRated)
         {
             floor = topRatedVoteFloor;
+        }
+        else if (mode == DiscoverBrowseMode.Popular && popularVoteFloor is > 0)
+        {
+            floor = popularVoteFloor;
         }
         else if (RequiresRatingVoteFloor(effectiveSort))
         {

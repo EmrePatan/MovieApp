@@ -18,7 +18,6 @@ namespace MovieApp.Api.Controllers;
 [ApiController]
 [Route("api/discovery")]
 public sealed class DiscoveryController(
-    IDiscoveryService discoveryService,
     IDiscoverBrowseService discoverBrowseService,
     IAdvancedDiscoverService advancedDiscoverService,
     IDiscoveryWatchProvidersService discoveryWatchProvidersService,
@@ -26,6 +25,7 @@ public sealed class DiscoveryController(
     IOnTvThisWeekService onTvThisWeekService,
     IWorldCinemaService worldCinemaService,
     IExplorePreviewService explorePreviewService,
+    ITrendingWeekListService trendingWeekListService,
     IPickSomethingService pickSomethingService,
     MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository keywordDiscoverReadRepository) : ControllerBase
 {
@@ -85,9 +85,11 @@ public sealed class DiscoveryController(
                 cancellationToken);
 
             return Ok(new ExplorePreviewResponse(
-                SearchContractMapper.ToSearchResponse(result.Trending),
-                SearchContractMapper.ToSearchResponse(result.TopRated),
-                SearchContractMapper.ToSearchResponse(result.NewReleases)));
+                result.RailOrder,
+                SearchContractMapper.ToSearchResponse(result.HiddenGems),
+                SearchContractMapper.ToSearchResponse(result.Popular),
+                SearchContractMapper.ToSearchResponse(result.NewReleases),
+                SearchContractMapper.ToSearchResponse(result.TopRated)));
         }
         catch (ValidationException exception)
         {
@@ -109,8 +111,28 @@ public sealed class DiscoveryController(
     {
         try
         {
-            var criteria = BuildDiscoveryCriteria(page, pageSize, type);
-            var result = await discoveryService.GetPopularAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
+            var criteria = BuildBrowseCriteria(
+                "popular",
+                type,
+                page,
+                pageSize,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+            var result = await discoverBrowseService.BrowseAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)
@@ -134,7 +156,10 @@ public sealed class DiscoveryController(
         try
         {
             var criteria = BuildDiscoveryCriteria(page, pageSize, type);
-            var result = await discoveryService.GetTrendingAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
+            var result = await trendingWeekListService.GetPageAsync(
+                criteria,
+                Request.ResolveContentLocale(),
+                cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
         }
         catch (ValidationException exception)

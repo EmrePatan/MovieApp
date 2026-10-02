@@ -88,7 +88,11 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
         Assert.NotNull(payload);
-        Assert.Equal(3, payload.TotalCount);
+        Assert.Equal(4, payload.TotalCount);
+        Assert.Equal(
+            ["Discover Movie Beta", "Discover TV Beta", "Discover Movie Alpha", "Discover TV Alpha"],
+            payload.Items.Select(item => item.Title).ToList());
+        Assert.DoesNotContain(payload.Items, item => item.Type == "person");
     }
 
     [Fact]
@@ -116,9 +120,14 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         var payload = await response.Content.ReadFromJsonAsync<ExplorePreviewResponse>();
         Assert.NotNull(payload);
-        Assert.NotEmpty(payload.Trending.Items);
+        Assert.Equal(
+            ["platforms", "genres", "world-cinema", "hidden-gems", "popular", "new-releases", "top-rated"],
+            payload.RailOrder);
+        Assert.NotNull(payload.HiddenGems);
+        Assert.NotEmpty(payload.Popular.Items);
         Assert.NotEmpty(payload.TopRated.Items);
         Assert.NotEmpty(payload.NewReleases.Items);
+        Assert.DoesNotContain(payload.Popular.Items, item => item.Type == "person");
     }
 
     [Fact]
@@ -138,7 +147,9 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
 
         Assert.NotNull(firstPayload);
         Assert.NotNull(secondPayload);
-        Assert.Equal(firstPayload.Trending.TotalCount, secondPayload.Trending.TotalCount);
+        Assert.Equal(firstPayload.RailOrder, secondPayload.RailOrder);
+        Assert.Equal(firstPayload.HiddenGems.TotalCount, secondPayload.HiddenGems.TotalCount);
+        Assert.Equal(firstPayload.Popular.TotalCount, secondPayload.Popular.TotalCount);
         Assert.Equal(firstPayload.TopRated.TotalCount, secondPayload.TopRated.TotalCount);
         Assert.Equal(firstPayload.NewReleases.TotalCount, secondPayload.NewReleases.TotalCount);
     }

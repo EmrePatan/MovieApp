@@ -85,6 +85,42 @@ public sealed class DiscoveryService(
             cancellationToken);
     }
 
+    public Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
+        DiscoverBrowseCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        return GetCachedDiscoveryAsync(
+            "HiddenGems",
+            "hidden-gems:" + DiscoveryBrowseCacheKeys.Create(criteria, contentLocale),
+            () => searchRepository.GetHiddenGemsAsync(criteria, cancellationToken),
+            PopularCacheTtl,
+            contentLocale,
+            cancellationToken);
+    }
+
+    public Task<PaginatedResult<SearchItem>> GetTopRatedBrowseAsync(
+        DiscoverBrowseCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        if (!DiscoverBrowseValidator.HasSupplementalFilters(criteria))
+        {
+            return GetTopRatedAsync(
+                new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
+                contentLocale,
+                cancellationToken);
+        }
+
+        return GetCachedDiscoveryAsync(
+            "TopRatedBrowse",
+            "top-rated-browse:" + DiscoveryBrowseCacheKeys.Create(criteria, contentLocale),
+            () => searchRepository.GetFilteredTopRatedAsync(criteria, cancellationToken),
+            PopularCacheTtl,
+            contentLocale,
+            cancellationToken);
+    }
+
     public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
         string genreName,
         DiscoveryCriteria criteria,

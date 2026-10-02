@@ -123,7 +123,8 @@ public sealed class DiscoverBrowseServiceTests
             new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<DiscoverBrowseService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            new FakeTrendingWeekListService());
 
         var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -189,6 +190,100 @@ public sealed class DiscoverBrowseServiceTests
     }
 
     [Fact]
+    public async Task BrowseAsyncTopRatedWithFiltersStaysOnCatalogEngine()
+    {
+        var discoveryTracker = new DiscoveryServiceCallTracker();
+        var movieTracker = new MovieDataProviderCallTracker();
+        var service = CreateService(
+            new DiscoverBrowseFakeCacheService(null),
+            movieTracker,
+            new TvShowDataProviderCallTracker(),
+            discoveryTracker);
+
+        await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Movie, DiscoverBrowseMode.TopRated) with
+            {
+                GenreIds = [Guid.NewGuid()]
+            },
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(1, discoveryTracker.TopRatedCallCount);
+        Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncHiddenGemsStaysOnCatalogEngineWhenFiltered()
+    {
+        var discoveryTracker = new DiscoveryServiceCallTracker();
+        var movieTracker = new MovieDataProviderCallTracker();
+        var service = CreateService(
+            new DiscoverBrowseFakeCacheService(null),
+            movieTracker,
+            new TvShowDataProviderCallTracker(),
+            discoveryTracker);
+
+        var result = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.All, DiscoverBrowseMode.HiddenGems) with
+            {
+                MinRating = 8m
+            },
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(1, discoveryTracker.HiddenGemsCallCount);
+        Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
+        Assert.Equal("Hidden Gem", result.Items[0].Title);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncPopularKeepsProviderPopularityOrder()
+    {
+        var service = CreateService(
+            new DiscoverBrowseFakeCacheService(null),
+            new MovieDataProviderCallTracker(),
+            new TvShowDataProviderCallTracker());
+
+        var result = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.All, DiscoverBrowseMode.Popular, pageSize: 4),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(
+            ["Discover Movie Beta", "Discover TV Beta", "Discover Movie Alpha", "Discover TV Alpha"],
+            result.Items.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public async Task BrowseAsyncTrendingUsesWeekListPagesInsteadOfDiscoverPopularity()
+    {
+        var weekList = new FakeTrendingWeekListService();
+        var movieTracker = new MovieDataProviderCallTracker();
+        var service = new DiscoverBrowseService(
+            new DiscoveryServiceCallTracker(),
+            new FakeMovieDataProvider(movieTracker),
+            new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
+            new SummaryMovieRepository(),
+            new SummaryTvShowRepository(),
+            new FakeGenreReadRepository(),
+            new FakeKeywordDiscoverReadRepository(),
+            new DiscoverBrowseFakeCacheService(null),
+            NullLogger<DiscoverBrowseService>.Instance,
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            weekList);
+
+        var result = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.All, DiscoverBrowseMode.Trending, page: 2, pageSize: 20),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(1, weekList.CallCount);
+        Assert.Equal(2, weekList.LastPage);
+        Assert.Equal(2, result.TotalPages);
+        Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
+        Assert.Contains(result.Items, item => item.Type == "movie");
+        Assert.Contains(result.Items, item => item.Type == "tv");
+        Assert.DoesNotContain(result.Items, item => item.Type == "person");
+    }
+
+    [Fact]
     public async Task BrowseAsyncNewReleasesWithFiltersUsesProviderPath()
     {
         var discoveryTracker = new DiscoveryServiceCallTracker();
@@ -242,7 +337,8 @@ public sealed class DiscoverBrowseServiceTests
             keywordRepository,
             cache,
             NullLogger<DiscoverBrowseService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            new FakeTrendingWeekListService());
 
         var keywordId = Guid.NewGuid();
         var criteria = new DiscoverBrowseCriteria(
@@ -289,7 +385,8 @@ public sealed class DiscoverBrowseServiceTests
             keywordRepository,
             cache,
             NullLogger<DiscoverBrowseService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            new FakeTrendingWeekListService());
 
         var criteria = new DiscoverBrowseCriteria(
             DiscoverBrowseMode.Trending,
@@ -362,11 +459,12 @@ public sealed class DiscoverBrowseServiceTests
             new FakeKeywordDiscoverReadRepository(),
             cache ?? new DiscoverBrowseFakeCacheService(null),
             NullLogger<DiscoverBrowseService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            new FakeTrendingWeekListService());
 
     private static DiscoverBrowseCriteria CreateCriteria(
         SearchContentType type,
-        DiscoverBrowseMode mode = DiscoverBrowseMode.Trending,
+        DiscoverBrowseMode mode = DiscoverBrowseMode.Popular,
         int page = 1,
         int pageSize = 20,
         DiscoverBrowseSort? sort = null) =>
@@ -560,6 +658,47 @@ public sealed class DiscoverBrowseServiceTests
 
         public Task<PaginatedResult<SearchItem>> GetByGenreAsync(string genreName, DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public int HiddenGemsCallCount { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
+            DiscoverBrowseCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            HiddenGemsCallCount++;
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                [CreateSearchItem("movie", Guid.NewGuid(), "Hidden Gem")],
+                criteria.Page,
+                criteria.PageSize,
+                1,
+                1));
+        }
+    }
+
+    private sealed class FakeTrendingWeekListService : ITrendingWeekListService
+    {
+        public int CallCount { get; private set; }
+
+        public int LastPage { get; private set; }
+
+        public Task<PaginatedResult<SearchItem>> GetPageAsync(
+            DiscoveryCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            LastPage = criteria.Page;
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                [
+                    CreateSearchItem("movie", Guid.NewGuid(), "Week Movie"),
+                    CreateSearchItem("tv", Guid.NewGuid(), "Week Show")
+                ],
+                criteria.Page,
+                criteria.PageSize,
+                40,
+                2));
+        }
     }
 
     private sealed class FakeGenreReadRepository : MovieApp.Application.Abstractions.Persistence.IGenreReadRepository
