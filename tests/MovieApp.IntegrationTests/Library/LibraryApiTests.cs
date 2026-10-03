@@ -163,6 +163,25 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task LibrarySearchEndpointIncludesWatchlistOnlyTitles()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var interstellarId = await SeedMovieAsync();
+        var matrixId = await SeedMovieBySearchQueryAsync("matrix");
+        var watchlist = await CreateWatchlistAsync(token, "Later");
+        await SendAuthorizedPostAsync($"/api/watchlists/{watchlist.Id}/movies/{interstellarId}", token);
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{matrixId}", token);
+
+        var payload = await GetLibraryAsync("/api/library/search?q=inter&page=1&pageSize=24", token);
+
+        Assert.Single(payload.Items);
+        Assert.Equal(interstellarId, payload.Items[0].Id);
+        Assert.Equal("watchlist", payload.Items[0].CollectionStatus);
+    }
+
+    [Fact]
     public async Task LibrarySearchMatchesIndexedLocalizedAliasTitles()
     {
         await fixture.ResetAsync();

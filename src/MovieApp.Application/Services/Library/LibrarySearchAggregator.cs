@@ -14,6 +14,7 @@ internal static class LibrarySearchAggregator
         LibraryCategory.Watching,
         LibraryCategory.Watched,
         LibraryCategory.Liked,
+        LibraryCategory.Watchlist,
     ];
 
     public static IReadOnlyList<LibraryCategory> Categories => SearchCategories;
