@@ -9,15 +9,22 @@ internal static class LibraryWatchedTitleFilter
     public static IQueryable<LibraryRepository.WatchedUnionRow> WhereTitleContains(
         ApplicationDbContext dbContext,
         IQueryable<LibraryRepository.WatchedUnionRow> rows,
-        SearchTextMatch match)
+        SearchTextMatch match,
+        string? titleMatchContentLocale = null)
     {
         if (match.IsEmpty)
         {
             return rows;
         }
 
-        var matchingMovieIds = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
-        var matchingTvShowIds = LibrarySearchTitleFilter.MatchingTvShowIds(dbContext, match);
+        var matchingMovieIds = LibrarySearchTitleFilter.MatchingMovieIds(
+            dbContext,
+            match,
+            titleMatchContentLocale);
+        var matchingTvShowIds = LibrarySearchTitleFilter.MatchingTvShowIds(
+            dbContext,
+            match,
+            titleMatchContentLocale);
 
         return rows.Where(row =>
             (row.Type == "movie" && matchingMovieIds.Contains(row.Id))

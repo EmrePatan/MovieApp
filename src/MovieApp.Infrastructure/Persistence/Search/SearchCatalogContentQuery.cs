@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
+using MovieApp.Application.Services.Library;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -10,7 +11,8 @@ internal static class SearchCatalogContentQuery
     public static IQueryable<Movie> WhereMovieMatchesSearch(
         IQueryable<Movie> query,
         ApplicationDbContext dbContext,
-        SearchQueryMatch match)
+        SearchQueryMatch match,
+        LibrarySearchTitleLanguageScope? libraryTitleScope = null)
     {
         if (match.IsEmpty)
         {
@@ -30,6 +32,7 @@ internal static class SearchCatalogContentQuery
             || dbContext.ContentSearchTitles.Any(row =>
                 row.ContentType == CatalogContentType.Movie
                 && row.ContentId == movie.Id
+                && IndexedTitleMatchesLibraryLanguageScope(row, libraryTitleScope)
                 && (EF.Functions.ILike(row.Title, "%" + primary + "%")
                     || (turkish != null && EF.Functions.ILike(row.Title, "%" + turkish + "%"))
                     || EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%"))));
@@ -38,7 +41,8 @@ internal static class SearchCatalogContentQuery
     public static IQueryable<TvShow> WhereTvShowMatchesSearch(
         IQueryable<TvShow> query,
         ApplicationDbContext dbContext,
-        SearchQueryMatch match)
+        SearchQueryMatch match,
+        LibrarySearchTitleLanguageScope? libraryTitleScope = null)
     {
         if (match.IsEmpty)
         {
@@ -58,9 +62,44 @@ internal static class SearchCatalogContentQuery
             || dbContext.ContentSearchTitles.Any(row =>
                 row.ContentType == CatalogContentType.Tv
                 && row.ContentId == tvShow.Id
+                && IndexedTitleMatchesLibraryLanguageScope(row, libraryTitleScope)
                 && (EF.Functions.ILike(row.Title, "%" + primary + "%")
                     || (turkish != null && EF.Functions.ILike(row.Title, "%" + turkish + "%"))
                     || EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%"))));
+    }
+
+    private static bool IndexedTitleMatchesLibraryLanguageScope(
+        ContentSearchTitle row,
+        LibrarySearchTitleLanguageScope? libraryTitleScope)
+    {
+        if (libraryTitleScope is null)
+        {
+            return true;
+        }
+
+        if (row.TitleKind == ContentSearchTitleKind.Canonical
+            || row.TitleKind == ContentSearchTitleKind.Original)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(row.LanguageCode))
+        {
+            if (string.Equals(row.LanguageCode, libraryTitleScope.PrimaryLanguageCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return libraryTitleScope.IncludeEnglishLanguage
+                && string.Equals(
+                    row.LanguageCode,
+                    LibrarySearchTitleLanguageScope.EnglishLanguageCode,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        return !string.IsNullOrEmpty(row.CountryCode)
+            && !string.IsNullOrEmpty(libraryTitleScope.PrimaryRegionCode)
+            && string.Equals(row.CountryCode, libraryTitleScope.PrimaryRegionCode, StringComparison.OrdinalIgnoreCase);
     }
 
     public static IQueryable<SearchItemProjection> ProjectMoviesWithRelevance(

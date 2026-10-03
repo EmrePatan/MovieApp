@@ -56,7 +56,8 @@ public sealed class LibraryService(
             criteria.PageSize + 1,
             incomingCursor,
             executeCount,
-            titleMatch);
+            titleMatch,
+            titleMatch.IsEmpty ? null : contentLocale);
 
         long countMs = 0;
         var countStopwatch = Stopwatch.StartNew();

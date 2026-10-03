@@ -15,6 +15,7 @@ using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.IntegrationTests.Auth;
+using MovieApp.Application.Services.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -192,13 +193,25 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
         await SendAuthorizedPostAsync($"/api/favorites/movies/{matrixId}", token);
 
-        var categoryFiltered = await GetLibraryAsync("/api/library?category=liked&q=islik", token);
+        var categoryFiltered = await GetLibraryAsync(
+            "/api/library?category=liked&q=islik",
+            token,
+            ContentLocaleResolver.TurkishTurkey);
         Assert.Single(categoryFiltered.Items);
         Assert.Equal(movieId, categoryFiltered.Items[0].Id);
 
-        var hubSearch = await GetLibraryAsync("/api/library/search?q=donersen&page=1&pageSize=24", token);
+        var hubSearch = await GetLibraryAsync(
+            "/api/library/search?q=donersen&page=1&pageSize=24",
+            token,
+            ContentLocaleResolver.TurkishTurkey);
         Assert.Single(hubSearch.Items);
         Assert.Equal(movieId, hubSearch.Items[0].Id);
+
+        var germanOnlySearch = await GetLibraryAsync(
+            "/api/library/search?q=pfiff&page=1&pageSize=24",
+            token,
+            ContentLocaleResolver.TurkishTurkey);
+        Assert.Empty(germanOnlySearch.Items);
     }
 
     [Fact]
@@ -619,6 +632,13 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
                     null,
                     "TR",
                     "working"),
+                new ProviderSearchTitleEntry(
+                    "Pfiff wenn du zurückkommst",
+                    ContentSearchTitleKind.Translation,
+                    ContentSearchTitleSource.TmdbTranslation,
+                    "de",
+                    "DE",
+                    null),
             ],
             utcNow);
 
@@ -719,9 +739,12 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private async Task<LibraryListResponse> GetLibraryAsync(string url, string token)
+    private async Task<LibraryListResponse> GetLibraryAsync(
+        string url,
+        string token,
+        string? acceptLanguage = null)
     {
-        var response = await SendAuthorizedGetAsync(url, token);
+        var response = await SendAuthorizedGetAsync(url, token, acceptLanguage);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var payload = await response.Content.ReadFromJsonAsync<LibraryListResponse>();
         Assert.NotNull(payload);
@@ -771,10 +794,18 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         await dbContext.Seasons.Where(season => season.Id == seasonId).ExecuteDeleteAsync();
     }
 
-    private Task<HttpResponseMessage> SendAuthorizedGetAsync(string url, string token)
+    private Task<HttpResponseMessage> SendAuthorizedGetAsync(
+        string url,
+        string token,
+        string? acceptLanguage = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (!string.IsNullOrWhiteSpace(acceptLanguage))
+        {
+            request.Headers.AcceptLanguage.ParseAdd(acceptLanguage);
+        }
+
         return _client.SendAsync(request);
     }
 

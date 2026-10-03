@@ -31,7 +31,11 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var tvShows = dbContext.TvShows.AsNoTracking();
         if (!request.TitleMatch.IsEmpty)
         {
-            tvShows = LibrarySearchTitleFilter.WhereTvShowMatches(dbContext, tvShows, request.TitleMatch);
+            tvShows = LibrarySearchTitleFilter.WhereTvShowMatches(
+                dbContext,
+                tvShows,
+                request.TitleMatch,
+                request.TitleMatchContentLocale);
         }
 
         var query = TvShowCompletionQueries.StartedShows(dbContext, userId)
@@ -123,7 +127,11 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var merged = WatchedUnionRows(userId);
         if (!request.TitleMatch.IsEmpty)
         {
-            merged = LibraryWatchedTitleFilter.WhereTitleContains(dbContext, merged, request.TitleMatch);
+            merged = LibraryWatchedTitleFilter.WhereTitleContains(
+                dbContext,
+                merged,
+                request.TitleMatch,
+                request.TitleMatchContentLocale);
         }
 
         var totalCount = request.ExecuteCount
@@ -158,7 +166,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         if (!request.TitleMatch.IsEmpty)
         {
-            favoritesQuery = ApplyFavoriteTitleFilter(favoritesQuery, request.TitleMatch);
+            favoritesQuery = ApplyFavoriteTitleFilter(favoritesQuery, request);
         }
 
         var ordered = favoritesQuery
@@ -228,7 +236,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         if (!request.TitleMatch.IsEmpty)
         {
-            query = ApplyWatchlistItemTitleFilter(query, request.TitleMatch);
+            query = ApplyWatchlistItemTitleFilter(query, request);
         }
 
         var dedupedQuery = query
@@ -338,7 +346,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         if (!request.TitleMatch.IsEmpty)
         {
-            query = ApplyWatchedMovieTitleFilter(query, request.TitleMatch);
+            query = ApplyWatchedMovieTitleFilter(query, request);
         }
 
         var totalCount = request.ExecuteCount
@@ -393,7 +401,11 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var rows = CompletedTvShowRows(userId);
         if (!request.TitleMatch.IsEmpty)
         {
-            rows = LibraryWatchedTitleFilter.WhereTitleContains(dbContext, rows, request.TitleMatch);
+            rows = LibraryWatchedTitleFilter.WhereTitleContains(
+                dbContext,
+                rows,
+                request.TitleMatch,
+                request.TitleMatchContentLocale);
         }
 
         var totalCount = request.ExecuteCount
@@ -547,10 +559,16 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
     private IQueryable<Domain.Entities.WatchlistItem> ApplyWatchlistItemTitleFilter(
         IQueryable<Domain.Entities.WatchlistItem> query,
-        SearchTextMatch match)
+        LibraryPageRequest request)
     {
-        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
-        var matchingTvShows = LibrarySearchTitleFilter.MatchingTvShowIds(dbContext, match);
+        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
+        var matchingTvShows = LibrarySearchTitleFilter.MatchingTvShowIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
 
         return query.Where(item =>
             (item.MovieId != null && matchingMovies.Contains(item.MovieId.Value))
@@ -559,18 +577,27 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
     private IQueryable<Domain.Entities.WatchedMovie> ApplyWatchedMovieTitleFilter(
         IQueryable<Domain.Entities.WatchedMovie> query,
-        SearchTextMatch match)
+        LibraryPageRequest request)
     {
-        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
+        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
         return query.Where(watchedMovie => matchingMovies.Contains(watchedMovie.MovieId));
     }
 
     private IQueryable<Domain.Entities.Favorite> ApplyFavoriteTitleFilter(
         IQueryable<Domain.Entities.Favorite> query,
-        SearchTextMatch match)
+        LibraryPageRequest request)
     {
-        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
-        var matchingTvShows = LibrarySearchTitleFilter.MatchingTvShowIds(dbContext, match);
+        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
+        var matchingTvShows = LibrarySearchTitleFilter.MatchingTvShowIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
 
         return query.Where(favorite =>
             (favorite.MovieId != null && matchingMovies.Contains(favorite.MovieId.Value))

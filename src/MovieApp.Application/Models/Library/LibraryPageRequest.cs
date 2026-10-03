@@ -9,4 +9,5 @@ public sealed record LibraryPageRequest(
     int FetchLimit,
     LibraryKeysetCursor? AfterCursor,
     bool ExecuteCount,
-    SearchTextMatch TitleMatch = default);
+    SearchTextMatch TitleMatch = default,
+    string? TitleMatchContentLocale = null);
