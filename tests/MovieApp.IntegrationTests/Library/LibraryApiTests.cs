@@ -8,9 +8,11 @@ using MovieApp.Contracts.Movies;
 using MovieApp.Contracts.TvShows;
 using MovieApp.Contracts.WatchHistory;
 using MovieApp.Contracts.Watchlists;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Infrastructure.Persistence.Repositories;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.IntegrationTests.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -158,6 +160,26 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         Assert.Single(payload.Items);
         Assert.Equal(interstellarId, payload.Items[0].Id);
         Assert.Contains("Inter", payload.Items[0].Title, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LibrarySearchMatchesIndexedLocalizedAliasTitles()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var movieId = await SeedMovieWithTurkishSearchAliasAsync();
+        var matrixId = await SeedMovieBySearchQueryAsync("matrix");
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{matrixId}", token);
+
+        var categoryFiltered = await GetLibraryAsync("/api/library?category=liked&q=islik", token);
+        Assert.Single(categoryFiltered.Items);
+        Assert.Equal(movieId, categoryFiltered.Items[0].Id);
+
+        var hubSearch = await GetLibraryAsync("/api/library/search?q=donersen&page=1&pageSize=24", token);
+        Assert.Single(hubSearch.Items);
+        Assert.Equal(movieId, hubSearch.Items[0].Id);
     }
 
     [Fact]
@@ -542,6 +564,46 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     private async Task<Guid> SeedMovieAsync()
     {
         return await SeedMovieBySearchQueryAsync("Interstellar");
+    }
+
+    private async Task<Guid> SeedMovieWithTurkishSearchAliasAsync()
+    {
+        await using var scope = fixture.Factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var movieId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var utcNow = DateTime.UtcNow;
+
+        dbContext.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Whistle If You Come Back",
+            OriginalTitle = "Original EN",
+            ReleaseDate = DateOnly.FromDateTime(utcNow),
+            VoteAverage = 7.5m,
+            VoteCount = 120,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var synchronizer = new ContentSearchTitleSynchronizer(dbContext);
+        await synchronizer.SyncFromProviderDetailAsync(
+            CatalogContentType.Movie,
+            movieId,
+            "Whistle If You Come Back",
+            "Original EN",
+            [
+                new ProviderSearchTitleEntry(
+                    "Dönersen Islık Çal",
+                    ContentSearchTitleKind.Alternative,
+                    ContentSearchTitleSource.TmdbAlternative,
+                    null,
+                    "TR",
+                    "working"),
+            ],
+            utcNow);
+
+        return movieId;
     }
 
     private async Task<Guid> SeedMovieBySearchQueryAsync(string query)

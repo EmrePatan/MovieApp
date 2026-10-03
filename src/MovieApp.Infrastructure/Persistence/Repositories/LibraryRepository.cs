@@ -31,7 +31,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var tvShows = dbContext.TvShows.AsNoTracking();
         if (!request.TitleMatch.IsEmpty)
         {
-            tvShows = SearchTitleFilter.WhereTvShowTitleContains(tvShows, request.TitleMatch);
+            tvShows = LibrarySearchTitleFilter.WhereTvShowMatches(dbContext, tvShows, request.TitleMatch);
         }
 
         var query = TvShowCompletionQueries.StartedShows(dbContext, userId)
@@ -123,7 +123,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var merged = WatchedUnionRows(userId);
         if (!request.TitleMatch.IsEmpty)
         {
-            merged = LibraryWatchedTitleFilter.WhereTitleContains(merged, request.TitleMatch);
+            merged = LibraryWatchedTitleFilter.WhereTitleContains(dbContext, merged, request.TitleMatch);
         }
 
         var totalCount = request.ExecuteCount
@@ -393,7 +393,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         var rows = CompletedTvShowRows(userId);
         if (!request.TitleMatch.IsEmpty)
         {
-            rows = LibraryWatchedTitleFilter.WhereTitleContains(rows, request.TitleMatch);
+            rows = LibraryWatchedTitleFilter.WhereTitleContains(dbContext, rows, request.TitleMatch);
         }
 
         var totalCount = request.ExecuteCount
@@ -549,55 +549,32 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         IQueryable<Domain.Entities.WatchlistItem> query,
         SearchTextMatch match)
     {
-        var matchingMovies = SearchTitleFilter.WhereMovieTitleContains(dbContext.Movies.AsNoTracking(), match)
-            .Select(movie => movie.Id);
-        var matchingTvShows = SearchTitleFilter.WhereTvShowTitleContains(dbContext.TvShows.AsNoTracking(), match)
-            .Select(tvShow => tvShow.Id);
+        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
+        var matchingTvShows = LibrarySearchTitleFilter.MatchingTvShowIds(dbContext, match);
 
         return query.Where(item =>
             (item.MovieId != null && matchingMovies.Contains(item.MovieId.Value))
             || (item.TvShowId != null && matchingTvShows.Contains(item.TvShowId.Value)));
     }
 
-    private static IQueryable<Domain.Entities.WatchedMovie> ApplyWatchedMovieTitleFilter(
+    private IQueryable<Domain.Entities.WatchedMovie> ApplyWatchedMovieTitleFilter(
         IQueryable<Domain.Entities.WatchedMovie> query,
         SearchTextMatch match)
     {
-        var primary = match.Primary;
-        var turkish = match.TurkishAlternate;
-        return query.Where(watchedMovie =>
-            EF.Functions.ILike(watchedMovie.Movie.Title, $"%{primary}%")
-            || (turkish != null && EF.Functions.ILike(watchedMovie.Movie.Title, $"%{turkish}%"))
-            || (watchedMovie.Movie.OriginalTitle != null
-                && EF.Functions.ILike(watchedMovie.Movie.OriginalTitle, $"%{primary}%"))
-            || (turkish != null
-                && watchedMovie.Movie.OriginalTitle != null
-                && EF.Functions.ILike(watchedMovie.Movie.OriginalTitle, $"%{turkish}%")));
+        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
+        return query.Where(watchedMovie => matchingMovies.Contains(watchedMovie.MovieId));
     }
 
-    private static IQueryable<Domain.Entities.Favorite> ApplyFavoriteTitleFilter(
+    private IQueryable<Domain.Entities.Favorite> ApplyFavoriteTitleFilter(
         IQueryable<Domain.Entities.Favorite> query,
         SearchTextMatch match)
     {
-        var primary = match.Primary;
-        var turkish = match.TurkishAlternate;
+        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
+        var matchingTvShows = LibrarySearchTitleFilter.MatchingTvShowIds(dbContext, match);
+
         return query.Where(favorite =>
-            (favorite.MovieId != null
-                && (EF.Functions.ILike(favorite.Movie!.Title, $"%{primary}%")
-                    || (turkish != null && EF.Functions.ILike(favorite.Movie.Title, $"%{turkish}%"))
-                    || (favorite.Movie.OriginalTitle != null
-                        && EF.Functions.ILike(favorite.Movie.OriginalTitle, $"%{primary}%"))
-                    || (turkish != null
-                        && favorite.Movie.OriginalTitle != null
-                        && EF.Functions.ILike(favorite.Movie.OriginalTitle, $"%{turkish}%"))))
-            || (favorite.TvShowId != null
-                && (EF.Functions.ILike(favorite.TvShow!.Title, $"%{primary}%")
-                    || (turkish != null && EF.Functions.ILike(favorite.TvShow.Title, $"%{turkish}%"))
-                    || (favorite.TvShow.OriginalTitle != null
-                        && EF.Functions.ILike(favorite.TvShow.OriginalTitle, $"%{primary}%"))
-                    || (turkish != null
-                        && favorite.TvShow.OriginalTitle != null
-                        && EF.Functions.ILike(favorite.TvShow.OriginalTitle, $"%{turkish}%")))));
+            (favorite.MovieId != null && matchingMovies.Contains(favorite.MovieId.Value))
+            || (favorite.TvShowId != null && matchingTvShows.Contains(favorite.TvShowId.Value)));
     }
 
     private static IQueryable<Domain.Entities.Favorite> ApplyFavoriteMediaTypeFilter(

@@ -1,12 +1,13 @@
-using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
-using MovieApp.Domain.Entities;
+using MovieApp.Infrastructure.Persistence;
+using MovieApp.Infrastructure.Persistence.Search;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 internal static class LibraryWatchedTitleFilter
 {
     public static IQueryable<LibraryRepository.WatchedUnionRow> WhereTitleContains(
+        ApplicationDbContext dbContext,
         IQueryable<LibraryRepository.WatchedUnionRow> rows,
         SearchTextMatch match)
     {
@@ -15,14 +16,11 @@ internal static class LibraryWatchedTitleFilter
             return rows;
         }
 
-        var primary = match.Primary;
-        var turkish = match.TurkishAlternate;
+        var matchingMovieIds = LibrarySearchTitleFilter.MatchingMovieIds(dbContext, match);
+        var matchingTvShowIds = LibrarySearchTitleFilter.MatchingTvShowIds(dbContext, match);
+
         return rows.Where(row =>
-            EF.Functions.ILike(row.Title, $"%{primary}%")
-            || (turkish != null && EF.Functions.ILike(row.Title, $"%{turkish}%"))
-            || (row.OriginalTitle != null && EF.Functions.ILike(row.OriginalTitle, $"%{primary}%"))
-            || (turkish != null
-                && row.OriginalTitle != null
-                && EF.Functions.ILike(row.OriginalTitle, $"%{turkish}%")));
+            (row.Type == "movie" && matchingMovieIds.Contains(row.Id))
+            || (row.Type == "tv" && matchingTvShowIds.Contains(row.Id)));
     }
 }
