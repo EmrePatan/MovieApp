@@ -22,6 +22,7 @@ internal static class SearchCatalogContentQuery
         var primary = match.Primary;
         var turkish = match.TurkishAlternate;
         var folded = match.Folded;
+        var indexedTitles = IndexedTitlesInLibraryLanguageScope(dbContext, libraryTitleScope);
 
         return query.Where(movie =>
             (EF.Functions.ILike(movie.Title, "%" + primary + "%")
@@ -29,10 +30,9 @@ internal static class SearchCatalogContentQuery
                 || (movie.OriginalTitle != null
                     && (EF.Functions.ILike(movie.OriginalTitle, "%" + primary + "%")
                         || (turkish != null && EF.Functions.ILike(movie.OriginalTitle, "%" + turkish + "%")))))
-            || dbContext.ContentSearchTitles.Any(row =>
+            || indexedTitles.Any(row =>
                 row.ContentType == CatalogContentType.Movie
                 && row.ContentId == movie.Id
-                && IndexedTitleMatchesLibraryLanguageScope(row, libraryTitleScope)
                 && (EF.Functions.ILike(row.Title, "%" + primary + "%")
                     || (turkish != null && EF.Functions.ILike(row.Title, "%" + turkish + "%"))
                     || EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%"))));
@@ -52,6 +52,7 @@ internal static class SearchCatalogContentQuery
         var primary = match.Primary;
         var turkish = match.TurkishAlternate;
         var folded = match.Folded;
+        var indexedTitles = IndexedTitlesInLibraryLanguageScope(dbContext, libraryTitleScope);
 
         return query.Where(tvShow =>
             (EF.Functions.ILike(tvShow.Title, "%" + primary + "%")
@@ -59,47 +60,40 @@ internal static class SearchCatalogContentQuery
                 || (tvShow.OriginalTitle != null
                     && (EF.Functions.ILike(tvShow.OriginalTitle, "%" + primary + "%")
                         || (turkish != null && EF.Functions.ILike(tvShow.OriginalTitle, "%" + turkish + "%")))))
-            || dbContext.ContentSearchTitles.Any(row =>
+            || indexedTitles.Any(row =>
                 row.ContentType == CatalogContentType.Tv
                 && row.ContentId == tvShow.Id
-                && IndexedTitleMatchesLibraryLanguageScope(row, libraryTitleScope)
                 && (EF.Functions.ILike(row.Title, "%" + primary + "%")
                     || (turkish != null && EF.Functions.ILike(row.Title, "%" + turkish + "%"))
                     || EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%"))));
     }
 
-    private static bool IndexedTitleMatchesLibraryLanguageScope(
-        ContentSearchTitle row,
+    private static IQueryable<ContentSearchTitle> IndexedTitlesInLibraryLanguageScope(
+        ApplicationDbContext dbContext,
         LibrarySearchTitleLanguageScope? libraryTitleScope)
     {
         if (libraryTitleScope is null)
         {
-            return true;
+            return dbContext.ContentSearchTitles;
         }
 
-        if (row.TitleKind == ContentSearchTitleKind.Canonical
-            || row.TitleKind == ContentSearchTitleKind.Original)
-        {
-            return true;
-        }
+        var primaryLanguage = libraryTitleScope.PrimaryLanguageCode;
+        var includeEnglish = libraryTitleScope.IncludeEnglishLanguage;
+        var primaryRegion = libraryTitleScope.PrimaryRegionCode ?? string.Empty;
+        var matchCountry = primaryRegion.Length > 0;
+        var englishLanguage = LibrarySearchTitleLanguageScope.EnglishLanguageCode;
 
-        if (!string.IsNullOrEmpty(row.LanguageCode))
-        {
-            if (string.Equals(row.LanguageCode, libraryTitleScope.PrimaryLanguageCode, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return libraryTitleScope.IncludeEnglishLanguage
-                && string.Equals(
-                    row.LanguageCode,
-                    LibrarySearchTitleLanguageScope.EnglishLanguageCode,
-                    StringComparison.OrdinalIgnoreCase);
-        }
-
-        return !string.IsNullOrEmpty(row.CountryCode)
-            && !string.IsNullOrEmpty(libraryTitleScope.PrimaryRegionCode)
-            && string.Equals(row.CountryCode, libraryTitleScope.PrimaryRegionCode, StringComparison.OrdinalIgnoreCase);
+        return dbContext.ContentSearchTitles.Where(row =>
+            row.TitleKind == ContentSearchTitleKind.Canonical
+            || row.TitleKind == ContentSearchTitleKind.Original
+            || ((row.LanguageCode != null && row.LanguageCode != "")
+                && (EF.Functions.ILike(row.LanguageCode, primaryLanguage)
+                    || (includeEnglish && EF.Functions.ILike(row.LanguageCode, englishLanguage))))
+            || (matchCountry
+                && (row.LanguageCode == null || row.LanguageCode == "")
+                && row.CountryCode != null
+                && row.CountryCode != ""
+                && EF.Functions.ILike(row.CountryCode, primaryRegion)));
     }
 
     public static IQueryable<SearchItemProjection> ProjectMoviesWithRelevance(
