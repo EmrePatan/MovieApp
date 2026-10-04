@@ -2,11 +2,13 @@ namespace MovieApp.Application.Models.Changes;
 
 public sealed record TmdbChangesTargetRefreshResult(
     TmdbChangesTargetRefreshOutcome Outcome,
-    IReadOnlyList<TmdbChangesHydratedSeasonCacheTarget> HydratedSeasons)
+    IReadOnlyList<TmdbChangesHydratedSeasonCacheTarget> HydratedSeasons,
+    bool ProviderReturnedUsableGenres = false)
 {
     public static TmdbChangesTargetRefreshResult Refreshed(
-        IReadOnlyList<TmdbChangesHydratedSeasonCacheTarget> hydratedSeasons) =>
-        new(TmdbChangesTargetRefreshOutcome.Refreshed, hydratedSeasons);
+        IReadOnlyList<TmdbChangesHydratedSeasonCacheTarget> hydratedSeasons,
+        bool providerReturnedUsableGenres = false) =>
+        new(TmdbChangesTargetRefreshOutcome.Refreshed, hydratedSeasons, providerReturnedUsableGenres);
 
     public static TmdbChangesTargetRefreshResult SkippedUnavailable() =>
         new(TmdbChangesTargetRefreshOutcome.SkippedUnavailable, []);

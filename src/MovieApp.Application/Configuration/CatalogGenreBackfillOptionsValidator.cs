@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Options;
 
 namespace MovieApp.Application.Configuration;
-
 public sealed class CatalogGenreBackfillOptionsValidator : IValidateOptions<CatalogGenreBackfillOptions>
 {
     private const int MinimumBatchSize = 1;
@@ -43,6 +42,21 @@ public sealed class CatalogGenreBackfillOptionsValidator : IValidateOptions<Cata
         if (string.IsNullOrWhiteSpace(options.RecurringCron))
         {
             failures.Add("CatalogGenreBackfill:RecurringCron must not be empty.");
+        }
+
+        if (options.ProviderEmptyGenresRetryHours < 1 || options.ProviderEmptyGenresRetryHours > 720)
+        {
+            failures.Add("CatalogGenreBackfill:ProviderEmptyGenresRetryHours must be between 1 and 720.");
+        }
+
+        if (options.ProviderUnavailableRetryHours < 1 || options.ProviderUnavailableRetryHours > 168)
+        {
+            failures.Add("CatalogGenreBackfill:ProviderUnavailableRetryHours must be between 1 and 168.");
+        }
+
+        if (options.TransientFailureRetryMinutes < 1 || options.TransientFailureRetryMinutes > 1440)
+        {
+            failures.Add("CatalogGenreBackfill:TransientFailureRetryMinutes must be between 1 and 1440.");
         }
 
         return failures.Count == 0

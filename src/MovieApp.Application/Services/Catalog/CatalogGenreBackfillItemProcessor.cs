@@ -1,10 +1,13 @@
 using System.Globalization;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Models.Changes;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.MovieChanges;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Catalog;
 
@@ -13,7 +16,8 @@ public sealed class CatalogGenreBackfillItemProcessor(
     ITvShowRepository tvShowRepository,
     ITvShowDataProvider tvShowDataProvider,
     ICatalogProviderUpsertService catalogProviderUpsertService,
-    ICatalogGenreBackfillRepository backfillRepository) : ICatalogGenreBackfillItemProcessor
+    ICatalogGenreBackfillRepository backfillRepository,
+    IOptions<CatalogGenreBackfillOptions> options) : ICatalogGenreBackfillItemProcessor
 {
     public async Task<CatalogGenreBackfillItemOutcome> ProcessAsync(
         CatalogGenreBackfillCandidate candidate,
@@ -38,6 +42,10 @@ public sealed class CatalogGenreBackfillItemProcessor(
     {
         if (await backfillRepository.MovieHasGenresAsync(candidate.CatalogId, cancellationToken))
         {
+            await backfillRepository.ClearRepairAttemptAsync(
+                CatalogContentType.Movie,
+                candidate.CatalogId,
+                cancellationToken);
             return CatalogGenreBackfillItemOutcome.Skipped;
         }
 
@@ -48,17 +56,49 @@ public sealed class CatalogGenreBackfillItemProcessor(
         if (refreshResult.Outcome is TmdbChangesTargetRefreshOutcome.SkippedNotFound or
             TmdbChangesTargetRefreshOutcome.SkippedUnavailable)
         {
-            return CatalogGenreBackfillItemOutcome.Skipped;
+            await RecordRepairAttemptAsync(
+                CatalogContentType.Movie,
+                candidate.CatalogId,
+                CatalogGenreRepairAttemptOutcome.ProviderUnavailable,
+                cancellationToken);
+            return CatalogGenreBackfillItemOutcome.SkippedUnavailable;
         }
 
         if (refreshResult.Outcome == TmdbChangesTargetRefreshOutcome.Failed)
         {
+            await RecordRepairAttemptAsync(
+                CatalogContentType.Movie,
+                candidate.CatalogId,
+                CatalogGenreRepairAttemptOutcome.FailedTransient,
+                cancellationToken);
             return CatalogGenreBackfillItemOutcome.Failed;
         }
 
-        return await backfillRepository.MovieHasGenresAsync(candidate.CatalogId, cancellationToken)
-            ? CatalogGenreBackfillItemOutcome.Succeeded
-            : CatalogGenreBackfillItemOutcome.Unrepairable;
+        if (await backfillRepository.MovieHasGenresAsync(candidate.CatalogId, cancellationToken))
+        {
+            await backfillRepository.ClearRepairAttemptAsync(
+                CatalogContentType.Movie,
+                candidate.CatalogId,
+                cancellationToken);
+            return CatalogGenreBackfillItemOutcome.Succeeded;
+        }
+
+        if (refreshResult.ProviderReturnedUsableGenres)
+        {
+            await RecordRepairAttemptAsync(
+                CatalogContentType.Movie,
+                candidate.CatalogId,
+                CatalogGenreRepairAttemptOutcome.FailedTransient,
+                cancellationToken);
+            return CatalogGenreBackfillItemOutcome.Failed;
+        }
+
+        await RecordRepairAttemptAsync(
+            CatalogContentType.Movie,
+            candidate.CatalogId,
+            CatalogGenreRepairAttemptOutcome.ProviderNoUsableGenres,
+            cancellationToken);
+        return CatalogGenreBackfillItemOutcome.Unrepairable;
     }
 
     private async Task<CatalogGenreBackfillItemOutcome> ProcessTvShowAsync(
@@ -67,6 +107,10 @@ public sealed class CatalogGenreBackfillItemProcessor(
     {
         if (await backfillRepository.TvShowHasGenresAsync(candidate.CatalogId, cancellationToken))
         {
+            await backfillRepository.ClearRepairAttemptAsync(
+                CatalogContentType.Tv,
+                candidate.CatalogId,
+                cancellationToken);
             return CatalogGenreBackfillItemOutcome.Skipped;
         }
 
@@ -83,7 +127,12 @@ public sealed class CatalogGenreBackfillItemProcessor(
 
         if (providerDetails is null)
         {
-            return CatalogGenreBackfillItemOutcome.Skipped;
+            await RecordRepairAttemptAsync(
+                CatalogContentType.Tv,
+                candidate.CatalogId,
+                CatalogGenreRepairAttemptOutcome.ProviderUnavailable,
+                cancellationToken);
+            return CatalogGenreBackfillItemOutcome.SkippedUnavailable;
         }
 
         await catalogProviderUpsertService.UpsertTvShowFromProviderAsync(
@@ -91,8 +140,51 @@ public sealed class CatalogGenreBackfillItemProcessor(
             enrichKeywords: false,
             cancellationToken);
 
-        return await backfillRepository.TvShowHasGenresAsync(candidate.CatalogId, cancellationToken)
-            ? CatalogGenreBackfillItemOutcome.Succeeded
-            : CatalogGenreBackfillItemOutcome.Unrepairable;
+        if (await backfillRepository.TvShowHasGenresAsync(candidate.CatalogId, cancellationToken))
+        {
+            await backfillRepository.ClearRepairAttemptAsync(
+                CatalogContentType.Tv,
+                candidate.CatalogId,
+                cancellationToken);
+            return CatalogGenreBackfillItemOutcome.Succeeded;
+        }
+
+        if (CatalogProviderGenreNames.ContainsUsableGenreNames(providerDetails.Genres))
+        {
+            await RecordRepairAttemptAsync(
+                CatalogContentType.Tv,
+                candidate.CatalogId,
+                CatalogGenreRepairAttemptOutcome.FailedTransient,
+                cancellationToken);
+            return CatalogGenreBackfillItemOutcome.Failed;
+        }
+
+        await RecordRepairAttemptAsync(
+            CatalogContentType.Tv,
+            candidate.CatalogId,
+            CatalogGenreRepairAttemptOutcome.ProviderNoUsableGenres,
+            cancellationToken);
+        return CatalogGenreBackfillItemOutcome.Unrepairable;
+    }
+
+    private Task RecordRepairAttemptAsync(
+        CatalogContentType contentType,
+        Guid catalogId,
+        CatalogGenreRepairAttemptOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        var attemptedAtUtc = DateTime.UtcNow;
+        var nextEligibleAtUtc = CatalogGenreBackfillRetryPolicy.CalculateNextEligibleAtUtc(
+            outcome,
+            attemptedAtUtc,
+            options.Value);
+
+        return backfillRepository.UpsertRepairAttemptAsync(
+            contentType,
+            catalogId,
+            outcome,
+            attemptedAtUtc,
+            nextEligibleAtUtc,
+            cancellationToken);
     }
 }

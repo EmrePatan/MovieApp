@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Catalog;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Catalog;
 
@@ -120,6 +121,7 @@ public sealed class CatalogGenreBackfillService(
             catch
             {
                 outcome = CatalogGenreBackfillItemOutcome.Failed;
+                await RecordTransientFailureAsync(candidate, cancellationToken);
             }
             finally
             {
@@ -128,7 +130,9 @@ public sealed class CatalogGenreBackfillService(
 
             UpdateCounters(ref succeeded, ref unrepairable, ref failed, ref skipped, outcome);
 
-            if (outcome is CatalogGenreBackfillItemOutcome.Failed or CatalogGenreBackfillItemOutcome.Unrepairable)
+            if (outcome is CatalogGenreBackfillItemOutcome.Failed
+                or CatalogGenreBackfillItemOutcome.Unrepairable
+                or CatalogGenreBackfillItemOutcome.SkippedUnavailable)
             {
                 runExcludeIds.Add(candidate.CatalogId);
             }
@@ -238,8 +242,51 @@ public sealed class CatalogGenreBackfillService(
                 Interlocked.Increment(ref failed);
                 break;
             case CatalogGenreBackfillItemOutcome.Skipped:
+            case CatalogGenreBackfillItemOutcome.SkippedUnavailable:
                 Interlocked.Increment(ref skipped);
                 break;
         }
+    }
+
+    private async Task RecordTransientFailureAsync(
+        CatalogGenreBackfillCandidate candidate,
+        CancellationToken cancellationToken)
+    {
+        if (!TryMapContentType(candidate.ContentType, out var contentType))
+        {
+            return;
+        }
+
+        var attemptedAtUtc = DateTime.UtcNow;
+        var nextEligibleAtUtc = CatalogGenreBackfillRetryPolicy.CalculateNextEligibleAtUtc(
+            CatalogGenreRepairAttemptOutcome.FailedTransient,
+            attemptedAtUtc,
+            options.Value);
+
+        await backfillRepository.UpsertRepairAttemptAsync(
+            contentType,
+            candidate.CatalogId,
+            CatalogGenreRepairAttemptOutcome.FailedTransient,
+            attemptedAtUtc,
+            nextEligibleAtUtc,
+            cancellationToken);
+    }
+
+    private static bool TryMapContentType(string contentType, out CatalogContentType mappedContentType)
+    {
+        if (contentType == "movie")
+        {
+            mappedContentType = CatalogContentType.Movie;
+            return true;
+        }
+
+        if (contentType == "tv")
+        {
+            mappedContentType = CatalogContentType.Tv;
+            return true;
+        }
+
+        mappedContentType = default;
+        return false;
     }
 }

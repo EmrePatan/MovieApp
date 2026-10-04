@@ -5,5 +5,6 @@ public enum CatalogGenreBackfillItemOutcome
     Succeeded,
     Unrepairable,
     Failed,
-    Skipped
+    Skipped,
+    SkippedUnavailable
 }

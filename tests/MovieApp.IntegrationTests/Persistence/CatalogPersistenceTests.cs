@@ -108,6 +108,63 @@ public sealed class CatalogPersistenceTests
         await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
     }
 
+    [Fact]
+    public async Task DuplicateCatalogGenreRepairAttemptCatalogIdContentTypeIsRejected()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+
+        var catalogId = Guid.NewGuid();
+        context.CatalogGenreRepairAttempts.Add(CreateRepairAttempt(catalogId, CatalogContentType.Movie));
+        await context.SaveChangesAsync();
+
+        context.CatalogGenreRepairAttempts.Add(CreateRepairAttempt(catalogId, CatalogContentType.Movie));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public void SelectMovieCandidatesQueryTranslatesBackoffFilterToServer()
+    {
+        using var context = CatalogPersistenceFixture.CreateContext();
+        var utcNow = DateTime.UtcNow;
+
+        var query = context.Movies
+            .AsNoTracking()
+            .Where(movie => movie.TmdbId != null &&
+                            movie.TmdbId > 0 &&
+                            !context.MovieGenres.Any(link => link.MovieId == movie.Id) &&
+                            !context.CatalogGenreRepairAttempts.Any(attempt =>
+                                attempt.CatalogId == movie.Id &&
+                                attempt.ContentType == CatalogContentType.Movie &&
+                                attempt.NextEligibleAtUtc > utcNow));
+
+        var sql = query
+            .OrderByDescending(movie => movie.VoteCount)
+            .ThenBy(movie => movie.Id)
+            .Take(10)
+            .Select(movie => movie.Id)
+            .ToQueryString();
+
+        Assert.Contains("catalog_genre_repair_attempts", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NextEligibleAtUtc", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("AsEnumerable", sql, StringComparison.Ordinal);
+    }
+
+    private static CatalogGenreRepairAttempt CreateRepairAttempt(Guid catalogId, CatalogContentType contentType)
+    {
+        var utcNow = DateTime.UtcNow;
+
+        return new CatalogGenreRepairAttempt
+        {
+            Id = Guid.NewGuid(),
+            CatalogId = catalogId,
+            ContentType = contentType,
+            LastAttemptAtUtc = utcNow,
+            LastOutcome = CatalogGenreRepairAttemptOutcome.ProviderNoUsableGenres,
+            NextEligibleAtUtc = utcNow.AddDays(7)
+        };
+    }
+
     private static Movie CreateMovie(int tmdbId)
     {
         var utcNow = DateTime.UtcNow;

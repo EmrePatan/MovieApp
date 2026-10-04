@@ -53,6 +53,77 @@ public sealed class CatalogGenreBackfillRepositoryTests
     }
 
     [Fact]
+    public async Task SelectMovieCandidatesAsyncExcludesRowsInsideRetryWindow()
+    {
+        await using var context = CreateContext();
+        var blocked = await SeedMovieAsync(context, 601, withGenres: false, voteCount: 1000);
+        var eligible = await SeedMovieAsync(context, 602, withGenres: false, voteCount: 100);
+        context.CatalogGenreRepairAttempts.Add(new CatalogGenreRepairAttempt
+        {
+            Id = Guid.NewGuid(),
+            CatalogId = blocked,
+            ContentType = CatalogContentType.Movie,
+            LastAttemptAtUtc = DateTime.UtcNow,
+            LastOutcome = CatalogGenreRepairAttemptOutcome.ProviderNoUsableGenres,
+            NextEligibleAtUtc = DateTime.UtcNow.AddDays(1)
+        });
+        await context.SaveChangesAsync();
+        var repository = new CatalogGenreBackfillRepository(context);
+
+        var candidates = await repository.SelectMovieCandidatesAsync(10, []);
+
+        Assert.Single(candidates);
+        Assert.Equal(eligible, candidates[0].CatalogId);
+    }
+
+    [Fact]
+    public async Task SelectMovieCandidatesAsyncIncludesRowsAfterRetryWindowExpires()
+    {
+        await using var context = CreateContext();
+        var movieId = await SeedMovieAsync(context, 701, withGenres: false, voteCount: 1000);
+        context.CatalogGenreRepairAttempts.Add(new CatalogGenreRepairAttempt
+        {
+            Id = Guid.NewGuid(),
+            CatalogId = movieId,
+            ContentType = CatalogContentType.Movie,
+            LastAttemptAtUtc = DateTime.UtcNow.AddDays(-8),
+            LastOutcome = CatalogGenreRepairAttemptOutcome.ProviderNoUsableGenres,
+            NextEligibleAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        });
+        await context.SaveChangesAsync();
+        var repository = new CatalogGenreBackfillRepository(context);
+
+        var candidates = await repository.SelectMovieCandidatesAsync(10, []);
+
+        Assert.Single(candidates);
+        Assert.Equal(movieId, candidates[0].CatalogId);
+    }
+
+    [Fact]
+    public async Task SelectTvShowCandidatesAsyncExcludesRowsInsideRetryWindow()
+    {
+        await using var context = CreateContext();
+        var blocked = await SeedTvShowAsync(context, 801, withGenres: false, voteCount: 1000);
+        var eligible = await SeedTvShowAsync(context, 802, withGenres: false, voteCount: 100);
+        context.CatalogGenreRepairAttempts.Add(new CatalogGenreRepairAttempt
+        {
+            Id = Guid.NewGuid(),
+            CatalogId = blocked,
+            ContentType = CatalogContentType.Tv,
+            LastAttemptAtUtc = DateTime.UtcNow,
+            LastOutcome = CatalogGenreRepairAttemptOutcome.ProviderUnavailable,
+            NextEligibleAtUtc = DateTime.UtcNow.AddHours(12)
+        });
+        await context.SaveChangesAsync();
+        var repository = new CatalogGenreBackfillRepository(context);
+
+        var candidates = await repository.SelectTvShowCandidatesAsync(10, []);
+
+        Assert.Single(candidates);
+        Assert.Equal(eligible, candidates[0].CatalogId);
+    }
+
+    [Fact]
     public async Task GetCoverageAsyncCountsGenreLessTitles()
     {
         await using var context = CreateContext();
@@ -81,7 +152,8 @@ public sealed class CatalogGenreBackfillRepositoryTests
     private static async Task<Guid> SeedMovieAsync(
         ApplicationDbContext context,
         int? tmdbId,
-        bool withGenres)
+        bool withGenres,
+        int voteCount = 0)
     {
         var movieId = Guid.NewGuid();
         context.Movies.Add(new Movie
@@ -89,6 +161,7 @@ public sealed class CatalogGenreBackfillRepositoryTests
             Id = movieId,
             TmdbId = tmdbId,
             Title = $"Movie {tmdbId}",
+            VoteCount = voteCount,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
@@ -116,7 +189,8 @@ public sealed class CatalogGenreBackfillRepositoryTests
     private static async Task<Guid> SeedTvShowAsync(
         ApplicationDbContext context,
         int? tmdbId,
-        bool withGenres)
+        bool withGenres,
+        int voteCount = 0)
     {
         var tvShowId = Guid.NewGuid();
         context.TvShows.Add(new TvShow
@@ -124,6 +198,7 @@ public sealed class CatalogGenreBackfillRepositoryTests
             Id = tvShowId,
             TmdbId = tmdbId,
             Title = $"Tv {tmdbId}",
+            VoteCount = voteCount,
             Status = TvShowStatus.Ended,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

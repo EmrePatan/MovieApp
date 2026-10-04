@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Changes;
+using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.Keywords;
 
 namespace MovieApp.Application.Services.MovieChanges;
@@ -35,11 +36,13 @@ public sealed class MovieChangesTargetedRefreshService(
             return TmdbChangesTargetRefreshResult.SkippedUnavailable();
         }
 
+        var providerReturnedUsableGenres = CatalogProviderGenreNames.ContainsUsableGenreNames(providerDetails.Genres);
+
         await catalogProviderUpsertService.UpsertMovieFromProviderAsync(
             providerDetails,
             enrichKeywords: true,
             cancellationToken);
 
-        return TmdbChangesTargetRefreshResult.Refreshed([]);
+        return TmdbChangesTargetRefreshResult.Refreshed([], providerReturnedUsableGenres);
     }
 }

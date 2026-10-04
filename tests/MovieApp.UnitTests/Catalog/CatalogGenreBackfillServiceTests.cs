@@ -5,6 +5,8 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Catalog;
 using MovieApp.Application.Services.Catalog;
 
+using MovieApp.Domain.Enums;
+
 namespace MovieApp.UnitTests.Catalog;
 
 public sealed class CatalogGenreBackfillServiceTests
@@ -205,6 +207,21 @@ public sealed class CatalogGenreBackfillServiceTests
 
         public Task<CatalogGenreBackfillCoverageSnapshot> GetCoverageAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new CatalogGenreBackfillCoverageSnapshot(movieCount, tvCount, movieCount, tvCount));
+
+        public Task UpsertRepairAttemptAsync(
+            CatalogContentType contentType,
+            Guid catalogId,
+            CatalogGenreRepairAttemptOutcome outcome,
+            DateTime attemptedAtUtc,
+            DateTime nextEligibleAtUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task ClearRepairAttemptAsync(
+            CatalogContentType contentType,
+            Guid catalogId,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         public bool MovieHasGenres(Guid movieId) =>
             _movies.TryGetValue(movieId, out var state) && (state.AlreadyHasGenres || state.Repaired);
