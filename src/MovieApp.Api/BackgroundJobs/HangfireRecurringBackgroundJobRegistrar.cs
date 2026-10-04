@@ -196,7 +196,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             recurringJobManager.AddOrUpdate<HotThisWeekTrendingRefreshJob>(
                 RecurringJobIds.HotThisWeekTrendingRefresh,
                 job => job.ExecuteAsync(),
-                Cron.HourInterval(6),
+                hotThisWeekTrendingRefreshOptions.Value.RefreshCron,
                 UtcOptions);
         }
         else

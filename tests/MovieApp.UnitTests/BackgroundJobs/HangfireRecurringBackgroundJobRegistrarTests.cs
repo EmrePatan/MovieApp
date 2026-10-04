@@ -48,7 +48,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             entry => entry.JobId == RecurringJobIds.NotificationInboxCleanup && entry.Cron == Cron.Daily());
         Assert.Contains(
             manager.AddedOrUpdated,
-            entry => entry.JobId == RecurringJobIds.HotThisWeekTrendingRefresh && entry.Cron == Cron.HourInterval(6));
+            entry => entry.JobId == RecurringJobIds.HotThisWeekTrendingRefresh && entry.Cron == "0 * * * *");
     }
 
     [Fact]
@@ -220,7 +220,8 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
             }),
             Options.Create(new HotThisWeekTrendingRefreshOptions
             {
-                Enabled = true
+                Enabled = true,
+                RefreshCron = "0 * * * *"
             }),
             Options.Create(new KeywordCatalogStatisticsOptions
             {

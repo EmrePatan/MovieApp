@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
+using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
@@ -45,7 +46,14 @@ public sealed class HotThisWeekService(
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var cacheKey = HotThisWeekCacheKeys.CreateWeeklyPool(contentLocale);
+        var snapshotStopwatch = Stopwatch.StartNew();
+        var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
+        snapshotStopwatch.Stop();
+        var snapshotLookupMs = snapshotStopwatch.ElapsedMilliseconds;
+
+        var cacheKey = HotThisWeekCacheKeys.CreateWeeklyPool(
+            contentLocale,
+            HotThisWeekCacheKeys.ResolveSnapshotGeneration(snapshot));
         var cached = await cacheService.GetAsync<HotThisWeekCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -60,23 +68,24 @@ public sealed class HotThisWeekService(
 
         return await loadCoordinator.RunInFlightAsync(
             cacheKey,
-            () => LoadAndCacheWeeklyPoolAsync(contentLocale, cacheKey, cancellationToken));
+            () => LoadAndCacheWeeklyPoolAsync(
+                contentLocale,
+                cacheKey,
+                snapshot,
+                snapshotLookupMs,
+                cancellationToken));
     }
 
     private async Task<IReadOnlyList<SearchItem>> LoadAndCacheWeeklyPoolAsync(
         string contentLocale,
         string cacheKey,
+        HotThisWeekTrendingSnapshotEntry? snapshot,
+        long snapshotLookupMs,
         CancellationToken cancellationToken)
     {
         var totalStopwatch = Stopwatch.StartNew();
-        long snapshotLookupMs = 0;
         long trendingFallbackMs = 0;
         string role;
-
-        var snapshotStopwatch = Stopwatch.StartNew();
-        var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
-        snapshotStopwatch.Stop();
-        snapshotLookupMs = snapshotStopwatch.ElapsedMilliseconds;
 
         IReadOnlyList<SearchItem> items;
         DateTimeOffset? snapshotRefreshedAt = null;

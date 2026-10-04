@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
@@ -119,7 +120,7 @@ public sealed class HotThisWeekServiceTests
         Assert.Equal(first.Select(item => item.Id), second.Select(item => item.Id));
         Assert.Equal(2, cache.GetCount);
         Assert.Equal(1, cache.SetCount);
-        Assert.Equal(1, snapshot.GetSnapshotCallCount);
+        Assert.Equal(2, snapshot.GetSnapshotCallCount);
     }
 
     [Fact]
@@ -209,7 +210,7 @@ public sealed class HotThisWeekServiceTests
 
             return Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(new HotThisWeekTrendingSnapshotEntry
             {
-                RefreshedAt = DateTimeOffset.UtcNow.AddHours(-1),
+                RefreshedAt = DateTimeOffset.Parse("2026-10-01T12:00:00Z", CultureInfo.InvariantCulture),
                 Items = items,
             });
         }
