@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Search;
+using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -16,10 +17,17 @@ public sealed class ContentSearchTitleProviderEnrichmentRepository(ApplicationDb
             tvShow => tvShow.TmdbId != null || tvShow.TvdbId != null || tvShow.ImdbId != null,
             cancellationToken);
 
+    public Task<int> CountMoviesNeedingSearchTitleMetadataRepairAsync(CancellationToken cancellationToken = default) =>
+        MoviesNeedingSearchTitleMetadataRepair(dbContext.Movies.AsNoTracking()).CountAsync(cancellationToken);
+
+    public Task<int> CountTvShowsNeedingSearchTitleMetadataRepairAsync(CancellationToken cancellationToken = default) =>
+        TvShowsNeedingSearchTitleMetadataRepair(dbContext.TvShows.AsNoTracking()).CountAsync(cancellationToken);
+
     public async Task<IReadOnlyList<ContentSearchTitleEnrichmentCandidate>> SelectMovieCandidatesAsync(
         Guid? startAfterId,
         Guid? onlyMovieId,
         int take,
+        bool needsSearchTitleMetadataRepairOnly = false,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.Movies.AsNoTracking().Where(movie => movie.TmdbId != null);
@@ -28,9 +36,17 @@ public sealed class ContentSearchTitleProviderEnrichmentRepository(ApplicationDb
         {
             query = query.Where(movie => movie.Id == onlyMovieId.Value);
         }
-        else if (startAfterId is not null)
+        else
         {
-            query = query.Where(movie => movie.Id.CompareTo(startAfterId.Value) > 0);
+            if (needsSearchTitleMetadataRepairOnly)
+            {
+                query = MoviesNeedingSearchTitleMetadataRepair(query);
+            }
+
+            if (startAfterId is not null)
+            {
+                query = query.Where(movie => movie.Id.CompareTo(startAfterId.Value) > 0);
+            }
         }
 
         return await query
@@ -48,6 +64,7 @@ public sealed class ContentSearchTitleProviderEnrichmentRepository(ApplicationDb
         Guid? startAfterId,
         Guid? onlyTvShowId,
         int take,
+        bool needsSearchTitleMetadataRepairOnly = false,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.TvShows.AsNoTracking()
@@ -57,9 +74,17 @@ public sealed class ContentSearchTitleProviderEnrichmentRepository(ApplicationDb
         {
             query = query.Where(tvShow => tvShow.Id == onlyTvShowId.Value);
         }
-        else if (startAfterId is not null)
+        else
         {
-            query = query.Where(tvShow => tvShow.Id.CompareTo(startAfterId.Value) > 0);
+            if (needsSearchTitleMetadataRepairOnly)
+            {
+                query = TvShowsNeedingSearchTitleMetadataRepair(query);
+            }
+
+            if (startAfterId is not null)
+            {
+                query = query.Where(tvShow => tvShow.Id.CompareTo(startAfterId.Value) > 0);
+            }
         }
 
         var rows = await query
@@ -109,4 +134,30 @@ public sealed class ContentSearchTitleProviderEnrichmentRepository(ApplicationDb
 
         return movie?.Id;
     }
+
+    private IQueryable<Movie> MoviesNeedingSearchTitleMetadataRepair(IQueryable<Movie> query) =>
+        query.Where(movie => dbContext.ContentSearchTitles.Any(row =>
+            row.ContentType == CatalogContentType.Movie
+            && row.ContentId == movie.Id
+            && ((row.TitleKind == ContentSearchTitleKind.Translation
+                    && row.Source == ContentSearchTitleSource.TmdbTranslation
+                    && (row.LanguageCode == null || row.LanguageCode == string.Empty)
+                    && row.ProviderUpdatedAtUtc == null)
+                || (row.TitleKind == ContentSearchTitleKind.Alternative
+                    && row.Source == ContentSearchTitleSource.TmdbAlternative
+                    && (row.CountryCode == null || row.CountryCode == string.Empty)
+                    && row.ProviderUpdatedAtUtc == null))));
+
+    private IQueryable<TvShow> TvShowsNeedingSearchTitleMetadataRepair(IQueryable<TvShow> query) =>
+        query.Where(tvShow => dbContext.ContentSearchTitles.Any(row =>
+            row.ContentType == CatalogContentType.Tv
+            && row.ContentId == tvShow.Id
+            && ((row.TitleKind == ContentSearchTitleKind.Translation
+                    && row.Source == ContentSearchTitleSource.TmdbTranslation
+                    && (row.LanguageCode == null || row.LanguageCode == string.Empty)
+                    && row.ProviderUpdatedAtUtc == null)
+                || (row.TitleKind == ContentSearchTitleKind.Alternative
+                    && row.Source == ContentSearchTitleSource.TmdbAlternative
+                    && (row.CountryCode == null || row.CountryCode == string.Empty)
+                    && row.ProviderUpdatedAtUtc == null))));
 }

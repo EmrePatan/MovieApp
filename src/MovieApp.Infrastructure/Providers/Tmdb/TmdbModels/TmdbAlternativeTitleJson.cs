@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
+
 namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 internal sealed class TmdbAlternativeTitleJson
 {
+    [JsonPropertyName("iso_3166_1")]
     public string? Iso31661 { get; set; }
 
     public string? Title { get; set; }

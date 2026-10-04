@@ -21,8 +21,17 @@ public sealed class TmdbOriginCountryMapperTests
     public void NormalizeCountryCode_RejectsInvalidValues()
     {
         Assert.Null(TmdbOriginCountryMapper.NormalizeCountryCode("USA"));
+        Assert.Null(TmdbOriginCountryMapper.NormalizeCountryCode("UNITED KINGDOM"));
         Assert.Null(TmdbOriginCountryMapper.NormalizeCountryCode(""));
         Assert.Equal("US", TmdbOriginCountryMapper.NormalizeCountryCode("us"));
+    }
+
+    [Fact]
+    public void NormalizeLanguageCode_AcceptsIso6391Only()
+    {
+        Assert.Equal("tr", TmdbOriginCountryMapper.NormalizeLanguageCode("TR"));
+        Assert.Null(TmdbOriginCountryMapper.NormalizeLanguageCode("eng"));
+        Assert.Null(TmdbOriginCountryMapper.NormalizeLanguageCode("English"));
     }
 
     [Fact]

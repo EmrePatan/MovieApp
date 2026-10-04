@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MovieApp.Infrastructure.Providers.Tmdb.TmdbModels;
 
 internal sealed class TmdbTranslationsAppendJson
@@ -7,8 +9,10 @@ internal sealed class TmdbTranslationsAppendJson
 
 internal sealed class TmdbTranslationJson
 {
+    [JsonPropertyName("iso_3166_1")]
     public string? Iso31661 { get; set; }
 
+    [JsonPropertyName("iso_639_1")]
     public string? Iso6391 { get; set; }
 
     public TmdbMovieTranslationDataJson? Data { get; set; }
@@ -21,8 +25,10 @@ internal sealed class TmdbMovieTranslationDataJson
 
 internal sealed class TmdbTvTranslationJson
 {
+    [JsonPropertyName("iso_3166_1")]
     public string? Iso31661 { get; set; }
 
+    [JsonPropertyName("iso_639_1")]
     public string? Iso6391 { get; set; }
 
     public TmdbTvTranslationDataJson? Data { get; set; }

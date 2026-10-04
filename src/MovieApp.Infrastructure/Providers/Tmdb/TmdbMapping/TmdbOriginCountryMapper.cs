@@ -59,4 +59,20 @@ internal static class TmdbOriginCountryMapper
 
         return trimmed.ToUpperInvariant();
     }
+
+    internal static string? NormalizeLanguageCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length != 2 || !char.IsLetter(trimmed[0]) || !char.IsLetter(trimmed[1]))
+        {
+            return null;
+        }
+
+        return trimmed.ToLowerInvariant();
+    }
 }

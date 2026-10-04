@@ -8,16 +8,22 @@ public interface IContentSearchTitleProviderEnrichmentRepository
 
     Task<int> CountTvShowsWithResolvableProviderIdAsync(CancellationToken cancellationToken = default);
 
+    Task<int> CountMoviesNeedingSearchTitleMetadataRepairAsync(CancellationToken cancellationToken = default);
+
+    Task<int> CountTvShowsNeedingSearchTitleMetadataRepairAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<ContentSearchTitleEnrichmentCandidate>> SelectMovieCandidatesAsync(
         Guid? startAfterId,
         Guid? onlyMovieId,
         int take,
+        bool needsSearchTitleMetadataRepairOnly = false,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ContentSearchTitleEnrichmentCandidate>> SelectTvShowCandidatesAsync(
         Guid? startAfterId,
         Guid? onlyTvShowId,
         int take,
+        bool needsSearchTitleMetadataRepairOnly = false,
         CancellationToken cancellationToken = default);
 
     Task<Guid?> FindMovieIdByTitleAsync(string title, CancellationToken cancellationToken = default);

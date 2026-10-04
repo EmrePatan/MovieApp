@@ -25,4 +25,9 @@ public sealed record ContentSearchTitleProviderEnrichmentRequest
     public int MaxItems { get; init; } = DefaultMaxItems;
 
     public int DelayBetweenRequestsMs { get; init; } = DefaultDelayBetweenRequestsMs;
+
+    /// <summary>
+    /// When true, only catalog items with at least one provider search title row missing ISO metadata are selected.
+    /// </summary>
+    public bool NeedsSearchTitleMetadataRepairOnly { get; init; }
 }

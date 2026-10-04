@@ -63,6 +63,7 @@ public sealed class ContentSearchTitleProviderEnrichmentService(
                     lastMovieId,
                     request.OnlyMovieId,
                     take,
+                    request.NeedsSearchTitleMetadataRepairOnly,
                     cancellationToken);
 
                 if (batch.Count == 0 && !enrichTv)
@@ -104,6 +105,7 @@ public sealed class ContentSearchTitleProviderEnrichmentService(
                 lastTvId,
                 request.OnlyTvShowId,
                 Math.Min(batchSize, maxItems - processed),
+                request.NeedsSearchTitleMetadataRepairOnly,
                 cancellationToken);
 
             if (batch.Count == 0)

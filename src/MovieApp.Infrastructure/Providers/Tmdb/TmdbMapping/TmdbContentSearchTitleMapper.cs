@@ -105,10 +105,10 @@ internal static class TmdbContentSearchTitleMapper
     }
 
     private static string? NormalizeCountry(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+        TmdbOriginCountryMapper.NormalizeCountryCode(value);
 
     private static string? NormalizeLanguage(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
+        TmdbOriginCountryMapper.NormalizeLanguageCode(value);
 
     private static string? NormalizeOptional(string? value)
     {

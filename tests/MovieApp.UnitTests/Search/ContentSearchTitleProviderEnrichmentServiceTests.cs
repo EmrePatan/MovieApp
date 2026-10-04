@@ -182,10 +182,17 @@ public sealed class ContentSearchTitleProviderEnrichmentServiceTests
         public Task<int> CountTvShowsWithResolvableProviderIdAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(tvShows.Count);
 
+        public Task<int> CountMoviesNeedingSearchTitleMetadataRepairAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<int> CountTvShowsNeedingSearchTitleMetadataRepairAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
         public Task<IReadOnlyList<ContentSearchTitleEnrichmentCandidate>> SelectMovieCandidatesAsync(
             Guid? startAfterId,
             Guid? onlyMovieId,
             int take,
+            bool needsSearchTitleMetadataRepairOnly = false,
             CancellationToken cancellationToken = default)
         {
             IEnumerable<ContentSearchTitleEnrichmentCandidate> query = movies;
@@ -205,6 +212,7 @@ public sealed class ContentSearchTitleProviderEnrichmentServiceTests
             Guid? startAfterId,
             Guid? onlyTvShowId,
             int take,
+            bool needsSearchTitleMetadataRepairOnly = false,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ContentSearchTitleEnrichmentCandidate>>(tvShows.Take(take).ToList());
 

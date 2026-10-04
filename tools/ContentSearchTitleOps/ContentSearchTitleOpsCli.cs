@@ -193,6 +193,12 @@ internal static class ContentSearchTitleOpsCli
         var movieCount = await repository.CountMoviesWithTmdbIdAsync();
         var tvCount = await repository.CountTvShowsWithResolvableProviderIdAsync();
         Console.WriteLine($"eligible_movies={movieCount} eligible_tv={tvCount}");
+        if (options.NeedsSearchTitleMetadataRepair)
+        {
+            var movieRepair = await repository.CountMoviesNeedingSearchTitleMetadataRepairAsync();
+            var tvRepair = await repository.CountTvShowsNeedingSearchTitleMetadataRepairAsync();
+            Console.WriteLine($"needs_repair_movies={movieRepair} needs_repair_tv={tvRepair}");
+        }
 
         var request = new ContentSearchTitleProviderEnrichmentRequest
         {
@@ -204,6 +210,7 @@ internal static class ContentSearchTitleOpsCli
             BatchSize = options.BatchSize ?? ContentSearchTitleProviderEnrichmentRequest.DefaultBatchSize,
             MaxItems = options.MaxItems ?? ContentSearchTitleProviderEnrichmentRequest.DefaultMaxItems,
             DelayBetweenRequestsMs = options.DelayMs ?? ContentSearchTitleProviderEnrichmentRequest.DefaultDelayBetweenRequestsMs,
+            NeedsSearchTitleMetadataRepairOnly = options.NeedsSearchTitleMetadataRepair,
         };
 
         var result = await enrichment.EnrichFromProviderAsync(request);
@@ -395,6 +402,7 @@ internal static class ContentSearchTitleOpsCli
               canonical-backfill
               enrich [--max-items N] [--batch-size N] [--delay-ms N]
                      [--content-type movie|tv]
+                     [--needs-search-title-metadata-repair]
                      [--only-movie-id GUID] [--only-tv-id GUID]
                      [--after-movie-id GUID] [--after-tv-id GUID]
               find-movie --title "Whistle If You Come Back"
@@ -456,6 +464,9 @@ internal static class ContentSearchTitleOpsCli
                 case "--query" when index + 1 < args.Length:
                     options.Queries.Add(args[++index]);
                     break;
+                case "--needs-search-title-metadata-repair":
+                    options.NeedsSearchTitleMetadataRepair = true;
+                    break;
             }
         }
 
@@ -485,5 +496,7 @@ internal static class ContentSearchTitleOpsCli
         public int? TmdbId { get; set; }
 
         public List<string> Queries { get; } = [];
+
+        public bool NeedsSearchTitleMetadataRepair { get; set; }
     }
 }

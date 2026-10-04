@@ -112,6 +112,75 @@ public sealed class ContentSearchTitleIntegrationTests
     }
 
     [Fact]
+    public async Task SyncFromProviderDetailUpdatesLanguageAndCountryOnExistingProviderRows()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var synchronizer = new ContentSearchTitleSynchronizer(context);
+        var movieId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Pan's Labyrinth",
+            OriginalTitle = "El laberinto del fauno",
+            ReleaseDate = DateOnly.FromDateTime(utcNow),
+            VoteAverage = 7,
+            VoteCount = 10,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        await context.SaveChangesAsync();
+
+        await synchronizer.SyncFromProviderDetailAsync(
+            CatalogContentType.Movie,
+            movieId,
+            "Pan's Labyrinth",
+            "El laberinto del fauno",
+            [
+                new ProviderSearchTitleEntry(
+                    "Pan'ın Labirenti",
+                    ContentSearchTitleKind.Translation,
+                    ContentSearchTitleSource.TmdbTranslation,
+                    null,
+                    null,
+                    null),
+            ],
+            utcNow);
+
+        var before = await context.ContentSearchTitles
+            .SingleAsync(row =>
+                row.ContentId == movieId
+                && row.Source == ContentSearchTitleSource.TmdbTranslation);
+        Assert.Null(before.LanguageCode);
+        Assert.Null(before.CountryCode);
+
+        await synchronizer.SyncFromProviderDetailAsync(
+            CatalogContentType.Movie,
+            movieId,
+            "Pan's Labyrinth",
+            "El laberinto del fauno",
+            [
+                new ProviderSearchTitleEntry(
+                    "Pan'ın Labirenti",
+                    ContentSearchTitleKind.Translation,
+                    ContentSearchTitleSource.TmdbTranslation,
+                    "tr",
+                    "TR",
+                    null),
+            ],
+            utcNow);
+
+        var after = await context.ContentSearchTitles
+            .SingleAsync(row =>
+                row.ContentId == movieId
+                && row.Source == ContentSearchTitleSource.TmdbTranslation);
+        Assert.Equal("tr", after.LanguageCode);
+        Assert.Equal("TR", after.CountryCode);
+        Assert.Equal(before.Id, after.Id);
+    }
+
+    [Fact]
     public async Task SyncFromProviderDetailRemovesStaleProviderAliases()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
