@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
@@ -14,6 +15,7 @@ namespace MovieApp.Application.Services.Search;
 
 public sealed class TrendingWeekListService(
     ITrendingWeekDataProvider trendingWeekDataProvider,
+    IHotThisWeekTrendingSnapshotService trendingSnapshotService,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     ICacheService cacheService,
@@ -32,7 +34,8 @@ public sealed class TrendingWeekListService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = DiscoveryTrendingCacheKeys.CreateWeekList(criteria, contentLocale);
+        var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
+        var cacheKey = DiscoveryTrendingCacheKeys.CreateWeekList(criteria, contentLocale, snapshot);
         var today = TrendingWeekReleaseEligibility.TodayUtc();
         var cached = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
@@ -40,6 +43,60 @@ public sealed class TrendingWeekListService(
             return ReapplyReleaseEligibility(cached.Result, today);
         }
 
+        PaginatedResult<SearchItem> result;
+        if (snapshot is { Items.Count: > 0 })
+        {
+            result = await BuildFromSnapshotAsync(snapshot, criteria, contentLocale, today, cancellationToken);
+        }
+        else
+        {
+            result = await BuildFromProviderAsync(criteria, contentLocale, today, cancellationToken);
+        }
+
+        await cacheService.SetAsync(
+            cacheKey,
+            new DiscoveryCacheEntry { Result = result },
+            CacheTtl,
+            cancellationToken);
+
+        return result;
+    }
+
+    private async Task<PaginatedResult<SearchItem>> BuildFromSnapshotAsync(
+        HotThisWeekTrendingSnapshotEntry snapshot,
+        DiscoveryCriteria criteria,
+        string contentLocale,
+        DateOnly today,
+        CancellationToken cancellationToken)
+    {
+        var released = TrendingWeekReleaseEligibility.FilterReleased(snapshot.Items, today);
+        var filtered = HotThisWeekService.FilterAndTake(released, criteria.Type, released.Count);
+        var totalCount = filtered.Count;
+        var skip = Math.Max(0, (criteria.Page - 1) * criteria.PageSize);
+        var pageItems = filtered.Skip(skip).Take(criteria.PageSize).ToList();
+        var totalPages = totalCount == 0
+            ? 0
+            : (int)Math.Ceiling(totalCount / (double)criteria.PageSize);
+
+        var canonical = new PaginatedResult<SearchItem>(
+            pageItems,
+            criteria.Page,
+            criteria.PageSize,
+            totalCount,
+            totalPages);
+
+        return await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+            canonical,
+            contentLocale,
+            cancellationToken);
+    }
+
+    private async Task<PaginatedResult<SearchItem>> BuildFromProviderAsync(
+        DiscoveryCriteria criteria,
+        string contentLocale,
+        DateOnly today,
+        CancellationToken cancellationToken)
+    {
         TrendingWeekPage providerPage;
         try
         {
@@ -79,18 +136,11 @@ public sealed class TrendingWeekListService(
             criteria.PageSize,
             Math.Max(0, providerPage.TotalResults),
             Math.Max(0, providerPage.TotalPages));
-        var result = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
+
+        return await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
             canonical,
             contentLocale,
             cancellationToken);
-
-        await cacheService.SetAsync(
-            cacheKey,
-            new DiscoveryCacheEntry { Result = result },
-            CacheTtl,
-            cancellationToken);
-
-        return result;
     }
 
     private static bool MatchesType(string mediaType, SearchContentType type) =>

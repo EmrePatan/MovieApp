@@ -7,6 +7,7 @@ using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 using MovieApp.Application.Mapping;
@@ -26,7 +27,8 @@ public sealed class DiscoverBrowseService(
     ILogger<DiscoverBrowseService> logger,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher,
     CatalogSearchItemDisplayTitleEnricher catalogSearchItemDisplayTitleEnricher,
-    ITrendingWeekListService trendingWeekListService) : IDiscoverBrowseService
+    ITrendingWeekListService trendingWeekListService,
+    IHotThisWeekTrendingSnapshotService trendingSnapshotService) : IDiscoverBrowseService
 {
     private static readonly TimeSpan BrowseCacheTtl = TimeSpan.FromMinutes(10);
 
@@ -41,7 +43,8 @@ public sealed class DiscoverBrowseService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
-        var cacheKey = DiscoveryBrowseCacheKeys.Create(criteria, contentLocale);
+        var weeklySnapshotGeneration = await ResolveWeeklyTrendingSnapshotGenerationAsync(criteria, cancellationToken);
+        var cacheKey = DiscoveryBrowseCacheKeys.Create(criteria, contentLocale, weeklySnapshotGeneration);
         var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cachedEntry is not null)
         {
@@ -120,6 +123,20 @@ public sealed class DiscoverBrowseService(
             cancellationToken);
 
         return result;
+    }
+
+    private async Task<long> ResolveWeeklyTrendingSnapshotGenerationAsync(
+        DiscoverBrowseCriteria criteria,
+        CancellationToken cancellationToken)
+    {
+        if (criteria.Mode != DiscoverBrowseMode.Trending ||
+            DiscoverBrowseValidator.HasSupplementalFilters(criteria))
+        {
+            return 0;
+        }
+
+        var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
+        return HotThisWeekCacheKeys.ResolveSnapshotGeneration(snapshot);
     }
 
     private async Task<DiscoverProviderCriteria> BuildProviderCriteriaAsync(

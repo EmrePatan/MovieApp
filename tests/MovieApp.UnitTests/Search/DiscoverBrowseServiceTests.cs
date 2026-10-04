@@ -6,6 +6,8 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
+using MovieApp.Application.Models.Home;
+using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.UnitTests.Persistence;
@@ -125,7 +127,8 @@ public sealed class DiscoverBrowseServiceTests
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
-            new FakeTrendingWeekListService());
+            new FakeTrendingWeekListService(),
+            EmptyTrendingSnapshotService.Instance);
 
         var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -270,7 +273,8 @@ public sealed class DiscoverBrowseServiceTests
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
-            weekList);
+            weekList,
+            EmptyTrendingSnapshotService.Instance);
 
         var result = await service.BrowseAsync(
             CreateCriteria(SearchContentType.All, DiscoverBrowseMode.Trending, page: 2, pageSize: 20),
@@ -341,7 +345,8 @@ public sealed class DiscoverBrowseServiceTests
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
-            new FakeTrendingWeekListService());
+            new FakeTrendingWeekListService(),
+            EmptyTrendingSnapshotService.Instance);
 
         var keywordId = Guid.NewGuid();
         var criteria = new DiscoverBrowseCriteria(
@@ -390,7 +395,8 @@ public sealed class DiscoverBrowseServiceTests
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
-            new FakeTrendingWeekListService());
+            new FakeTrendingWeekListService(),
+            EmptyTrendingSnapshotService.Instance);
 
         var criteria = new DiscoverBrowseCriteria(
             DiscoverBrowseMode.Trending,
@@ -465,7 +471,8 @@ public sealed class DiscoverBrowseServiceTests
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
-            new FakeTrendingWeekListService());
+            new FakeTrendingWeekListService(),
+            EmptyTrendingSnapshotService.Instance);
 
     private static DiscoverBrowseCriteria CreateCriteria(
         SearchContentType type,
@@ -679,6 +686,17 @@ public sealed class DiscoverBrowseServiceTests
                 1,
                 1));
         }
+    }
+
+    private sealed class EmptyTrendingSnapshotService : IHotThisWeekTrendingSnapshotService
+    {
+        public static EmptyTrendingSnapshotService Instance { get; } = new();
+
+        public Task<HotThisWeekTrendingSnapshotEntry?> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(null);
+
+        public Task<HotThisWeekTrendingSnapshotRefreshResult> RefreshAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeTrendingWeekListService : ITrendingWeekListService

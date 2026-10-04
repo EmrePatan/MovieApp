@@ -80,6 +80,7 @@ public sealed class TrendingWeekReleasePresentationTests
 
         var listService = new TrendingWeekListService(
             new FakeTrendingWeekDataProvider(providerItems),
+            new EmptyTrendingSnapshotService(),
             new NoOpMovieRepository(),
             new NoOpTvShowRepository(),
             new NoOpCacheService(),
@@ -217,6 +218,15 @@ public sealed class TrendingWeekReleasePresentationTests
         public Task<MovieApp.Domain.Entities.TvShow> UpsertFromProviderAsync(
             MovieApp.Application.Models.Providers.TvShowProviderDetails details,
             CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class EmptyTrendingSnapshotService : IHotThisWeekTrendingSnapshotService
+    {
+        public Task<HotThisWeekTrendingSnapshotEntry?> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<HotThisWeekTrendingSnapshotEntry?>(null);
+
+        public Task<HotThisWeekTrendingSnapshotRefreshResult> RefreshAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 

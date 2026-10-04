@@ -11,9 +11,20 @@ public static class DiscoveryBrowseCacheKeys
     public const string Prefix = "discovery-browse:";
 
     public static string Create(DiscoverBrowseCriteria criteria, string contentLocale) =>
-        ContentLocaleCacheKeySegment.Append(Create(criteria), contentLocale);
+        Create(criteria, contentLocale, weeklyTrendingSnapshotGeneration: 0);
 
-    public static string Create(DiscoverBrowseCriteria criteria)
+    public static string Create(
+        DiscoverBrowseCriteria criteria,
+        string contentLocale,
+        long weeklyTrendingSnapshotGeneration) =>
+        ContentLocaleCacheKeySegment.Append(
+            Create(criteria, weeklyTrendingSnapshotGeneration),
+            contentLocale);
+
+    public static string Create(DiscoverBrowseCriteria criteria) =>
+        Create(criteria, weeklyTrendingSnapshotGeneration: 0);
+
+    public static string Create(DiscoverBrowseCriteria criteria, long weeklyTrendingSnapshotGeneration)
     {
         var effectiveSort = DiscoverBrowseValidator.GetEffectiveSort(criteria);
         var genreFingerprint = CreateGenreFingerprint(criteria.GenreIds);
@@ -35,7 +46,11 @@ public static class DiscoveryBrowseCacheKeys
             ? "none"
             : string.Join('-', criteria.TvStatuses.OrderBy(status => status));
 
-        return $"{Prefix}{criteria.Mode}:{criteria.Type}:{criteria.Page}:{criteria.PageSize}:{genreFingerprint}:{year}:{yearFrom}:{yearTo}:{minRating}:{minVoteCount}:{minRuntime}:{maxRuntime}:{language}:{originCountry}:{keywordFingerprint}:{tvStatusSegment}:{effectiveSort}";
+        var snapshotSegment = criteria.Mode == DiscoverBrowseMode.Trending
+            ? $":snap-{weeklyTrendingSnapshotGeneration}"
+            : string.Empty;
+
+        return $"{Prefix}{criteria.Mode}:{criteria.Type}:{criteria.Page}:{criteria.PageSize}:{genreFingerprint}:{year}:{yearFrom}:{yearTo}:{minRating}:{minVoteCount}:{minRuntime}:{maxRuntime}:{language}:{originCountry}:{keywordFingerprint}:{tvStatusSegment}:{effectiveSort}{snapshotSegment}";
     }
 
     public static string CreateGenreFingerprint(IReadOnlyList<Guid> genreIds) =>
