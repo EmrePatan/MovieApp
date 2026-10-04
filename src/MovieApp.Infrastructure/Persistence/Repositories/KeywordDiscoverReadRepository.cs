@@ -124,7 +124,8 @@ public sealed class KeywordDiscoverReadRepository(ApplicationDbContext dbContext
             .AsNoTracking()
             .Where(reference =>
                 reference.Provider == KeywordProvider.Tmdb &&
-                keywordIds.Contains(reference.KeywordId))
+                keywordIds.Contains(reference.KeywordId) &&
+                reference.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded)
             .Select(reference => new { reference.KeywordId, reference.ExternalId })
             .ToListAsync(cancellationToken);
 
@@ -153,6 +154,7 @@ public sealed class KeywordDiscoverReadRepository(ApplicationDbContext dbContext
             .AsNoTracking()
             .Where(keyword =>
                 unresolvedIds.Contains(keyword.Id) &&
+                keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 keyword.TmdbKeywordId != null &&
                 keyword.TmdbKeywordId > 0)
             .Select(keyword => new { keyword.Id, keyword.TmdbKeywordId })

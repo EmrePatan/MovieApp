@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
+using MovieApp.Infrastructure.Persistence.Keywords;
 using Npgsql;
 
 namespace MovieApp.Infrastructure.Persistence.Recommendations;
@@ -25,22 +26,30 @@ public sealed class KeywordDisplayProfileLoader(
         movie_counts AS (
           SELECT mk."KeywordId" AS keyword_id, COUNT(DISTINCT mk."MovieId")::int AS movie_count
           FROM movie_keywords mk
+          INNER JOIN keywords kw ON kw."Id" = mk."KeywordId"
+            AND kw."ClassificationStatus" <> @excludedClassificationStatus
           INNER JOIN eligible_movies em ON em."Id" = mk."MovieId"
           GROUP BY mk."KeywordId"
         ),
         tv_counts AS (
           SELECT tk."KeywordId" AS keyword_id, COUNT(DISTINCT tk."TvShowId")::int AS tv_count
           FROM tv_show_keywords tk
+          INNER JOIN keywords kw ON kw."Id" = tk."KeywordId"
+            AND kw."ClassificationStatus" <> @excludedClassificationStatus
           INNER JOIN eligible_tv et ON et."Id" = tk."TvShowId"
           GROUP BY tk."KeywordId"
         ),
         all_pairs AS (
           SELECT DISTINCT mk."KeywordId" AS keyword_id, mk."MovieId" AS doc_id
           FROM movie_keywords mk
+          INNER JOIN keywords kw ON kw."Id" = mk."KeywordId"
+            AND kw."ClassificationStatus" <> @excludedClassificationStatus
           INNER JOIN eligible_movies em ON em."Id" = mk."MovieId"
           UNION
           SELECT DISTINCT tk."KeywordId" AS keyword_id, tk."TvShowId" AS doc_id
           FROM tv_show_keywords tk
+          INNER JOIN keywords kw ON kw."Id" = tk."KeywordId"
+            AND kw."ClassificationStatus" <> @excludedClassificationStatus
           INNER JOIN eligible_tv et ON et."Id" = tk."TvShowId"
         ),
         df AS (
@@ -98,6 +107,7 @@ public sealed class KeywordDisplayProfileLoader(
         await using (var command = new NpgsqlCommand(AggregateCoverageSql, connection))
         {
             command.Parameters.AddWithValue("minVote", minVote);
+            command.Parameters.AddWithValue("excludedClassificationStatus", KeywordClassificationSql.ExcludedStatus);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {

@@ -906,6 +906,7 @@ internal sealed class UserRecommendationContextLoader(
                         genre.Genre.Name))
                     .ToList(),
                 movie.MovieKeywords
+                    .Where(join => join.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
                     .Select(keyword => new UserRecommendationContextModels.KeywordRow(movie.Id, keyword.KeywordId))
                     .ToList(),
                 movie.MoviePeople
@@ -951,6 +952,7 @@ internal sealed class UserRecommendationContextLoader(
                         genre.Genre.Name))
                     .ToList(),
                 tvShow.TvShowKeywords
+                    .Where(join => join.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
                     .Select(keyword => new UserRecommendationContextModels.KeywordRow(tvShow.Id, keyword.KeywordId))
                     .ToList(),
                 tvShow.TvShowPeople

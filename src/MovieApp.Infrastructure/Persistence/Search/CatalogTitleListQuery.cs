@@ -140,7 +140,9 @@ internal static class CatalogTitleListQuery
         {
             var keywordIds = criteria.KeywordIds;
             query = query.Where(movie =>
-                movie.MovieKeywords.Any(keyword => keywordIds.Contains(keyword.KeywordId)));
+                movie.MovieKeywords.Any(join =>
+                    keywordIds.Contains(join.KeywordId) &&
+                    join.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded));
         }
 
         return query;
@@ -210,7 +212,9 @@ internal static class CatalogTitleListQuery
         {
             var keywordIds = criteria.KeywordIds;
             query = query.Where(tvShow =>
-                tvShow.TvShowKeywords.Any(keyword => keywordIds.Contains(keyword.KeywordId)));
+                tvShow.TvShowKeywords.Any(join =>
+                    keywordIds.Contains(join.KeywordId) &&
+                    join.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded));
         }
 
         if (criteria.TvStatuses.Count > 0)

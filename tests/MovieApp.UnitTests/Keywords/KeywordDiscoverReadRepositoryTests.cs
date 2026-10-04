@@ -9,6 +9,35 @@ namespace MovieApp.UnitTests.Keywords;
 public sealed class KeywordDiscoverReadRepositoryTests
 {
     [Fact]
+    public async Task ResolveTmdbKeywordIdsAsyncIgnoresExcludedKeywords()
+    {
+        await using var context = CreateContext();
+        var excludedKeyword = new Keyword
+        {
+            Id = Guid.NewGuid(),
+            Name = "spam metadata",
+            ClassificationStatus = KeywordClassificationStatus.Excluded,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        context.Keywords.Add(excludedKeyword);
+        context.KeywordExternalReferences.Add(new KeywordExternalReference
+        {
+            KeywordId = excludedKeyword.Id,
+            Provider = KeywordProvider.Tmdb,
+            ExternalId = "9999",
+            ExternalName = "spam metadata",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await context.SaveChangesAsync();
+
+        var repository = new KeywordDiscoverReadRepository(context);
+        var resolved = await repository.ResolveTmdbKeywordIdsAsync([excludedKeyword.Id]);
+
+        Assert.Empty(resolved);
+    }
+
+    [Fact]
     public async Task ResolveTmdbKeywordIdsAsyncUsesTmdbExternalReferences()
     {
         await using var context = CreateContext();

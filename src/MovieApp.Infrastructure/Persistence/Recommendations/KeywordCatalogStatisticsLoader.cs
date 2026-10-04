@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Keywords;
 using MovieApp.Application.Configuration;
+using MovieApp.Infrastructure.Persistence.Keywords;
 using Npgsql;
 
 namespace MovieApp.Infrastructure.Persistence.Recommendations;
@@ -37,11 +38,15 @@ public sealed class KeywordCatalogStatisticsLoader(
         movie_pairs AS (
           SELECT DISTINCT mk."KeywordId" AS keyword_id, mk."MovieId" AS doc_id
           FROM movie_keywords mk
+          INNER JOIN keywords kw ON kw."Id" = mk."KeywordId"
+            AND kw."ClassificationStatus" <> @excludedClassificationStatus
           INNER JOIN eligible_movies em ON em."Id" = mk."MovieId"
         ),
         tv_pairs AS (
           SELECT DISTINCT tk."KeywordId" AS keyword_id, tk."TvShowId" AS doc_id
           FROM tv_show_keywords tk
+          INNER JOIN keywords kw ON kw."Id" = tk."KeywordId"
+            AND kw."ClassificationStatus" <> @excludedClassificationStatus
           INNER JOIN eligible_tv et ON et."Id" = tk."TvShowId"
         ),
         all_pairs AS (
@@ -83,6 +88,7 @@ public sealed class KeywordCatalogStatisticsLoader(
         await using (var dfCommand = new NpgsqlCommand(AggregateDfSql, connection))
         {
             dfCommand.Parameters.AddWithValue("minVote", minVote);
+            dfCommand.Parameters.AddWithValue("excludedClassificationStatus", KeywordClassificationSql.ExcludedStatus);
             await using var reader = await dfCommand.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {

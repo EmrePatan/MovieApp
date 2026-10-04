@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Domain.Enums;
+using MovieApp.Infrastructure.Persistence.Keywords;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -156,12 +157,15 @@ internal static class KeywordDiscoverSearchQuery
                     ON en."KeywordId" = k."Id"
                     AND en."Locale" = {englishLocale}
                 WHERE
+                    k."ClassificationStatus" <> {KeywordClassificationSql.ExcludedStatus}
+                    AND (
                     k."Name" ILIKE {pattern}
                     OR (k."CanonicalName" IS NOT NULL AND k."CanonicalName" ILIKE {pattern})
                     OR (req."Name" IS NOT NULL AND req."Name" ILIKE {pattern})
                     OR (req."NormalizedName" IS NOT NULL AND req."NormalizedName" ILIKE {normalizedPattern})
                     OR ({includeEnglishSearchMatch} AND en."Name" IS NOT NULL AND en."Name" ILIKE {pattern})
                     OR ({includeEnglishSearchMatch} AND en."NormalizedName" IS NOT NULL AND en."NormalizedName" ILIKE {normalizedPattern})
+                    )
             ) AS ranked
             ORDER BY ranked.rank_score, LOWER(ranked.display_name), ranked.keyword_id
             OFFSET {offset} LIMIT {limit}
@@ -177,8 +181,10 @@ internal static class KeywordDiscoverSearchQuery
     {
         var tmdbKeywords = dbContext.Keywords
             .AsNoTracking()
-            .Where(keyword => keyword.ExternalReferences.Any(reference =>
-                reference.Provider == KeywordProvider.Tmdb));
+            .Where(keyword =>
+                keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
+                keyword.ExternalReferences.Any(reference =>
+                    reference.Provider == KeywordProvider.Tmdb));
 
         var matchingKeywords = isEnglishLocale
             ? tmdbKeywords.Where(keyword =>

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -74,6 +75,38 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
         var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 3);
 
         Assert.Equal(3, keywords.Count);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovieOmitsExcludedKeywords()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 99,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var usable = CreateKeyword("zombie apocalypse", displayable: true, displayRank: 200);
+        usable.ClassificationStatus = KeywordClassificationStatus.Approved;
+        var excluded = CreateKeyword("spam plot sentence", displayable: true, displayRank: 300);
+        excluded.ClassificationStatus = KeywordClassificationStatus.Excluded;
+
+        context.Keywords.AddRange(usable, excluded);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = usable.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = excluded.Id });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Single(keywords);
+        Assert.Equal(usable.Id, keywords[0].Id);
     }
 
     [Fact]

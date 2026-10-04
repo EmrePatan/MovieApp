@@ -492,7 +492,10 @@ public sealed class RecommendationRepository(
                         .Take(MaxCastPeople)
                         .ToList()
                 },
-                tvShow.TvShowKeywords.Select(keyword => keyword.KeywordId).ToList()))
+                tvShow.TvShowKeywords
+                    .Where(join => join.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
+                    .Select(keyword => keyword.KeywordId)
+                    .ToList()))
             .ToListAsync(cancellationToken);
         stopwatch.Stop();
 
@@ -682,7 +685,9 @@ public sealed class RecommendationRepository(
                 var term = name;
                 var branch = dbContext.Keywords
                     .AsNoTracking()
-                    .Where(keyword => EF.Functions.ILike(keyword.Name, term));
+                    .Where(keyword =>
+                        keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded &&
+                        EF.Functions.ILike(keyword.Name, term));
                 union = union is null ? branch : union.Union(branch);
             }
 
@@ -694,6 +699,7 @@ public sealed class RecommendationRepository(
 
         var keywords = await dbContext.Keywords
             .AsNoTracking()
+            .Where(keyword => keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
             .Select(keyword => new { keyword.Id, keyword.Name })
             .ToListAsync(cancellationToken);
         var nameSet = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -887,7 +893,9 @@ public sealed class RecommendationRepository(
 
         var rows = await dbContext.MovieKeywords
             .AsNoTracking()
-            .Where(item => movieIds.Contains(item.MovieId))
+            .Where(item =>
+                movieIds.Contains(item.MovieId) &&
+                item.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
             .Select(item => new { item.MovieId, item.KeywordId })
             .ToListAsync(cancellationToken);
 
@@ -909,7 +917,9 @@ public sealed class RecommendationRepository(
 
         var rows = await dbContext.TvShowKeywords
             .AsNoTracking()
-            .Where(item => tvShowIds.Contains(item.TvShowId))
+            .Where(item =>
+                tvShowIds.Contains(item.TvShowId) &&
+                item.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
             .Select(item => new { item.TvShowId, item.KeywordId })
             .ToListAsync(cancellationToken);
 

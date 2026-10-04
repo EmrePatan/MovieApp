@@ -7,6 +7,7 @@ using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -53,6 +54,7 @@ public sealed class CatalogTitleKeywordReadRepository(
 
         var primaryRows = await movieJoins
             .Where(join =>
+                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 join.Keyword.DisplayProfile != null &&
                 join.Keyword.DisplayProfile.Displayable)
             .OrderByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
@@ -99,6 +101,7 @@ public sealed class CatalogTitleKeywordReadRepository(
 
         var primaryRows = await tvJoins
             .Where(join =>
+                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 join.Keyword.DisplayProfile != null &&
                 join.Keyword.DisplayProfile.Displayable)
             .OrderByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
@@ -146,6 +149,7 @@ public sealed class CatalogTitleKeywordReadRepository(
         var existingIds = summaries.Select(summary => summary.Id).ToList();
         var supplementalRows = await movieJoins
             .Where(join =>
+                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 join.Keyword.DisplayProfile != null &&
                 !join.Keyword.DisplayProfile.Displayable &&
                 !existingIds.Contains(join.KeywordId))
@@ -186,6 +190,7 @@ public sealed class CatalogTitleKeywordReadRepository(
         var existingIds = summaries.Select(summary => summary.Id).ToList();
         var supplementalRows = await tvJoins
             .Where(join =>
+                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 join.Keyword.DisplayProfile != null &&
                 !join.Keyword.DisplayProfile.Displayable &&
                 !existingIds.Contains(join.KeywordId))
