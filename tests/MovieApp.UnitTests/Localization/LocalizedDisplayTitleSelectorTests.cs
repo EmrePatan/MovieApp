@@ -120,6 +120,21 @@ public sealed class LocalizedDisplayTitleSelectorTests
     }
 
     [Fact]
+    public void TurkishLocale_KoreanProduction_UsesEnglishPrimaryAndTurkishSubtitle()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Parasite",
+            "Gisaengchung",
+            "ko",
+            "Parazit",
+            ContentLocaleResolver.TurkishTurkey,
+            primaryOriginCountryCode: "KR");
+
+        Assert.Equal("Parasite", titles.Title);
+        Assert.Equal("Parazit", titles.OriginalTitle);
+    }
+
+    [Fact]
     public void TurkishLocale_ForeignEnglishProduction_UsesCanonicalPrimary()
     {
         var title = LocalizedDisplayTitleSelector.ChoosePrimary(

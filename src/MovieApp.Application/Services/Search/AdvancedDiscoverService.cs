@@ -206,7 +206,7 @@ public sealed class AdvancedDiscoverService(
             var movieIds = await movieRepository.EnsureFromSummariesAsync(
                 ingestResult.Results,
                 cancellationToken);
-            allItems.AddRange(MapMovieResults(searchResult.Results, movieIds));
+            allItems.AddRange(MapMovieResults(ingestResult.Results, movieIds));
 
             if (providerPage >= totalPages || providerResultCount == 0)
             {
@@ -285,7 +285,7 @@ public sealed class AdvancedDiscoverService(
             var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                 ingestResult.Results,
                 cancellationToken);
-            allItems.AddRange(MapTvResults(searchResult.Results, tvIds));
+            allItems.AddRange(MapTvResults(ingestResult.Results, tvIds));
 
             if (providerPage >= totalPages || providerResultCount == 0)
             {

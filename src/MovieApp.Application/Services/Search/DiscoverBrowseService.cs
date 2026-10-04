@@ -52,6 +52,7 @@ public sealed class DiscoverBrowseService(
         }
 
         PaginatedResult<SearchItem> result;
+        var applyDisplayTitleEnrichment = false;
 
         if (criteria.Mode == DiscoverBrowseMode.Trending &&
             !DiscoverBrowseValidator.HasSupplementalFilters(criteria))
@@ -110,11 +111,15 @@ public sealed class DiscoverBrowseService(
                     cancellationToken),
                 _ => await BrowseAllAsync(criteria, contentLocale, cancellationToken)
             };
+                applyDisplayTitleEnrichment = true;
             }
         }
 
         result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
-        result = await catalogSearchItemDisplayTitleEnricher.EnrichAsync(result, contentLocale, cancellationToken);
+        if (applyDisplayTitleEnrichment)
+        {
+            result = await catalogSearchItemDisplayTitleEnricher.EnrichAsync(result, contentLocale, cancellationToken);
+        }
 
         await cacheService.SetAsync(
             cacheKey,
@@ -266,7 +271,7 @@ public sealed class DiscoverBrowseService(
             var movieIds = await movieRepository.EnsureFromSummariesAsync(
                 ingestResult.Results,
                 cancellationToken);
-            items.AddRange(MapMovieResults(searchResult.Results, movieIds));
+            items.AddRange(MapMovieResults(ingestResult.Results, movieIds));
 
             if (providerPage >= totalPages || providerResultCount == 0)
             {
@@ -343,7 +348,7 @@ public sealed class DiscoverBrowseService(
             var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                 ingestResult.Results,
                 cancellationToken);
-            items.AddRange(MapTvResults(searchResult.Results, tvIds));
+            items.AddRange(MapTvResults(ingestResult.Results, tvIds));
 
             if (providerPage >= totalPages || providerResultCount == 0)
             {
@@ -483,12 +488,11 @@ public sealed class DiscoverBrowseService(
             if (!movieExhausted)
             {
                 movieTotalCount = movieSearchResult.TotalCount;
-                var movieDisplay = FilterPosters(criteria.Mode, movieSearchResult.Results);
                 var movieIngest = FilterPosters(criteria.Mode, movieIngestResult.Results);
                 var movieIds = await movieRepository.EnsureFromSummariesAsync(
                     movieIngest,
                     cancellationToken);
-                movieItems.AddRange(MapMovieResults(movieDisplay, movieIds));
+                movieItems.AddRange(MapMovieResults(movieIngest, movieIds));
                 movieExhausted = movieSearchResult.Results.Count == 0 ||
                                  providerPage >= movieSearchResult.TotalPages;
             }
@@ -496,12 +500,11 @@ public sealed class DiscoverBrowseService(
             if (!tvExhausted)
             {
                 tvTotalCount = tvSearchResult.TotalCount;
-                var tvDisplay = FilterPosters(criteria.Mode, tvSearchResult.Results);
                 var tvIngest = FilterPosters(criteria.Mode, tvIngestResult.Results);
                 var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                     tvIngest,
                     cancellationToken);
-                tvItems.AddRange(MapTvResults(tvDisplay, tvIds));
+                tvItems.AddRange(MapTvResults(tvIngest, tvIds));
                 tvExhausted = tvSearchResult.Results.Count == 0 ||
                               providerPage >= tvSearchResult.TotalPages;
             }
