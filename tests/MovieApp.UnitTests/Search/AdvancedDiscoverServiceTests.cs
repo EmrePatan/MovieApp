@@ -80,7 +80,8 @@ public sealed class AdvancedDiscoverServiceTests
             new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<AdvancedDiscoverService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher());
 
         var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.Movie), ContentLocaleResolver.EnglishUnitedStates);
 
@@ -136,7 +137,8 @@ public sealed class AdvancedDiscoverServiceTests
             new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<AdvancedDiscoverService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher());
 
         var criteria = CreateCriteria(SearchContentType.Movie) with { RequiresPoster = true };
         var result = await service.DiscoverAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
@@ -171,7 +173,8 @@ public sealed class AdvancedDiscoverServiceTests
             new FakeKeywordDiscoverReadRepository(),
             cache,
             NullLogger<AdvancedDiscoverService>.Instance,
-            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher());
 
     private static AdvancedDiscoverCriteria CreateCriteria(SearchContentType type) =>
         new(

@@ -28,7 +28,7 @@ public static class LocalizedPosterSelector
             normalizedLanguage,
             SupportedArtworkLanguageKeys.Turkish,
             StringComparison.Ordinal);
-        var isTurkishProduction = LocalizedDisplayTitleSelector.IsTurkishProduction(
+        var isTurkishProduction = ContentProductionHeuristics.IsTurkishProduction(
             originalLanguage,
             primaryOriginCountryCode);
 
@@ -91,7 +91,7 @@ public static class LocalizedPosterSelector
             return true;
         }
 
-        return LocalizedDisplayTitleSelector.IsTurkishProduction(originalLanguage, primaryOriginCountryCode);
+        return ContentProductionHeuristics.IsTurkishProduction(originalLanguage, primaryOriginCountryCode);
     }
 
     private static ProviderImageResult? SelectBestInTier(

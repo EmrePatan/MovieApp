@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.Persistence;
@@ -48,7 +49,7 @@ public sealed class SearchRepositoryIntegrationTests
             null,
             SearchSortOption.TitleAsc,
             1,
-            3));
+            3), ContentLocaleResolver.EnglishUnitedStates);
         var page2 = await repository.SearchAsync(new SearchCriteria(
             "Alpha",
             SearchContentType.Movie,
@@ -58,7 +59,7 @@ public sealed class SearchRepositoryIntegrationTests
             null,
             SearchSortOption.TitleAsc,
             2,
-            3));
+            3), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(6, page1.TotalCount);
         Assert.Equal(3, page1.Items.Count);
@@ -130,7 +131,7 @@ public sealed class SearchRepositoryIntegrationTests
             null,
             SearchSortOption.RatingDesc,
             1,
-            10));
+            10), ContentLocaleResolver.EnglishUnitedStates);
         var secondPage = await repository.SearchAsync(new SearchCriteria(
             "Shared Vote",
             SearchContentType.All,
@@ -140,7 +141,7 @@ public sealed class SearchRepositoryIntegrationTests
             null,
             SearchSortOption.RatingDesc,
             1,
-            10));
+            10), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(
             [movieA, movieB, tvA, tvB],
@@ -166,7 +167,7 @@ public sealed class SearchRepositoryIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            20));
+            20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalCount);

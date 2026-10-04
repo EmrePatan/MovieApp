@@ -8,8 +8,13 @@ public readonly record struct ContentProductionContext(
         new(originalLanguage);
 
     public bool IsTurkishProduction(string? originalTitle = null) =>
-        LocalizedDisplayTitleSelector.IsTurkishProduction(
+        ContentProductionHeuristics.IsTurkishProduction(
             OriginalLanguage,
             PrimaryOriginCountryCode,
             originalTitle);
+
+    public bool MatchesRequestedLocaleRegion(string contentLocale) =>
+        ContentProductionLocaleMatcher.ProductionCountryMatchesRequestedLocale(
+            PrimaryOriginCountryCode,
+            contentLocale);
 }

@@ -184,13 +184,10 @@ public sealed class AutocompleteServiceTests
     {
         public int AutocompleteCount { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default) =>
+        public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PaginatedResult<SearchItem>([], 1, 20, 0, 0));
 
-        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
-            string query,
-            int limit,
-            CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default)
         {
             AutocompleteCount++;
             return Task.FromResult(suggestions);

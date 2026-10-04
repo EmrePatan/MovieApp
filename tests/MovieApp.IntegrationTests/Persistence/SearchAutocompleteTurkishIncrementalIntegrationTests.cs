@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.Persistence;
@@ -45,7 +46,7 @@ public sealed class SearchAutocompleteTurkishIncrementalIntegrationTests
             Options.Create(new TopRatedOptions()),
             NullLogger<SearchRepository>.Instance);
 
-        var suggestions = await repository.AutocompleteAsync(query, 10);
+        var suggestions = await repository.AutocompleteAsync(query, 10, ContentLocaleResolver.TurkishTurkey);
 
         Assert.Contains(suggestions, suggestion => suggestion.Id == movieId);
     }
@@ -80,7 +81,7 @@ public sealed class SearchAutocompleteTurkishIncrementalIntegrationTests
             Options.Create(new TopRatedOptions()),
             NullLogger<SearchRepository>.Instance);
 
-        var suggestions = await repository.AutocompleteAsync(query, 10);
+        var suggestions = await repository.AutocompleteAsync(query, 10, ContentLocaleResolver.TurkishTurkey);
 
         Assert.Contains(suggestions, suggestion => suggestion.Id == movieId);
     }

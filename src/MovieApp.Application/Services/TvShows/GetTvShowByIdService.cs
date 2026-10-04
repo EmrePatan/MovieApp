@@ -200,7 +200,7 @@ public sealed class GetTvShowByIdService(
             return;
         }
 
-        if (!LocalizedDisplayTitleSelector.IsTurkishProduction(
+        if (!ContentProductionHeuristics.IsTurkishProduction(
                 originalLanguage,
                 primaryOriginCountryCode,
                 originalTitle))

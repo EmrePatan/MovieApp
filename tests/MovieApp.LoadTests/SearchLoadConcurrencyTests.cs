@@ -525,7 +525,7 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
 
     public int SearchCount => _searchCount;
 
-    public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, CancellationToken cancellationToken = default)
+    public Task<PaginatedResult<SearchItem>> SearchAsync(SearchCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _searchCount);
 
@@ -547,10 +547,7 @@ internal sealed class LoadTestSearchRepository(int totalCount, bool simulatePost
             Math.Max(1, (int)Math.Ceiling(totalCount / (double)criteria.PageSize))));
     }
 
-    public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
-        string query,
-        int limit,
-        CancellationToken cancellationToken = default) =>
+    public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<SearchSuggestion>>([]);
 
     public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, CancellationToken cancellationToken = default) =>

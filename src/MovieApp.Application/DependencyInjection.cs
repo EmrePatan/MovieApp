@@ -62,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<IDetailLocalizationOverlayService, DetailLocalizationOverlayService>();
         services.AddScoped<ISummaryLocalizationOverlayService, SummaryLocalizationOverlayService>();
         services.AddScoped<SearchItemCatalogMetadataEnricher>();
+        services.AddScoped<CatalogSearchItemDisplayTitleEnricher>();
         services.AddScoped<IContentLocalizedPosterSynchronizer, ContentLocalizedPosterSynchronizer>();
         services.AddScoped<IContentLocalizedPosterBackfillService, ContentLocalizedPosterBackfillService>();
         services.AddScoped<IKeywordLocalizationBackfillService, KeywordLocalizationBackfillService>();

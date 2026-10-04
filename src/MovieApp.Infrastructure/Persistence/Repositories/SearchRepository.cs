@@ -9,6 +9,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Persistence.Search;
 
@@ -24,13 +25,20 @@ public sealed class SearchRepository(
     private static readonly TimeSpan CatalogMeanCacheTtl = TimeSpan.FromMinutes(10);
     public async Task<PaginatedResult<SearchItem>> SearchAsync(
         SearchCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
         var queryMatch = SearchQueryMatch.FromQuery(criteria.Query);
         var normalizedQuery = queryMatch.IsEmpty ? null : queryMatch.Primary;
+        var rankingScope = CatalogSearchTitleLanguageScope.FromContentLocale(contentLocale);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, criteria, queryMatch);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(
+            dbContext,
+            criteria,
+            queryMatch,
+            libraryScope: null,
+            rankingScope);
 
         var page = criteria.Page;
         SearchKeysetCursor? keysetCursor = null;
@@ -122,9 +130,11 @@ public sealed class SearchRepository(
     public async Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
         string query,
         int limit,
+        string contentLocale,
         CancellationToken cancellationToken = default)
     {
         var queryMatch = SearchQueryMatch.FromQuery(query);
+        var rankingScope = CatalogSearchTitleLanguageScope.FromContentLocale(contentLocale);
         var searchCriteria = new SearchCriteria(
             query,
             SearchContentType.All,
@@ -136,7 +146,12 @@ public sealed class SearchRepository(
             1,
             limit);
 
-        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(dbContext, searchCriteria, queryMatch);
+        var combinedQuery = SearchQueryBuilder.BuildCombinedQuery(
+            dbContext,
+            searchCriteria,
+            queryMatch,
+            libraryScope: null,
+            rankingScope);
 
         var projections = await SearchQueryBuilder
             .ApplyRelevanceSort(combinedQuery, queryMatch)
@@ -606,7 +621,9 @@ public sealed class SearchRepository(
             dbContext,
             searchCriteria,
             SearchQueryMatch.Empty,
-            genreName,
+            libraryScope: null,
+            rankingScope: null,
+            genreName: genreName,
             titlesOnly: true);
         var totalCount = await combinedQuery.CountAsync(cancellationToken);
 

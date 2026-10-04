@@ -289,7 +289,7 @@ internal static class ContentSearchTitleOpsCli
 
         foreach (var query in queries)
         {
-            var local = await searchRepository.AutocompleteAsync(query, limit);
+            var local = await searchRepository.AutocompleteAsync(query, limit, contentLocale);
             var providerSuggestions = await providerIngestion.GetAutocompleteSuggestionsAsync(
                 query,
                 limit,
@@ -310,7 +310,7 @@ internal static class ContentSearchTitleOpsCli
                 SearchSortOption.Relevance,
                 1,
                 10);
-            var searchPage = await searchRepository.SearchAsync(searchCriteria);
+            var searchPage = await searchRepository.SearchAsync(searchCriteria, contentLocale);
             var searchHit = searchPage.Items.Any(item => item.Id == targetMovieId);
 
             Console.WriteLine(

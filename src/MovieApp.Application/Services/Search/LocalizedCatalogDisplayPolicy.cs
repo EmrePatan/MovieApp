@@ -141,7 +141,7 @@ internal static class LocalizedCatalogDisplayPolicy
         string? canonicalPosterPath,
         string? fallbackPosterUrl)
     {
-        if (!LocalizedDisplayTitleSelector.IsTurkishProduction(
+        if (!ContentProductionHeuristics.IsTurkishProduction(
                 originalLanguage,
                 primaryOriginCountryCode,
                 originalTitle))

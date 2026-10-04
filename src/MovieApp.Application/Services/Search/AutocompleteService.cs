@@ -37,7 +37,7 @@ public sealed class AutocompleteService(
             return cachedEntry.Items;
         }
 
-        var localTask = searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+        var localTask = searchRepository.AutocompleteAsync(query, MaxSuggestions, contentLocale, cancellationToken);
 
         try
         {
@@ -84,7 +84,7 @@ public sealed class AutocompleteService(
             }
             else
             {
-                fallbackItems = await searchRepository.AutocompleteAsync(query, MaxSuggestions, cancellationToken);
+                fallbackItems = await searchRepository.AutocompleteAsync(query, MaxSuggestions, contentLocale, cancellationToken);
             }
 
             return await summaryLocalizationOverlayService.ApplyToSearchSuggestionsAsync(

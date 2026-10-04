@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
-using MovieApp.Application.Services.Library;
+using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -12,7 +12,7 @@ internal static class SearchCatalogContentQuery
         IQueryable<Movie> query,
         ApplicationDbContext dbContext,
         SearchQueryMatch match,
-        LibrarySearchTitleLanguageScope? libraryTitleScope = null)
+        CatalogSearchTitleLanguageScope? libraryScope = null)
     {
         if (match.IsEmpty)
         {
@@ -23,7 +23,7 @@ internal static class SearchCatalogContentQuery
         var turkish = match.TurkishAlternate;
         var folded = match.Folded;
 
-        if (libraryTitleScope is null)
+        if (libraryScope is null)
         {
             return query.Where(movie =>
                 (EF.Functions.ILike(movie.Title, "%" + primary + "%")
@@ -39,10 +39,10 @@ internal static class SearchCatalogContentQuery
                         || EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%"))));
         }
 
-        var primaryLanguageCode = libraryTitleScope.PrimaryLanguageCode;
-        var primaryRegionCode = libraryTitleScope.PrimaryRegionCode ?? string.Empty;
-        var includeEnglishLanguage = libraryTitleScope.IncludeEnglishLanguage;
-        const string englishLanguageCode = LibrarySearchTitleLanguageScope.EnglishLanguageCode;
+        var primaryLanguageCode = libraryScope.PrimaryLanguageCode;
+        var primaryRegionCode = libraryScope.PrimaryRegionCode ?? string.Empty;
+        var includeEnglishLanguage = libraryScope.IncludeEnglishLanguage;
+        const string englishLanguageCode = CatalogSearchTitleLanguageScope.EnglishLanguageCode;
 
         return query.Where(movie =>
             (EF.Functions.ILike(movie.Title, "%" + primary + "%")
@@ -74,7 +74,7 @@ internal static class SearchCatalogContentQuery
         IQueryable<TvShow> query,
         ApplicationDbContext dbContext,
         SearchQueryMatch match,
-        LibrarySearchTitleLanguageScope? libraryTitleScope = null)
+        CatalogSearchTitleLanguageScope? libraryScope = null)
     {
         if (match.IsEmpty)
         {
@@ -85,7 +85,7 @@ internal static class SearchCatalogContentQuery
         var turkish = match.TurkishAlternate;
         var folded = match.Folded;
 
-        if (libraryTitleScope is null)
+        if (libraryScope is null)
         {
             return query.Where(tvShow =>
                 (EF.Functions.ILike(tvShow.Title, "%" + primary + "%")
@@ -101,10 +101,10 @@ internal static class SearchCatalogContentQuery
                         || EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%"))));
         }
 
-        var primaryLanguageCode = libraryTitleScope.PrimaryLanguageCode;
-        var primaryRegionCode = libraryTitleScope.PrimaryRegionCode ?? string.Empty;
-        var includeEnglishLanguage = libraryTitleScope.IncludeEnglishLanguage;
-        const string englishLanguageCode = LibrarySearchTitleLanguageScope.EnglishLanguageCode;
+        var primaryLanguageCode = libraryScope.PrimaryLanguageCode;
+        var primaryRegionCode = libraryScope.PrimaryRegionCode ?? string.Empty;
+        var includeEnglishLanguage = libraryScope.IncludeEnglishLanguage;
+        const string englishLanguageCode = CatalogSearchTitleLanguageScope.EnglishLanguageCode;
 
         return query.Where(tvShow =>
             (EF.Functions.ILike(tvShow.Title, "%" + primary + "%")
@@ -137,8 +137,14 @@ internal static class SearchCatalogContentQuery
         ApplicationDbContext dbContext,
         string primary,
         string? turkish,
-        string folded)
+        string folded,
+        CatalogSearchTitleLanguageScope rankingScope)
     {
+        var primaryLanguageCode = rankingScope.PrimaryLanguageCode;
+        var primaryRegionCode = rankingScope.PrimaryRegionCode ?? string.Empty;
+        var includeEnglishLanguage = rankingScope.IncludeEnglishLanguage;
+        const string englishLanguageCode = CatalogSearchTitleLanguageScope.EnglishLanguageCode;
+
         return query.Select(movie => new SearchItemProjection
         {
             Id = movie.Id,
@@ -237,20 +243,104 @@ internal static class SearchCatalogContentQuery
                                   || (turkish != null
                                       && EF.Functions.ILike(row.Title, turkish)
                                       && row.Title.Length == turkish.Length)
-                                    ? SearchBestMatchTier.DirectExactAlias
+                                    ? (row.LanguageCode != null
+                                        && row.LanguageCode != string.Empty
+                                        && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                        || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                            && row.CountryCode != null
+                                            && row.CountryCode != string.Empty
+                                            && primaryRegionCode != string.Empty
+                                            && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                        ? SearchBestMatchTier.DirectExactCanonical
+                                        : includeEnglishLanguage
+                                            && row.LanguageCode != null
+                                            && row.LanguageCode != string.Empty
+                                            && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                            ? SearchBestMatchTier.DirectExactOriginal
+                                            : SearchBestMatchTier.DirectExactAlias
                                     : (EF.Functions.ILike(row.Title, primary + "%")
                                         || (turkish != null && EF.Functions.ILike(row.Title, turkish + "%")))
-                                        ? SearchBestMatchTier.DirectPrefixAlias
+                                        ? (row.LanguageCode != null
+                                            && row.LanguageCode != string.Empty
+                                            && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                            || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                && row.CountryCode != null
+                                                && row.CountryCode != string.Empty
+                                                && primaryRegionCode != string.Empty
+                                                && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                            ? SearchBestMatchTier.DirectPrefixCanonical
+                                            : includeEnglishLanguage
+                                                && row.LanguageCode != null
+                                                && row.LanguageCode != string.Empty
+                                                && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                ? SearchBestMatchTier.DirectPrefixOriginal
+                                                : SearchBestMatchTier.DirectPrefixAlias
                                         : (EF.Functions.ILike(row.Title, "%" + primary + "%")
                                             || (turkish != null && EF.Functions.ILike(row.Title, "%" + turkish + "%")))
-                                            ? SearchBestMatchTier.DirectSubstringAlias
+                                            ? (row.LanguageCode != null
+                                                && row.LanguageCode != string.Empty
+                                                && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                    && row.CountryCode != null
+                                                    && row.CountryCode != string.Empty
+                                                    && primaryRegionCode != string.Empty
+                                                    && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                ? SearchBestMatchTier.DirectSubstringCanonical
+                                                : includeEnglishLanguage
+                                                    && row.LanguageCode != null
+                                                    && row.LanguageCode != string.Empty
+                                                    && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                    ? SearchBestMatchTier.DirectSubstringOriginal
+                                                    : SearchBestMatchTier.DirectSubstringAlias
                                             : row.NormalizedTitle.Length == folded.Length
                                               && EF.Functions.ILike(row.NormalizedTitle, folded)
-                                                ? SearchBestMatchTier.FoldedExactAlias
+                                                ? (row.LanguageCode != null
+                                                    && row.LanguageCode != string.Empty
+                                                    && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                    || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                        && row.CountryCode != null
+                                                        && row.CountryCode != string.Empty
+                                                        && primaryRegionCode != string.Empty
+                                                        && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                    ? SearchBestMatchTier.FoldedExactCanonical
+                                                    : includeEnglishLanguage
+                                                        && row.LanguageCode != null
+                                                        && row.LanguageCode != string.Empty
+                                                        && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                        ? SearchBestMatchTier.FoldedExactOriginal
+                                                        : SearchBestMatchTier.FoldedExactAlias
                                                 : EF.Functions.ILike(row.NormalizedTitle, folded + "%")
-                                                    ? SearchBestMatchTier.FoldedPrefixAlias
+                                                    ? (row.LanguageCode != null
+                                                        && row.LanguageCode != string.Empty
+                                                        && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                        || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                            && row.CountryCode != null
+                                                            && row.CountryCode != string.Empty
+                                                            && primaryRegionCode != string.Empty
+                                                            && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                        ? SearchBestMatchTier.FoldedPrefixCanonical
+                                                        : includeEnglishLanguage
+                                                            && row.LanguageCode != null
+                                                            && row.LanguageCode != string.Empty
+                                                            && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                            ? SearchBestMatchTier.FoldedPrefixOriginal
+                                                            : SearchBestMatchTier.FoldedPrefixAlias
                                                     : EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%")
-                                                        ? SearchBestMatchTier.FoldedSubstringAlias
+                                                        ? (row.LanguageCode != null
+                                                            && row.LanguageCode != string.Empty
+                                                            && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                            || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                                && row.CountryCode != null
+                                                                && row.CountryCode != string.Empty
+                                                                && primaryRegionCode != string.Empty
+                                                                && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                            ? SearchBestMatchTier.FoldedSubstringCanonical
+                                                            : includeEnglishLanguage
+                                                                && row.LanguageCode != null
+                                                                && row.LanguageCode != string.Empty
+                                                                && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                                ? SearchBestMatchTier.FoldedSubstringOriginal
+                                                                : SearchBestMatchTier.FoldedSubstringAlias
                                                         : SearchBestMatchTier.NoMatch))
                     .Min() ?? SearchBestMatchTier.NoMatch)
         });
@@ -261,8 +351,14 @@ internal static class SearchCatalogContentQuery
         ApplicationDbContext dbContext,
         string primary,
         string? turkish,
-        string folded)
+        string folded,
+        CatalogSearchTitleLanguageScope rankingScope)
     {
+        var primaryLanguageCode = rankingScope.PrimaryLanguageCode;
+        var primaryRegionCode = rankingScope.PrimaryRegionCode ?? string.Empty;
+        var includeEnglishLanguage = rankingScope.IncludeEnglishLanguage;
+        const string englishLanguageCode = CatalogSearchTitleLanguageScope.EnglishLanguageCode;
+
         return query.Select(tvShow => new SearchItemProjection
         {
             Id = tvShow.Id,
@@ -361,20 +457,104 @@ internal static class SearchCatalogContentQuery
                                   || (turkish != null
                                       && EF.Functions.ILike(row.Title, turkish)
                                       && row.Title.Length == turkish.Length)
-                                    ? SearchBestMatchTier.DirectExactAlias
+                                    ? (row.LanguageCode != null
+                                        && row.LanguageCode != string.Empty
+                                        && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                        || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                            && row.CountryCode != null
+                                            && row.CountryCode != string.Empty
+                                            && primaryRegionCode != string.Empty
+                                            && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                        ? SearchBestMatchTier.DirectExactCanonical
+                                        : includeEnglishLanguage
+                                            && row.LanguageCode != null
+                                            && row.LanguageCode != string.Empty
+                                            && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                            ? SearchBestMatchTier.DirectExactOriginal
+                                            : SearchBestMatchTier.DirectExactAlias
                                     : (EF.Functions.ILike(row.Title, primary + "%")
                                         || (turkish != null && EF.Functions.ILike(row.Title, turkish + "%")))
-                                        ? SearchBestMatchTier.DirectPrefixAlias
+                                        ? (row.LanguageCode != null
+                                            && row.LanguageCode != string.Empty
+                                            && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                            || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                && row.CountryCode != null
+                                                && row.CountryCode != string.Empty
+                                                && primaryRegionCode != string.Empty
+                                                && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                            ? SearchBestMatchTier.DirectPrefixCanonical
+                                            : includeEnglishLanguage
+                                                && row.LanguageCode != null
+                                                && row.LanguageCode != string.Empty
+                                                && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                ? SearchBestMatchTier.DirectPrefixOriginal
+                                                : SearchBestMatchTier.DirectPrefixAlias
                                         : (EF.Functions.ILike(row.Title, "%" + primary + "%")
                                             || (turkish != null && EF.Functions.ILike(row.Title, "%" + turkish + "%")))
-                                            ? SearchBestMatchTier.DirectSubstringAlias
+                                            ? (row.LanguageCode != null
+                                                && row.LanguageCode != string.Empty
+                                                && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                    && row.CountryCode != null
+                                                    && row.CountryCode != string.Empty
+                                                    && primaryRegionCode != string.Empty
+                                                    && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                ? SearchBestMatchTier.DirectSubstringCanonical
+                                                : includeEnglishLanguage
+                                                    && row.LanguageCode != null
+                                                    && row.LanguageCode != string.Empty
+                                                    && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                    ? SearchBestMatchTier.DirectSubstringOriginal
+                                                    : SearchBestMatchTier.DirectSubstringAlias
                                             : row.NormalizedTitle.Length == folded.Length
                                               && EF.Functions.ILike(row.NormalizedTitle, folded)
-                                                ? SearchBestMatchTier.FoldedExactAlias
+                                                ? (row.LanguageCode != null
+                                                    && row.LanguageCode != string.Empty
+                                                    && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                    || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                        && row.CountryCode != null
+                                                        && row.CountryCode != string.Empty
+                                                        && primaryRegionCode != string.Empty
+                                                        && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                    ? SearchBestMatchTier.FoldedExactCanonical
+                                                    : includeEnglishLanguage
+                                                        && row.LanguageCode != null
+                                                        && row.LanguageCode != string.Empty
+                                                        && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                        ? SearchBestMatchTier.FoldedExactOriginal
+                                                        : SearchBestMatchTier.FoldedExactAlias
                                                 : EF.Functions.ILike(row.NormalizedTitle, folded + "%")
-                                                    ? SearchBestMatchTier.FoldedPrefixAlias
+                                                    ? (row.LanguageCode != null
+                                                        && row.LanguageCode != string.Empty
+                                                        && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                        || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                            && row.CountryCode != null
+                                                            && row.CountryCode != string.Empty
+                                                            && primaryRegionCode != string.Empty
+                                                            && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                        ? SearchBestMatchTier.FoldedPrefixCanonical
+                                                        : includeEnglishLanguage
+                                                            && row.LanguageCode != null
+                                                            && row.LanguageCode != string.Empty
+                                                            && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                            ? SearchBestMatchTier.FoldedPrefixOriginal
+                                                            : SearchBestMatchTier.FoldedPrefixAlias
                                                     : EF.Functions.ILike(row.NormalizedTitle, "%" + folded + "%")
-                                                        ? SearchBestMatchTier.FoldedSubstringAlias
+                                                        ? (row.LanguageCode != null
+                                                            && row.LanguageCode != string.Empty
+                                                            && EF.Functions.ILike(row.LanguageCode, primaryLanguageCode))
+                                                            || ((row.LanguageCode == null || row.LanguageCode == string.Empty)
+                                                                && row.CountryCode != null
+                                                                && row.CountryCode != string.Empty
+                                                                && primaryRegionCode != string.Empty
+                                                                && EF.Functions.ILike(row.CountryCode, primaryRegionCode))
+                                                            ? SearchBestMatchTier.FoldedSubstringCanonical
+                                                            : includeEnglishLanguage
+                                                                && row.LanguageCode != null
+                                                                && row.LanguageCode != string.Empty
+                                                                && EF.Functions.ILike(row.LanguageCode, englishLanguageCode)
+                                                                ? SearchBestMatchTier.FoldedSubstringOriginal
+                                                                : SearchBestMatchTier.FoldedSubstringAlias
                                                         : SearchBestMatchTier.NoMatch))
                     .Min() ?? SearchBestMatchTier.NoMatch)
         });

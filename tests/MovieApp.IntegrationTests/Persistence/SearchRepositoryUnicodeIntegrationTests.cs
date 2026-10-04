@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.Persistence;
@@ -44,7 +45,7 @@ public sealed class SearchRepositoryUnicodeIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            10));
+            10), ContentLocaleResolver.TurkishTurkey);
 
         Assert.Contains(result.Items, item => item.Id == movieId);
     }
@@ -79,7 +80,7 @@ public sealed class SearchRepositoryUnicodeIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            10));
+            10), ContentLocaleResolver.TurkishTurkey);
 
         Assert.Contains(result.Items, item => item.Id == tvId);
     }
@@ -104,7 +105,7 @@ public sealed class SearchRepositoryUnicodeIntegrationTests
         await context.SaveChangesAsync();
 
         var repository = CreateRepository(context);
-        var suggestions = await repository.AutocompleteAsync("Islık", 5);
+        var suggestions = await repository.AutocompleteAsync("Islık", 5, ContentLocaleResolver.TurkishTurkey);
 
         Assert.Contains(suggestions, suggestion => suggestion.Title.Contains("ıslık", StringComparison.Ordinal));
     }

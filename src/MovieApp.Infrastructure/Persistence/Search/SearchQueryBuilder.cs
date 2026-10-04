@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 
@@ -13,11 +14,20 @@ internal static class SearchQueryBuilder
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
         SearchQueryMatch queryMatch,
+        CatalogSearchTitleLanguageScope? libraryScope = null,
+        CatalogSearchTitleLanguageScope? rankingScope = null,
         string? genreName = null)
     {
         var query = dbContext.Movies.AsNoTracking().AsQueryable();
 
-        query = SearchCatalogContentQuery.WhereMovieMatchesSearch(query, dbContext, queryMatch);
+        if (!queryMatch.IsEmpty)
+        {
+            query = SearchCatalogContentQuery.WhereMovieMatchesSearch(
+                query,
+                dbContext,
+                queryMatch,
+                libraryScope);
+        }
 
         if (criteria.GenreId.HasValue)
         {
@@ -73,7 +83,8 @@ internal static class SearchQueryBuilder
             dbContext,
             queryMatch.Primary,
             queryMatch.TurkishAlternate,
-            queryMatch.Folded);
+            queryMatch.Folded,
+            rankingScope ?? CatalogSearchTitleLanguageScope.FromContentLocale(SupportedContentLocales.Default));
     }
 
     public static IQueryable<SearchItemProjection> BuildPersonQuery(
@@ -120,11 +131,20 @@ internal static class SearchQueryBuilder
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
         SearchQueryMatch queryMatch,
+        CatalogSearchTitleLanguageScope? libraryScope = null,
+        CatalogSearchTitleLanguageScope? rankingScope = null,
         string? genreName = null)
     {
         var query = dbContext.TvShows.AsNoTracking().AsQueryable();
 
-        query = SearchCatalogContentQuery.WhereTvShowMatchesSearch(query, dbContext, queryMatch);
+        if (!queryMatch.IsEmpty)
+        {
+            query = SearchCatalogContentQuery.WhereTvShowMatchesSearch(
+                query,
+                dbContext,
+                queryMatch,
+                libraryScope);
+        }
 
         if (criteria.GenreId.HasValue)
         {
@@ -180,25 +200,28 @@ internal static class SearchQueryBuilder
             dbContext,
             queryMatch.Primary,
             queryMatch.TurkishAlternate,
-            queryMatch.Folded);
+            queryMatch.Folded,
+            rankingScope ?? CatalogSearchTitleLanguageScope.FromContentLocale(SupportedContentLocales.Default));
     }
 
     public static IQueryable<SearchItemProjection> BuildCombinedQuery(
         ApplicationDbContext dbContext,
         SearchCriteria criteria,
         SearchQueryMatch queryMatch,
+        CatalogSearchTitleLanguageScope? libraryScope = null,
+        CatalogSearchTitleLanguageScope? rankingScope = null,
         string? genreName = null,
         bool titlesOnly = false)
     {
         return criteria.Type switch
         {
-            SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, queryMatch, genreName),
-            SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, queryMatch, genreName),
+            SearchContentType.Movie => BuildMovieQuery(dbContext, criteria, queryMatch, libraryScope, rankingScope, genreName),
+            SearchContentType.Tv => BuildTvShowQuery(dbContext, criteria, queryMatch, libraryScope, rankingScope, genreName),
             SearchContentType.Person => BuildPersonQuery(dbContext, criteria, queryMatch),
-            _ when titlesOnly => BuildMovieQuery(dbContext, criteria, queryMatch, genreName)
-                .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, genreName)),
-            _ => BuildMovieQuery(dbContext, criteria, queryMatch, genreName)
-                .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, genreName))
+            _ when titlesOnly => BuildMovieQuery(dbContext, criteria, queryMatch, libraryScope, rankingScope, genreName)
+                .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, libraryScope, rankingScope, genreName)),
+            _ => BuildMovieQuery(dbContext, criteria, queryMatch, libraryScope, rankingScope, genreName)
+                .Concat(BuildTvShowQuery(dbContext, criteria, queryMatch, libraryScope, rankingScope, genreName))
                 .Concat(BuildPersonQuery(dbContext, criteria, queryMatch))
         };
     }

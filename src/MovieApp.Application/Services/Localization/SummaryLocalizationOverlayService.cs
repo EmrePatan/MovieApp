@@ -16,6 +16,7 @@ public sealed class SummaryLocalizationOverlayService(
     ITvShowRepository tvShowRepository,
     IDetailLocalizationOverlayService detailLocalizationOverlayService,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
+    IContentSearchTitleReadRepository contentSearchTitleReadRepository,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher) : ISummaryLocalizationOverlayService
 {
     public async Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
@@ -40,6 +41,20 @@ public sealed class SummaryLocalizationOverlayService(
             .ToList();
         var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
         var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
+        var localizedMovieTitles = movieIds.Count == 0
+            ? new Dictionary<Models.Search.CatalogContentKey, string>()
+            : await contentSearchTitleReadRepository.GetLocaleDisplayTitlesAsync(
+                CatalogContentType.Movie,
+                movieIds,
+                contentLocale,
+                cancellationToken);
+        var localizedTvTitles = tvIds.Count == 0
+            ? new Dictionary<Models.Search.CatalogContentKey, string>()
+            : await contentSearchTitleReadRepository.GetLocaleDisplayTitlesAsync(
+                CatalogContentType.Tv,
+                tvIds,
+                contentLocale,
+                cancellationToken);
         var localizedPosters = await LoadLocalizedPostersForSearchItemsAsync(
             canonical.Items,
             contentLocale,
@@ -52,6 +67,8 @@ public sealed class SummaryLocalizationOverlayService(
                 localizedPosters,
                 movieProductionContexts,
                 tvProductionContexts,
+                localizedMovieTitles,
+                localizedTvTitles,
                 cancellationToken)));
 
         return canonical with { Items = localizedItems };
@@ -302,6 +319,7 @@ public sealed class SummaryLocalizationOverlayService(
             productionContext,
             item.Overview,
             contentLocale,
+            localizedCatalogTitle: null,
             cancellationToken);
 
         return item with
@@ -463,6 +481,7 @@ public sealed class SummaryLocalizationOverlayService(
             productionContext,
             recommendation.Movie.Overview,
             contentLocale,
+            localizedCatalogTitle: null,
             cancellationToken);
 
         return recommendation with
@@ -483,6 +502,8 @@ public sealed class SummaryLocalizationOverlayService(
         IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
         IReadOnlyDictionary<Guid, ContentProductionContext> movieProductionContexts,
         IReadOnlyDictionary<Guid, ContentProductionContext> tvProductionContexts,
+        IReadOnlyDictionary<Models.Search.CatalogContentKey, string> localizedMovieTitles,
+        IReadOnlyDictionary<Models.Search.CatalogContentKey, string> localizedTvTitles,
         CancellationToken cancellationToken)
     {
         var posterKey = CreatePosterKey(item.Type, item.Id);
@@ -503,6 +524,11 @@ public sealed class SummaryLocalizationOverlayService(
             return item with { PosterUrl = posterUrl };
         }
 
+        var localizedCatalogTitle = ResolveCatalogLocaleTitle(
+            item,
+            localizedMovieTitles,
+            localizedTvTitles);
+
         var localizedFields = await ResolveLocalizedFieldsAsync(
             item.Type,
             item.TmdbId.Value,
@@ -511,6 +537,7 @@ public sealed class SummaryLocalizationOverlayService(
             productionContext,
             item.Overview,
             contentLocale,
+            localizedCatalogTitle,
             cancellationToken);
 
         return item with
@@ -522,6 +549,25 @@ public sealed class SummaryLocalizationOverlayService(
         };
     }
 
+    private static string? ResolveCatalogLocaleTitle(
+        SearchItem item,
+        IReadOnlyDictionary<Models.Search.CatalogContentKey, string> localizedMovieTitles,
+        IReadOnlyDictionary<Models.Search.CatalogContentKey, string> localizedTvTitles)
+    {
+        var key = new Models.Search.CatalogContentKey(item.Id, item.Type);
+        if (string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+        {
+            return localizedMovieTitles.TryGetValue(key, out var title) ? title : null;
+        }
+
+        if (string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return localizedTvTitles.TryGetValue(key, out var title) ? title : null;
+        }
+
+        return null;
+    }
+
     private async Task<(string Title, string? OriginalTitle, string? Overview)> ResolveLocalizedFieldsAsync(
         string contentType,
         int tmdbId,
@@ -530,6 +576,7 @@ public sealed class SummaryLocalizationOverlayService(
         ContentProductionContext productionContext,
         string? canonicalOverview,
         string contentLocale,
+        string? localizedCatalogTitle,
         CancellationToken cancellationToken)
     {
         if (string.Equals(contentType, "movie", StringComparison.OrdinalIgnoreCase))
@@ -538,11 +585,12 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
+            var localizedTitle = localizedCatalogTitle ?? overlay?.Title;
             var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
                 canonicalTitle,
                 originalTitle,
                 productionContext.OriginalLanguage,
-                overlay?.Title,
+                localizedTitle,
                 contentLocale,
                 productionContext.PrimaryOriginCountryCode);
             return (
@@ -557,11 +605,12 @@ public sealed class SummaryLocalizationOverlayService(
                 tmdbId,
                 contentLocale,
                 cancellationToken);
+            var localizedTitle = localizedCatalogTitle ?? overlay?.Title;
             var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
                 canonicalTitle,
                 originalTitle,
                 productionContext.OriginalLanguage,
-                overlay?.Title,
+                localizedTitle,
                 contentLocale,
                 productionContext.PrimaryOriginCountryCode);
             return (

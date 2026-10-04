@@ -25,6 +25,7 @@ public sealed class DiscoverBrowseService(
     ICacheService cacheService,
     ILogger<DiscoverBrowseService> logger,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher,
+    CatalogSearchItemDisplayTitleEnricher catalogSearchItemDisplayTitleEnricher,
     ITrendingWeekListService trendingWeekListService) : IDiscoverBrowseService
 {
     private static readonly TimeSpan BrowseCacheTtl = TimeSpan.FromMinutes(10);
@@ -110,6 +111,7 @@ public sealed class DiscoverBrowseService(
         }
 
         result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
+        result = await catalogSearchItemDisplayTitleEnricher.EnrichAsync(result, contentLocale, cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,

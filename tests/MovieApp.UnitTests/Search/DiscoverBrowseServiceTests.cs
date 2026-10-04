@@ -124,6 +124,7 @@ public sealed class DiscoverBrowseServiceTests
             cache,
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher(),
             new FakeTrendingWeekListService());
 
         var result = await service.BrowseAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
@@ -268,6 +269,7 @@ public sealed class DiscoverBrowseServiceTests
             new DiscoverBrowseFakeCacheService(null),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher(),
             weekList);
 
         var result = await service.BrowseAsync(
@@ -338,6 +340,7 @@ public sealed class DiscoverBrowseServiceTests
             cache,
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher(),
             new FakeTrendingWeekListService());
 
         var keywordId = Guid.NewGuid();
@@ -386,6 +389,7 @@ public sealed class DiscoverBrowseServiceTests
             cache,
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher(),
             new FakeTrendingWeekListService());
 
         var criteria = new DiscoverBrowseCriteria(
@@ -460,6 +464,7 @@ public sealed class DiscoverBrowseServiceTests
             cache ?? new DiscoverBrowseFakeCacheService(null),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+            SearchTestDoubles.CreateDisplayTitleEnricher(),
             new FakeTrendingWeekListService());
 
     private static DiscoverBrowseCriteria CreateCriteria(

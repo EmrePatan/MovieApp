@@ -24,6 +24,7 @@ public sealed class AdvancedDiscoverService(
     ICacheService cacheService,
     ILogger<AdvancedDiscoverService> logger,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher,
+    CatalogSearchItemDisplayTitleEnricher catalogSearchItemDisplayTitleEnricher,
     ITransactionalStreamOfferFilter? transactionalStreamOfferFilter = null) : IAdvancedDiscoverService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(10);
@@ -72,6 +73,7 @@ public sealed class AdvancedDiscoverService(
         };
 
         result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
+        result = await catalogSearchItemDisplayTitleEnricher.EnrichAsync(result, contentLocale, cancellationToken);
 
         await cacheService.SetAsync(
             cacheKey,

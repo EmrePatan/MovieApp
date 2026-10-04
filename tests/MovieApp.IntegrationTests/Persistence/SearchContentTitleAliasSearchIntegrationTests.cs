@@ -6,6 +6,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.Persistence;
@@ -61,7 +62,7 @@ public sealed class SearchContentTitleAliasSearchIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            20));
+            20), ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Single(result.Items);
@@ -90,7 +91,7 @@ public sealed class SearchContentTitleAliasSearchIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            20));
+            20), ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Single(result.Items);
@@ -108,7 +109,7 @@ public sealed class SearchContentTitleAliasSearchIntegrationTests
         var movieId = await SeedWhistleMovieAsync(context);
 
         var repository = CreateRepository(context);
-        var suggestions = await repository.AutocompleteAsync(query, 10);
+        var suggestions = await repository.AutocompleteAsync(query, 10, ContentLocaleResolver.TurkishTurkey);
 
         Assert.Contains(suggestions, s => s.Id == movieId && s.Title == "Whistle If You Come Back");
         Assert.DoesNotContain(suggestions, s => s.Title.Contains("donersen", StringComparison.OrdinalIgnoreCase));
@@ -164,7 +165,7 @@ public sealed class SearchContentTitleAliasSearchIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            20));
+            20), ContentLocaleResolver.TurkishTurkey);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Single(result.Items);

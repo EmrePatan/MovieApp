@@ -7,6 +7,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.CatalogFollows;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
+using MovieApp.Domain.Enums;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Services.Localization;
@@ -450,6 +451,73 @@ internal static class SearchTestDoubles
         public Task<TvShowProviderSearchResult> AdvancedDiscoverTvShowsAsync(
             AdvancedDiscoverProviderCriteria criteria,
             string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    internal sealed class EmptyContentSearchTitleReadRepository : IContentSearchTitleReadRepository
+    {
+        public Task<IReadOnlyDictionary<CatalogContentKey, string>> GetLocaleDisplayTitlesAsync(
+            CatalogContentType contentType,
+            IReadOnlyList<Guid> contentIds,
+            string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<CatalogContentKey, string>>(
+                new Dictionary<CatalogContentKey, string>());
+    }
+
+    internal static CatalogSearchItemDisplayTitleEnricher CreateDisplayTitleEnricher(
+        IMovieRepository? movieRepository = null,
+        ITvShowRepository? tvShowRepository = null) =>
+        new(
+            new EmptyContentSearchTitleReadRepository(),
+            movieRepository ?? new EmptySummaryMovieRepository(),
+            tvShowRepository ?? new EmptySummaryTvShowRepository());
+
+    private sealed class EmptySummaryMovieRepository : IMovieRepository
+    {
+        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+            IReadOnlyList<MovieProviderSummary> summaries,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
+            IReadOnlyList<int> tmdbIds,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieApp.Domain.Entities.Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieApp.Domain.Entities.Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieApp.Domain.Entities.Movie> UpsertFromProviderAsync(
+            MovieProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class EmptySummaryTvShowRepository : ITvShowRepository
+    {
+        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
+            IReadOnlyList<TvShowProviderSummary> summaries,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
+            IReadOnlyList<int> tmdbIds,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieApp.Domain.Entities.TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieApp.Domain.Entities.TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieApp.Domain.Entities.TvShow> UpsertFromProviderAsync(
+            TvShowProviderDetails details,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

@@ -7,11 +7,13 @@ public interface ISearchRepository
 {
     Task<PaginatedResult<SearchItem>> SearchAsync(
         SearchCriteria criteria,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
         string query,
         int limit,
+        string contentLocale,
         CancellationToken cancellationToken = default);
 
     Task<PaginatedResult<SearchItem>> GetPopularAsync(

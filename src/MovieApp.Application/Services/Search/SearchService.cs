@@ -56,7 +56,7 @@ public sealed class SearchService(
 
         if (!UnifiedSearchProviderPolicy.IsProviderScope(criteria))
         {
-            var dbResult = await searchRepository.SearchAsync(criteria, cancellationToken);
+            var dbResult = await searchRepository.SearchAsync(criteria, contentLocale, cancellationToken);
             var localizedDbResult = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
                 dbResult,
                 contentLocale,
@@ -242,7 +242,7 @@ public sealed class SearchService(
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var dbResult = await searchRepository.SearchAsync(criteria, cancellationToken);
+        var dbResult = await searchRepository.SearchAsync(criteria, contentLocale, cancellationToken);
         var localizedDbResult = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
             dbResult,
             contentLocale,

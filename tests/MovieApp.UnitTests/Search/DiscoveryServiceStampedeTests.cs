@@ -223,13 +223,11 @@ public sealed class DiscoveryServiceStampedeTests
 
         public Task<PaginatedResult<SearchItem>> SearchAsync(
             SearchCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
-            string query,
-            int limit,
-            CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(
@@ -294,13 +292,11 @@ public sealed class DiscoveryServiceStampedeTests
 
         public Task<PaginatedResult<SearchItem>> SearchAsync(
             SearchCriteria criteria,
+            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(
-            string query,
-            int limit,
-            CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<SearchSuggestion>> AutocompleteAsync(string query, int limit, string contentLocale, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
         public Task<decimal> GetCatalogMeanVoteAverageAsync(

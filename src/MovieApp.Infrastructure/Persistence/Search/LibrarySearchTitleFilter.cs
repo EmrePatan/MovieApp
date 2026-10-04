@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Common;
-using MovieApp.Application.Services.Library;
 using MovieApp.Application.Services.Localization;
+using MovieApp.Application.Services.Search;
 using MovieApp.Domain.Entities;
 
 namespace MovieApp.Infrastructure.Persistence.Search;
@@ -62,8 +62,8 @@ internal static class LibrarySearchTitleFilter
         WhereTvShowMatches(dbContext, dbContext.TvShows.AsNoTracking(), match, titleMatchContentLocale)
             .Select(tvShow => tvShow.Id);
 
-    private static LibrarySearchTitleLanguageScope ResolveScope(string? titleMatchContentLocale) =>
+    private static CatalogSearchTitleLanguageScope ResolveScope(string? titleMatchContentLocale) =>
         string.IsNullOrWhiteSpace(titleMatchContentLocale)
-            ? LibrarySearchTitleLanguageScope.FromContentLocale(ContentLocaleResolver.EnglishUnitedStates)
-            : LibrarySearchTitleLanguageScope.FromContentLocale(titleMatchContentLocale);
+            ? CatalogSearchTitleLanguageScope.FromContentLocale(ContentLocaleResolver.EnglishUnitedStates)
+            : CatalogSearchTitleLanguageScope.FromContentLocale(titleMatchContentLocale);
 }

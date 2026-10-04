@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Search;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.Persistence;
@@ -52,16 +53,16 @@ public sealed class SearchRepositoryKeysetPaginationIntegrationTests
             1,
             pageSize);
 
-        var page1 = await repository.SearchAsync(criteria);
+        var page1 = await repository.SearchAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(10, page1.Items.Count);
         Assert.NotNull(page1.NextCursor);
 
-        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 });
+        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 }, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(10, page2.Items.Count);
         Assert.Equal(2, page2.Page);
         Assert.NotNull(page2.NextCursor);
 
-        var page3 = await repository.SearchAsync(criteria with { Cursor = page2.NextCursor, Page = 1 });
+        var page3 = await repository.SearchAsync(criteria with { Cursor = page2.NextCursor, Page = 1 }, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(5, page3.Items.Count);
         Assert.Null(page3.NextCursor);
         Assert.False(page3.HasNextPage);
@@ -109,12 +110,12 @@ public sealed class SearchRepositoryKeysetPaginationIntegrationTests
             10);
 
         interceptor.Reset();
-        var page1 = await repository.SearchAsync(criteria);
+        var page1 = await repository.SearchAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(1, interceptor.CountQueryCount);
         Assert.Equal(10, page1.Items.Count);
 
         interceptor.Reset();
-        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 });
+        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 }, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(0, interceptor.CountQueryCount);
         Assert.Equal(10, page2.Items.Count);
         Assert.Equal(page1.TotalCount, page2.TotalCount);
@@ -148,7 +149,7 @@ public sealed class SearchRepositoryKeysetPaginationIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            20));
+            20), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Single(result.Items);
         Assert.False(result.HasNextPage);
@@ -188,7 +189,7 @@ public sealed class SearchRepositoryKeysetPaginationIntegrationTests
             null,
             SearchSortOption.RatingDesc,
             2,
-            10));
+            10), ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, interceptor.CountQueryCount);
         Assert.Equal(10, page2.Items.Count);
@@ -281,13 +282,13 @@ public sealed class SearchRepositoryKeysetPaginationIntegrationTests
             1,
             pageSize);
 
-        var page1 = await repository.SearchAsync(criteria);
+        var page1 = await repository.SearchAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
         Assert.Equal(12, page1.TotalCount);
         Assert.Equal(pageSize, page1.Items.Count);
         Assert.NotNull(page1.NextCursor);
 
-        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 });
-        var page3 = await repository.SearchAsync(criteria with { Cursor = page2.NextCursor!, Page = 1 });
+        var page2 = await repository.SearchAsync(criteria with { Cursor = page1.NextCursor, Page = 1 }, ContentLocaleResolver.EnglishUnitedStates);
+        var page3 = await repository.SearchAsync(criteria with { Cursor = page2.NextCursor!, Page = 1 }, ContentLocaleResolver.EnglishUnitedStates);
 
         var allIds = page1.Items.Concat(page2.Items).Concat(page3.Items).Select(item => item.Id).ToList();
         Assert.Equal(12, allIds.Count);

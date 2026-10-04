@@ -1,3 +1,5 @@
+using MovieApp.Application.Common;
+
 namespace MovieApp.Application.Services.Localization;
 
 public static class LocalizedDisplayTitleSelector
@@ -20,48 +22,45 @@ public static class LocalizedDisplayTitleSelector
     {
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
         {
-            return TrimRequired(canonicalTitle);
+            return ResolveCanonical(canonicalTitle, originalTitle);
         }
 
-        var canonical = TrimRequired(canonicalTitle);
+        var canonical = ResolveCanonical(canonicalTitle, originalTitle);
         var original = TrimOptional(originalTitle);
         var localized = TrimOptional(localizedTitle);
 
-        if (IsTurkishProduction(originalLanguage, primaryOriginCountryCode, original))
-        {
-            if (!string.IsNullOrEmpty(localized) &&
-                !string.Equals(localized, canonical, StringComparison.OrdinalIgnoreCase))
-            {
-                return localized;
-            }
-
-            if (!string.IsNullOrEmpty(original))
-            {
-                return original;
-            }
-
-            return canonical;
-        }
-
-        if (ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
-                originalLanguage,
-                ContentLocaleResolver.EnglishUnitedStates))
-        {
-            return canonical;
-        }
-
-        if (!string.IsNullOrEmpty(original))
-        {
-            return original;
-        }
-
-        return canonical;
+        return ResolvePrimaryTitle(
+            canonical,
+            original,
+            localized,
+            originalLanguage,
+            contentLocale,
+            primaryOriginCountryCode);
     }
 
-    /// <summary>
-    /// Secondary line under the primary title in tr-TR: export English for Turkish productions,
-    /// TMDB Turkish title for imported titles when available.
-    /// </summary>
+    private static string ResolvePrimaryTitle(
+        string canonical,
+        string? original,
+        string? localized,
+        string? originalLanguage,
+        string contentLocale,
+        string? primaryOriginCountryCode)
+    {
+        var mode = ClassifyDisplayMode(
+            originalLanguage,
+            localized,
+            canonical,
+            contentLocale,
+            primaryOriginCountryCode);
+
+        return mode switch
+        {
+            DisplayTitleMode.SameLanguageProduction => ResolveSameLanguagePrimary(original, localized, canonical),
+            DisplayTitleMode.LocaleRegionProduction => localized!,
+            _ => FirstNonEmpty(canonical, original, localized),
+        };
+    }
+
     public static string? ChooseSubtitle(
         string primaryTitle,
         string canonicalTitle,
@@ -76,26 +75,68 @@ public static class LocalizedDisplayTitleSelector
             return null;
         }
 
-        if (IsTurkishProduction(originalLanguage, primaryOriginCountryCode, originalTitle))
-        {
-            var exportTitle = TrimOptional(canonicalTitle);
-            if (string.IsNullOrEmpty(exportTitle) ||
-                string.Equals(exportTitle, primaryTitle, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
+        var canonical = ResolveCanonical(canonicalTitle, originalTitle);
+        var localized = TrimOptional(localizedTitle);
 
-            return exportTitle;
+        var mode = ClassifyDisplayMode(
+            originalLanguage,
+            localized,
+            canonical,
+            contentLocale,
+            primaryOriginCountryCode);
+
+        return mode is DisplayTitleMode.SameLanguageProduction or DisplayTitleMode.LocaleRegionProduction
+            ? ChooseSubtitleCandidate(primaryTitle, canonical)
+            : ChooseSubtitleCandidate(primaryTitle, localized);
+    }
+
+    private enum DisplayTitleMode
+    {
+        SameLanguageProduction,
+        LocaleRegionProduction,
+        Foreign,
+    }
+
+    private static DisplayTitleMode ClassifyDisplayMode(
+        string? originalLanguage,
+        string? localizedTitle,
+        string canonicalTitle,
+        string contentLocale,
+        string? primaryOriginCountryCode)
+    {
+        if (!string.IsNullOrWhiteSpace(originalLanguage)
+            && ContentLocaleLanguageMatcher.MatchesOriginalLanguage(originalLanguage, contentLocale))
+        {
+            return DisplayTitleMode.SameLanguageProduction;
         }
 
-        var turkishTitle = TrimOptional(localizedTitle);
-        if (string.IsNullOrEmpty(turkishTitle) ||
-            string.Equals(turkishTitle, primaryTitle, StringComparison.OrdinalIgnoreCase))
+        var localized = TrimOptional(localizedTitle);
+        if (!string.IsNullOrWhiteSpace(localized)
+            && !DisplayTitleEquivalence.AreEquivalent(localized, canonicalTitle)
+            && ContentProductionLocaleMatcher.ProductionCountryMatchesRequestedLocale(
+                primaryOriginCountryCode,
+                contentLocale))
         {
-            return null;
+            return DisplayTitleMode.LocaleRegionProduction;
         }
 
-        return turkishTitle;
+        return DisplayTitleMode.Foreign;
+    }
+
+    private static string ResolveSameLanguagePrimary(string? original, string? localized, string canonical)
+    {
+        if (!string.IsNullOrWhiteSpace(original))
+        {
+            return original;
+        }
+
+        if (!string.IsNullOrWhiteSpace(localized)
+            && !DisplayTitleEquivalence.AreEquivalent(localized, canonical))
+        {
+            return localized;
+        }
+
+        return canonical;
     }
 
     public static (string Title, string? OriginalTitle) ChooseDisplayTitles(
@@ -106,6 +147,11 @@ public static class LocalizedDisplayTitleSelector
         string contentLocale,
         string? primaryOriginCountryCode = null)
     {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale))
+        {
+            return (ResolveCanonical(canonicalTitle, originalTitle), TrimOptional(originalTitle));
+        }
+
         var primary = ChoosePrimary(
             canonicalTitle,
             originalTitle,
@@ -124,60 +170,58 @@ public static class LocalizedDisplayTitleSelector
 
         return subtitle is not null
             ? (primary, subtitle)
-            : (primary, originalTitle);
+            : (primary, TrimOptional(originalTitle));
     }
 
+    [Obsolete("Use ContentProductionHeuristics.IsTurkishProduction for poster artwork heuristics.")]
     internal static bool IsTurkishProduction(
         string? originalLanguage,
         string? primaryOriginCountryCode = null,
-        string? originalTitle = null)
+        string? originalTitle = null) =>
+        ContentProductionHeuristics.IsTurkishProduction(
+            originalLanguage,
+            primaryOriginCountryCode,
+            originalTitle);
+
+    private static string? ChooseSubtitleCandidate(string primaryTitle, string? candidate) =>
+        string.IsNullOrWhiteSpace(candidate) || DisplayTitleEquivalence.AreEquivalent(primaryTitle, candidate)
+            ? null
+            : candidate.Trim();
+
+    private static string FirstNonEmpty(string? first, string? second, string? third)
     {
-        if (ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
-                originalLanguage,
-                ContentLocaleResolver.TurkishTurkey))
+        if (!string.IsNullOrWhiteSpace(first))
         {
-            return true;
+            return first.Trim();
         }
 
-        if (IsTurkeyOriginCountry(primaryOriginCountryCode))
+        if (!string.IsNullOrWhiteSpace(second))
         {
-            return true;
+            return second.Trim();
         }
 
-        if (ContainsTurkishScript(originalTitle) &&
-            !ContentLocaleLanguageMatcher.MatchesOriginalLanguage(
-                originalLanguage,
-                ContentLocaleResolver.EnglishUnitedStates))
+        if (!string.IsNullOrWhiteSpace(third))
         {
-            return true;
+            return third.Trim();
         }
 
-        return false;
+        return string.Empty;
     }
 
-    private static bool IsTurkeyOriginCountry(string? primaryOriginCountryCode) =>
-        string.Equals(primaryOriginCountryCode?.Trim(), "TR", StringComparison.OrdinalIgnoreCase);
-
-    private static bool ContainsTurkishScript(string? value)
+    private static string ResolveCanonical(string canonicalTitle, string? originalTitle)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (!string.IsNullOrWhiteSpace(canonicalTitle))
         {
-            return false;
+            return canonicalTitle.Trim();
         }
 
-        foreach (var character in value)
+        if (!string.IsNullOrWhiteSpace(originalTitle))
         {
-            switch (character)
-            {
-                case 'ç' or 'Ç' or 'ğ' or 'Ğ' or 'ı' or 'İ' or 'ö' or 'Ö' or 'ş' or 'Ş' or 'ü' or 'Ü':
-                    return true;
-            }
+            return originalTitle.Trim();
         }
 
-        return false;
+        return string.Empty;
     }
-
-    private static string TrimRequired(string value) => value.Trim();
 
     private static string? TrimOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

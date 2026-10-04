@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
 namespace MovieApp.IntegrationTests.Persistence;
@@ -36,7 +37,7 @@ public sealed class EfQueryQualityIntegrationTests
             null,
             SearchSortOption.Relevance,
             1,
-            5));
+            5), ContentLocaleResolver.EnglishUnitedStates);
     }
 
     [Fact]

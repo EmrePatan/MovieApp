@@ -1,3 +1,4 @@
+using MovieApp.Application.Common;
 using MovieApp.Application.Services.Localization;
 
 namespace MovieApp.UnitTests.Localization;
@@ -5,16 +6,31 @@ namespace MovieApp.UnitTests.Localization;
 public sealed class LocalizedDisplayTitleSelectorTests
 {
     [Fact]
-    public void EnglishLocale_ReturnsCanonicalTitle()
+    public void EnglishLocale_ReturnsCanonicalTitleWithoutSubtitle()
     {
-        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
             "Flames of Fate",
             "Alev Alev",
             "tr",
             "Alev Alev",
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal("Flames of Fate", title);
+        Assert.Equal("Flames of Fate", titles.Title);
+        Assert.Equal("Alev Alev", titles.OriginalTitle);
+    }
+
+    [Fact]
+    public void TurkishLocale_PansLabyrinth_UsesEnglishPrimaryAndTurkishSubtitle()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Pan's Labyrinth",
+            "El laberinto del fauno",
+            "es",
+            "Pan'ın Labirenti",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Pan's Labyrinth", titles.Title);
+        Assert.Equal("Pan'ın Labirenti", titles.OriginalTitle);
     }
 
     [Fact]
@@ -32,74 +48,49 @@ public sealed class LocalizedDisplayTitleSelectorTests
     }
 
     [Fact]
-    public void TurkishLocale_ForeignProduction_ShowsTurkishSubtitleWhenLocalizedTitleExists()
+    public void GermanLocale_GermanProduction_UsesGermanPrimaryAndEnglishSubtitle()
     {
         var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
-            "Interstellar",
-            "Interstellar",
-            "en",
-            "Yıldızlararası",
-            ContentLocaleResolver.TurkishTurkey);
+            "The Lives of Others",
+            "Das Leben der Anderen",
+            "de",
+            "Das Leben der Anderen",
+            ContentLocaleResolver.GermanGermany);
 
-        Assert.Equal("Interstellar", titles.Title);
-        Assert.Equal("Yıldızlararası", titles.OriginalTitle);
+        Assert.Equal("Das Leben der Anderen", titles.Title);
+        Assert.Equal("The Lives of Others", titles.OriginalTitle);
     }
 
     [Fact]
-    public void TurkishLocale_ForeignProduction_IgnoresLocalizedTurkishTitle()
+    public void TurkishLocale_TurkishProduction_IgnoresExportLocalizedTitle_WhenItRepeatsCanonical()
     {
-        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
-            "Resident Evil",
-            "Resident Evil",
-            "en",
-            "Ölümcül Deney",
-            ContentLocaleResolver.TurkishTurkey);
-
-        Assert.Equal("Resident Evil", title);
-    }
-
-    [Fact]
-    public void TurkishLocale_TurkishProduction_FallsBackToOriginalWhenLocalizedMissing()
-    {
-        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
             "Flames of Fate",
             "Alev Alev",
             "tr",
-            localizedTitle: null,
+            "Flames of Fate",
             ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal("Alev Alev", title);
+        Assert.Equal("Alev Alev", titles.Title);
+        Assert.Equal("Flames of Fate", titles.OriginalTitle);
     }
 
     [Fact]
-    public void TurkishLocale_ForeignProduction_FallsBackToCanonicalWhenOriginalMissing()
-    {
-        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
-            "Family Guy",
-            originalTitle: null,
-            originalLanguage: "en",
-            localizedTitle: "Family Guy TR",
-            ContentLocaleResolver.TurkishTurkey);
-
-        Assert.Equal("Family Guy", title);
-    }
-
-    [Fact]
-    public void TurkishLocale_EnglishOriginalLanguage_PrefersCanonicalTitleWhenOriginalTitleIsLocalized()
+    public void GermanLocale_GermanProduction_IgnoresExportLocalizedTitle_WhenItRepeatsCanonical()
     {
         var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
-            "Thor: Love and Thunder",
-            "Thor: Aşk ve Gök Gürültüsü",
-            "en",
-            "Thor: Aşk ve Gök Gürültüsü",
-            ContentLocaleResolver.TurkishTurkey);
+            "The Lives of Others",
+            "Das Leben der Anderen",
+            "de",
+            "The Lives of Others",
+            ContentLocaleResolver.GermanGermany);
 
-        Assert.Equal("Thor: Love and Thunder", titles.Title);
-        Assert.Equal("Thor: Aşk ve Gök Gürültüsü", titles.OriginalTitle);
+        Assert.Equal("Das Leben der Anderen", titles.Title);
+        Assert.Equal("The Lives of Others", titles.OriginalTitle);
     }
 
     [Fact]
-    public void TurkishLocale_TurkishOriginCountry_UsesTurkishPrimaryAndEnglishSubtitle()
+    public void TurkishLocale_TurkishOriginCountry_UsesLocalizedPrimary_WhenOriginalLanguageIsEnglish()
     {
         var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
             "Not a Stranger",
@@ -114,9 +105,85 @@ public sealed class LocalizedDisplayTitleSelectorTests
     }
 
     [Fact]
-    public void IsTurkishProduction_TreatsTurkishOriginalTitleAsDomesticWhenLanguageMissing()
+    public void GermanLocale_GermanOriginCountry_UsesLocalizedPrimary_WhenOriginalLanguageIsEnglish()
     {
-        var isTurkish = LocalizedDisplayTitleSelector.IsTurkishProduction(
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "The Bridge",
+            "The Bridge",
+            "en",
+            "Die Brücke",
+            ContentLocaleResolver.GermanGermany,
+            primaryOriginCountryCode: "DE");
+
+        Assert.Equal("Die Brücke", titles.Title);
+        Assert.Equal("The Bridge", titles.OriginalTitle);
+    }
+
+    [Fact]
+    public void TurkishLocale_ForeignEnglishProduction_UsesCanonicalPrimary()
+    {
+        var title = LocalizedDisplayTitleSelector.ChoosePrimary(
+            "Interstellar",
+            "Interstellar",
+            "en",
+            "Yıldızlararası",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Interstellar", title);
+    }
+
+    [Fact]
+    public void TurkishLocale_ForeignWithoutLocalizedTitle_HasNoDuplicateSubtitle()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Unknown Film",
+            "Original Name",
+            "fr",
+            localizedTitle: null,
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Unknown Film", titles.Title);
+        Assert.Equal("Original Name", titles.OriginalTitle);
+    }
+
+    [Fact]
+    public void MissingOriginalLanguage_UsesCanonicalPrimaryForImportedTitle()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Pan's Labyrinth",
+            "El laberinto del fauno",
+            originalLanguage: null,
+            "Pan'ın Labirenti",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Pan's Labyrinth", titles.Title);
+        Assert.Equal("Pan'ın Labirenti", titles.OriginalTitle);
+    }
+
+    [Fact]
+    public void EquivalentTitles_SuppressSubtitle()
+    {
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            "Pan's Labyrinth",
+            "El laberinto del fauno",
+            "es",
+            "Pan's Labyrinth",
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Pan's Labyrinth", titles.Title);
+        Assert.Equal("El laberinto del fauno", titles.OriginalTitle);
+    }
+
+    [Fact]
+    public void DisplayTitleEquivalence_TreatsApostropheVariantsAsEqual()
+    {
+        Assert.True(DisplayTitleEquivalence.AreEquivalent("Pan's Labyrinth", "Pans Labyrinth"));
+    }
+
+    [Fact]
+    public void IsTurkishProduction_UsesHeuristicsForPosterPaths()
+    {
+        var isTurkish = ContentProductionHeuristics.IsTurkishProduction(
             originalLanguage: null,
             primaryOriginCountryCode: null,
             originalTitle: "Hababam Sınıfı");

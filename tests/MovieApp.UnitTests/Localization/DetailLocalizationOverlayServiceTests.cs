@@ -161,6 +161,45 @@ public sealed class DetailLocalizationOverlayServiceTests
     }
 
     [Fact]
+    public void ApplyLoadedMovieOverlay_PrefersTurkishOriginalTitle_WhenLocalizedMatchesCanonicalExportTitle()
+    {
+        var service = CreateService(new RecordingLocalizedDetailDataProvider(), new InMemoryCacheService());
+        var canonical = new MovieDetailsResult(
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            424242,
+            null,
+            null,
+            "Flames of Fate",
+            "Alev Alev",
+            "Turkish overview",
+            new DateOnly(2020, 11, 5),
+            null,
+            "/poster.jpg",
+            "/backdrop.jpg",
+            "tr",
+            7.5m,
+            10,
+            ["Drama"],
+            [],
+            null,
+            false,
+            false,
+            false);
+
+        var result = service.ApplyLoadedMovieOverlay(
+            canonical,
+            new MovieDetailLocalizationData(
+                "Flames of Fate",
+                "Turkish overview from overlay",
+                null),
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("Alev Alev", result.Title);
+        Assert.Equal("Flames of Fate", result.OriginalTitle);
+        Assert.Equal("Turkish overview from overlay", result.Overview);
+    }
+
+    [Fact]
     public async Task ApplyMovieOverlayAsync_IsolatesCache_ByLocale()
     {
         var provider = new RecordingLocalizedDetailDataProvider
