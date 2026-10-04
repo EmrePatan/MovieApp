@@ -5,6 +5,70 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 internal static class InsightsV3SqlQueries
 {
+    internal sealed class V3SummarySqlRow
+    {
+        public DateTime MemberSince { get; init; }
+
+        public int MoviesWatched { get; init; }
+
+        public int EpisodesWatched { get; init; }
+
+        public int ShowsStarted { get; init; }
+
+        public int RatingsCount { get; init; }
+
+        public int DistinctMovieCount { get; init; }
+
+        public int DistinctSeriesCount { get; init; }
+    }
+
+    internal static async Task<V3SummarySqlRow> GetV3SummaryAsync(
+        ApplicationDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var row = await dbContext.Database
+            .SqlQuery<V3SummarySqlRow>($"""
+                WITH distinct_tv_shows AS (
+                    SELECT COUNT(DISTINCT s."TvShowId")::integer AS distinct_series_count
+                    FROM watched_episodes AS we
+                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                    WHERE we."UserId" = {userId}
+                )
+                SELECT
+                    u."CreatedAt" AS "MemberSince",
+                    (
+                        SELECT COUNT(*)::integer
+                        FROM watched_movies AS wm
+                        WHERE wm."UserId" = {userId}
+                    ) AS "MoviesWatched",
+                    (
+                        SELECT COUNT(*)::integer
+                        FROM watched_episodes AS we
+                        WHERE we."UserId" = {userId}
+                    ) AS "EpisodesWatched",
+                    COALESCE(tv.distinct_series_count, 0) AS "ShowsStarted",
+                    (
+                        SELECT COUNT(*)::integer
+                        FROM ratings AS r
+                        WHERE r."UserId" = {userId}
+                    ) AS "RatingsCount",
+                    (
+                        SELECT COUNT(DISTINCT wm."MovieId")::integer
+                        FROM watched_movies AS wm
+                        WHERE wm."UserId" = {userId}
+                    ) AS "DistinctMovieCount",
+                    COALESCE(tv.distinct_series_count, 0) AS "DistinctSeriesCount"
+                FROM users AS u
+                CROSS JOIN distinct_tv_shows AS tv
+                WHERE u."Id" = {userId}
+                """)
+            .SingleAsync(cancellationToken);
+
+        return row;
+    }
+
     private sealed class RecordsRow
     {
         public int? LongestStreakDays { get; init; }

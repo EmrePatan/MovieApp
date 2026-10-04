@@ -596,30 +596,16 @@ public sealed class InsightsRepository(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        return await context.Users
-            .AsNoTracking()
-            .Where(user => user.Id == userId)
-            .Select(user => new V3SummaryRow(
-                user.CreatedAt,
-                context.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
-                context.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId),
-                context.WatchedEpisodes
-                    .Where(watchedEpisode => watchedEpisode.UserId == userId)
-                    .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-                    .Distinct()
-                    .Count(),
-                context.Ratings.Count(rating => rating.UserId == userId),
-                context.WatchedMovies
-                    .Where(watchedMovie => watchedMovie.UserId == userId)
-                    .Select(watchedMovie => watchedMovie.MovieId)
-                    .Distinct()
-                    .Count(),
-                context.WatchedEpisodes
-                    .Where(watchedEpisode => watchedEpisode.UserId == userId)
-                    .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-                    .Distinct()
-                    .Count()))
-            .FirstAsync(cancellationToken);
+        var summary = await InsightsV3SqlQueries.GetV3SummaryAsync(context, userId, cancellationToken);
+
+        return new V3SummaryRow(
+            summary.MemberSince,
+            summary.MoviesWatched,
+            summary.EpisodesWatched,
+            summary.ShowsStarted,
+            summary.RatingsCount,
+            summary.DistinctMovieCount,
+            summary.DistinctSeriesCount);
     }
 
     private static (DateTime UtcStartInclusive, DateTime UtcEndExclusive) GetCalendarYearUtcBounds(
