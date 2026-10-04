@@ -58,6 +58,7 @@ public static class AdvancedDiscoverCacheKeys
             tvStatusSegment,
             criteria.Sort.ToString(),
             criteria.Page.ToString(CultureInfo.InvariantCulture),
-            criteria.PageSize.ToString(CultureInfo.InvariantCulture));
+            criteria.PageSize.ToString(CultureInfo.InvariantCulture),
+            criteria.RequiresPoster ? "poster" : "noposter");
     }
 }

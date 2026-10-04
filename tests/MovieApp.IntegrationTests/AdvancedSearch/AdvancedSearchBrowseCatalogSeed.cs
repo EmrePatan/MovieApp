@@ -42,4 +42,26 @@ internal static class AdvancedSearchBrowseCatalogSeed
 
         await context.SaveChangesAsync();
     }
+
+    public static readonly Guid HiddenGemMovieId = new("b1111111-1111-4111-8111-111111111101");
+
+    public static async Task SeedHiddenGemsCatalogAsync(ApplicationDbContext context)
+    {
+        var utcNow = DateTime.UtcNow;
+        context.Movies.Add(new Movie
+        {
+            Id = HiddenGemMovieId,
+            TmdbId = FakeDiscoverCatalog.DiscoverMovieBetaTmdbId,
+            Title = "Discover Hidden Gem",
+            ReleaseDate = new DateOnly(2023, 3, 1),
+            VoteAverage = 8.2m,
+            VoteCount = 250,
+            PosterPath = "/poster-hidden.jpg",
+            OriginalLanguage = "en",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+
+        await context.SaveChangesAsync();
+    }
 }

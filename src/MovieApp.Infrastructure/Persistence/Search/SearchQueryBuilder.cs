@@ -398,12 +398,10 @@ internal static class SearchQueryBuilder
     }
 
     public static IQueryable<SearchItemProjection> ApplyHiddenGemsSort(
-        IQueryable<SearchItemProjection> query) =>
-        ApplyDeterministicTieBreak(
-            query
-                .OrderByDescending(item => item.VoteAverage)
-                .ThenByDescending(item => item.VoteCount)
-                .ThenBy(item => item.Title));
+        IQueryable<SearchItemProjection> query,
+        decimal catalogMeanVoteAverage,
+        int minimumVoteConfidence) =>
+        ApplyTopRatedSort(query, catalogMeanVoteAverage, minimumVoteConfidence);
 
     public static IQueryable<SearchItemProjection> ApplyTopRatedSort(
         IQueryable<SearchItemProjection> query,

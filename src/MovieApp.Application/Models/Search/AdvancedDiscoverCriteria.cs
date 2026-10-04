@@ -24,4 +24,5 @@ public sealed record AdvancedDiscoverCriteria(
     IReadOnlyList<TvDiscoverStatus> TvStatuses,
     AdvancedDiscoverSort Sort,
     int Page,
-    int PageSize);
+    int PageSize,
+    bool RequiresPoster = false);

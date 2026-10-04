@@ -193,6 +193,14 @@ public sealed class AdvancedDiscoverService(
                     : FilterMovies(ingestResult, allowedMovieIds);
             }
 
+            if (criteria.RequiresPoster)
+            {
+                searchResult = FilterMoviesWithoutPoster(searchResult);
+                ingestResult = ReferenceEquals(searchResult, ingestResult)
+                    ? searchResult
+                    : FilterMoviesWithoutPoster(ingestResult);
+            }
+
             var movieIds = await movieRepository.EnsureFromSummariesAsync(
                 ingestResult.Results,
                 cancellationToken);
@@ -262,6 +270,14 @@ public sealed class AdvancedDiscoverService(
                 ingestResult = ReferenceEquals(searchResult, ingestResult)
                     ? searchResult
                     : FilterTvShows(ingestResult, allowedTvIds);
+            }
+
+            if (criteria.RequiresPoster)
+            {
+                searchResult = FilterTvShowsWithoutPoster(searchResult);
+                ingestResult = ReferenceEquals(searchResult, ingestResult)
+                    ? searchResult
+                    : FilterTvShowsWithoutPoster(ingestResult);
             }
 
             var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
@@ -408,6 +424,32 @@ public sealed class AdvancedDiscoverService(
         {
             throw new SearchProviderUnavailableException();
         }
+    }
+
+    private static MovieProviderSearchResult FilterMoviesWithoutPoster(MovieProviderSearchResult result)
+    {
+        var filtered = result.Results
+            .Where(summary => !string.IsNullOrWhiteSpace(summary.PosterPath))
+            .ToList();
+        if (filtered.Count == result.Results.Count)
+        {
+            return result;
+        }
+
+        return result with { Results = filtered };
+    }
+
+    private static TvShowProviderSearchResult FilterTvShowsWithoutPoster(TvShowProviderSearchResult result)
+    {
+        var filtered = result.Results
+            .Where(summary => !string.IsNullOrWhiteSpace(summary.PosterPath))
+            .ToList();
+        if (filtered.Count == result.Results.Count)
+        {
+            return result;
+        }
+
+        return result with { Results = filtered };
     }
 
     private static MovieProviderSearchResult FilterMovies(

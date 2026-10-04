@@ -131,6 +131,92 @@ public sealed class AdvancedSearchApiTests(AdvancedSearchApiFixture fixture)
     }
 
     [Fact]
+    public async Task HiddenGemsExplorePreviewMatchesBrowseSeeAllForSamePageSize()
+    {
+        await fixture.ResetAsync();
+        await using (var context = CreateContext())
+        {
+            await AdvancedSearchBrowseCatalogSeed.SeedHiddenGemsCatalogAsync(context);
+        }
+
+        const int sectionSize = 10;
+        var previewResponse = await _client.GetAsync($"/api/discovery/explore-preview?sectionSize={sectionSize}");
+        var browseResponse = await _client.GetAsync(
+            $"/api/discovery/browse?mode=hidden_gems&type=all&page=1&pageSize={sectionSize}");
+
+        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, browseResponse.StatusCode);
+
+        var preview = await previewResponse.Content.ReadFromJsonAsync<ExplorePreviewResponse>();
+        var browse = await browseResponse.Content.ReadFromJsonAsync<SearchResponse>();
+
+        Assert.NotNull(preview);
+        Assert.NotNull(browse);
+        Assert.Equal(
+            browse.Items.Select(item => item.Id),
+            preview.HiddenGems.Items.Select(item => item.Id));
+        Assert.Contains(
+            AdvancedSearchBrowseCatalogSeed.HiddenGemMovieId,
+            preview.HiddenGems.Items.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task PopularExplorePreviewMatchesDedicatedAndBrowseEndpoints()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+
+        const int sectionSize = 10;
+        var previewResponse = await _client.GetAsync($"/api/discovery/explore-preview?sectionSize={sectionSize}");
+        var dedicatedResponse = await _client.GetAsync(
+            $"/api/discovery/popular?type=all&page=1&pageSize={sectionSize}");
+        var browseResponse = await _client.GetAsync(
+            $"/api/discovery/browse?mode=popular&type=all&page=1&pageSize={sectionSize}");
+
+        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, dedicatedResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, browseResponse.StatusCode);
+
+        var preview = await previewResponse.Content.ReadFromJsonAsync<ExplorePreviewResponse>();
+        var dedicated = await dedicatedResponse.Content.ReadFromJsonAsync<SearchResponse>();
+        var browse = await browseResponse.Content.ReadFromJsonAsync<SearchResponse>();
+
+        Assert.NotNull(preview);
+        Assert.NotNull(dedicated);
+        Assert.NotNull(browse);
+        Assert.Equal(
+            dedicated.Items.Select(item => item.Id),
+            preview.Popular.Items.Select(item => item.Id));
+        Assert.Equal(
+            browse.Items.Select(item => item.Id),
+            preview.Popular.Items.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task WorldCinemaRepeatedRequestsReturnConsistentFirstPage()
+    {
+        await fixture.ResetAsync();
+        await SeedCatalogAsync();
+
+        const string url = "/api/discovery/world-cinema?mediaType=movie&originCountry=KR&sort=popularity_desc&page=1&pageSize=10";
+        var firstResponse = await _client.GetAsync(url);
+        var secondResponse = await _client.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        var first = await firstResponse.Content.ReadFromJsonAsync<SearchResponse>();
+        var second = await secondResponse.Content.ReadFromJsonAsync<SearchResponse>();
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(
+            first.Items.Select(item => item.Id),
+            second.Items.Select(item => item.Id));
+        Assert.All(first.Items, item => Assert.False(string.IsNullOrWhiteSpace(item.PosterUrl)));
+    }
+
+    [Fact]
     public async Task ExplorePreviewUsesCompositeCacheOnSecondRequest()
     {
         await fixture.ResetAsync();

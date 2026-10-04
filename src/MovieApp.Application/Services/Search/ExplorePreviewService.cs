@@ -29,8 +29,14 @@ public sealed class ExplorePreviewService(
         }
 
         var discoveryCriteria = new DiscoveryCriteria(SearchContentType.All, 1, criteria.SectionSize);
-        var hiddenGemsCriteria = CreateTitleRailCriteria(DiscoverBrowseMode.HiddenGems, criteria.SectionSize);
-        var popularCriteria = CreateTitleRailCriteria(DiscoverBrowseMode.Popular, criteria.SectionSize);
+        var hiddenGemsCriteria = DiscoverTitleRailCriteria.Create(
+            DiscoverBrowseMode.HiddenGems,
+            1,
+            criteria.SectionSize);
+        var popularCriteria = DiscoverTitleRailCriteria.Create(
+            DiscoverBrowseMode.Popular,
+            1,
+            criteria.SectionSize);
 
         var hiddenGemsTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoverBrowseService>()
@@ -74,26 +80,6 @@ public sealed class ExplorePreviewService(
         using var scope = scopeFactory.CreateScope();
         return await operation(scope.ServiceProvider, cancellationToken);
     }
-
-    private static DiscoverBrowseCriteria CreateTitleRailCriteria(DiscoverBrowseMode mode, int sectionSize) =>
-        new(
-            mode,
-            SearchContentType.All,
-            [],
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            [],
-            [],
-            null,
-            1,
-            sectionSize);
 
     private static void ValidateCriteria(ExplorePreviewCriteria criteria)
     {

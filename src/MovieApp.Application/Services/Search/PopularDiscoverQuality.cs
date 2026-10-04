@@ -5,7 +5,7 @@ namespace MovieApp.Application.Services.Search;
 /// </summary>
 public static class PopularDiscoverQuality
 {
-    public const int MinimumVoteCountMovie = 50;
+    public const int MinimumVoteCountMovie = 100;
 
-    public const int MinimumVoteCountTv = 20;
+    public const int MinimumVoteCountTv = 50;
 }

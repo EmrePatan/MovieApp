@@ -15,8 +15,6 @@ public sealed class WorldCinemaService(
     ICacheService cacheService) : IWorldCinemaService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
-    private const int TopRatedMovieMinimumVoteCount = 25;
-    private const int TopRatedTvMinimumVoteCount = 20;
 
     public async Task<PaginatedResult<SearchItem>> GetWorldCinemaAsync(
         WorldCinemaCriteria criteria,
@@ -87,34 +85,17 @@ public sealed class WorldCinemaService(
             criteria.TvStatuses,
             criteria.Sort,
             criteria.Page,
-            criteria.PageSize);
+            criteria.PageSize,
+            RequiresPoster: true);
 
     internal static int? ResolveEffectiveMinVoteCount(WorldCinemaCriteria criteria)
     {
-        var floor = ResolveTopRatedMinimumVoteCount(criteria.MediaType, criteria.Sort);
-        if (floor is null)
-        {
-            return criteria.MinVoteCount;
-        }
-
+        var floor = WorldCinemaDiscoverQuality.ResolveMinimumVoteCount(criteria.MediaType, criteria.Sort);
         if (criteria.MinVoteCount is null)
         {
             return floor;
         }
 
-        return Math.Max(criteria.MinVoteCount.Value, floor.Value);
+        return Math.Max(criteria.MinVoteCount.Value, floor);
     }
-
-    internal static int? ResolveTopRatedMinimumVoteCount(
-        SearchContentType mediaType,
-        AdvancedDiscoverSort sort) =>
-        sort switch
-        {
-            AdvancedDiscoverSort.RatingDesc => mediaType switch
-            {
-                SearchContentType.Tv => TopRatedTvMinimumVoteCount,
-                _ => TopRatedMovieMinimumVoteCount
-            },
-            _ => null
-        };
 }

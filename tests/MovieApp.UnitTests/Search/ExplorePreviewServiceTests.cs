@@ -63,6 +63,22 @@ public sealed class ExplorePreviewServiceTests
     }
 
     [Fact]
+    public async Task GetPreviewAsyncUsesSameBrowseCriteriaAsSeeAllDefaults()
+    {
+        var browse = new RecordingDiscoverBrowseService();
+        var service = CreateService(new FakeDiscoveryService(), browse, new PassthroughCacheService());
+
+        await service.GetPreviewAsync(new ExplorePreviewCriteria(12), ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(
+            DiscoverTitleRailCriteria.Create(DiscoverBrowseMode.HiddenGems, 1, 12),
+            browse.LastHiddenGemsCriteria);
+        Assert.Equal(
+            DiscoverTitleRailCriteria.Create(DiscoverBrowseMode.Popular, 1, 12),
+            browse.LastPopularCriteria);
+    }
+
+    [Fact]
     public async Task GetPreviewAsyncLoadsDiscoverySectionsInIndependentScopes()
     {
         var service = CreateServiceWithScopedDiscovery<ConcurrentDiscoveryService>(
@@ -102,11 +118,15 @@ public sealed class ExplorePreviewServiceTests
         return new ExplorePreviewService(provider.GetRequiredService<IServiceScopeFactory>(), cache);
     }
 
-    private sealed class FakeDiscoverBrowseService : IDiscoverBrowseService
+    private class RecordingDiscoverBrowseService : IDiscoverBrowseService
     {
         public int HiddenGemsCallCount { get; private set; }
 
         public int PopularCallCount { get; private set; }
+
+        public DiscoverBrowseCriteria? LastHiddenGemsCriteria { get; private set; }
+
+        public DiscoverBrowseCriteria? LastPopularCriteria { get; private set; }
 
         public Task<PaginatedResult<SearchItem>> BrowseAsync(
             DiscoverBrowseCriteria criteria,
@@ -116,10 +136,12 @@ public sealed class ExplorePreviewServiceTests
             if (criteria.Mode == DiscoverBrowseMode.HiddenGems)
             {
                 HiddenGemsCallCount++;
+                LastHiddenGemsCriteria = criteria;
             }
             else if (criteria.Mode == DiscoverBrowseMode.Popular)
             {
                 PopularCallCount++;
+                LastPopularCriteria = criteria;
             }
 
             return Task.FromResult(new PaginatedResult<SearchItem>(
@@ -144,6 +166,8 @@ public sealed class ExplorePreviewServiceTests
                 100,
                 2020);
     }
+
+    private sealed class FakeDiscoverBrowseService : RecordingDiscoverBrowseService;
 
     private sealed class FakeDiscoveryService : IDiscoveryService
     {

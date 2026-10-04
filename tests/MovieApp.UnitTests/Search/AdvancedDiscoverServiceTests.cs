@@ -123,6 +123,29 @@ public sealed class AdvancedDiscoverServiceTests
     }
 
     [Fact]
+    public async Task DiscoverAsyncRequiresPosterWhenRequested()
+    {
+        var cache = new AdvancedDiscoverFakeCacheService(null);
+        var service = new AdvancedDiscoverService(
+            new PosterPairMovieProvider(),
+            new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+            new SearchTestDoubles.FakeLocalizedListDataProvider(),
+            new SummaryMovieRepository(),
+            new SummaryTvShowRepository(),
+            new FakeGenreReadRepository(),
+            new FakeKeywordDiscoverReadRepository(),
+            cache,
+            NullLogger<AdvancedDiscoverService>.Instance,
+            new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()));
+
+        var criteria = CreateCriteria(SearchContentType.Movie) with { RequiresPoster = true };
+        var result = await service.DiscoverAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Single(result.Items);
+        Assert.Equal("With Poster", result.Items[0].Title);
+    }
+
+    [Fact]
     public async Task DiscoverAsyncRejectsAllMediaType()
     {
         var service = CreateService(
@@ -326,6 +349,62 @@ public sealed class AdvancedDiscoverServiceTests
             int maxGenresPerItem,
             CancellationToken cancellationToken = default) =>
             GenreReadRepositoryTestDefaults.EmptyTvGenresAsync(tvShowIds, maxGenresPerItem, cancellationToken);
+    }
+
+    private sealed class PosterPairMovieProvider : MovieApp.Application.Abstractions.Providers.IMovieDataProvider
+    {
+        public Task<MovieProviderSearchResult> AdvancedDiscoverMoviesAsync(
+            AdvancedDiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new MovieProviderSearchResult(
+                [
+                    new MovieProviderSummary(
+                        "ext-1",
+                        1,
+                        null,
+                        null,
+                        "Posterless",
+                        null,
+                        new DateOnly(2024, 1, 1),
+                        null,
+                        8m,
+                        100),
+                    new MovieProviderSummary(
+                        "ext-2",
+                        2,
+                        null,
+                        null,
+                        "With Poster",
+                        null,
+                        new DateOnly(2024, 1, 2),
+                        "/poster.jpg",
+                        7m,
+                        200)
+                ],
+                1,
+                20,
+                2,
+                1));
+        }
+
+        public Task<MovieProviderSearchResult> SearchMoviesAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieProviderDetails?> GetMovieAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeKeywordDiscoverReadRepository : MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository

@@ -54,10 +54,11 @@ public sealed class WorldCinemaServiceTests
         Assert.Equal("KR", mapped.OriginCountry);
         Assert.Null(mapped.WatchRegion);
         Assert.Empty(mapped.WatchProviderIds);
+        Assert.True(mapped.RequiresPoster);
     }
 
     [Fact]
-    public async Task GetWorldCinemaAsyncAppliesMovieVoteCountGuardrailForTopRatedSort()
+    public async Task GetWorldCinemaAsyncAppliesMovieVoteCountGuardrailForRatingSort()
     {
         var advancedDiscover = new RecordingAdvancedDiscoverService();
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
@@ -66,12 +67,12 @@ public sealed class WorldCinemaServiceTests
             new WorldCinemaCriteria(SearchContentType.Movie, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(25, advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(100, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Movie, advancedDiscover.LastCriteria?.MediaType);
     }
 
     [Fact]
-    public async Task GetWorldCinemaAsyncAppliesTvVoteCountGuardrailForTopRatedSort()
+    public async Task GetWorldCinemaAsyncAppliesTvVoteCountGuardrailForRatingSort()
     {
         var advancedDiscover = new RecordingAdvancedDiscoverService();
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
@@ -80,12 +81,12 @@ public sealed class WorldCinemaServiceTests
             new WorldCinemaCriteria(SearchContentType.Tv, "FR", AdvancedDiscoverSort.RatingDesc, 1, 20),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(20, advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(75, advancedDiscover.LastCriteria?.MinVoteCount);
         Assert.Equal(SearchContentType.Tv, advancedDiscover.LastCriteria?.MediaType);
     }
 
     [Fact]
-    public async Task GetWorldCinemaAsyncDoesNotApplyVoteCountGuardrailForTvPopularitySort()
+    public async Task GetWorldCinemaAsyncAppliesPopularVoteCountGuardrailForMovieAndTv()
     {
         var advancedDiscover = new RecordingAdvancedDiscoverService();
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
@@ -94,24 +95,20 @@ public sealed class WorldCinemaServiceTests
             new WorldCinemaCriteria(SearchContentType.Tv, "IR", AdvancedDiscoverSort.PopularityDesc, 1, 20),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Null(advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(50, advancedDiscover.LastCriteria?.MinVoteCount);
     }
 
-    [Theory]
-    [InlineData(AdvancedDiscoverSort.PopularityDesc)]
-    [InlineData(AdvancedDiscoverSort.Newest)]
-    [InlineData(AdvancedDiscoverSort.Oldest)]
-    public async Task GetWorldCinemaAsyncDoesNotApplyVoteCountGuardrailForNonTopRatedSorts(
-        AdvancedDiscoverSort sort)
+    [Fact]
+    public async Task GetWorldCinemaAsyncAppliesNewestVoteCountGuardrail()
     {
         var advancedDiscover = new RecordingAdvancedDiscoverService();
         var service = CreateService(advancedDiscover, new WorldCinemaFakeCache());
 
         await service.GetWorldCinemaAsync(
-            new WorldCinemaCriteria(SearchContentType.Movie, "KR", sort, 1, 20),
+            new WorldCinemaCriteria(SearchContentType.Movie, "KR", AdvancedDiscoverSort.Newest, 1, 20),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Null(advancedDiscover.LastCriteria?.MinVoteCount);
+        Assert.Equal(1, advancedDiscover.LastCriteria?.MinVoteCount);
     }
 
     [Fact]
@@ -141,7 +138,7 @@ public sealed class WorldCinemaServiceTests
     }
 
     [Fact]
-    public void ToAdvancedDiscoverCriteriaPreservesD1OriginCountrySemantics()
+    public void ToAdvancedDiscoverCriteriaPreservesOriginCountryAndPopularFloor()
     {
         var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
             new WorldCinemaCriteria(SearchContentType.Movie, "KR", AdvancedDiscoverSort.PopularityDesc, 2, 20));
@@ -150,30 +147,18 @@ public sealed class WorldCinemaServiceTests
         Assert.Null(mapped.WatchRegion);
         Assert.Null(mapped.OriginalLanguage);
         Assert.Equal(AdvancedDiscoverSort.PopularityDesc, mapped.Sort);
-        Assert.Null(mapped.MinVoteCount);
-    }
-
-    [Theory]
-    [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.RatingDesc, 25)]
-    [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.RatingDesc, 20)]
-    [InlineData(SearchContentType.Movie, AdvancedDiscoverSort.PopularityDesc, null)]
-    [InlineData(SearchContentType.Tv, AdvancedDiscoverSort.Newest, null)]
-    public void ResolveTopRatedMinimumVoteCountReturnsExpectedThreshold(
-        SearchContentType mediaType,
-        AdvancedDiscoverSort sort,
-        int? expected)
-    {
-        Assert.Equal(expected, WorldCinemaService.ResolveTopRatedMinimumVoteCount(mediaType, sort));
+        Assert.Equal(50, mapped.MinVoteCount);
+        Assert.True(mapped.RequiresPoster);
     }
 
     [Fact]
-    public void ToAdvancedDiscoverCriteriaIrMovieRatingDescPreservesOriginAndSort()
+    public void ToAdvancedDiscoverCriteriaIrMovieRatingDescPreservesOriginSortAndFloor()
     {
         var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
             new WorldCinemaCriteria(SearchContentType.Movie, "ir", AdvancedDiscoverSort.RatingDesc, 1, 20));
 
         Assert.Equal("IR", mapped.OriginCountry);
-        Assert.Equal(25, mapped.MinVoteCount);
+        Assert.Equal(100, mapped.MinVoteCount);
         Assert.Equal(AdvancedDiscoverSort.RatingDesc, mapped.Sort);
     }
 
@@ -186,9 +171,8 @@ public sealed class WorldCinemaServiceTests
 
         Assert.Contains("with_origin_country=IR", query);
         Assert.Contains("sort_by=vote_average.desc", query);
-        Assert.Contains(
-            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
-            query);
+        Assert.Contains("vote_count.gte=100", query);
+        Assert.DoesNotContain("vote_average.gte", query);
         Assert.Contains("include_adult=false", query);
     }
 
@@ -201,10 +185,31 @@ public sealed class WorldCinemaServiceTests
 
         Assert.Contains("with_origin_country=IR", query);
         Assert.Contains("sort_by=vote_average.desc", query);
-        Assert.Contains(
-            $"vote_count.gte={DiscoverCatalogSortPolicy.RatingRankedSortMinimumVoteCount}",
-            query);
+        Assert.Contains("vote_count.gte=75", query);
         Assert.Contains("include_adult=false", query);
+    }
+
+    [Fact]
+    public void ToAdvancedDiscoverCriteriaPopularBuildsPopularitySortWithVoteFloor()
+    {
+        var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
+            new WorldCinemaCriteria(SearchContentType.Movie, "KR", AdvancedDiscoverSort.PopularityDesc, 1, 20));
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(ToProviderCriteria(mapped));
+
+        Assert.Contains("sort_by=popularity.desc", query);
+        Assert.Contains("vote_count.gte=50", query);
+        Assert.DoesNotContain("vote_average.gte", query);
+    }
+
+    [Fact]
+    public void ToAdvancedDiscoverCriteriaNewestBuildsNewestSortWithMinimalVoteFloor()
+    {
+        var mapped = WorldCinemaService.ToAdvancedDiscoverCriteria(
+            new WorldCinemaCriteria(SearchContentType.Movie, "KR", AdvancedDiscoverSort.Newest, 1, 20));
+        var query = TmdbAdvancedDiscoverQueryBuilder.BuildMovieQuery(ToProviderCriteria(mapped));
+
+        Assert.Contains("sort_by=primary_release_date.desc", query);
+        Assert.Contains("vote_count.gte=1", query);
     }
 
     [Fact]
@@ -241,7 +246,7 @@ public sealed class WorldCinemaServiceTests
         var fromWorldCinema = WorldCinemaService.ToAdvancedDiscoverCriteria(
             new WorldCinemaCriteria(SearchContentType.Movie, "IR", AdvancedDiscoverSort.RatingDesc, 1, 20));
 
-        Assert.Equal(25, fromWorldCinema.MinVoteCount);
+        Assert.Equal(100, fromWorldCinema.MinVoteCount);
     }
 
     private static AdvancedDiscoverProviderCriteria ToProviderCriteria(AdvancedDiscoverCriteria criteria) =>

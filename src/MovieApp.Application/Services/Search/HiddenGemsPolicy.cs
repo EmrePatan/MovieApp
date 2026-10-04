@@ -8,13 +8,15 @@ public static class HiddenGemsPolicy
 {
     public const decimal MinimumVoteAverage = 7.5m;
 
-    public const int MovieMinimumVoteCount = 75;
+    public const int MinimumVoteConfidence = 300;
 
-    public const int MovieMaximumVoteCount = 2000;
+    public const int MovieMinimumVoteCount = 100;
 
-    public const int TvMinimumVoteCount = 40;
+    public const int MovieMaximumVoteCount = 800;
 
-    public const int TvMaximumVoteCount = 1500;
+    public const int TvMinimumVoteCount = 50;
+
+    public const int TvMaximumVoteCount = 850;
 
     public static bool IsMovieHiddenGem(decimal voteAverage, int voteCount, string? posterPath) =>
         voteAverage >= MinimumVoteAverage

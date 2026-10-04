@@ -6,6 +6,7 @@ using MovieApp.Application.Models.Common;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
+using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Providers;
 
@@ -37,11 +38,9 @@ public sealed class AdvancedSearchApiFixture : IAsyncLifetime
             FakeMovieDataProvider.RecentReleaseQueryToken,
             MovieSearchPagination.DefaultPage,
             MovieSearchPagination.DefaultPageSize));
-        await cacheService.RemoveAsync(ExplorePreviewCacheKeys.Create(10, string.Empty));
-        await cacheService.RemoveAsync(ExplorePreviewCacheKeys.Create(
-            SearchPaginationDefaults.DefaultPageSize,
-            string.Empty));
+        await ClearExplorePreviewCachesAsync(cacheService);
         await ClearDiscoveryBrowseCachesAsync(cacheService);
+        await ClearTitleRailBrowseCachesAsync(cacheService);
 
         await using var context = CreateContext();
         context.SearchHistories.RemoveRange(context.SearchHistories);
@@ -61,6 +60,34 @@ public sealed class AdvancedSearchApiFixture : IAsyncLifetime
         context.Genres.RemoveRange(context.Genres);
         context.Users.RemoveRange(context.Users);
         await context.SaveChangesAsync();
+    }
+
+    private static async Task ClearExplorePreviewCachesAsync(ICacheService cacheService)
+    {
+        var contentLocale = SupportedContentLocales.Default;
+        foreach (var sectionSize in new[] { 10, SearchPaginationDefaults.DefaultPageSize })
+        {
+            await cacheService.RemoveAsync(ExplorePreviewCacheKeys.Create(sectionSize, contentLocale));
+            await cacheService.RemoveAsync(ExplorePreviewCacheKeys.Create(sectionSize, string.Empty));
+        }
+    }
+
+    private static async Task ClearTitleRailBrowseCachesAsync(ICacheService cacheService)
+    {
+        var contentLocale = SupportedContentLocales.Default;
+        foreach (var pageSize in new[] { 10, SearchPaginationDefaults.DefaultPageSize })
+        {
+            foreach (var mode in new[] { DiscoverBrowseMode.HiddenGems, DiscoverBrowseMode.Popular })
+            {
+                var criteria = DiscoverTitleRailCriteria.Create(mode, 1, pageSize);
+                var browseKey = DiscoveryBrowseCacheKeys.Create(criteria, contentLocale);
+                await cacheService.RemoveAsync(browseKey);
+                if (mode == DiscoverBrowseMode.HiddenGems)
+                {
+                    await cacheService.RemoveAsync("hidden-gems:" + browseKey);
+                }
+            }
+        }
     }
 
     private static async Task ClearDiscoveryBrowseCachesAsync(ICacheService cacheService)

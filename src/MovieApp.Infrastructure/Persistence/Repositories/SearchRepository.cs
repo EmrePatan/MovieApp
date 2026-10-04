@@ -9,6 +9,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Search;
+using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Persistence.Search;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -293,17 +294,44 @@ public sealed class SearchRepository(
         return ToPaginatedResult(items, criteria.Page, criteria.PageSize, totalCount);
     }
 
-    public Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
+    public async Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
         DiscoverBrowseCriteria criteria,
         CancellationToken cancellationToken = default)
     {
         var query = CatalogTitleListQuery.BuildHiddenGemsQuery(dbContext, criteria);
-        return PageTitleListAsync(
-            query,
-            criteria.Page,
-            criteria.PageSize,
-            SearchQueryBuilder.ApplyHiddenGemsSort,
-            cancellationToken);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var catalogMean = await ComputeEligiblePopulationMeanVoteAverageAsync(query, cancellationToken);
+        var minimumVoteConfidence = HiddenGemsPolicy.MinimumVoteConfidence;
+        var skip = (criteria.Page - 1) * criteria.PageSize;
+
+        List<SearchItemProjection> items;
+        if (UsesDatabaseTopRatedRanking())
+        {
+            items = await SearchQueryBuilder
+                .ApplyHiddenGemsSort(query, catalogMean, minimumVoteConfidence)
+                .Skip(skip)
+                .Take(criteria.PageSize)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            var rankedItems = await query.ToListAsync(cancellationToken);
+            items = rankedItems
+                .OrderByDescending(item => TopRatedScoreCalculator.ComputeWeightedRating(
+                    item.VoteAverage,
+                    item.VoteCount,
+                    catalogMean,
+                    minimumVoteConfidence))
+                .ThenByDescending(item => item.VoteCount)
+                .ThenBy(item => item.Title)
+                .ThenBy(item => item.Type)
+                .ThenBy(item => item.Id)
+                .Skip(skip)
+                .Take(criteria.PageSize)
+                .ToList();
+        }
+
+        return ToPaginatedResult(items, criteria.Page, criteria.PageSize, totalCount);
     }
 
     public async Task<PaginatedResult<SearchItem>> GetFilteredTopRatedAsync(
@@ -372,6 +400,27 @@ public sealed class SearchRepository(
             dbContext.Database.ProviderName,
             "Microsoft.EntityFrameworkCore.InMemory",
             StringComparison.Ordinal);
+
+    private static async Task<decimal> ComputeEligiblePopulationMeanVoteAverageAsync(
+        IQueryable<SearchItemProjection> query,
+        CancellationToken cancellationToken)
+    {
+        var totals = await query
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                TotalVotes = group.Sum(item => (long)item.VoteCount),
+                WeightedRatingSum = group.Sum(item => (double)item.VoteAverage * item.VoteCount)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (totals is null || totals.TotalVotes <= 0)
+        {
+            return 7.0m;
+        }
+
+        return (decimal)(totals.WeightedRatingSum / totals.TotalVotes);
+    }
 
     public async Task<decimal> GetCatalogMeanVoteAverageAsync(
         SearchContentType type,
