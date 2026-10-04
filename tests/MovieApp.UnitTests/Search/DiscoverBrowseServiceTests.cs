@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Models.Home;
 using MovieApp.Application.Services.Home;
+using MovieApp.Application.Services.Discovery;
 using MovieApp.Application.Services.Search;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.UnitTests.Persistence;
@@ -253,6 +254,67 @@ public sealed class DiscoverBrowseServiceTests
         Assert.Equal(
             ["Discover Movie Beta", "Discover TV Beta", "Discover Movie Alpha", "Discover TV Alpha"],
             result.Items.Select(item => item.Title).ToList());
+    }
+
+    [Fact]
+    public async Task BrowseAsyncPopular_ExcludesTalkGenreAndBackfillsEligibleTv()
+    {
+        var tvProvider = new TalkGenreSequencedTvProvider();
+        var service = CreateService(
+            new FakeMovieDataProvider(new MovieDataProviderCallTracker()),
+            tvProvider);
+
+        var rail = await service.BrowseAsync(
+            DiscoverTitleRailCriteria.Create(DiscoverBrowseMode.Popular, 1, pageSize: 1) with
+            {
+                Type = SearchContentType.Tv
+            },
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        var seeAll = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Tv, DiscoverBrowseMode.Popular, page: 1, pageSize: 1),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(seeAll.Items.Select(item => item.Title), rail.Items.Select(item => item.Title));
+        Assert.Equal("Scripted Drama Page 2", rail.Items[0].Title);
+        Assert.Equal(2, tvProvider.DiscoverCallCount);
+        Assert.DoesNotContain(rail.Items, item => item.Title.Contains("Talk Headliner", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BrowseAsyncPopular_SeeAllPageTwoUsesSameTalkExclusionAsRail()
+    {
+        var tvProvider = new TalkGenreSequencedTvProvider();
+        var service = CreateService(
+            new FakeMovieDataProvider(new MovieDataProviderCallTracker()),
+            tvProvider);
+
+        var pageTwo = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Tv, DiscoverBrowseMode.Popular, page: 2, pageSize: 1),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal("Scripted Drama Page 3", pageTwo.Items[0].Title);
+        Assert.Equal(3, tvProvider.DiscoverCallCount);
+        Assert.DoesNotContain(pageTwo.Items, item => item.Title.Contains("Talk Headliner", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BrowseAsyncTrendingWithFilters_DoesNotExcludeTalkGenre()
+    {
+        var tvProvider = new TalkGenreSequencedTvProvider();
+        var service = CreateService(
+            new FakeMovieDataProvider(new MovieDataProviderCallTracker()),
+            tvProvider);
+
+        var result = await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Tv, DiscoverBrowseMode.Trending, pageSize: 1) with
+            {
+                MinRating = 1m
+            },
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal("Talk Headliner Page 1", result.Items[0].Title);
+        Assert.Equal(1, tvProvider.DiscoverCallCount);
     }
 
     [Fact]
@@ -828,6 +890,100 @@ public sealed class DiscoverBrowseServiceTests
                     tmdbId))
                 .ToList();
         }
+    }
+
+    private sealed class TalkGenreSequencedTvProvider : ITvShowDataProvider
+    {
+        public int DiscoverCallCount { get; private set; }
+
+        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            DiscoverCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var page = criteria.Page;
+            TvShowProviderSummary summary = page switch
+            {
+                1 => CreateSummary(
+                    900_001,
+                    "Talk Headliner Page 1",
+                    popularity: 500m,
+                    genreIds: [OnTvThisWeekContentSelector.TalkTmdbGenreId]),
+                2 => CreateSummary(
+                    900_002,
+                    "Scripted Drama Page 2",
+                    popularity: 100m,
+                    genreIds: [18]),
+                _ => CreateSummary(
+                    900_000 + page,
+                    $"Scripted Drama Page {page}",
+                    popularity: 90m - page,
+                    genreIds: [18])
+            };
+
+            return Task.FromResult(new TvShowProviderSearchResult(
+                [summary],
+                page,
+                1,
+                10,
+                10));
+        }
+
+        public Task<TvShowProviderSearchResult> SearchTvShowsAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderDetails?> GetTvShowAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<SeasonProviderDetails?> GetSeasonAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EpisodeProviderDetails?> GetEpisodeAsync(
+            string externalTvShowId,
+            int seasonNumber,
+            int episodeNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TvShowProviderSearchResult> AdvancedDiscoverTvShowsAsync(
+            AdvancedDiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        private static TvShowProviderSummary CreateSummary(
+            int tmdbId,
+            string title,
+            decimal popularity,
+            IReadOnlyList<int> genreIds) =>
+            new(
+                $"tv-{tmdbId}",
+                tmdbId,
+                null,
+                null,
+                title,
+                title,
+                "Overview",
+                new DateOnly(2024, 1, 1),
+                "/poster.jpg",
+                null,
+                "en",
+                8m,
+                200,
+                popularity,
+                null,
+                genreIds);
     }
 
     private sealed class CappedDiscoverTvProvider(int itemsPerPage, int totalPages) : ITvShowDataProvider

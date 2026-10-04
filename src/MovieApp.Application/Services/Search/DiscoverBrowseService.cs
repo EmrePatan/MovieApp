@@ -345,6 +345,18 @@ public sealed class DiscoverBrowseService(
                 }
             }
 
+            ingestResult = ingestResult with
+            {
+                Results = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, ingestResult.Results)
+            };
+            if (!ReferenceEquals(searchResult, ingestResult))
+            {
+                searchResult = searchResult with
+                {
+                    Results = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, searchResult.Results)
+                };
+            }
+
             var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                 ingestResult.Results,
                 cancellationToken);
@@ -501,6 +513,7 @@ public sealed class DiscoverBrowseService(
             {
                 tvTotalCount = tvSearchResult.TotalCount;
                 var tvIngest = FilterPosters(criteria.Mode, tvIngestResult.Results);
+                tvIngest = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, tvIngest);
                 var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                     tvIngest,
                     cancellationToken);

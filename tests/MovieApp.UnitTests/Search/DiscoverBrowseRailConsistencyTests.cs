@@ -45,6 +45,18 @@ public sealed class DiscoverBrowseRailConsistencyTests
             DiscoverTitleRailCriteria.Create(DiscoverBrowseMode.Popular, 1, 10).Mode);
     }
 
+    [Fact]
+    public void PopularRailAndSeeAllShareBrowseCriteriaShapeForTalkEligibility()
+    {
+        const int pageSize = 12;
+        var railCriteria = DiscoverTitleRailCriteria.Create(DiscoverBrowseMode.Popular, 1, pageSize);
+        var seeAllCriteria = BuildSeeAllCriteria("popular", page: 1, pageSize: pageSize);
+
+        Assert.Equal(railCriteria, seeAllCriteria);
+        Assert.Equal(DiscoverBrowseMode.Popular, railCriteria.Mode);
+        Assert.Equal(SearchContentType.All, railCriteria.Type);
+    }
+
     private static DiscoverBrowseCriteria BuildSeeAllCriteria(string mode, int page, int pageSize)
     {
         _ = DiscoverBrowseValidator.TryParseMode(mode, out var browseMode);
