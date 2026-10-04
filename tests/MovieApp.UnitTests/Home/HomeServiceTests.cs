@@ -814,12 +814,14 @@ public sealed class HomeServiceTests
                 HeroSectionSize = 5
             });
 
+        var genreCap = new RecommendationOptions().DiversityMaxPerGenre;
+
         var result = await service.GetHomePersonalizedAsync(
             new HomeCriteria(SearchContentType.All, 10),
             ContentLocaleResolver.EnglishUnitedStates);
         var recommended = result.Sections.Single(section => section.Type == HomeSectionType.RecommendedForYou);
 
-        Assert.Equal(3, recommended.Items.Count);
+        Assert.Equal(genreCap, recommended.Items.Count);
         Assert.DoesNotContain(recommended.Items, item => item.Id == heroId);
         Assert.Equal(recommendedItems[1].Id, recommended.Items[0].Id);
     }

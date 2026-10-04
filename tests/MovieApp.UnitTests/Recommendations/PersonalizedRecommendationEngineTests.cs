@@ -458,8 +458,8 @@ public sealed class PersonalizedRecommendationEngineTests
         recommendations = recommendations.OrderByDescending(item => item.Score).ToList();
         var diversified = PersonalizedRecommendationEngine.ApplyDiversity(recommendations, DefaultOptions);
 
-        Assert.Equal(3, diversified.Count(item => item.Candidate.GenreIds.Contains(actionGenreId)));
-        Assert.Equal(3, diversified.Count(item => item.Candidate.GenreIds.Contains(comedyGenreId)));
+        Assert.Equal(4, diversified.Count(item => item.Candidate.GenreIds.Contains(actionGenreId)));
+        Assert.Equal(4, diversified.Count(item => item.Candidate.GenreIds.Contains(comedyGenreId)));
         Assert.Equal(recommendations[0].Candidate.Id, diversified[0].Candidate.Id);
     }
 

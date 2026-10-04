@@ -14,6 +14,6 @@ public static class DiscoveryTrendingCacheKeys
 
     public static string CreateWeekList(DiscoveryCriteria criteria, string contentLocale) =>
         ContentLocaleCacheKeySegment.Append(
-            $"{Prefix}week:{criteria.Type}:{criteria.Page}:{criteria.PageSize}",
+            $"{Prefix}week:{criteria.Type}:{criteria.Page}:{criteria.PageSize}:v2",
             contentLocale);
 }

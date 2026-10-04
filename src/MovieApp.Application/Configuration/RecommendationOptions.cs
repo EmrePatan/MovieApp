@@ -99,7 +99,7 @@ public sealed class RecommendationOptions
 
     public int DiversityMaxPerCollection { get; set; } = 1;
 
-    public int DiversityMaxPerGenre { get; set; } = 3;
+    public int DiversityMaxPerGenre { get; set; } = 4;
 
     /// <summary>
     /// Hard cap for titles that share a configured franchise-family keyword. Zero disables the cap.

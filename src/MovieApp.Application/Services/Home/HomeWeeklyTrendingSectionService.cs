@@ -24,10 +24,12 @@ public sealed class HomeWeeklyTrendingSectionService(
             return [];
         }
 
+        var today = TrendingWeekReleaseEligibility.TodayUtc();
         var snapshot = await trendingSnapshotService.GetSnapshotAsync(cancellationToken);
         if (snapshot is { Items.Count: > 0 })
         {
-            var filtered = HotThisWeekService.FilterAndTake(snapshot.Items, type, snapshot.Items.Count);
+            var released = TrendingWeekReleaseEligibility.FilterReleased(snapshot.Items, today);
+            var filtered = HotThisWeekService.FilterAndTake(released, type, released.Count);
             var localized = await ApplyLocalizationAsync(filtered, contentLocale, cancellationToken);
             return HomeWeeklyTrendingComposition.SelectTrendingItems(
                 localized,

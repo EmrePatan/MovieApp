@@ -33,10 +33,11 @@ public sealed class TrendingWeekListService(
         }
 
         var cacheKey = DiscoveryTrendingCacheKeys.CreateWeekList(criteria, contentLocale);
+        var today = TrendingWeekReleaseEligibility.TodayUtc();
         var cached = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
-            return cached.Result;
+            return ReapplyReleaseEligibility(cached.Result, today);
         }
 
         TrendingWeekPage providerPage;
@@ -51,10 +52,12 @@ public sealed class TrendingWeekListService(
             throw new SearchProviderUnavailableException();
         }
 
-        var titles = providerPage.Items
-            .Where(item => item.MediaType is "movie" or "tv")
-            .Where(item => MatchesType(item.MediaType, criteria.Type))
-            .ToList();
+        var titles = TrendingWeekReleaseEligibility.FilterReleased(
+            providerPage.Items
+                .Where(item => item.MediaType is "movie" or "tv")
+                .Where(item => MatchesType(item.MediaType, criteria.Type))
+                .ToList(),
+            today);
 
         var movieSummaries = titles
             .Where(item => item.MediaType == "movie")
@@ -97,4 +100,17 @@ public sealed class TrendingWeekListService(
             SearchContentType.Tv => mediaType == "tv",
             _ => mediaType is "movie" or "tv"
         };
+
+    private static PaginatedResult<SearchItem> ReapplyReleaseEligibility(
+        PaginatedResult<SearchItem> cached,
+        DateOnly today)
+    {
+        var items = TrendingWeekReleaseEligibility.FilterReleased(cached.Items, today);
+        return new PaginatedResult<SearchItem>(
+            items,
+            cached.Page,
+            cached.PageSize,
+            cached.TotalCount,
+            cached.TotalPages);
+    }
 }

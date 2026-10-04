@@ -20,6 +20,8 @@ public sealed class HotThisWeekService(
     IOptions<HomeOptions> options,
     ILogger<HotThisWeekService> logger) : IHotThisWeekService
 {
+    private const int FallbackWeeklyPoolPageSize = 20;
+
     private readonly HomeOptions _options = options.Value;
 
     public async Task<IReadOnlyList<SearchItem>> GetItemsAsync(
@@ -33,51 +35,35 @@ public sealed class HotThisWeekService(
             return [];
         }
 
-        var totalStopwatch = Stopwatch.StartNew();
-        var cacheKey = HotThisWeekCacheKeys.Create(type, maxItems, contentLocale);
+        var pool = await GetWeeklyPoolAsync(contentLocale, cancellationToken);
+        var today = TrendingWeekReleaseEligibility.TodayUtc();
+        var released = TrendingWeekReleaseEligibility.FilterReleased(pool, today);
+        return FilterAndTake(released, type, maxItems);
+    }
 
-        var cacheLookupStopwatch = Stopwatch.StartNew();
+    private async Task<IReadOnlyList<SearchItem>> GetWeeklyPoolAsync(
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        var cacheKey = HotThisWeekCacheKeys.CreateWeeklyPool(contentLocale);
         var cached = await cacheService.GetAsync<HotThisWeekCacheEntry>(cacheKey, cancellationToken);
-        cacheLookupStopwatch.Stop();
         if (cached is not null)
         {
-            LogCachePerf("CacheHit", cacheLookupStopwatch.ElapsedMilliseconds, 0, 0, 0, totalStopwatch, cached.Items.Count);
             return cached.Items;
         }
 
         var inFlight = loadCoordinator.TryGetInFlight(cacheKey);
         if (inFlight is not null)
         {
-            var waitStopwatch = Stopwatch.StartNew();
-            var shared = await inFlight;
-            waitStopwatch.Stop();
-            LogCachePerf(
-                "WaiterInProcess",
-                cacheLookupStopwatch.ElapsedMilliseconds,
-                0,
-                0,
-                waitStopwatch.ElapsedMilliseconds,
-                totalStopwatch,
-                shared.Count);
-            return shared;
+            return await inFlight;
         }
 
-        var loaded = await loadCoordinator.RunInFlightAsync(
+        return await loadCoordinator.RunInFlightAsync(
             cacheKey,
-            () => LoadAndCacheAsync(
-                type,
-                maxItems,
-                contentLocale,
-                cacheKey,
-                cancellationToken));
-
-        totalStopwatch.Stop();
-        return loaded;
+            () => LoadAndCacheWeeklyPoolAsync(contentLocale, cacheKey, cancellationToken));
     }
 
-    private async Task<IReadOnlyList<SearchItem>> LoadAndCacheAsync(
-        SearchContentType type,
-        int maxItems,
+    private async Task<IReadOnlyList<SearchItem>> LoadAndCacheWeeklyPoolAsync(
         string contentLocale,
         string cacheKey,
         CancellationToken cancellationToken)
@@ -98,8 +84,7 @@ public sealed class HotThisWeekService(
         if (snapshot is { Items.Count: > 0 })
         {
             role = "SnapshotHit";
-            var filtered = FilterAndTake(snapshot.Items, type, maxItems);
-            items = await ApplySnapshotLocalizationAsync(filtered, contentLocale, cancellationToken);
+            items = await ApplySnapshotLocalizationAsync(snapshot.Items.ToList(), contentLocale, cancellationToken);
             snapshotRefreshedAt = snapshot.RefreshedAt;
             HotThisWeekTrendingSnapshotLogMessages.LogReadSource(
                 logger,
@@ -112,7 +97,7 @@ public sealed class HotThisWeekService(
             role = "TrendingFallback";
             var trendingStopwatch = Stopwatch.StartNew();
             var discovery = await trendingWeekListService.GetPageAsync(
-                new DiscoveryCriteria(type, 1, maxItems),
+                new DiscoveryCriteria(SearchContentType.All, 1, FallbackWeeklyPoolPageSize),
                 contentLocale,
                 cancellationToken);
             trendingStopwatch.Stop();
