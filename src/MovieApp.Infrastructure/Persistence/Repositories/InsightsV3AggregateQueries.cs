@@ -170,93 +170,86 @@ internal static class InsightsV3AggregateQueries
     {
         var rows = await dbContext.Database
             .SqlQuery<GenreContributionSqlRow>($"""
+                WITH movie_genre_lines AS (
+                    SELECT
+                        wm."WatchedAt" AS watched_at,
+                        mg."GenreId" AS genre_id,
+                        g."Name" AS genre_name,
+                        COUNT(*) OVER (PARTITION BY wm."Id")::integer AS genre_count
+                    FROM watched_movies AS wm
+                    INNER JOIN movies AS m ON m."Id" = wm."MovieId"
+                    INNER JOIN movie_genres AS mg ON mg."MovieId" = m."Id"
+                    INNER JOIN genres AS g ON g."Id" = mg."GenreId"
+                    WHERE wm."UserId" = {userId}
+                ),
+                watched_episode_keys AS (
+                    SELECT
+                        we."Id" AS episode_watch_id,
+                        we."WatchedAt" AS watched_at,
+                        s."TvShowId" AS show_id
+                    FROM watched_episodes AS we
+                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                    WHERE we."UserId" = {userId}
+                ),
+                tv_show_genre_lines AS (
+                    SELECT
+                        tg."GenreId" AS genre_id,
+                        g."Name" AS genre_name,
+                        COUNT(*) OVER (PARTITION BY shows.show_id)::integer AS genre_count
+                    FROM (
+                        SELECT DISTINCT wek.show_id
+                        FROM watched_episode_keys AS wek
+                    ) AS shows
+                    INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = shows.show_id
+                    INNER JOIN genres AS g ON g."Id" = tg."GenreId"
+                ),
+                weighted AS (
+                    SELECT 'all_time'::text AS scope, genre_id, genre_name, genre_count
+                    FROM movie_genre_lines
+                    UNION ALL
+                    SELECT 'all_time'::text AS scope, genre_id, genre_name, genre_count
+                    FROM tv_show_genre_lines
+                    UNION ALL
+                    SELECT 'current_year'::text AS scope, genre_id, genre_name, genre_count
+                    FROM movie_genre_lines
+                    WHERE watched_at >= {currentYearStartUtc}
+                      AND watched_at < {currentYearEndUtc}
+                    UNION ALL
+                    SELECT 'previous_year'::text AS scope, genre_id, genre_name, genre_count
+                    FROM movie_genre_lines
+                    WHERE watched_at >= {previousYearStartUtc}
+                      AND watched_at < {previousYearEndUtc}
+                    UNION ALL
+                    SELECT
+                        'current_year'::text AS scope,
+                        tg."GenreId" AS genre_id,
+                        g."Name" AS genre_name,
+                        COUNT(*) OVER (PARTITION BY wek.episode_watch_id)::integer AS genre_count
+                    FROM watched_episode_keys AS wek
+                    INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = wek.show_id
+                    INNER JOIN genres AS g ON g."Id" = tg."GenreId"
+                    WHERE wek.watched_at >= {currentYearStartUtc}
+                      AND wek.watched_at < {currentYearEndUtc}
+                    UNION ALL
+                    SELECT
+                        'previous_year'::text AS scope,
+                        tg."GenreId" AS genre_id,
+                        g."Name" AS genre_name,
+                        COUNT(*) OVER (PARTITION BY wek.episode_watch_id)::integer AS genre_count
+                    FROM watched_episode_keys AS wek
+                    INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = wek.show_id
+                    INNER JOIN genres AS g ON g."Id" = tg."GenreId"
+                    WHERE wek.watched_at >= {previousYearStartUtc}
+                      AND wek.watched_at < {previousYearEndUtc}
+                )
                 SELECT
                     weighted.scope AS "Scope",
                     weighted.genre_id AS "GenreId",
                     weighted.genre_name AS "Name",
                     weighted.genre_count AS "GenresOnTitle",
                     COUNT(*)::integer AS "TitleCount"
-                FROM (
-                    SELECT
-                        'all_time'::text AS scope,
-                        mg."GenreId" AS genre_id,
-                        g."Name" AS genre_name,
-                        COUNT(*) OVER (PARTITION BY wm."Id")::integer AS genre_count
-                    FROM watched_movies AS wm
-                    INNER JOIN movies AS m ON m."Id" = wm."MovieId"
-                    INNER JOIN movie_genres AS mg ON mg."MovieId" = m."Id"
-                    INNER JOIN genres AS g ON g."Id" = mg."GenreId"
-                    WHERE wm."UserId" = {userId}
-                    UNION ALL
-                    SELECT
-                        'all_time'::text AS scope,
-                        tg."GenreId" AS genre_id,
-                        g."Name" AS genre_name,
-                        COUNT(*) OVER (PARTITION BY shows.show_id)::integer AS genre_count
-                    FROM (
-                        SELECT DISTINCT s."TvShowId" AS show_id
-                        FROM watched_episodes AS we
-                        INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
-                        INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
-                        WHERE we."UserId" = {userId}
-                    ) AS shows
-                    INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = shows.show_id
-                    INNER JOIN genres AS g ON g."Id" = tg."GenreId"
-                    UNION ALL
-                    SELECT
-                        'current_year'::text AS scope,
-                        mg."GenreId" AS genre_id,
-                        g."Name" AS genre_name,
-                        COUNT(*) OVER (PARTITION BY wm."Id")::integer AS genre_count
-                    FROM watched_movies AS wm
-                    INNER JOIN movies AS m ON m."Id" = wm."MovieId"
-                    INNER JOIN movie_genres AS mg ON mg."MovieId" = m."Id"
-                    INNER JOIN genres AS g ON g."Id" = mg."GenreId"
-                    WHERE wm."UserId" = {userId}
-                      AND wm."WatchedAt" >= {currentYearStartUtc}
-                      AND wm."WatchedAt" < {currentYearEndUtc}
-                    UNION ALL
-                    SELECT
-                        'previous_year'::text AS scope,
-                        mg."GenreId" AS genre_id,
-                        g."Name" AS genre_name,
-                        COUNT(*) OVER (PARTITION BY wm."Id")::integer AS genre_count
-                    FROM watched_movies AS wm
-                    INNER JOIN movies AS m ON m."Id" = wm."MovieId"
-                    INNER JOIN movie_genres AS mg ON mg."MovieId" = m."Id"
-                    INNER JOIN genres AS g ON g."Id" = mg."GenreId"
-                    WHERE wm."UserId" = {userId}
-                      AND wm."WatchedAt" >= {previousYearStartUtc}
-                      AND wm."WatchedAt" < {previousYearEndUtc}
-                    UNION ALL
-                    SELECT
-                        'current_year'::text AS scope,
-                        tg."GenreId" AS genre_id,
-                        g."Name" AS genre_name,
-                        COUNT(*) OVER (PARTITION BY we."Id")::integer AS genre_count
-                    FROM watched_episodes AS we
-                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
-                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
-                    INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = s."TvShowId"
-                    INNER JOIN genres AS g ON g."Id" = tg."GenreId"
-                    WHERE we."UserId" = {userId}
-                      AND we."WatchedAt" >= {currentYearStartUtc}
-                      AND we."WatchedAt" < {currentYearEndUtc}
-                    UNION ALL
-                    SELECT
-                        'previous_year'::text AS scope,
-                        tg."GenreId" AS genre_id,
-                        g."Name" AS genre_name,
-                        COUNT(*) OVER (PARTITION BY we."Id")::integer AS genre_count
-                    FROM watched_episodes AS we
-                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
-                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
-                    INNER JOIN tv_show_genres AS tg ON tg."TvShowId" = s."TvShowId"
-                    INNER JOIN genres AS g ON g."Id" = tg."GenreId"
-                    WHERE we."UserId" = {userId}
-                      AND we."WatchedAt" >= {previousYearStartUtc}
-                      AND we."WatchedAt" < {previousYearEndUtc}
-                ) AS weighted
+                FROM weighted
                 GROUP BY weighted.scope, weighted.genre_id, weighted.genre_name, weighted.genre_count
                 """)
             .ToListAsync(cancellationToken);
