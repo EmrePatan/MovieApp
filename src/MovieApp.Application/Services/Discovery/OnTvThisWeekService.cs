@@ -42,11 +42,14 @@ public sealed class OnTvThisWeekService(
             return cachedEntry.Result;
         }
 
-        TvShowProviderSearchResult searchResult;
+        OnTvThisWeekTmdbLoadResult loadResult;
         try
         {
-            searchResult = await onTvThisWeekCatalog.GetOnTheAirTvShowsAsync(
+            loadResult = await OnTvThisWeekTmdbPageLoader.LoadOrderedSummariesAsync(
+                onTvThisWeekCatalog,
                 criteria.Page,
+                criteria.PageSize,
+                criteria.PresentationIntent,
                 cancellationToken);
         }
         catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
@@ -55,17 +58,17 @@ public sealed class OnTvThisWeekService(
             throw new SearchProviderUnavailableException();
         }
 
-        var qualified = searchResult.Results
-            .Where(summary => OnTvThisWeekQualityFilter.Include(summary.VoteCount, summary.PosterPath))
-            .ToList();
-        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(qualified, cancellationToken);
-        var items = MapTvResults(qualified, tvIds);
+        var ordered = loadResult.OrderedSummaries;
+        var tvIds = await tvShowRepository.EnsureFromSummariesAsync(ordered, cancellationToken);
+        var items = MapTvResults(ordered, tvIds);
 
+        // TotalCount remains TMDB page-1 metadata (unfiltered). Accurate filtered totals would
+        // require crawling additional TMDB pages and are intentionally out of scope here.
         var canonical = DiscoverBrowseMerger.CreateSingleTypeResult(
             items,
             criteria.Page,
             criteria.PageSize,
-            searchResult.TotalCount);
+            loadResult.MetadataSource.TotalCount);
         var result = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
             canonical,
             contentLocale,

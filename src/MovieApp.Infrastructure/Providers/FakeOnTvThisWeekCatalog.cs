@@ -1,5 +1,6 @@
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Services.Discovery;
 using MovieApp.Infrastructure.Providers.Tmdb;
 
 namespace MovieApp.Infrastructure.Providers;
@@ -8,10 +9,10 @@ public sealed class FakeOnTvThisWeekCatalog : IOnTvThisWeekCatalog
 {
     private static readonly IReadOnlyList<TvShowProviderSummary> Catalog =
     [
-        CreateSummary(930101, "Airing Drama"),
-        CreateSummary(930102, "Weekly Mystery"),
-        CreateSummary(930103, "Returning Comedy"),
-        CreateSummary(930104, "Late Night Talk"),
+        CreateSummary(930101, "Airing Drama", [18]),
+        CreateSummary(930102, "Weekly Mystery", [9648]),
+        CreateSummary(930103, "Returning Comedy", [35]),
+        CreateSummary(930104, "Late Night Talk", [OnTvThisWeekContentSelector.TalkTmdbGenreId]),
     ];
 
     public Task<TvShowProviderSearchResult> GetOnTheAirTvShowsAsync(
@@ -32,7 +33,7 @@ public sealed class FakeOnTvThisWeekCatalog : IOnTvThisWeekCatalog
             totalPages));
     }
 
-    private static TvShowProviderSummary CreateSummary(int tmdbId, string title) =>
+    private static TvShowProviderSummary CreateSummary(int tmdbId, string title, int[] genreTmdbIds) =>
         new(
             ExternalId: $"fake-tmdb-{tmdbId}",
             TmdbId: tmdbId,
@@ -46,5 +47,6 @@ public sealed class FakeOnTvThisWeekCatalog : IOnTvThisWeekCatalog
             BackdropPath: null,
             OriginalLanguage: "en",
             VoteAverage: 7.2m,
-            VoteCount: 80);
+            VoteCount: 80,
+            GenreTmdbIds: genreTmdbIds);
 }

@@ -417,7 +417,10 @@ public sealed class HomeService(
         var result = await services
             .GetRequiredService<IOnTvThisWeekService>()
             .GetOnTvThisWeekAsync(
-                new OnTvThisWeekCriteria(1, criteria.SectionSize),
+                new OnTvThisWeekCriteria(
+                    1,
+                    criteria.SectionSize,
+                    OnTvThisWeekPresentationIntent.HomeRail),
                 contentLocale,
                 cancellationToken);
 

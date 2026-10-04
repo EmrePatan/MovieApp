@@ -628,7 +628,8 @@ public sealed class DiscoveryController(
     {
         var criteria = new OnTvThisWeekCriteria(
             page ?? SearchPaginationDefaults.DefaultPage,
-            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+            OnTvThisWeekPresentationIntent.DiscoverBrowse);
 
         var validation = OnTvThisWeekValidator.Validate(criteria);
         if (!validation.IsValid)

@@ -76,6 +76,98 @@ public sealed class OnTvThisWeekServiceTests
         Assert.Equal(1, catalog.CallCount);
     }
 
+    [Fact]
+    public async Task GetOnTvThisWeekAsyncExcludesTalkAndPrefersScriptedTitles()
+    {
+        var catalog = new RecordingOnTvThisWeekCatalog();
+        var service = CreateService(catalog, new OnTvThisWeekFakeCache());
+
+        var result = await service.GetOnTvThisWeekAsync(new OnTvThisWeekCriteria(1, 10), ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal("Airing Drama", result.Items[0].Title);
+        Assert.DoesNotContain(result.Items, item => item.Title == "Late Night Talk");
+    }
+
+    [Fact]
+    public async Task GetOnTvThisWeekAsyncFetchesSecondTmdbPageOnlyWhenFirstPageCannotFillSectionSize()
+    {
+        var catalog = new MultiPageRecordingOnTvThisWeekCatalog();
+        var service = CreateService(catalog, new OnTvThisWeekFakeCache());
+
+        var result = await service.GetOnTvThisWeekAsync(
+            new OnTvThisWeekCriteria(1, 3, OnTvThisWeekPresentationIntent.HomeRail),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal([1, 2], catalog.RequestedPages);
+        Assert.Equal(3, result.Items.Count);
+        Assert.Equal(["Scripted One", "Scripted Two", "Scripted Three"], result.Items.Select(item => item.Title).ToArray());
+        Assert.DoesNotContain(result.Items, item => item.Title.StartsWith("Talk", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GetOnTvThisWeekAsyncHomeRailExcludesTalkNewsAndReality()
+    {
+        var catalog = new NonScriptedMixRecordingOnTvThisWeekCatalog();
+        var service = CreateService(catalog, new OnTvThisWeekFakeCache());
+
+        var result = await service.GetOnTvThisWeekAsync(
+            new OnTvThisWeekCriteria(1, 5, OnTvThisWeekPresentationIntent.HomeRail),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Single(result.Items);
+        Assert.Equal("Scripted One", result.Items[0].Title);
+    }
+
+    [Fact]
+    public async Task GetOnTvThisWeekAsyncHomeRailReturnsShorterSectionWhenTwoPagesAreInsufficient()
+    {
+        var catalog = new TalkHeavyTwoPageCatalog();
+        var service = CreateService(catalog, new OnTvThisWeekFakeCache());
+
+        var result = await service.GetOnTvThisWeekAsync(
+            new OnTvThisWeekCriteria(1, 5, OnTvThisWeekPresentationIntent.HomeRail),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal([1, 2], catalog.RequestedPages);
+        Assert.Single(result.Items);
+        Assert.Equal("Only Scripted", result.Items[0].Title);
+    }
+
+    [Fact]
+    public async Task GetOnTvThisWeekAsyncDiscoverBrowseExcludesNewsAndReality()
+    {
+        var catalog = new NonScriptedMixRecordingOnTvThisWeekCatalog();
+        var service = CreateService(catalog, new OnTvThisWeekFakeCache());
+
+        var result = await service.GetOnTvThisWeekAsync(
+            new OnTvThisWeekCriteria(1, 5, OnTvThisWeekPresentationIntent.DiscoverBrowse),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Single(result.Items);
+        Assert.Equal("Scripted One", result.Items[0].Title);
+    }
+
+    [Fact]
+    public async Task GetOnTvThisWeekAsyncCacheDoesNotShareHomeRailAndDiscoverBrowseEntries()
+    {
+        var catalog = new NonScriptedMixRecordingOnTvThisWeekCatalog();
+        var cache = new OnTvThisWeekFakeCache();
+        var service = CreateService(catalog, cache);
+        var discoverCriteria = new OnTvThisWeekCriteria(1, 2, OnTvThisWeekPresentationIntent.DiscoverBrowse);
+        var homeCriteria = new OnTvThisWeekCriteria(1, 2, OnTvThisWeekPresentationIntent.HomeRail);
+        var discoverCacheKey = OnTvThisWeekCacheKeys.Create(discoverCriteria, ContentLocaleResolver.EnglishUnitedStates);
+        var homeCacheKey = OnTvThisWeekCacheKeys.Create(homeCriteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.NotEqual(discoverCacheKey, homeCacheKey);
+
+        var discoverResult = await service.GetOnTvThisWeekAsync(discoverCriteria, ContentLocaleResolver.EnglishUnitedStates);
+        var homeResult = await service.GetOnTvThisWeekAsync(homeCriteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Single(discoverResult.Items);
+        Assert.Single(homeResult.Items);
+        Assert.Equal(2, catalog.CallCount);
+    }
+
     private static OnTvThisWeekService CreateService(
         IOnTvThisWeekCatalog catalog,
         ICacheService cache) =>
@@ -88,6 +180,151 @@ public sealed class OnTvThisWeekServiceTests
 
     private static SearchItem CreateTvItem(Guid id, string title) =>
         new(id, "tv", title, null, null, null, null, null, 0m, 0, null);
+
+    private sealed class TalkHeavyTwoPageCatalog : IOnTvThisWeekCatalog
+    {
+        public List<int> RequestedPages { get; } = [];
+
+        public Task<TvShowProviderSearchResult> GetOnTheAirTvShowsAsync(
+            int page,
+            CancellationToken cancellationToken = default)
+        {
+            RequestedPages.Add(page);
+            IReadOnlyList<TvShowProviderSummary> items = page switch
+            {
+                1 => [TalkSummary(10, "Talk A"), TalkSummary(11, "Talk B")],
+                2 => [TalkSummary(12, "Talk C"), ScriptedSummary(20, "Only Scripted")],
+                _ => [],
+            };
+
+            return Task.FromResult(new TvShowProviderSearchResult(items, page, 20, 100, 5));
+        }
+
+        private static TvShowProviderSummary TalkSummary(int tmdbId, string title) =>
+            ScriptedSummary(tmdbId, title) with { GenreTmdbIds = [OnTvThisWeekContentSelector.TalkTmdbGenreId] };
+
+        private static TvShowProviderSummary ScriptedSummary(int tmdbId, string title) =>
+            new(
+                $"fake-{tmdbId}",
+                tmdbId,
+                null,
+                null,
+                title,
+                title,
+                "Overview",
+                new DateOnly(2024, 1, 1),
+                "/poster.jpg",
+                null,
+                "en",
+                8m,
+                100,
+                GenreTmdbIds: [18]);
+    }
+
+    private sealed class NonScriptedMixRecordingOnTvThisWeekCatalog : IOnTvThisWeekCatalog
+    {
+        public int CallCount { get; private set; }
+
+        public Task<TvShowProviderSearchResult> GetOnTheAirTvShowsAsync(
+            int page,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new TvShowProviderSearchResult(
+                [
+                    ScriptedSummary(1, "Scripted One"),
+                    new TvShowProviderSummary(
+                        "fake-news",
+                        2,
+                        null,
+                        null,
+                        "Evening News",
+                        "Evening News",
+                        "Overview",
+                        new DateOnly(2024, 1, 1),
+                        "/poster.jpg",
+                        null,
+                        "en",
+                        8m,
+                        100,
+                        GenreTmdbIds: [OnTvThisWeekContentSelector.NewsTmdbGenreId]),
+                    ScriptedSummary(3, "Reality Show") with
+                    {
+                        GenreTmdbIds = [OnTvThisWeekContentSelector.RealityTmdbGenreId]
+                    },
+                ],
+                page,
+                20,
+                3,
+                1));
+        }
+
+        private static TvShowProviderSummary ScriptedSummary(int tmdbId, string title) =>
+            new(
+                $"fake-{tmdbId}",
+                tmdbId,
+                null,
+                null,
+                title,
+                title,
+                "Overview",
+                new DateOnly(2024, 1, 1),
+                "/poster.jpg",
+                null,
+                "en",
+                8m,
+                100,
+                GenreTmdbIds: [18]);
+    }
+
+    private sealed class MultiPageRecordingOnTvThisWeekCatalog : IOnTvThisWeekCatalog
+    {
+        public List<int> RequestedPages { get; } = [];
+
+        public Task<TvShowProviderSearchResult> GetOnTheAirTvShowsAsync(
+            int page,
+            CancellationToken cancellationToken = default)
+        {
+            RequestedPages.Add(page);
+            IReadOnlyList<TvShowProviderSummary> items = page switch
+            {
+                1 =>
+                [
+                    ScriptedSummary(1, "Scripted One"),
+                    TalkSummary(100, "Talk One"),
+                    TalkSummary(101, "Talk Two"),
+                ],
+                2 =>
+                [
+                    ScriptedSummary(2, "Scripted Two"),
+                    ScriptedSummary(3, "Scripted Three"),
+                ],
+                _ => [],
+            };
+
+            return Task.FromResult(new TvShowProviderSearchResult(items, page, 20, 100, 5));
+        }
+
+        private static TvShowProviderSummary ScriptedSummary(int tmdbId, string title) =>
+            new(
+                $"fake-{tmdbId}",
+                tmdbId,
+                null,
+                null,
+                title,
+                title,
+                "Overview",
+                new DateOnly(2024, 1, 1),
+                "/poster.jpg",
+                null,
+                "en",
+                8m,
+                100,
+                GenreTmdbIds: [18]);
+
+        private static TvShowProviderSummary TalkSummary(int tmdbId, string title) =>
+            ScriptedSummary(tmdbId, title) with { GenreTmdbIds = [OnTvThisWeekContentSelector.TalkTmdbGenreId] };
+    }
 
     private sealed class RecordingOnTvThisWeekCatalog : IOnTvThisWeekCatalog
     {
@@ -121,7 +358,8 @@ public sealed class OnTvThisWeekServiceTests
                         null,
                         "en",
                         7m,
-                        80),
+                        80,
+                        GenreTmdbIds: [18]),
                     new TvShowProviderSummary(
                         "fake-tmdb-2",
                         2,
@@ -131,11 +369,12 @@ public sealed class OnTvThisWeekServiceTests
                         "Late Night Talk",
                         "Overview",
                         new DateOnly(2024, 1, 1),
-                        null,
+                        "/poster.jpg",
                         null,
                         "en",
-                        4m,
-                        3),
+                        7m,
+                        80,
+                        GenreTmdbIds: [OnTvThisWeekContentSelector.TalkTmdbGenreId]),
                 ],
                 page,
                 20,

@@ -9,8 +9,9 @@ public static class OnTvThisWeekCacheKeys
             string.Join(
                 ':',
                 "discovery-on-tv-this-week",
+                criteria.PresentationIntent,
                 criteria.Page,
                 criteria.PageSize,
-                "v3"),
+                "v4"),
             contentLocale);
 }
