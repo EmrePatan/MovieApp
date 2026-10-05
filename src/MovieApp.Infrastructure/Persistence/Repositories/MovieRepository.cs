@@ -456,6 +456,7 @@ public sealed class MovieRepository(
             movie.CollectionBackdropPath = null;
         }
 
+        movie.TmdbMetadataUpdatedAtUtc = utcNow;
         movie.UpdatedAt = utcNow;
     }
 

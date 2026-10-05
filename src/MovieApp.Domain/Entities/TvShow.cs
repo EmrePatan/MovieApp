@@ -44,6 +44,16 @@ public sealed class TvShow
 
     public DateTime? MdbListKeywordsSyncedAtUtc { get; set; }
 
+    /// <summary>
+    /// When full TMDB detail metadata was last successfully applied via provider upsert.
+    /// </summary>
+    public DateTime? TmdbMetadataUpdatedAtUtc { get; set; }
+
+    /// <summary>
+    /// When the title last appeared on a provider weekly-trending snapshot ingest (discovery signal).
+    /// </summary>
+    public DateTime? TmdbProviderDiscoverySeenAtUtc { get; set; }
+
     public ICollection<TvShowGenre> TvShowGenres { get; set; } = [];
 
     public ICollection<TvShowKeywordSource> TvShowKeywordSources { get; set; } = [];

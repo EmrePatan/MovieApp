@@ -11,7 +11,7 @@ internal static class TmdbChangesSyncCoordinator
     internal static async Task<TmdbChangesSyncResult> SyncAsync(
         string checkpointKey,
         Func<DateOnly, DateOnly, int, CancellationToken, Task<TmdbChangesPageResult>> getChangesPageAsync,
-        Func<CancellationToken, Task<IReadOnlyDictionary<int, Guid>>> getRelevantTargetsAsync,
+        Func<IReadOnlyCollection<int>, CancellationToken, Task<CatalogChangesRefreshMaps>> resolveRefreshMapsAsync,
         Func<Guid, DateOnly, DateOnly, CancellationToken, Task<TmdbChangesTargetRefreshResult>> refreshTargetAsync,
         ITmdbTvChangesSyncCheckpointRepository checkpointRepository,
         ILogger logger,
@@ -36,12 +36,14 @@ internal static class TmdbChangesSyncCoordinator
         }
 
         var chunks = TmdbTvChangesWindowPlanner.BuildChunks(windowStart.Value, targetDate);
-        var relevantTargets = await getRelevantTargetsAsync(cancellationToken);
         var totalChangedIds = 0;
         var totalRelevantTargets = 0;
         var totalRefreshed = 0;
         var totalSkipped = 0;
         var totalFailed = 0;
+        var totalExistingUserMatches = 0;
+        var totalDiscoveryMatches = 0;
+        var totalDiscoveryOnlyMatches = 0;
         DateOnly? latestCompletedEndDate = lastCompletedEndDate;
 
         foreach (var chunk in chunks)
@@ -53,6 +55,21 @@ internal static class TmdbChangesSyncCoordinator
                 cancellationToken);
 
             totalChangedIds += changedTmdbIds.Count;
+
+            var refreshMaps = await resolveRefreshMapsAsync(changedTmdbIds, cancellationToken);
+            var relevantTargets = refreshMaps.UnionByTmdbId;
+
+            var existingUserMatches = changedTmdbIds.Count(
+                tmdbId => refreshMaps.UserRelevantByTmdbId.ContainsKey(tmdbId));
+            var discoveryMatches = changedTmdbIds.Count(
+                tmdbId => refreshMaps.DiscoveryRelevantByTmdbId.ContainsKey(tmdbId));
+            var discoveryOnlyMatches = changedTmdbIds.Count(
+                tmdbId => refreshMaps.DiscoveryRelevantByTmdbId.ContainsKey(tmdbId)
+                          && !refreshMaps.UserRelevantByTmdbId.ContainsKey(tmdbId));
+
+            totalExistingUserMatches += existingUserMatches;
+            totalDiscoveryMatches += discoveryMatches;
+            totalDiscoveryOnlyMatches += discoveryOnlyMatches;
 
             var targetIds = changedTmdbIds
                 .Where(relevantTargets.ContainsKey)
@@ -120,6 +137,9 @@ internal static class TmdbChangesSyncCoordinator
                 chunk.Start,
                 chunk.End,
                 changedTmdbIds.Count,
+                existingUserMatches,
+                discoveryMatches,
+                discoveryOnlyMatches,
                 targetIds.Count,
                 chunkRefreshed,
                 chunkSkipped,
@@ -134,6 +154,18 @@ internal static class TmdbChangesSyncCoordinator
             latestCompletedEndDate = chunk.End;
         }
 
+        TmdbChangesSyncLogMessages.LogRunCompleted(
+            logger,
+            mediaTypeLabel,
+            totalChangedIds,
+            totalExistingUserMatches,
+            totalDiscoveryMatches,
+            totalDiscoveryOnlyMatches,
+            totalRelevantTargets,
+            totalRefreshed,
+            totalSkipped,
+            totalFailed);
+
         return new TmdbChangesSyncResult(
             chunks.Count,
             totalChangedIds,
@@ -141,7 +173,10 @@ internal static class TmdbChangesSyncCoordinator
             totalRefreshed,
             totalSkipped,
             totalFailed,
-            latestCompletedEndDate);
+            latestCompletedEndDate,
+            totalExistingUserMatches,
+            totalDiscoveryMatches,
+            totalDiscoveryOnlyMatches);
     }
 
     private static async Task<HashSet<int>> FetchAllChangedTmdbIdsAsync(

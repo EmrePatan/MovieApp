@@ -14,6 +14,7 @@ public sealed class HotThisWeekTrendingSnapshotService(
     ITrendingWeekDataProvider trendingWeekDataProvider,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
+    ICatalogMetadataFreshnessRepository catalogMetadataFreshnessRepository,
     ICacheService cacheService,
     IOptions<HotThisWeekTrendingRefreshOptions> options,
     ILogger<HotThisWeekTrendingSnapshotService> logger) : IHotThisWeekTrendingSnapshotService
@@ -84,6 +85,26 @@ public sealed class HotThisWeekTrendingSnapshotService(
             RefreshedAt = DateTimeOffset.UtcNow,
             Items = mappedItems,
         };
+
+        var seenAtUtc = entry.RefreshedAt.UtcDateTime;
+        var movieCatalogIds = mappedItems
+            .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+        var tvCatalogIds = mappedItems
+            .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+        await catalogMetadataFreshnessRepository.MarkProviderDiscoverySeenForMoviesAsync(
+            movieCatalogIds,
+            seenAtUtc,
+            cancellationToken);
+        await catalogMetadataFreshnessRepository.MarkProviderDiscoverySeenForTvShowsAsync(
+            tvCatalogIds,
+            seenAtUtc,
+            cancellationToken);
 
         await cacheService.SetAsync(
             HotThisWeekTrendingSnapshotCacheKeys.Canonical,

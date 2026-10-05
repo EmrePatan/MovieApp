@@ -165,6 +165,11 @@ public sealed class BackgroundJobsIntegrationTests(BackgroundJobsFixture fixture
                 Enabled = true,
                 RefreshCron = "0 3 * * *"
             }),
+            Options.Create(new CatalogMetadataFreshnessOptions
+            {
+                SafetyNetEnabled = true,
+                SafetyNetRecurringCron = "0 */2 * * *"
+            }),
             NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
 
     private static async Task SeedFanoutDiscoveryDataAsync()

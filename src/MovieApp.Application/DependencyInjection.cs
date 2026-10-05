@@ -149,6 +149,8 @@ public static class DependencyInjection
         services.AddScoped<ITvShowChangesTargetedRefreshService, TvShowChangesTargetedRefreshService>();
         services.AddScoped<ITmdbMovieChangesSyncService, TmdbMovieChangesSyncService>();
         services.AddScoped<IMovieChangesTargetedRefreshService, MovieChangesTargetedRefreshService>();
+        services.AddScoped<ICatalogMetadataFreshnessSafetyNetService, CatalogMetadataFreshnessSafetyNetService>();
+        services.AddScoped<ICatalogMetadataFreshnessDiagnosticsService, CatalogMetadataFreshnessDiagnosticsService>();
         services.AddScoped<ITvShowCatalogDetailsCacheInvalidator, TvShowCatalogDetailsCacheInvalidator>();
         services.AddScoped<IMovieCatalogDetailsCacheInvalidator, MovieCatalogDetailsCacheInvalidator>();
 

@@ -7,4 +7,7 @@ public sealed record TmdbChangesSyncResult(
     int Refreshed,
     int Skipped,
     int Failed,
-    DateOnly? LastCompletedEndDate);
+    DateOnly? LastCompletedEndDate,
+    int ExistingUserRelevantMatches = 0,
+    int DiscoveryRelevantMatches = 0,
+    int DiscoveryOnlyRelevantMatches = 0);

@@ -62,11 +62,17 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
 
         builder.Property(movie => movie.MdbListKeywordsSyncedAtUtc);
 
+        builder.Property(movie => movie.TmdbMetadataUpdatedAtUtc);
+
+        builder.Property(movie => movie.TmdbProviderDiscoverySeenAtUtc);
+
         builder.HasIndex(movie => movie.TmdbId).AsUniqueExternalIdIndex("TmdbId");
         builder.HasIndex(movie => movie.TvdbId).AsUniqueExternalIdIndex("TvdbId");
         builder.HasIndex(movie => movie.ImdbId).AsUniqueExternalIdIndex("ImdbId");
 
         builder.HasIndex(movie => movie.Title);
         builder.HasIndex(movie => movie.ReleaseDate);
+        builder.HasIndex(movie => movie.TmdbMetadataUpdatedAtUtc);
+        builder.HasIndex(movie => movie.TmdbProviderDiscoverySeenAtUtc);
     }
 }

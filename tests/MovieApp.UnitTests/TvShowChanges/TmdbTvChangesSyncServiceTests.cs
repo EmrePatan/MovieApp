@@ -290,6 +290,31 @@ public sealed class TmdbTvChangesSyncServiceTests
         public Task<IReadOnlyDictionary<int, Guid>> GetRelevantTvShowIdsByTmdbIdAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult(relevantShows);
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetDiscoveryRelevantMovieIdsByTmdbIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetDiscoveryRelevantTvShowIdsByTmdbIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<CatalogChangesRefreshMaps> GetMovieChangesRefreshMapsForTmdbIdsAsync(
+            IReadOnlyCollection<int> changedTmdbIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CatalogChangesRefreshMaps.Create(
+                new Dictionary<int, Guid>(),
+                new Dictionary<int, Guid>()));
+
+        public Task<CatalogChangesRefreshMaps> GetTvShowChangesRefreshMapsForTmdbIdsAsync(
+            IReadOnlyCollection<int> changedTmdbIds,
+            CancellationToken cancellationToken = default)
+        {
+            var user = relevantShows
+                .Where(pair => changedTmdbIds.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            return Task.FromResult(CatalogChangesRefreshMaps.Create(user, new Dictionary<int, Guid>()));
+        }
     }
 
     private sealed class RecordingRefreshService : ITvShowChangesTargetedRefreshService

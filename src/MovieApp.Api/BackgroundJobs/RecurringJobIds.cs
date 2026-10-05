@@ -23,6 +23,8 @@ public static class RecurringJobIds
 
     public const string KeywordCatalogStatisticsRefresh = "movieapp:keyword-catalog-statistics-refresh";
 
+    public const string CatalogMetadataFreshnessSafetyNet = "movieapp:catalog-metadata-freshness-safety-net";
+
     public static IReadOnlyList<string> All =>
     [
         TmdbTvChanges,
@@ -39,6 +41,7 @@ public static class RecurringJobIds
         TvUpcomingEpisodeSync,
         NotificationInboxCleanup,
         HotThisWeekTrendingRefresh,
-        KeywordCatalogStatisticsRefresh
+        KeywordCatalogStatisticsRefresh,
+        CatalogMetadataFreshnessSafetyNet
     ];
 }

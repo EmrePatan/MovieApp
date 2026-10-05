@@ -9,6 +9,7 @@ using MovieApp.Application.Models.Home;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
+using MovieApp.UnitTests.Persistence;
 
 namespace MovieApp.UnitTests.Home;
 
@@ -110,6 +111,7 @@ public sealed class HotThisWeekTrendingSnapshotServiceTests
             provider,
             movieRepository,
             tvShowRepository,
+            new NoOpCatalogMetadataFreshnessRepository(),
             cache,
             Options.Create(new HotThisWeekTrendingRefreshOptions { SnapshotTtlDays = 7 }),
             NullLogger<HotThisWeekTrendingSnapshotService>.Instance);

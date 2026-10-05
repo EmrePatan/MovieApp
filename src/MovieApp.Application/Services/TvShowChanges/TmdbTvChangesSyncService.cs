@@ -13,17 +13,19 @@ public sealed class TmdbTvChangesSyncService(
     ITvShowChangesTargetedRefreshService targetedRefreshService,
     ILogger<TmdbTvChangesSyncService> logger) : ITmdbTvChangesSyncService
 {
-    public Task<TmdbChangesSyncResult> SyncAsync(
+    public async Task<TmdbChangesSyncResult> SyncAsync(
         DateTime? utcNow = null,
-        CancellationToken cancellationToken = default) =>
-        TmdbChangesSyncCoordinator.SyncAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await TmdbChangesSyncCoordinator.SyncAsync(
             TmdbChangesSyncCheckpointKeys.Tv,
             tmdbTvChangesProvider.GetTvChangesPageAsync,
-            relevanceRepository.GetRelevantTvShowIdsByTmdbIdAsync,
+            relevanceRepository.GetTvShowChangesRefreshMapsForTmdbIdsAsync,
             targetedRefreshService.RefreshRelevantShowAsync,
             checkpointRepository,
             logger,
             "tv",
             utcNow,
             cancellationToken);
+    }
 }

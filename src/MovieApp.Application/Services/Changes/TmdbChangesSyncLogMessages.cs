@@ -37,14 +37,33 @@ internal static partial class TmdbChangesSyncLogMessages
     [LoggerMessage(
         EventId = 7103,
         Level = LogLevel.Information,
-        Message = "TMDB {MediaType} changes chunk processed: start={WindowStart} end={WindowEnd} changedIds={ChangedIds} relevantTargets={RelevantTargets} refreshed={Refreshed} skipped={Skipped} failed={Failed}")]
+        Message = "TMDB {MediaType} changes chunk processed: start={WindowStart} end={WindowEnd} changedIds={ChangedIds} existingUserRelevant={ExistingUserRelevant} discoveryRelevant={DiscoveryRelevant} discoveryOnlyRelevant={DiscoveryOnlyRelevant} unionRelevant={UnionRelevant} refreshed={Refreshed} skipped={Skipped} failed={Failed}")]
     internal static partial void LogChunkProcessed(
         ILogger logger,
         string mediaType,
         DateOnly windowStart,
         DateOnly windowEnd,
         int changedIds,
-        int relevantTargets,
+        int existingUserRelevant,
+        int discoveryRelevant,
+        int discoveryOnlyRelevant,
+        int unionRelevant,
+        int refreshed,
+        int skipped,
+        int failed);
+
+    [LoggerMessage(
+        EventId = 7104,
+        Level = LogLevel.Information,
+        Message = "TMDB {MediaType} changes run completed: changedIds={ChangedIds} existingUserRelevant={ExistingUserRelevant} discoveryRelevant={DiscoveryRelevant} discoveryOnlyRelevant={DiscoveryOnlyRelevant} unionRelevant={UnionRelevant} refreshed={Refreshed} skipped={Skipped} failed={Failed}")]
+    internal static partial void LogRunCompleted(
+        ILogger logger,
+        string mediaType,
+        int changedIds,
+        int existingUserRelevant,
+        int discoveryRelevant,
+        int discoveryOnlyRelevant,
+        int unionRelevant,
         int refreshed,
         int skipped,
         int failed);

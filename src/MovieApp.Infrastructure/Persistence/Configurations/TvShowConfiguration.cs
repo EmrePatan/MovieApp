@@ -57,6 +57,10 @@ internal sealed class TvShowConfiguration : IEntityTypeConfiguration<TvShow>
 
         builder.Property(tvShow => tvShow.MdbListKeywordsSyncedAtUtc);
 
+        builder.Property(tvShow => tvShow.TmdbMetadataUpdatedAtUtc);
+
+        builder.Property(tvShow => tvShow.TmdbProviderDiscoverySeenAtUtc);
+
         builder.HasIndex(tvShow => tvShow.TmdbId).AsUniqueExternalIdIndex("TmdbId");
         builder.HasIndex(tvShow => tvShow.TvdbId).AsUniqueExternalIdIndex("TvdbId");
         builder.HasIndex(tvShow => tvShow.ImdbId).AsUniqueExternalIdIndex("ImdbId");
@@ -64,5 +68,7 @@ internal sealed class TvShowConfiguration : IEntityTypeConfiguration<TvShow>
         builder.HasIndex(tvShow => tvShow.Title);
         builder.HasIndex(tvShow => tvShow.FirstAirDate);
         builder.HasIndex(tvShow => tvShow.Status);
+        builder.HasIndex(tvShow => tvShow.TmdbMetadataUpdatedAtUtc);
+        builder.HasIndex(tvShow => tvShow.TmdbProviderDiscoverySeenAtUtc);
     }
 }

@@ -13,12 +13,15 @@ internal static partial class BackgroundJobLogMessages
     [LoggerMessage(
         EventId = 6001,
         Level = LogLevel.Information,
-        Message = "TMDB TV changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} relevantTargets={RelevantTargets} refreshed={Refreshed} skipped={Skipped} failed={Failed} lastEndDate={LastEndDate}")]
+        Message = "TMDB TV changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} existingUserRelevant={ExistingUserRelevant} discoveryRelevant={DiscoveryRelevant} discoveryOnlyRelevant={DiscoveryOnlyRelevant} unionRelevant={UnionRelevant} refreshed={Refreshed} skipped={Skipped} failed={Failed} lastEndDate={LastEndDate}")]
     internal static partial void LogTmdbTvChangesSyncCompleted(
         ILogger logger,
         int windowsProcessed,
         int changedIds,
-        int relevantTargets,
+        int existingUserRelevant,
+        int discoveryRelevant,
+        int discoveryOnlyRelevant,
+        int unionRelevant,
         int refreshed,
         int skipped,
         int failed,
@@ -27,16 +30,49 @@ internal static partial class BackgroundJobLogMessages
     [LoggerMessage(
         EventId = 6014,
         Level = LogLevel.Information,
-        Message = "TMDB movie changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} relevantTargets={RelevantTargets} refreshed={Refreshed} skipped={Skipped} failed={Failed} lastEndDate={LastEndDate}")]
+        Message = "TMDB movie changes sync completed: windows={WindowsProcessed} changedIds={ChangedIds} existingUserRelevant={ExistingUserRelevant} discoveryRelevant={DiscoveryRelevant} discoveryOnlyRelevant={DiscoveryOnlyRelevant} unionRelevant={UnionRelevant} refreshed={Refreshed} skipped={Skipped} failed={Failed} lastEndDate={LastEndDate}")]
     internal static partial void LogTmdbMovieChangesSyncCompleted(
         ILogger logger,
         int windowsProcessed,
         int changedIds,
-        int relevantTargets,
+        int existingUserRelevant,
+        int discoveryRelevant,
+        int discoveryOnlyRelevant,
+        int unionRelevant,
         int refreshed,
         int skipped,
         int failed,
         DateOnly? lastEndDate);
+
+    [LoggerMessage(
+        EventId = 6025,
+        Level = LogLevel.Information,
+        Message = "Catalog metadata freshness safety-net completed: eligibleStale={EligibleStale} selected={Selected} moviesSelected={MoviesSelected} tvSelected={TvSelected} refreshed={Refreshed} skipped={Skipped} failed={Failed} remainingEstimate={RemainingEstimate} durationMs={DurationMs}")]
+    internal static partial void LogCatalogMetadataFreshnessSafetyNetCompleted(
+        ILogger logger,
+        int eligibleStale,
+        int selected,
+        int moviesSelected,
+        int tvSelected,
+        int refreshed,
+        int skipped,
+        int failed,
+        int remainingEstimate,
+        long durationMs);
+
+    [LoggerMessage(
+        EventId = 6026,
+        Level = LogLevel.Information,
+        Message = "Catalog metadata freshness distribution: relevantTotal={RelevantTotal} fresh24h={Fresh24h} fresh24to72h={Fresh24To72h} staleOver72h={StaleOver72h} staleOver7d={StaleOver7d} neverRefreshed={NeverRefreshed} freshWithin72hPercent={FreshWithin72hPercent}")]
+    internal static partial void LogCatalogMetadataFreshnessDistribution(
+        ILogger logger,
+        int relevantTotal,
+        int fresh24h,
+        int fresh24To72h,
+        int staleOver72h,
+        int staleOver7d,
+        int neverRefreshed,
+        decimal freshWithin72hPercent);
 
     [LoggerMessage(
         EventId = 6002,

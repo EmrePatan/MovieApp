@@ -15,6 +15,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
     IOptions<TvUpcomingEpisodeSyncOptions> tvUpcomingEpisodeSyncOptions,
     IOptions<HotThisWeekTrendingRefreshOptions> hotThisWeekTrendingRefreshOptions,
     IOptions<KeywordCatalogStatisticsOptions> keywordCatalogStatisticsOptions,
+    IOptions<CatalogMetadataFreshnessOptions> catalogMetadataFreshnessOptions,
     ILogger<HangfireRecurringBackgroundJobRegistrar> logger) : IRecurringBackgroundJobRegistrar
 {
     private static readonly RecurringJobOptions UtcOptions = new()
@@ -219,6 +220,22 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             SkipRecurringJob(
                 RecurringJobIds.KeywordCatalogStatisticsRefresh,
                 "KeywordCatalogStatistics:Enabled=false");
+        }
+
+        if (backgroundJobs.CatalogMetadataFreshnessSafetyNetEnabled
+            && catalogMetadataFreshnessOptions.Value.SafetyNetEnabled)
+        {
+            recurringJobManager.AddOrUpdate<CatalogMetadataFreshnessSafetyNetJob>(
+                RecurringJobIds.CatalogMetadataFreshnessSafetyNet,
+                job => job.ExecuteAsync(),
+                catalogMetadataFreshnessOptions.Value.SafetyNetRecurringCron,
+                UtcOptions);
+        }
+        else
+        {
+            SkipRecurringJob(
+                RecurringJobIds.CatalogMetadataFreshnessSafetyNet,
+                "CatalogMetadataFreshnessSafetyNetEnabled=false or CatalogMetadataFreshness:SafetyNetEnabled=false");
         }
     }
 

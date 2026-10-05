@@ -108,6 +108,9 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AdvancedDiscoverOptions>, AdvancedDiscoverOptionsValidator>();
 
+        services.AddOptions<CatalogMetadataFreshnessOptions>()
+            .Bind(configuration.GetSection(CatalogMetadataFreshnessOptions.SectionName));
+
         services.AddOptions<NewReleasesOptions>()
             .Bind(configuration.GetSection(NewReleasesOptions.SectionName))
             .ValidateOnStart();
@@ -317,6 +320,7 @@ public static class DependencyInjection
         services.AddScoped<IFollowedTvShowCatalogRepository, FollowedTvShowCatalogRepository>();
 
         services.AddScoped<ICatalogChangesRelevanceRepository, CatalogChangesRelevanceRepository>();
+        services.AddScoped<ICatalogMetadataFreshnessRepository, CatalogMetadataFreshnessRepository>();
 
         services.AddScoped<IHotReleaseCandidateRepository, HotReleaseCandidateRepository>();
 

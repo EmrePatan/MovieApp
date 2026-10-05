@@ -48,6 +48,16 @@ public sealed class Movie
 
     public DateTime? MdbListKeywordsSyncedAtUtc { get; set; }
 
+    /// <summary>
+    /// When full TMDB detail metadata was last successfully applied via provider upsert.
+    /// </summary>
+    public DateTime? TmdbMetadataUpdatedAtUtc { get; set; }
+
+    /// <summary>
+    /// When the title last appeared on a provider weekly-trending snapshot ingest (discovery signal).
+    /// </summary>
+    public DateTime? TmdbProviderDiscoverySeenAtUtc { get; set; }
+
     public ICollection<MovieGenre> MovieGenres { get; set; } = [];
 
     public ICollection<MovieKeywordSource> MovieKeywordSources { get; set; } = [];

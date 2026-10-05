@@ -37,6 +37,31 @@ public sealed class TmdbMovieChangesSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_RefreshesDiscoveryRelevantWhenNotUserRelevant()
+    {
+        const int discoveryTmdbId = 424242;
+        var discoveryMovieId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        var changesProvider = new FakeMovieChangesProvider
+        {
+            Pages = [new TmdbChangesPageResult([discoveryTmdbId], 1, 1)]
+        };
+
+        var refreshService = new RecordingMovieRefreshService();
+        var service = CreateService(
+            changesProvider,
+            refreshService,
+            relevanceRepository: new FakeRelevanceRepository(
+                new Dictionary<int, Guid>(),
+                new Dictionary<int, Guid> { [discoveryTmdbId] = discoveryMovieId }));
+
+        var result = await service.SyncAsync(SyncInstant);
+
+        Assert.Equal(1, result.DiscoveryOnlyRelevantMatches);
+        Assert.Equal(1, result.Refreshed);
+        Assert.Equal(discoveryMovieId, Assert.Single(refreshService.RefreshedMovieIds));
+    }
+
+    [Fact]
     public async Task SyncAsync_UnavailableMovie_IsSkippedAndCheckpointAdvances()
     {
         var changesProvider = new FakeMovieChangesProvider
@@ -61,11 +86,12 @@ public sealed class TmdbMovieChangesSyncServiceTests
     private static TmdbMovieChangesSyncService CreateService(
         FakeMovieChangesProvider changesProvider,
         RecordingMovieRefreshService refreshService,
-        FakeCheckpointRepository? checkpointRepository = null) =>
+        FakeCheckpointRepository? checkpointRepository = null,
+        FakeRelevanceRepository? relevanceRepository = null) =>
         new(
             changesProvider,
             checkpointRepository ?? new FakeCheckpointRepository(),
-            new FakeRelevanceRepository(
+            relevanceRepository ?? new FakeRelevanceRepository(
                 new Dictionary<int, Guid> { [RelevantTmdbId] = RelevantMovieId }),
             refreshService,
             NullLogger<TmdbMovieChangesSyncService>.Instance);
@@ -102,16 +128,49 @@ public sealed class TmdbMovieChangesSyncServiceTests
         }
     }
 
-    private sealed class FakeRelevanceRepository(IReadOnlyDictionary<int, Guid> relevantMovies)
+    private sealed class FakeRelevanceRepository(
+        IReadOnlyDictionary<int, Guid> userRelevant,
+        IReadOnlyDictionary<int, Guid>? discoveryRelevant = null)
         : ICatalogChangesRelevanceRepository
     {
+        private readonly IReadOnlyDictionary<int, Guid> _discoveryRelevant =
+            discoveryRelevant ?? new Dictionary<int, Guid>();
+
         public Task<IReadOnlyDictionary<int, Guid>> GetRelevantMovieIdsByTmdbIdAsync(
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(relevantMovies);
+            Task.FromResult(userRelevant);
 
         public Task<IReadOnlyDictionary<int, Guid>> GetRelevantTvShowIdsByTmdbIdAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetDiscoveryRelevantMovieIdsByTmdbIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_discoveryRelevant);
+
+        public Task<IReadOnlyDictionary<int, Guid>> GetDiscoveryRelevantTvShowIdsByTmdbIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<int, Guid>>(new Dictionary<int, Guid>());
+
+        public Task<CatalogChangesRefreshMaps> GetMovieChangesRefreshMapsForTmdbIdsAsync(
+            IReadOnlyCollection<int> changedTmdbIds,
+            CancellationToken cancellationToken = default)
+        {
+            var user = userRelevant
+                .Where(pair => changedTmdbIds.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            var discovery = _discoveryRelevant
+                .Where(pair => changedTmdbIds.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            return Task.FromResult(CatalogChangesRefreshMaps.Create(user, discovery));
+        }
+
+        public Task<CatalogChangesRefreshMaps> GetTvShowChangesRefreshMapsForTmdbIdsAsync(
+            IReadOnlyCollection<int> changedTmdbIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CatalogChangesRefreshMaps.Create(
+                new Dictionary<int, Guid>(),
+                new Dictionary<int, Guid>()));
     }
 
     private sealed class RecordingMovieRefreshService : IMovieChangesTargetedRefreshService

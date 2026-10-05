@@ -8,6 +8,8 @@ public sealed class BackgroundJobsOptions
 
     public bool TmdbChangesEnabled { get; set; } = true;
 
+    public bool CatalogMetadataFreshnessSafetyNetEnabled { get; set; } = true;
+
     public bool HotReleaseEnabled { get; set; } = true;
 
     public bool MovieReleaseEnabled { get; set; } = true;

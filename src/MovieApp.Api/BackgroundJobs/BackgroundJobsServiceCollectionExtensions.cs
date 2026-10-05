@@ -27,6 +27,8 @@ public static class BackgroundJobsServiceCollectionExtensions
             configuration.GetSection(HotThisWeekTrendingRefreshOptions.SectionName));
         services.Configure<KeywordCatalogStatisticsOptions>(
             configuration.GetSection(KeywordCatalogStatisticsOptions.SectionName));
+        services.Configure<CatalogMetadataFreshnessOptions>(
+            configuration.GetSection(CatalogMetadataFreshnessOptions.SectionName));
 
         var backgroundJobs = configuration
             .GetSection(BackgroundJobsOptions.SectionName)
@@ -96,6 +98,7 @@ public static class BackgroundJobsServiceCollectionExtensions
         services.AddScoped<NotificationInboxCleanupJob>();
         services.AddScoped<HotThisWeekTrendingRefreshJob>();
         services.AddScoped<KeywordCatalogStatisticsRefreshJob>();
+        services.AddScoped<CatalogMetadataFreshnessSafetyNetJob>();
 
         return services;
     }

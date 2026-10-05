@@ -13,19 +13,21 @@ public sealed class TmdbMovieChangesSyncService(
     IMovieChangesTargetedRefreshService targetedRefreshService,
     ILogger<TmdbMovieChangesSyncService> logger) : ITmdbMovieChangesSyncService
 {
-    public Task<TmdbChangesSyncResult> SyncAsync(
+    public async Task<TmdbChangesSyncResult> SyncAsync(
         DateTime? utcNow = null,
-        CancellationToken cancellationToken = default) =>
-        TmdbChangesSyncCoordinator.SyncAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await TmdbChangesSyncCoordinator.SyncAsync(
             TmdbChangesSyncCheckpointKeys.Movie,
             movieChangesProvider.GetMovieChangesPageAsync,
-            relevanceRepository.GetRelevantMovieIdsByTmdbIdAsync,
+            relevanceRepository.GetMovieChangesRefreshMapsForTmdbIdsAsync,
             RefreshMovieAsync,
             checkpointRepository,
             logger,
             "movie",
             utcNow,
             cancellationToken);
+    }
 
     private Task<TmdbChangesTargetRefreshResult> RefreshMovieAsync(
         Guid movieId,

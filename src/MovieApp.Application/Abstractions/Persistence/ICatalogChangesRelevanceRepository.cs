@@ -1,3 +1,5 @@
+using MovieApp.Application.Models.Changes;
+
 namespace MovieApp.Application.Abstractions.Persistence;
 
 public interface ICatalogChangesRelevanceRepository
@@ -6,5 +8,19 @@ public interface ICatalogChangesRelevanceRepository
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<int, Guid>> GetRelevantTvShowIdsByTmdbIdAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<int, Guid>> GetDiscoveryRelevantMovieIdsByTmdbIdAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<int, Guid>> GetDiscoveryRelevantTvShowIdsByTmdbIdAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<CatalogChangesRefreshMaps> GetMovieChangesRefreshMapsForTmdbIdsAsync(
+        IReadOnlyCollection<int> changedTmdbIds,
+        CancellationToken cancellationToken = default);
+
+    Task<CatalogChangesRefreshMaps> GetTvShowChangesRefreshMapsForTmdbIdsAsync(
+        IReadOnlyCollection<int> changedTmdbIds,
         CancellationToken cancellationToken = default);
 }

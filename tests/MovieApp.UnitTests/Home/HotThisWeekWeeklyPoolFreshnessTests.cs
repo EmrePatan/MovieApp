@@ -11,6 +11,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
+using MovieApp.UnitTests.Persistence;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.UnitTests.Search;
@@ -124,6 +125,7 @@ public sealed class HotThisWeekWeeklyPoolFreshnessTests
             provider,
             new RecordingMovieRepository(new Dictionary<int, Guid> { [910001] = MovieId }),
             new RecordingTvShowRepository(),
+            new NoOpCatalogMetadataFreshnessRepository(),
             cache,
             Options.Create(new HotThisWeekTrendingRefreshOptions { SnapshotTtlDays = 7 }),
             NullLogger<HotThisWeekTrendingSnapshotService>.Instance);
