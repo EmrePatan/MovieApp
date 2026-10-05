@@ -427,10 +427,95 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
             .ToQueryString();
 
         var episodeSql = repository.FollowedTvNextEpisodeQuery(UserId, Today).ToQueryString();
+        var boundedEpisodeSql = repository
+            .BoundedFollowedTvNextEpisodeRowsQuery(UserId, Today, 3)
+            .ToQueryString();
 
         Assert.Contains("LIMIT", movieSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ROW_NUMBER()", episodeSql, StringComparison.Ordinal);
+        Assert.Contains("LIMIT", boundedEpisodeSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ROW_NUMBER()", boundedEpisodeSql, StringComparison.Ordinal);
         Assert.DoesNotContain("OFFSET", movieSql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetFollowedEpisodeReleasesForHomeAsync_WhenLimitZero_ReturnsEmpty()
+    {
+        await using var context = CreateContext();
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(2), name: "Next")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedEpisodeReleasesForHomeAsync(UserId, Today, 0);
+
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public async Task GetFollowedEpisodeReleasesForHomeAsync_SelectsOneNextEpisodePerShowBeforeGlobalLimit()
+    {
+        await using var context = CreateContext();
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Many Episodes",
+            episodes:
+            [
+                (seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(1), name: "E1"),
+                (seasonNumber: 1, episodeNumber: 2, airDate: Today.AddDays(2), name: "E2"),
+                (seasonNumber: 1, episodeNumber: 3, airDate: Today.AddDays(3), name: "E3"),
+                (seasonNumber: 1, episodeNumber: 4, airDate: Today.AddDays(4), name: "E4"),
+                (seasonNumber: 1, episodeNumber: 5, airDate: Today.AddDays(5), name: "E5"),
+                (seasonNumber: 1, episodeNumber: 6, airDate: Today.AddDays(6), name: "E6")
+            ]);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Other A",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(10), name: "A1")]);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Other B",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(11), name: "B1")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedEpisodeReleasesForHomeAsync(UserId, Today, 3);
+
+        Assert.Equal(3, items.Count);
+        Assert.Equal(
+            ["Many Episodes", "Other A", "Other B"],
+            items.Select(item => item.Title).ToList());
+        Assert.Equal(Today.AddDays(1), items[0].ReleaseDate);
+        Assert.Equal(1, items[0].EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task GetFollowedEpisodeReleasesForHomeAsync_OrdersByReleaseDateThenContentId()
+    {
+        await using var context = CreateContext();
+        var showA = await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Show A",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(5), name: "A1")]);
+        var showB = await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Show B",
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(5), name: "B1")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedEpisodeReleasesForHomeAsync(UserId, Today, 10);
+
+        Assert.Equal(2, items.Count);
+        var expectedContentIds = new[] { showA, showB }
+            .OrderBy(_ => Today.AddDays(5))
+            .ThenBy(id => id)
+            .ToList();
+        Assert.Equal(expectedContentIds, items.Select(item => item.ContentId).ToList());
     }
 
     [Fact]

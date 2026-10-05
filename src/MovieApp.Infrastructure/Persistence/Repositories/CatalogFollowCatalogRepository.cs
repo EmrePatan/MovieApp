@@ -459,14 +459,33 @@ public sealed class CatalogFollowCatalogRepository(
             return [];
         }
 
-        var nextEpisodeRows = await FollowedTvNextEpisodeQuery(userId, today).ToListAsync(cancellationToken);
-        return nextEpisodeRows
-            .OrderBy(row => row.ReleaseDate)
-            .ThenBy(row => row.ContentId)
-            .Take(fetchCount)
-            .Select(ToFollowedUpcomingEpisodeRow)
-            .ToList();
+        List<FollowedNextEpisodeRow> nextEpisodeRows;
+        if (IsInMemoryProvider())
+        {
+            nextEpisodeRows = await FollowedTvNextEpisodeQuery(userId, today).ToListAsync(cancellationToken);
+            nextEpisodeRows = nextEpisodeRows
+                .OrderBy(row => row.ReleaseDate)
+                .ThenBy(row => row.ContentId)
+                .Take(fetchCount)
+                .ToList();
+        }
+        else
+        {
+            nextEpisodeRows = await BoundedFollowedTvNextEpisodeRowsQuery(userId, today, fetchCount)
+                .ToListAsync(cancellationToken);
+        }
+
+        return nextEpisodeRows.Select(ToFollowedUpcomingEpisodeRow).ToList();
     }
+
+    internal IQueryable<FollowedNextEpisodeRow> BoundedFollowedTvNextEpisodeRowsQuery(
+        Guid userId,
+        DateOnly today,
+        int fetchCount) =>
+        FollowedTvNextEpisodeBoundedSql.Query(dbContext, userId, today, fetchCount);
+
+    private bool IsInMemoryProvider() =>
+        dbContext.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
 
     private static FollowedUpcomingCatalogRow ToFollowedUpcomingEpisodeRow(FollowedNextEpisodeRow row) =>
         new()
