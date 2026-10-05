@@ -13,6 +13,7 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Recommendations;
+using MovieApp.Application.Services.Home;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
@@ -194,6 +195,8 @@ public sealed class RecommendationService(
         bool includeBecauseYouWatched = true,
         CancellationToken cancellationToken = default)
     {
+        HomeStampedePerfAmbient.RecordRecommendationHomeInvocation();
+
         var totalStopwatch = Stopwatch.StartNew();
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         var resultLimit = sectionItemCount is > 0
@@ -215,6 +218,7 @@ public sealed class RecommendationService(
 
         if (cached is not null)
         {
+            HomeStampedePerfAmbient.RecordRecommendationHomeCacheHit();
             totalStopwatch.Stop();
             RecommendationServiceLogMessages.LogCacheHit(
                 logger,
@@ -223,6 +227,8 @@ public sealed class RecommendationService(
                 cacheLookupStopwatch.ElapsedMilliseconds);
             return cached.Sections;
         }
+
+        HomeStampedePerfAmbient.RecordRecommendationHomeBuildStarted();
 
         var userContextStopwatch = Stopwatch.StartNew();
         var context = await recommendationRepository.GetUserRecommendationContextAsync(

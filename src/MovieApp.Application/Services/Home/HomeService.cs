@@ -24,12 +24,18 @@ public sealed class HomeService(
     ICurrentUser currentUser,
     IServiceScopeFactory scopeFactory,
     ICacheService cacheService,
+    ISearchRefreshLockService refreshLockService,
+    HomeLoadCoordinator loadCoordinator,
     IOptions<HomeOptions> options,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
     IOptions<RecommendationOptions> recommendationOptions,
     ILogger<HomeService> logger) : IHomeService
 {
     private const string RecommendedForYouKey = "recommended-for-you";
+
+    private static readonly TimeSpan HomeRefreshLockDuration = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CachePollInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly int MaxCachePollAttempts = 50;
 
     /// <summary>
     /// Max scored rows Home will request for the Recommended For You rail.
@@ -96,6 +102,7 @@ public sealed class HomeService(
 
         if (cached is not null)
         {
+            HomeStampedePerfAmbient.RecordHomeCacheHit();
             totalStopwatch.Stop();
             HomeServiceLogMessages.LogCacheHit(
                 logger,
@@ -103,6 +110,91 @@ public sealed class HomeService(
                 totalStopwatch.ElapsedMilliseconds,
                 cacheLookupStopwatch.ElapsedMilliseconds);
             return cached.Result;
+        }
+
+        HomeStampedePerfAmbient.RecordHomeCacheMiss();
+
+        var inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+        if (inFlight is not null)
+        {
+            totalStopwatch.Stop();
+            return await inFlight.WaitAsync(cancellationToken);
+        }
+
+        var lockKey = HomeCacheLockKeys.Create(cacheKey);
+        var lockHandle = await refreshLockService.TryAcquireAsync(
+            lockKey,
+            HomeRefreshLockDuration,
+            cancellationToken);
+
+        if (lockHandle is null)
+        {
+            inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+            if (inFlight is not null)
+            {
+                totalStopwatch.Stop();
+                return await inFlight.WaitAsync(cancellationToken);
+            }
+
+            var waited = await WaitForCachedHomeAsync(cacheKey, cancellationToken);
+            if (waited is not null)
+            {
+                totalStopwatch.Stop();
+                return waited.Result;
+            }
+        }
+
+        try
+        {
+            cached = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
+            if (cached is not null)
+            {
+                totalStopwatch.Stop();
+                return cached.Result;
+            }
+
+            var result = await loadCoordinator.RunInFlightAsync(
+                cacheKey,
+                () => BuildAndCacheHomeOnMissAsync(
+                    criteria,
+                    contentLocale,
+                    releaseRegion,
+                    releaseRegionKey,
+                    cacheKey,
+                    cacheLookupStopwatch.ElapsedMilliseconds,
+                    totalStopwatch,
+                    cancellationToken));
+
+            totalStopwatch.Stop();
+            return result;
+        }
+        finally
+        {
+            if (lockHandle is not null)
+            {
+                await refreshLockService.ReleaseAsync(
+                    lockHandle.LockKey,
+                    lockHandle.LockToken,
+                    lockHandle.Backend,
+                    cancellationToken);
+            }
+        }
+    }
+
+    private async Task<HomeResult> BuildAndCacheHomeOnMissAsync(
+        HomeCriteria criteria,
+        string contentLocale,
+        string? releaseRegion,
+        string releaseRegionKey,
+        string cacheKey,
+        long initialCacheLookupMs,
+        Stopwatch totalStopwatch,
+        CancellationToken cancellationToken)
+    {
+        var recheck = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
+        if (recheck is not null)
+        {
+            return recheck.Result;
         }
 
         var heroSize = Math.Min(_options.HeroSectionSize, criteria.SectionSize);
@@ -122,29 +214,45 @@ public sealed class HomeService(
             cancellationToken);
 
         var weeklySectionsTask = RunScopedTimedAsync(
-            (services, ct) => BuildWeeklyHeroAndTrendingSectionsAsync(
-                services,
-                criteria,
-                heroSize,
-                contentLocale,
-                ct),
+            (services, ct) =>
+            {
+                HomeStampedePerfAmbient.RecordWeeklyTrendingBuild();
+                return BuildWeeklyHeroAndTrendingSectionsAsync(
+                    services,
+                    criteria,
+                    heroSize,
+                    contentLocale,
+                    ct);
+            },
             cancellationToken);
 
         var comingUpTask = RunScopedTimedAsync(
-            (services, ct) => BuildComingUpSectionAsync(services, releaseRegion, contentLocale, ct),
+            (services, ct) =>
+            {
+                HomeStampedePerfAmbient.RecordComingUpBuild();
+                return BuildComingUpSectionAsync(services, releaseRegion, contentLocale, ct);
+            },
             cancellationToken);
 
         var onTvTask = RunScopedTimedAsync(
-            (services, ct) => BuildOnTvThisWeekSectionAsync(services, criteria, contentLocale, ct),
+            (services, ct) =>
+            {
+                HomeStampedePerfAmbient.RecordOnTvBuild();
+                return BuildOnTvThisWeekSectionAsync(services, criteria, contentLocale, ct);
+            },
             cancellationToken);
 
         var nowPlayingTask = RunScopedTimedAsync(
-            (services, ct) => BuildNowInTheatersSectionAsync(
-                services,
-                criteria,
-                releaseRegionKey,
-                contentLocale,
-                ct),
+            (services, ct) =>
+            {
+                HomeStampedePerfAmbient.RecordNowInTheatersBuild();
+                return BuildNowInTheatersSectionAsync(
+                    services,
+                    criteria,
+                    releaseRegionKey,
+                    contentLocale,
+                    ct);
+            },
             cancellationToken);
 
         await Task.WhenAll(
@@ -202,13 +310,14 @@ public sealed class HomeService(
             TimeSpan.FromMinutes(_options.CacheTtlMinutes),
             cancellationToken);
         cacheWriteStopwatch.Stop();
-        totalStopwatch.Stop();
+
+        HomeStampedePerfAmbient.RecordHomeBuildCompleted();
 
         HomeServiceLogMessages.LogCacheMiss(
             logger,
             "MISS",
             totalStopwatch.ElapsedMilliseconds,
-            cacheLookupStopwatch.ElapsedMilliseconds,
+            initialCacheLookupMs,
             cacheWriteStopwatch.ElapsedMilliseconds,
             hotThisWeekMs,
             recommendedForYouMs,
@@ -218,6 +327,37 @@ public sealed class HomeService(
             nowPlayingMs);
 
         return result;
+    }
+
+    private async Task<HomeCacheEntry?> WaitForCachedHomeAsync(
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < MaxCachePollAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var inFlight = loadCoordinator.TryGetInFlight(cacheKey);
+            if (inFlight is not null)
+            {
+                await inFlight.WaitAsync(cancellationToken).ConfigureAwait(false);
+                var cachedAfterInFlight = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
+                if (cachedAfterInFlight is not null)
+                {
+                    return cachedAfterInFlight;
+                }
+            }
+
+            await Task.Delay(CachePollInterval, cancellationToken);
+
+            var cached = await cacheService.GetAsync<HomeCacheEntry>(cacheKey, cancellationToken);
+            if (cached is not null)
+            {
+                return cached;
+            }
+        }
+
+        return null;
     }
 
     public async Task<HomeBrowseResult> GetHomeBrowseAsync(

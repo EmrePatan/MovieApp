@@ -977,6 +977,8 @@ public sealed class HomeServiceTests
                 homeOptions,
                 trendingWeekListService),
             cache ?? new FakeCacheService(),
+            new SearchTestDoubles.InMemorySearchRefreshLockService(),
+            new HomeLoadCoordinator(),
             Options.Create(homeOptions),
             Options.Create(new ReleaseRegionOptions()),
             Options.Create(new RecommendationOptions()),
