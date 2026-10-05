@@ -12,7 +12,7 @@ namespace MovieApp.IntegrationTests.Recommendations;
 public sealed class StratifiedGenreCandidateSqlIntegrationTests
 {
     [Fact]
-    public async Task PersonalizedMovieCandidates_StratifiedPreferredGenres_UseSingleBatchedGenreQuery()
+    public async Task PersonalizedMovieCandidatesUseBatchedStratifiedGenreQuery()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
         var repository = new RecommendationRepository(
