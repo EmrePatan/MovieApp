@@ -74,7 +74,12 @@ public sealed class EfQueryQualityIntegrationTests
         _ = await new UserStatisticsRepository(context).GetStatisticsAsync(userId);
 
         var libraryRepository = new LibraryRepository(context);
-        var libraryPage = new MovieApp.Application.Models.Library.LibraryPageRequest(1, 24, 25, null, true);
+        var libraryPage = new MovieApp.Application.Models.Library.LibraryPageRequest(
+            1,
+            24,
+            25,
+            null,
+            MovieApp.Application.Models.Library.LibraryCountMode.Required);
         _ = await libraryRepository.GetWatchingAsync(userId, SearchContentType.All, libraryPage);
         _ = await libraryRepository.GetWatchedAsync(userId, SearchContentType.All, libraryPage);
     }

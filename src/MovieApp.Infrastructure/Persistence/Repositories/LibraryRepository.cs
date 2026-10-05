@@ -52,9 +52,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                     TvShow = tvShow
                 });
 
-        var totalCount = request.ExecuteCount
-            ? await query.CountAsync(cancellationToken)
-            : request.AfterCursor!.SnapshotTotalCount;
+        var totalCount = await ResolveTotalCountAsync(query, request, cancellationToken);
 
         var ordered = query
             .OrderByDescending(item => item.RegularWatchedEpisodes < item.RegularTotalEpisodes) // IsWatchingLibrarySortInProgress
@@ -124,19 +122,9 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             return await GetWatchedTvShowsAsync(userId, request, cancellationToken);
         }
 
-        var merged = WatchedUnionRows(userId);
-        if (!request.TitleMatch.IsEmpty)
-        {
-            merged = LibraryWatchedTitleFilter.WhereTitleContains(
-                dbContext,
-                merged,
-                request.TitleMatch,
-                request.TitleMatchContentLocale);
-        }
+        var merged = WatchedUnionRows(userId, request);
 
-        var totalCount = request.ExecuteCount
-            ? await merged.CountAsync(cancellationToken)
-            : request.AfterCursor!.SnapshotTotalCount;
+        var totalCount = await ResolveTotalCountAsync(merged, request, cancellationToken);
         var pageRows = await PageWatchedRows(merged, request, includeTypeTieBreak: true)
             .Take(request.FetchLimit)
             .ToListAsync(cancellationToken);
@@ -156,61 +144,43 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         query = ApplyFavoriteMediaTypeFilter(query, mediaType);
 
-        var totalCount = request.ExecuteCount
-            ? await query.CountAsync(cancellationToken)
-            : request.AfterCursor!.SnapshotTotalCount;
-
-        IQueryable<Domain.Entities.Favorite> favoritesQuery = query
-            .Include(favorite => favorite.Movie)
-            .Include(favorite => favorite.TvShow);
-
         if (!request.TitleMatch.IsEmpty)
         {
-            favoritesQuery = ApplyFavoriteTitleFilter(favoritesQuery, request);
+            query = ApplyFavoriteTitleFilter(query, request);
         }
 
-        var ordered = favoritesQuery
+        var totalCount = await ResolveTotalCountAsync(query, request, cancellationToken);
+
+        var ordered = query
             .OrderByDescending(favorite => favorite.CreatedAt)
             .ThenBy(favorite => favorite.MovieId ?? favorite.TvShowId ?? favorite.Id);
 
         var likedCursor = request.AfterCursor;
         var likedAnchor = likedCursor?.GetSortInstant();
-        var favorites = likedCursor is not null
-            ? await ordered
-                .Where(favorite =>
-                    favorite.CreatedAt < likedAnchor
-                    || (favorite.CreatedAt == likedAnchor
-                        && (favorite.MovieId ?? favorite.TvShowId ?? favorite.Id).CompareTo(likedCursor.PrimaryId) > 0))
-                .Take(request.FetchLimit)
-                .ToListAsync(cancellationToken)
-            : request.Page > 1
-                ? await ordered
-                    .Skip((request.Page - 1) * request.PageSize)
-                    .Take(request.FetchLimit)
-                    .ToListAsync(cancellationToken)
-                : await ordered
-                    .Take(request.FetchLimit)
-                    .ToListAsync(cancellationToken);
+        IQueryable<Domain.Entities.Favorite> pagedFavorites = ordered;
+        if (likedCursor is not null)
+        {
+            pagedFavorites = ordered.Where(favorite =>
+                favorite.CreatedAt < likedAnchor
+                || (favorite.CreatedAt == likedAnchor
+                    && (favorite.MovieId ?? favorite.TvShowId ?? favorite.Id)
+                        .CompareTo(likedCursor.PrimaryId) > 0));
+        }
+        else if (request.Page > 1)
+        {
+            pagedFavorites = ordered.Skip((request.Page - 1) * request.PageSize);
+        }
 
-        var items = favorites
-            .Select(favorite => favorite.Movie is not null
-                ? MapMovie(
-                    favorite.Movie,
-                    CollectionStatusLiked,
-                    addedAt: favorite.CreatedAt,
-                    watchedAt: null,
-                    lastActivityAt: favorite.CreatedAt,
-                    progressPercentage: null,
-                    nextEpisode: null)
-                : MapTvShow(
-                    favorite.TvShow!,
-                    CollectionStatusLiked,
-                    addedAt: favorite.CreatedAt,
-                    watchedAt: null,
-                    lastActivityAt: favorite.CreatedAt,
-                    progressPercentage: null,
-                    nextEpisode: null))
-            .ToList();
+        var pageKeys = await pagedFavorites
+            .Select(favorite => new LikedPageKey(
+                favorite.MovieId,
+                favorite.TvShowId,
+                favorite.CreatedAt,
+                favorite.Id))
+            .Take(request.FetchLimit)
+            .ToListAsync(cancellationToken);
+
+        var items = await MaterializeLikedPageAsync(pageKeys, cancellationToken);
 
         return (items, totalCount);
     }
@@ -255,9 +225,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             .ThenBy(item => item.Type)
             .ThenBy(item => item.Id);
 
-        var totalCount = request.ExecuteCount
-            ? await dedupedQuery.CountAsync(cancellationToken)
-            : request.AfterCursor!.SnapshotTotalCount;
+        var totalCount = await ResolveTotalCountAsync(dedupedQuery, request, cancellationToken);
 
         var watchlistCursor = request.AfterCursor;
         var watchlistAnchor = watchlistCursor?.GetSortInstant();
@@ -340,77 +308,8 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         LibraryPageRequest request,
         CancellationToken cancellationToken)
     {
-        var query = dbContext.WatchedMovies
-            .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId);
-
-        if (!request.TitleMatch.IsEmpty)
-        {
-            query = ApplyWatchedMovieTitleFilter(query, request);
-        }
-
-        var totalCount = request.ExecuteCount
-            ? await query.CountAsync(cancellationToken)
-            : request.AfterCursor!.SnapshotTotalCount;
-
-        var ordered = query
-            .OrderByDescending(watchedMovie => watchedMovie.WatchedAt)
-            .ThenBy(watchedMovie => watchedMovie.MovieId);
-
-        var watchedCursor = request.AfterCursor;
-        var watchedAnchor = watchedCursor?.GetSortInstant();
-        var watchedMovies = watchedCursor is not null
-            ? await ordered
-                .Where(watchedMovie =>
-                    watchedMovie.WatchedAt < watchedAnchor
-                    || (watchedMovie.WatchedAt == watchedAnchor
-                        && watchedMovie.MovieId.CompareTo(watchedCursor.PrimaryId) > 0))
-                .Include(watchedMovie => watchedMovie.Movie)
-                .Take(request.FetchLimit)
-                .ToListAsync(cancellationToken)
-            : request.Page > 1
-                ? await ordered
-                    .Include(watchedMovie => watchedMovie.Movie)
-                    .Skip((request.Page - 1) * request.PageSize)
-                    .Take(request.FetchLimit)
-                    .ToListAsync(cancellationToken)
-                : await ordered
-                    .Include(watchedMovie => watchedMovie.Movie)
-                    .Take(request.FetchLimit)
-                    .ToListAsync(cancellationToken);
-
-        var items = watchedMovies
-            .Select(watchedMovie => MapMovie(
-                watchedMovie.Movie,
-                CollectionStatusWatched,
-                addedAt: null,
-                watchedAt: watchedMovie.WatchedAt,
-                lastActivityAt: watchedMovie.WatchedAt,
-                progressPercentage: null,
-                nextEpisode: null))
-            .ToList();
-
-        return (items, totalCount);
-    }
-
-    private async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchedTvShowsAsync(
-        Guid userId,
-        LibraryPageRequest request,
-        CancellationToken cancellationToken)
-    {
-        var rows = CompletedTvShowRows(userId);
-        if (!request.TitleMatch.IsEmpty)
-        {
-            rows = LibraryWatchedTitleFilter.WhereTitleContains(
-                dbContext,
-                rows,
-                request.TitleMatch,
-                request.TitleMatchContentLocale);
-        }
-
-        var totalCount = request.ExecuteCount
-            ? await rows.CountAsync(cancellationToken)
-            : request.AfterCursor!.SnapshotTotalCount;
+        var rows = WatchedMovieRows(userId, ResolveWatchedMovieIdFilter(request));
+        var totalCount = await ResolveTotalCountAsync(rows, request, cancellationToken);
         var pageRows = await PageWatchedRows(rows, request, includeTypeTieBreak: false)
             .Take(request.FetchLimit)
             .ToListAsync(cancellationToken);
@@ -418,11 +317,29 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         return (pageRows.Select(MapUnionRow).ToList(), totalCount);
     }
 
-    internal IQueryable<WatchedUnionRow> WatchedUnionRows(Guid userId) =>
-        WatchedMovieRows(userId).Concat(CompletedTvShowRows(userId));
+    private async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> GetWatchedTvShowsAsync(
+        Guid userId,
+        LibraryPageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var rows = CompletedTvShowRows(userId, ResolveWatchedTvShowIdFilter(request));
 
-    internal IQueryable<WatchedUnionRow> CompletedTvShowRows(Guid userId) =>
-        CompletedTvShows(userId)
+        var totalCount = await ResolveTotalCountAsync(rows, request, cancellationToken);
+        var pageRows = await PageWatchedRows(rows, request, includeTypeTieBreak: false)
+            .Take(request.FetchLimit)
+            .ToListAsync(cancellationToken);
+
+        return (pageRows.Select(MapUnionRow).ToList(), totalCount);
+    }
+
+    internal IQueryable<WatchedUnionRow> WatchedUnionRows(Guid userId, LibraryPageRequest? request = null) =>
+        WatchedMovieRows(userId, ResolveWatchedMovieIdFilter(request))
+            .Concat(CompletedTvShowRows(userId, ResolveWatchedTvShowIdFilter(request)));
+
+    internal IQueryable<WatchedUnionRow> CompletedTvShowRows(
+        Guid userId,
+        IQueryable<Guid>? restrictToTvShowIds = null) =>
+        CompletedTvShows(userId, restrictToTvShowIds)
             .Select(row => new WatchedUnionRow
             {
                 Id = row.TvShow.Id,
@@ -438,11 +355,46 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 LastActivityAt = row.LastWatchedAt!.Value
             });
 
-    private IQueryable<WatchedUnionRow> WatchedMovieRows(Guid userId) =>
-        dbContext.WatchedMovies
+    private IQueryable<Guid>? ResolveWatchedMovieIdFilter(LibraryPageRequest? request)
+    {
+        if (request is null || request.TitleMatch.IsEmpty)
+        {
+            return null;
+        }
+
+        return LibrarySearchTitleFilter.MatchingMovieIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
+    }
+
+    private IQueryable<Guid>? ResolveWatchedTvShowIdFilter(LibraryPageRequest? request)
+    {
+        if (request is null || request.TitleMatch.IsEmpty)
+        {
+            return null;
+        }
+
+        return LibrarySearchTitleFilter.MatchingTvShowIds(
+            dbContext,
+            request.TitleMatch,
+            request.TitleMatchContentLocale);
+    }
+
+    private IQueryable<WatchedUnionRow> WatchedMovieRows(
+        Guid userId,
+        IQueryable<Guid>? restrictToMovieIds = null)
+    {
+        var query = dbContext.WatchedMovies
             .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId)
-            .Select(watchedMovie => new WatchedUnionRow
+            .Where(watchedMovie => watchedMovie.UserId == userId);
+
+        if (restrictToMovieIds is not null)
+        {
+            query = query.Where(watchedMovie => restrictToMovieIds.Contains(watchedMovie.MovieId));
+        }
+
+        return query.Select(watchedMovie => new WatchedUnionRow
             {
                 Id = watchedMovie.MovieId,
                 Type = "movie",
@@ -456,9 +408,19 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 WatchedAt = watchedMovie.WatchedAt,
                 LastActivityAt = watchedMovie.WatchedAt
             });
+    }
 
-    private IQueryable<CompletedTvJoin> CompletedTvShows(Guid userId) =>
-        TvShowCompletionQueries.StartedShows(dbContext, userId)
+    private IQueryable<CompletedTvJoin> CompletedTvShows(
+        Guid userId,
+        IQueryable<Guid>? restrictToTvShowIds = null)
+    {
+        var startedShows = TvShowCompletionQueries.StartedShows(dbContext, userId);
+        if (restrictToTvShowIds is not null)
+        {
+            startedShows = startedShows.Where(show => restrictToTvShowIds.Contains(show.TvShowId));
+        }
+
+        return startedShows
             .Where(TvShowCompletionQueries.IsCompleted)
             .Where(show => show.LastWatchedAt != null)
             .Join(
@@ -470,6 +432,80 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                     LastWatchedAt = show.LastWatchedAt,
                     TvShow = tvShow
                 });
+    }
+
+    private static async Task<int> ResolveTotalCountAsync<T>(
+        IQueryable<T> query,
+        LibraryPageRequest request,
+        CancellationToken cancellationToken) =>
+        request.CountMode switch
+        {
+            LibraryCountMode.Skip => 0,
+            LibraryCountMode.UseSnapshot => request.AfterCursor!.SnapshotTotalCount,
+            _ => await query.CountAsync(cancellationToken),
+        };
+
+    private async Task<IReadOnlyList<LibraryItemResult>> MaterializeLikedPageAsync(
+        IReadOnlyList<LikedPageKey> pageKeys,
+        CancellationToken cancellationToken)
+    {
+        if (pageKeys.Count == 0)
+        {
+            return [];
+        }
+
+        var movieIds = pageKeys
+            .Where(key => key.MovieId.HasValue)
+            .Select(key => key.MovieId!.Value)
+            .ToList();
+        var tvShowIds = pageKeys
+            .Where(key => key.TvShowId.HasValue)
+            .Select(key => key.TvShowId!.Value)
+            .ToList();
+
+        var movies = await dbContext.Movies
+            .AsNoTracking()
+            .Where(movie => movieIds.Contains(movie.Id))
+            .ToDictionaryAsync(movie => movie.Id, cancellationToken);
+
+        var tvShows = await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShowIds.Contains(tvShow.Id))
+            .ToDictionaryAsync(tvShow => tvShow.Id, cancellationToken);
+
+        return pageKeys
+            .Select(key =>
+            {
+                if (key.MovieId.HasValue && movies.TryGetValue(key.MovieId.Value, out var movie))
+                {
+                    return MapMovie(
+                        movie,
+                        CollectionStatusLiked,
+                        addedAt: key.CreatedAt,
+                        watchedAt: null,
+                        lastActivityAt: key.CreatedAt,
+                        progressPercentage: null,
+                        nextEpisode: null);
+                }
+
+                if (key.TvShowId.HasValue && tvShows.TryGetValue(key.TvShowId.Value, out var tvShow))
+                {
+                    return MapTvShow(
+                        tvShow,
+                        CollectionStatusLiked,
+                        addedAt: key.CreatedAt,
+                        watchedAt: null,
+                        lastActivityAt: key.CreatedAt,
+                        progressPercentage: null,
+                        nextEpisode: null);
+                }
+
+                return null;
+            })
+            .Where(item => item is not null)
+            .Cast<LibraryItemResult>()
+            .ToList();
+    }
 
     private static IQueryable<WatchedUnionRow> PageWatchedRows(
         IQueryable<WatchedUnionRow> rows,
@@ -573,17 +609,6 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         return query.Where(item =>
             (item.MovieId != null && matchingMovies.Contains(item.MovieId.Value))
             || (item.TvShowId != null && matchingTvShows.Contains(item.TvShowId.Value)));
-    }
-
-    private IQueryable<Domain.Entities.WatchedMovie> ApplyWatchedMovieTitleFilter(
-        IQueryable<Domain.Entities.WatchedMovie> query,
-        LibraryPageRequest request)
-    {
-        var matchingMovies = LibrarySearchTitleFilter.MatchingMovieIds(
-            dbContext,
-            request.TitleMatch,
-            request.TitleMatchContentLocale);
-        return query.Where(watchedMovie => matchingMovies.Contains(watchedMovie.MovieId));
     }
 
     private IQueryable<Domain.Entities.Favorite> ApplyFavoriteTitleFilter(
@@ -728,4 +753,10 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
 
         public Domain.Entities.TvShow TvShow { get; init; } = null!;
     }
+
+    private sealed record LikedPageKey(
+        Guid? MovieId,
+        Guid? TvShowId,
+        DateTime CreatedAt,
+        Guid FavoriteId);
 }

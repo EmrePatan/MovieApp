@@ -8,4 +8,5 @@ public sealed record LibraryCriteria(
     int Page,
     int PageSize,
     string? Cursor = null,
-    string? Query = null);
+    string? Query = null,
+    LibraryCountMode CountMode = LibraryCountMode.Required);

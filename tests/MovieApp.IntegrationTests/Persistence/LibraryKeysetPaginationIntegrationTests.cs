@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using MovieApp.Application.Common;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Exceptions;
@@ -153,6 +154,136 @@ public sealed class LibraryKeysetPaginationIntegrationTests
     }
 
     [Fact]
+    public async Task LikedSearchTotalCountMatchesFilteredResults()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var userId = await SeedUserAsync(context, $"library-liked-search-{Guid.NewGuid():N}");
+        var utcNow = DateTime.UtcNow;
+        var titles = new[]
+        {
+            "The First",
+            "The Second",
+            "The Third",
+            "Galaxy Quest",
+            "Star Runner",
+        };
+
+        foreach (var title in titles)
+        {
+            var movieId = Guid.NewGuid();
+            context.Movies.Add(new Movie
+            {
+                Id = movieId,
+                Title = title,
+                VoteAverage = 7,
+                VoteCount = 10,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            });
+            context.Favorites.Add(Favorite.CreateForMovie(userId, movieId, utcNow));
+        }
+
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, userId);
+        var theResult = await service.GetLibraryAsync(
+            new LibraryCriteria(LibraryCategory.Liked, SearchContentType.Movie, 1, 24, Query: "the"),
+            ContentLocaleResolver.EnglishUnitedStates);
+        Assert.Equal(3, theResult.TotalCount);
+        Assert.Equal(3, theResult.Items.Count);
+
+        var starResult = await service.GetLibraryAsync(
+            new LibraryCriteria(LibraryCategory.Liked, SearchContentType.Movie, 1, 24, Query: "star"),
+            ContentLocaleResolver.EnglishUnitedStates);
+        Assert.Equal(1, starResult.TotalCount);
+        Assert.Equal("Star Runner", Assert.Single(starResult.Items).Title);
+    }
+
+    [Fact]
+    public async Task WatchedSearchTotalCountMatchesFilteredResults()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var userId = await SeedUserAsync(context, $"library-watched-search-{Guid.NewGuid():N}");
+        var utcNow = DateTime.UtcNow;
+        var starMovieId = Guid.NewGuid();
+        var otherMovieId = Guid.NewGuid();
+        context.Movies.AddRange(
+            new Movie
+            {
+                Id = starMovieId,
+                Title = "Star Movie",
+                VoteAverage = 8,
+                VoteCount = 10,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            },
+            new Movie
+            {
+                Id = otherMovieId,
+                Title = "Other Movie",
+                VoteAverage = 7,
+                VoteCount = 10,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            });
+        context.WatchedMovies.AddRange(
+            WatchedMovie.Create(userId, starMovieId, utcNow),
+            WatchedMovie.Create(userId, otherMovieId, utcNow.AddDays(-1)));
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, userId);
+        var result = await service.GetLibraryAsync(
+            new LibraryCriteria(LibraryCategory.Watched, SearchContentType.Movie, 1, 24, Query: "star"),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal("Star Movie", Assert.Single(result.Items).Title);
+    }
+
+    [Fact]
+    public async Task SearchLibraryAsync_SkipsPerCategoryCountQueries()
+    {
+        await using var context = CreateInstrumentedContext(out var interceptor);
+        var userId = await SeedUserAsync(context, $"library-search-count-{Guid.NewGuid():N}");
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "The Searchable Movie",
+            VoteAverage = 7,
+            VoteCount = 10,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        context.Favorites.Add(Favorite.CreateForMovie(userId, movieId, utcNow));
+        await context.SaveChangesAsync();
+
+        var repository = new LibraryRepository(context);
+        var service = CreateService(context, userId);
+        var titleMatch = SearchTextMatch.FromQuery("the");
+        var skipCountRequest = new LibraryPageRequest(
+            1,
+            10,
+            11,
+            null,
+            LibraryCountMode.Skip,
+            titleMatch,
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        interceptor.Reset();
+        _ = await repository.GetLikedAsync(userId, SearchContentType.Movie, skipCountRequest);
+        Assert.Equal(0, interceptor.CountQueryCount);
+
+        interceptor.Reset();
+        var result = await service.SearchLibraryAsync(
+            new LibrarySearchCriteria("the", SearchContentType.All, 1, 10),
+            ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Contains(result.Items, item => item.Title == "The Searchable Movie");
+    }
+
+    [Fact]
     public async Task MalformedCursorIsRejected()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
@@ -195,7 +326,7 @@ public sealed class LibraryKeysetPaginationIntegrationTests
         Assert.True(decoded);
         Assert.NotNull(parsed);
 
-        var request = new LibraryPageRequest(2, 24, 25, parsed, false);
+        var request = new LibraryPageRequest(2, 24, 25, parsed, LibraryCountMode.UseSnapshot);
         var query = context.Favorites
             .AsNoTracking()
             .Where(favorite => favorite.UserId == userId)
@@ -297,7 +428,7 @@ public sealed class LibraryKeysetPaginationIntegrationTests
         }
 
         private static bool IsCountQuery(string commandText) =>
-            commandText.Contains("count(", StringComparison.OrdinalIgnoreCase);
+            commandText.Contains("SELECT count(*)::int", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class NoOpContentSearchTitleSynchronizer : IContentSearchTitleSynchronizer

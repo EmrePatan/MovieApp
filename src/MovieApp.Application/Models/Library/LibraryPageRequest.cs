@@ -8,6 +8,6 @@ public sealed record LibraryPageRequest(
     int PageSize,
     int FetchLimit,
     LibraryKeysetCursor? AfterCursor,
-    bool ExecuteCount,
+    LibraryCountMode CountMode,
     SearchTextMatch TitleMatch = default,
     string? TitleMatchContentLocale = null);

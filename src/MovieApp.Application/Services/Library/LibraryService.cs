@@ -46,8 +46,7 @@ public sealed class LibraryService(
         }
 
         var page = isCursorContinuation ? incomingCursor!.Page + 1 : criteria.Page;
-        var useSnapshotTotal = isCursorContinuation && incomingCursor!.SnapshotTotalCount > 0;
-        var executeCount = !useSnapshotTotal;
+        var countMode = ResolveCountMode(criteria.CountMode, isCursorContinuation, incomingCursor);
 
         var titleMatch = SearchTextMatch.FromQuery(criteria.Query);
         var request = new LibraryPageRequest(
@@ -55,7 +54,7 @@ public sealed class LibraryService(
             criteria.PageSize,
             criteria.PageSize + 1,
             incomingCursor,
-            executeCount,
+            countMode,
             titleMatch,
             titleMatch.IsEmpty ? null : contentLocale);
 
@@ -85,7 +84,7 @@ public sealed class LibraryService(
                 cancellationToken),
             _ => throw new ValidationException("Category must be one of: watching, watched, liked, watchlist.")
         };
-        countMs = executeCount ? countStopwatch.ElapsedMilliseconds : 0;
+        countMs = countMode == LibraryCountMode.Required ? countStopwatch.ElapsedMilliseconds : 0;
         var pageFetchMs = totalStopwatch.ElapsedMilliseconds - countMs;
 
         var hasNextPage = items.Count > criteria.PageSize;
@@ -107,7 +106,7 @@ public sealed class LibraryService(
             logger,
             (int)criteria.Category,
             mode,
-            executeCount,
+            countMode == LibraryCountMode.Required,
             countMs,
             pageFetchMs,
             totalStopwatch.ElapsedMilliseconds,
@@ -182,7 +181,8 @@ public sealed class LibraryService(
                 page,
                 LibrarySearchAggregator.FetchPageSize,
                 cursor,
-                normalizedQuery);
+                normalizedQuery,
+                LibraryCountMode.Skip);
 
             var result = await GetLibraryAsync(libraryCriteria, contentLocale, cancellationToken);
             if (result.Items.Count > 0)
@@ -313,6 +313,24 @@ public sealed class LibraryService(
                     lastItem.Id)),
             _ => null
         };
+    }
+
+    private static LibraryCountMode ResolveCountMode(
+        LibraryCountMode criteriaCountMode,
+        bool isCursorContinuation,
+        LibraryKeysetCursor? incomingCursor)
+    {
+        if (criteriaCountMode == LibraryCountMode.Skip)
+        {
+            return LibraryCountMode.Skip;
+        }
+
+        if (isCursorContinuation && incomingCursor!.SnapshotTotalCount > 0)
+        {
+            return LibraryCountMode.UseSnapshot;
+        }
+
+        return LibraryCountMode.Required;
     }
 
     private static bool ResolveWatchingSortInProgress(LibraryItemResult lastItem)
