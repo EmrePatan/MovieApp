@@ -40,8 +40,6 @@ public sealed class LibraryActionStatusServiceTests
         public bool IsAuthenticated => true;
 
         public Guid? UserId => userId;
-
-        public string? Email => "user@test.local";
     }
 
     private sealed class NoOpLibraryActionStatusRepository : ILibraryActionStatusRepository
