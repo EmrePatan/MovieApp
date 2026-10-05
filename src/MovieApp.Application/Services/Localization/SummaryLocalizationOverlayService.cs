@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.AiRecommendations;
 using MovieApp.Domain.Enums;
@@ -16,7 +17,7 @@ public sealed class SummaryLocalizationOverlayService(
     ITvShowRepository tvShowRepository,
     IDetailLocalizationOverlayService detailLocalizationOverlayService,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
-    IContentSearchTitleReadRepository contentSearchTitleReadRepository,
+    ISummaryLocalizationMetadataReadRepository summaryLocalizationMetadataReadRepository,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher) : ISummaryLocalizationOverlayService
 {
     public async Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
@@ -24,10 +25,16 @@ public sealed class SummaryLocalizationOverlayService(
         string contentLocale,
         CancellationToken cancellationToken = default)
     {
+        var summaryStopwatch = Stopwatch.StartNew();
+        var enrichStopwatch = Stopwatch.StartNew();
         canonical = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(canonical, cancellationToken);
+        enrichStopwatch.Stop();
+        LocalizationOverlayPerfAmbient.RecordCatalogGenreEnrichMs(enrichStopwatch.ElapsedMilliseconds);
 
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || canonical.Items.Count == 0)
         {
+            summaryStopwatch.Stop();
+            LocalizationOverlayPerfAmbient.AddSummaryOverlayTotalMs(summaryStopwatch.ElapsedMilliseconds);
             return canonical;
         }
 
@@ -39,27 +46,24 @@ public sealed class SummaryLocalizationOverlayService(
             .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
             .Select(item => item.Id)
             .ToList();
-        var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-        var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
-        var localizedMovieTitles = movieIds.Count == 0
-            ? new Dictionary<Models.Search.CatalogContentKey, string>()
-            : await contentSearchTitleReadRepository.GetLocaleDisplayTitlesAsync(
-                CatalogContentType.Movie,
-                movieIds,
-                contentLocale,
-                cancellationToken);
-        var localizedTvTitles = tvIds.Count == 0
-            ? new Dictionary<Models.Search.CatalogContentKey, string>()
-            : await contentSearchTitleReadRepository.GetLocaleDisplayTitlesAsync(
-                CatalogContentType.Tv,
-                tvIds,
-                contentLocale,
-                cancellationToken);
-        var localizedPosters = await LoadLocalizedPostersForSearchItemsAsync(
-            canonical.Items,
+        LocalizationOverlayPerfAmbient.AddItemCounts(canonical.Items.Count, movieIds.Count, tvIds.Count);
+
+        var posterKeys = canonical.Items
+            .Select(item => CreatePosterKey(item.Type, item.Id))
+            .ToList();
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
+            posterKeys,
             contentLocale,
             cancellationToken);
+        var movieProductionContexts = metadata.MovieProductionContexts;
+        var tvProductionContexts = metadata.TvProductionContexts;
+        var localizedMovieTitles = metadata.LocalizedMovieTitles;
+        var localizedTvTitles = metadata.LocalizedTvTitles;
+        var localizedPosters = metadata.LocalizedPosters;
 
+        var perItemStopwatch = Stopwatch.StartNew();
         var localizedItems = await Task.WhenAll(
             canonical.Items.Select(item => ApplyToSearchItemAsync(
                 item,
@@ -70,7 +74,11 @@ public sealed class SummaryLocalizationOverlayService(
                 localizedMovieTitles,
                 localizedTvTitles,
                 cancellationToken)));
+        perItemStopwatch.Stop();
+        LocalizationOverlayPerfAmbient.RecordPerItemLocalizationPhaseMs(perItemStopwatch.ElapsedMilliseconds);
 
+        summaryStopwatch.Stop();
+        LocalizationOverlayPerfAmbient.AddSummaryOverlayTotalMs(summaryStopwatch.ElapsedMilliseconds);
         return canonical with { Items = localizedItems };
     }
 
@@ -142,10 +150,12 @@ public sealed class SummaryLocalizationOverlayService(
             .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
             .Select(item => item.Id)
             .ToList();
-        var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-        var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
-        var localizedPosters = await LoadLocalizedPostersForRecommendationItemsAsync(
-            canonical.Items,
+        var (batchMovieIds, batchTvIds, posterKeys) = CollectRecommendationItemMetadataKeys(canonical.Items);
+        LocalizationOverlayPerfAmbient.AddItemCounts(canonical.Items.Count, batchMovieIds.Count, batchTvIds.Count);
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            batchMovieIds,
+            batchTvIds,
+            posterKeys,
             contentLocale,
             cancellationToken);
         var localizedItems = await Task.WhenAll(
@@ -153,9 +163,9 @@ public sealed class SummaryLocalizationOverlayService(
                 item,
                 tmdbIdsByContentId,
                 contentLocale,
-                localizedPosters,
-                movieProductionContexts,
-                tvProductionContexts,
+                metadata.LocalizedPosters,
+                metadata.MovieProductionContexts,
+                metadata.TvProductionContexts,
                 cancellationToken)));
 
         return canonical with { Items = localizedItems };
@@ -191,32 +201,28 @@ public sealed class SummaryLocalizationOverlayService(
             return canonical;
         }
 
+        var allItems = canonical.SelectMany(section => section.Items).ToList();
+        var (movieIds, tvIds, posterKeys) = CollectRecommendationItemMetadataKeys(allItems);
+        LocalizationOverlayPerfAmbient.AddItemCounts(allItems.Count, movieIds.Count, tvIds.Count);
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
+            posterKeys,
+            contentLocale,
+            cancellationToken);
+        var tmdbIdsByContentId = await ResolveTmdbIdsByContentIdsAsync(allItems, cancellationToken);
+
         var localizedSections = new List<RecommendationSection>(canonical.Count);
         foreach (var section in canonical)
         {
-            var tmdbIdsByContentId = await ResolveTmdbIdsByContentIdsAsync(section.Items, cancellationToken);
-            var movieIds = section.Items
-                .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
-                .Select(item => item.Id)
-                .ToList();
-            var tvIds = section.Items
-                .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
-                .Select(item => item.Id)
-                .ToList();
-            var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-            var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
-            var localizedPosters = await LoadLocalizedPostersForRecommendationItemsAsync(
-                section.Items,
-                contentLocale,
-                cancellationToken);
             var localizedItems = await Task.WhenAll(
                 section.Items.Select(item => LocalizeRecommendationItemAsync(
                     item,
                     tmdbIdsByContentId,
                     contentLocale,
-                    localizedPosters,
-                    movieProductionContexts,
-                    tvProductionContexts,
+                    metadata.LocalizedPosters,
+                    metadata.MovieProductionContexts,
+                    metadata.TvProductionContexts,
                     cancellationToken)));
 
             localizedSections.Add(section with { Items = localizedItems });
@@ -246,9 +252,14 @@ public sealed class SummaryLocalizationOverlayService(
 
         var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
         var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
-        var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-        var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
-        var localizedPosters = await LoadLocalizedPostersForHomeItemsAsync(items, contentLocale, cancellationToken);
+        var posterKeys = items.Select(item => CreatePosterKey(item.ContentType, item.Id)).ToList();
+        LocalizationOverlayPerfAmbient.AddItemCounts(items.Count, movieIds.Count, tvIds.Count);
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
+            posterKeys,
+            contentLocale,
+            cancellationToken);
 
         return await Task.WhenAll(
             items.Select(item => LocalizeHomeItemAsync(
@@ -256,9 +267,9 @@ public sealed class SummaryLocalizationOverlayService(
                 movieTmdbIds,
                 tvTmdbIds,
                 contentLocale,
-                localizedPosters,
-                movieProductionContexts,
-                tvProductionContexts,
+                metadata.LocalizedPosters,
+                metadata.MovieProductionContexts,
+                metadata.TvProductionContexts,
                 cancellationToken)));
     }
 
@@ -715,10 +726,14 @@ public sealed class SummaryLocalizationOverlayService(
 
         var movieTmdbIds = await movieRepository.GetTmdbIdsByIdsAsync(movieIds, cancellationToken);
         var tvTmdbIds = await tvShowRepository.GetTmdbIdsByIdsAsync(tvIds, cancellationToken);
-        var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-        var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
-        var localizedPosters = await LoadLocalizedPostersForUpcomingItemsAsync(
-            canonical,
+        var posterKeys = canonical
+            .Select(item => CreatePosterKey(item.ContentType, item.ContentId))
+            .ToList();
+        LocalizationOverlayPerfAmbient.AddItemCounts(canonical.Count, movieIds.Count, tvIds.Count);
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
+            posterKeys,
             contentLocale,
             cancellationToken);
 
@@ -728,10 +743,30 @@ public sealed class SummaryLocalizationOverlayService(
                 movieTmdbIds,
                 tvTmdbIds,
                 contentLocale,
-                localizedPosters,
-                movieProductionContexts,
-                tvProductionContexts,
+                metadata.LocalizedPosters,
+                metadata.MovieProductionContexts,
+                metadata.TvProductionContexts,
                 cancellationToken)));
+    }
+
+    private static (List<Guid> MovieIds, List<Guid> TvIds, List<ContentLocalizedPosterKey> PosterKeys) CollectRecommendationItemMetadataKeys(
+        IReadOnlyList<RecommendationItem> items)
+    {
+        var movieIds = items
+            .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+        var tvIds = items
+            .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .Distinct()
+            .ToList();
+        var posterKeys = items
+            .Select(item => CreatePosterKey(item.Type, item.Id))
+            .Distinct()
+            .ToList();
+        return (movieIds, tvIds, posterKeys);
     }
 
     private static ContentLocalizedPosterKey CreatePosterKey(string contentType, Guid contentId) =>

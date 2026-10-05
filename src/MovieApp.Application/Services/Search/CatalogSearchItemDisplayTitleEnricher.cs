@@ -7,9 +7,7 @@ using MovieApp.Domain.Enums;
 namespace MovieApp.Application.Services.Search;
 
 public sealed class CatalogSearchItemDisplayTitleEnricher(
-    IContentSearchTitleReadRepository contentSearchTitleReadRepository,
-    IMovieRepository movieRepository,
-    ITvShowRepository tvShowRepository)
+    ISummaryLocalizationMetadataReadRepository summaryLocalizationMetadataReadRepository)
 {
     public async Task<PaginatedResult<SearchItem>> EnrichAsync(
         PaginatedResult<SearchItem> page,
@@ -32,23 +30,16 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
             .Distinct()
             .ToList();
 
-        var localizedMovieTitles = movieIds.Count == 0
-            ? new Dictionary<CatalogContentKey, string>()
-            : await contentSearchTitleReadRepository.GetLocaleDisplayTitlesAsync(
-                CatalogContentType.Movie,
-                movieIds,
-                contentLocale,
-                cancellationToken);
-        var localizedTvTitles = tvIds.Count == 0
-            ? new Dictionary<CatalogContentKey, string>()
-            : await contentSearchTitleReadRepository.GetLocaleDisplayTitlesAsync(
-                CatalogContentType.Tv,
-                tvIds,
-                contentLocale,
-                cancellationToken);
-
-        var movieContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-        var tvContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
+            [],
+            contentLocale,
+            cancellationToken);
+        var localizedMovieTitles = metadata.LocalizedMovieTitles;
+        var localizedTvTitles = metadata.LocalizedTvTitles;
+        var movieContexts = metadata.MovieProductionContexts;
+        var tvContexts = metadata.TvProductionContexts;
 
         var items = page.Items
             .Select(item => ApplyItem(

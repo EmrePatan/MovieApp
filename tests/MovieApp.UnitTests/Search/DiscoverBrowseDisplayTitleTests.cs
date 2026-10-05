@@ -14,6 +14,7 @@ using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
+using MovieApp.UnitTests.Localization;
 using MovieApp.UnitTests.Persistence;
 
 namespace MovieApp.UnitTests.Search;
@@ -53,9 +54,9 @@ public sealed class DiscoverBrowseDisplayTitleTests
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new EmptyGenreReadRepository()),
             new CatalogSearchItemDisplayTitleEnricher(
-                new FixedContentSearchTitleReadRepository(localizedTitles),
-                movieRepository,
-                new EmptyTvShowRepository()),
+                new ConfiguredSummaryLocalizationMetadataReadRepository(
+                    localizedTitles,
+                    new Dictionary<Guid, ContentProductionContext> { [movieId] = new ContentProductionContext("en", "US") })),
             new NoOpTrendingWeekListService(),
             NoOpTrendingSnapshotService.Instance);
 

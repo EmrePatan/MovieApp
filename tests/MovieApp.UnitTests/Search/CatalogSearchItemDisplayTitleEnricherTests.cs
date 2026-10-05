@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.Search;
+using MovieApp.UnitTests.Localization;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 
@@ -164,90 +165,5 @@ public sealed class CatalogSearchItemDisplayTitleEnricherTests
     private static CatalogSearchItemDisplayTitleEnricher CreateEnricher(
         IReadOnlyDictionary<CatalogContentKey, string> localizedTitles,
         IReadOnlyDictionary<Guid, ContentProductionContext> movieContexts) =>
-        new(
-            new ConfiguredContentSearchTitleReadRepository(localizedTitles),
-            new ConfiguredMovieRepository(movieContexts),
-            new EmptyTvShowRepository());
-
-    private sealed class ConfiguredContentSearchTitleReadRepository(
-        IReadOnlyDictionary<CatalogContentKey, string> titles) : IContentSearchTitleReadRepository
-    {
-        public Task<IReadOnlyDictionary<CatalogContentKey, string>> GetLocaleDisplayTitlesAsync(
-            CatalogContentType contentType,
-            IReadOnlyList<Guid> contentIds,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(titles);
-    }
-
-    private sealed class ConfiguredMovieRepository(
-        IReadOnlyDictionary<Guid, ContentProductionContext> contexts) : IMovieRepository
-    {
-        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
-            IReadOnlyList<MovieProviderSummary> summaries,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
-            IReadOnlyList<int> tmdbIds,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Movie?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Movie?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Movie> UpsertFromProviderAsync(
-            MovieProviderDetails details,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
-            IReadOnlyList<Guid> movieIds,
-            CancellationToken cancellationToken = default)
-        {
-            var result = new Dictionary<Guid, ContentProductionContext>();
-            foreach (var id in movieIds)
-            {
-                if (contexts.TryGetValue(id, out var context))
-                {
-                    result[id] = context;
-                }
-            }
-
-            return Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(result);
-        }
-    }
-
-    private sealed class EmptyTvShowRepository : ITvShowRepository
-    {
-        public Task<IReadOnlyDictionary<int, Guid>> EnsureFromSummariesAsync(
-            IReadOnlyList<TvShowProviderSummary> summaries,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<int, Guid>> GetExistingIdsByTmdbIdsAsync(
-            IReadOnlyList<int> tmdbIds,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShow?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShow?> GetByTmdbIdAsync(int tmdbId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShow> UpsertFromProviderAsync(
-            TvShowProviderDetails details,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<Guid, ContentProductionContext>> GetProductionContextsByIdsAsync(
-            IReadOnlyList<Guid> tvShowIds,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, ContentProductionContext>>(
-                new Dictionary<Guid, ContentProductionContext>());
-    }
+        new(new ConfiguredSummaryLocalizationMetadataReadRepository(localizedTitles, movieContexts));
 }

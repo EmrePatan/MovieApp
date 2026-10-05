@@ -295,7 +295,7 @@ public sealed class ListLocalizationStage2Tests
                 localizedDetailDataProvider ?? new NullLocalizedDetailDataProvider(),
                 cache),
             new EmptyContentLocalizedPosterRepository(),
-            new MovieApp.UnitTests.Search.SearchTestDoubles.EmptyContentSearchTitleReadRepository(),
+            new EmptySummaryLocalizationMetadataReadRepository(),
             new SearchItemCatalogMetadataEnricher(new EmptyGenreReadRepository()));
 
     private sealed class EmptyGenreReadRepository : IGenreReadRepository

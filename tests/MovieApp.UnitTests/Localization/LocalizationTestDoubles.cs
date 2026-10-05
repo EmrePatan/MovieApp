@@ -1,6 +1,8 @@
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Images;
+using MovieApp.Application.Models.Localization;
 using MovieApp.Application.Models.Providers;
+using MovieApp.Application.Models.Search;
 using MovieApp.Domain.Entities;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Enums;
@@ -144,4 +146,68 @@ public sealed class StubTvOriginalLanguageRepository(IReadOnlyDictionary<Guid, s
         TvShowProviderDetails details,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+}
+
+internal sealed class EmptySummaryLocalizationMetadataReadRepository : ISummaryLocalizationMetadataReadRepository
+{
+    public Task<SummaryLocalizationMetadataBatch> LoadAsync(
+        IReadOnlyList<Guid> movieIds,
+        IReadOnlyList<Guid> tvIds,
+        IReadOnlyList<ContentLocalizedPosterKey> posterKeys,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(
+            new SummaryLocalizationMetadataBatch(
+                new Dictionary<Guid, ContentProductionContext>(),
+                new Dictionary<Guid, ContentProductionContext>(),
+                new Dictionary<CatalogContentKey, string>(),
+                new Dictionary<CatalogContentKey, string>(),
+                new Dictionary<ContentLocalizedPosterKey, string>()));
+}
+
+internal sealed class ConfiguredSummaryLocalizationMetadataReadRepository(
+    IReadOnlyDictionary<CatalogContentKey, string> localizedTitles,
+    IReadOnlyDictionary<Guid, ContentProductionContext> movieContexts,
+    IReadOnlyDictionary<Guid, ContentProductionContext>? tvContexts = null) : ISummaryLocalizationMetadataReadRepository
+{
+    public Task<SummaryLocalizationMetadataBatch> LoadAsync(
+        IReadOnlyList<Guid> movieIds,
+        IReadOnlyList<Guid> tvIds,
+        IReadOnlyList<ContentLocalizedPosterKey> posterKeys,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        var movieTitles = localizedTitles
+            .Where(pair => string.Equals(pair.Key.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        var tvTitles = localizedTitles
+            .Where(pair => string.Equals(pair.Key.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+
+        var movies = new Dictionary<Guid, ContentProductionContext>();
+        foreach (var id in movieIds)
+        {
+            if (movieContexts.TryGetValue(id, out var context))
+            {
+                movies[id] = context;
+            }
+        }
+
+        var tvs = new Dictionary<Guid, ContentProductionContext>();
+        foreach (var id in tvIds)
+        {
+            if (tvContexts?.TryGetValue(id, out var context) == true)
+            {
+                tvs[id] = context;
+            }
+        }
+
+        return Task.FromResult(
+            new SummaryLocalizationMetadataBatch(
+                movies,
+                tvs,
+                movieTitles,
+                tvTitles,
+                new Dictionary<ContentLocalizedPosterKey, string>()));
+    }
 }

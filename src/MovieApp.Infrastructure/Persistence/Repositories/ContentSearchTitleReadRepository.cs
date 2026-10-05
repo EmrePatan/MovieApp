@@ -30,47 +30,8 @@ public sealed class ContentSearchTitleReadRepository(ApplicationDbContext dbCont
                     || row.TitleKind == ContentSearchTitleKind.Alternative))
             .ToListAsync(cancellationToken);
 
-        var typeLabel = contentType == CatalogContentType.Movie ? "movie" : "tv";
-        var result = new Dictionary<CatalogContentKey, string>();
-
-        foreach (var group in rows.GroupBy(row => row.ContentId))
-        {
-            var best = group
-                .Where(row => RowMatchesLocaleDisplay(row, scope))
-                .OrderByDescending(ScoreLocaleDisplayRow)
-                .FirstOrDefault();
-
-            if (best is not null)
-            {
-                result[new CatalogContentKey(group.Key, typeLabel)] = best.Title;
-            }
-        }
-
-        return result;
+        return contentType == CatalogContentType.Movie
+            ? ContentSearchTitleDisplayTitleResolver.BuildMovieDisplayTitles(rows, scope)
+            : ContentSearchTitleDisplayTitleResolver.BuildTvDisplayTitles(rows, scope);
     }
-
-    private static bool RowMatchesLocaleDisplay(
-        ContentSearchTitle row,
-        CatalogSearchTitleLanguageScope scope)
-    {
-        if (row.TitleKind == ContentSearchTitleKind.Translation
-            && row.LanguageCode is { Length: > 0 } languageCode
-            && string.Equals(languageCode, scope.PrimaryLanguageCode, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (row.TitleKind == ContentSearchTitleKind.Alternative
-            && scope.PrimaryRegionCode is { Length: > 0 } regionCode
-            && row.CountryCode is { Length: > 0 } countryCode
-            && string.Equals(countryCode, regionCode, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static int ScoreLocaleDisplayRow(ContentSearchTitle row) =>
-        row.TitleKind == ContentSearchTitleKind.Translation ? 2 : 1;
 }

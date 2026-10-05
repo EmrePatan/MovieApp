@@ -469,10 +469,7 @@ internal static class SearchTestDoubles
     internal static CatalogSearchItemDisplayTitleEnricher CreateDisplayTitleEnricher(
         IMovieRepository? movieRepository = null,
         ITvShowRepository? tvShowRepository = null) =>
-        new(
-            new EmptyContentSearchTitleReadRepository(),
-            movieRepository ?? new EmptySummaryMovieRepository(),
-            tvShowRepository ?? new EmptySummaryTvShowRepository());
+        new(new MovieApp.UnitTests.Localization.EmptySummaryLocalizationMetadataReadRepository());
 
     private sealed class EmptySummaryMovieRepository : IMovieRepository
     {
