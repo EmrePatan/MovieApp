@@ -16,6 +16,7 @@ public sealed class InsightsV3Service(
     IInsightsRepository insightsRepository,
     IInsightsCache insightsCache,
     IOptions<InsightsOptions> options,
+    IOptions<InsightsV3Options> insightsV3Options,
     ILogger<InsightsV3Service> logger) : IInsightsV3Service
 {
     public async Task<InsightsV3Result> GetInsightsV3Async(
@@ -72,6 +73,7 @@ public sealed class InsightsV3Service(
             metrics.DbTotalMs,
             metrics.DbRoundTrips,
             metrics.PgCommandRoundTrips,
+            insightsV3Options.Value.MaxRepositoryConcurrency,
             metrics.SummaryMs,
             metrics.DnaMs,
             metrics.YearActivityMs,

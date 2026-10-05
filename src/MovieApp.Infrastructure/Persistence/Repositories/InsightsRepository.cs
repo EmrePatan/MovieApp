@@ -1,15 +1,21 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Insights;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class InsightsRepository(
     ApplicationDbContext dbContext,
-    IServiceScopeFactory scopeFactory) : IInsightsRepository
+    IServiceScopeFactory scopeFactory,
+    IOptions<InsightsV3Options>? insightsV3Options = null) : IInsightsRepository
 {
+    private readonly int _maxV3RepositoryConcurrency =
+        insightsV3Options?.Value.MaxRepositoryConcurrency ?? InsightsV3Options.DefaultMaxRepositoryConcurrency;
+
     private sealed record SummaryCountsRow(
         DateTime MemberSince,
         int MoviesWatched,
@@ -420,79 +426,114 @@ public sealed class InsightsRepository(
         var (currentYearStart, currentYearEnd) = GetCalendarYearUtcBounds(year, timeZone);
         var (previousYearStart, previousYearEnd) = GetCalendarYearUtcBounds(year - 1, timeZone);
 
-        var summaryTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => GetV3SummaryAsync(context, userId, ct),
-            cancellationToken);
-        var yearActivityTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3AggregateQueries.GetYearActivityAsync(
-                context,
-                userId,
-                timeZoneId,
-                year,
-                currentYearStart,
-                currentYearEnd,
-                ct),
-            cancellationToken);
-        var genreContributionsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3AggregateQueries.GetGenreContributionsAsync(
-                context,
-                userId,
-                previousYearStart,
-                previousYearEnd,
-                currentYearStart,
-                currentYearEnd,
-                ct),
-            cancellationToken);
-        var titleFactsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3AggregateQueries.GetTitleFactsAsync(
-                context,
-                userId,
-                previousYearStart,
-                previousYearEnd,
-                currentYearStart,
-                currentYearEnd,
-                ct),
-            cancellationToken);
-        var recordsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3SqlQueries.GetRecordsAsync(context, userId, timeZoneId, ct),
-            cancellationToken);
-        var runtimeTotalsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            async (context, ct) =>
-            {
-                var totals = await InsightsV3SqlQueries.GetRuntimeTotalsAsync(context, userId, ct);
+        using var concurrencyGate = new SemaphoreSlim(_maxV3RepositoryConcurrency, _maxV3RepositoryConcurrency);
 
-                return new V3RuntimeTotalsRow(
-                    totals.MovieTotalMinutes,
-                    totals.MovieKnownCount,
-                    totals.EpisodeTotalMinutes,
-                    totals.EpisodeKnownCount);
-            },
+        var summaryTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => GetV3SummaryAsync(context, userId, phaseCt),
+                ct),
             cancellationToken);
-        var ratingScoreCountsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => GetRatingScoreCountsAsync(context, userId, ct),
+        var yearActivityTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3AggregateQueries.GetYearActivityAsync(
+                    context,
+                    userId,
+                    timeZoneId,
+                    year,
+                    currentYearStart,
+                    currentYearEnd,
+                    phaseCt),
+                ct),
             cancellationToken);
-        var genreRatingsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3SqlQueries.GetGenreRatingsAsync(context, userId, ct),
+        var genreContributionsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3AggregateQueries.GetGenreContributionsAsync(
+                    context,
+                    userId,
+                    previousYearStart,
+                    previousYearEnd,
+                    currentYearStart,
+                    currentYearEnd,
+                    phaseCt),
+                ct),
             cancellationToken);
-        var oldestTitleTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3SqlQueries.GetOldestTitleAsync(context, userId, ct),
+        var titleFactsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3AggregateQueries.GetTitleFactsAsync(
+                    context,
+                    userId,
+                    previousYearStart,
+                    previousYearEnd,
+                    currentYearStart,
+                    currentYearEnd,
+                    phaseCt),
+                ct),
             cancellationToken);
-        var showCompletionsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3SqlQueries.GetShowCompletionsAsync(context, userId, ct),
+        var recordsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3SqlQueries.GetRecordsAsync(context, userId, timeZoneId, phaseCt),
+                ct),
             cancellationToken);
-        var milestoneTimestampsTask = TimedScopedV3PgCommandAsync(
-            metrics,
-            (context, ct) => InsightsV3SqlQueries.GetMilestoneTimestampsAsync(context, userId, ct),
+        var runtimeTotalsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                async (context, phaseCt) =>
+                {
+                    var totals = await InsightsV3SqlQueries.GetRuntimeTotalsAsync(context, userId, phaseCt);
+
+                    return new V3RuntimeTotalsRow(
+                        totals.MovieTotalMinutes,
+                        totals.MovieKnownCount,
+                        totals.EpisodeTotalMinutes,
+                        totals.EpisodeKnownCount);
+                },
+                ct),
+            cancellationToken);
+        var ratingScoreCountsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => GetRatingScoreCountsAsync(context, userId, phaseCt),
+                ct),
+            cancellationToken);
+        var genreRatingsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3SqlQueries.GetGenreRatingsAsync(context, userId, phaseCt),
+                ct),
+            cancellationToken);
+        var oldestTitleTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3SqlQueries.GetOldestTitleAsync(context, userId, phaseCt),
+                ct),
+            cancellationToken);
+        var showCompletionsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3SqlQueries.GetShowCompletionsAsync(context, userId, phaseCt),
+                ct),
+            cancellationToken);
+        var milestoneTimestampsTask = InsightsV3RepositoryPhaseScheduler.RunBoundedAsync(
+            concurrencyGate,
+            ct => TimedScopedV3PgCommandAsync(
+                metrics,
+                (context, phaseCt) => InsightsV3SqlQueries.GetMilestoneTimestampsAsync(context, userId, phaseCt),
+                ct),
             cancellationToken);
 
         await Task.WhenAll(

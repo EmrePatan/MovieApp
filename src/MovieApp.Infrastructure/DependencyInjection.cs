@@ -92,6 +92,12 @@ public static class DependencyInjection
 
         services.Configure<InsightsOptions>(configuration.GetSection(InsightsOptions.SectionName));
 
+        services.AddOptions<InsightsV3Options>()
+            .Bind(configuration.GetSection(InsightsV3Options.SectionName))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<InsightsV3Options>, InsightsV3OptionsValidator>();
+
         services.AddOptions<TopRatedOptions>()
             .Bind(configuration.GetSection(TopRatedOptions.SectionName))
             .ValidateOnStart();

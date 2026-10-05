@@ -19,7 +19,7 @@ internal static partial class InsightsV3LogMessages
     [LoggerMessage(
         EventId = 7104,
         Level = LogLevel.Debug,
-        Message = "InsightsPerf V3 Cache=MISS TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} DbTotalMs={DbTotalMs} RepositoryPhases={RepositoryPhases} PgCommandRoundTrips={PgCommandRoundTrips} SummaryMs={SummaryMs} DnaMs={DnaMs} YearActivityMs={YearActivityMs} RecordsMs={RecordsMs} RuntimeMs={RuntimeMs} RatingsMs={RatingsMs} MilestonesMs={MilestonesMs} BuildCpuMs={BuildCpuMs} CacheWriteMs={CacheWriteMs} SourceVersion={SourceVersion} UserId={UserId} Year={Year}")]
+        Message = "InsightsPerf V3 Cache=MISS TotalMs={TotalMs} CacheLookupMs={CacheLookupMs} DbTotalMs={DbTotalMs} RepositoryPhases={RepositoryPhases} PgCommandRoundTrips={PgCommandRoundTrips} RepositoryConcurrency={RepositoryConcurrency} SummaryMs={SummaryMs} DnaMs={DnaMs} YearActivityMs={YearActivityMs} RecordsMs={RecordsMs} RuntimeMs={RuntimeMs} RatingsMs={RatingsMs} MilestonesMs={MilestonesMs} BuildCpuMs={BuildCpuMs} CacheWriteMs={CacheWriteMs} SourceVersion={SourceVersion} UserId={UserId} Year={Year}")]
     public static partial void LogCacheMiss(
         ILogger logger,
         Guid userId,
@@ -28,6 +28,7 @@ internal static partial class InsightsV3LogMessages
         long dbTotalMs,
         int repositoryPhases,
         int pgCommandRoundTrips,
+        int repositoryConcurrency,
         long summaryMs,
         long dnaMs,
         long yearActivityMs,
