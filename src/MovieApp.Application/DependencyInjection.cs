@@ -50,6 +50,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<ISearchMoviesService, SearchMoviesService>();
+        services.AddScoped<IDetailKeywordOverlayService, DetailKeywordOverlayService>();
         services.AddScoped<IGetMovieByIdService, GetMovieByIdService>();
         services.AddScoped<IGetMovieByTmdbIdService, GetMovieByTmdbIdService>();
         services.AddScoped<IGetMovieCreditsService, GetMovieCreditsService>();
@@ -78,7 +79,7 @@ public static class DependencyInjection
             sp.GetRequiredService<ITvShowDataProvider>(),
             sp.GetRequiredService<ITvShowExternalIdLookup>(),
             sp.GetRequiredService<IDetailLocalizationOverlayService>(),
-            sp.GetRequiredService<ICatalogTitleKeywordReadRepository>()));
+            sp.GetRequiredService<IDetailKeywordOverlayService>()));
         services.AddScoped<ITvShowExternalIdLookup, TvShowExternalIdLookup>();
         services.AddScoped<IGetTvShowByTmdbIdService, GetTvShowByTmdbIdService>();
         services.AddScoped<ITvShowSeasonSummaryHydrator, TvShowSeasonSummaryHydrator>();

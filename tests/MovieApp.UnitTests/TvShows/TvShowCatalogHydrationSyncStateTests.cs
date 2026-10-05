@@ -72,7 +72,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
             GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay,
-            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
+            MovieApp.UnitTests.Catalog.DetailKeywordOverlayTestSupport.Create());
 
         await service.GetByIdAsync(TvShowId);
 
@@ -127,7 +127,7 @@ public sealed class TvShowCatalogHydrationSyncStateTests
             GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
             GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay,
-            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
+            MovieApp.UnitTests.Catalog.DetailKeywordOverlayTestSupport.Create());
 
         await service.GetByIdAsync(TvShowId);
 

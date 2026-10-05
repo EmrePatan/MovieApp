@@ -4,8 +4,10 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Models.TvShows;
+using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Services.TvShows;
+using MovieApp.UnitTests.Catalog;
 using MovieApp.Domain.Enums;
 using MovieApp.UnitTests.Localization;
 
@@ -38,7 +40,7 @@ public sealed class GetTvShowByIdLocalizedPosterTests
             GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider,
             GetTvShowByIdServiceTestSupport.NoOpExternalIdLookup,
             GetTvShowByIdServiceTestSupport.NoOpDetailLocalizationOverlay,
-            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
+            DetailKeywordOverlayTestSupport.Create());
 
         var result = await service.GetByIdAsync(TvShowId, ContentLocaleResolver.TurkishTurkey);
 
@@ -60,8 +62,7 @@ public sealed class GetTvShowByIdLocalizedPosterTests
         services.AddSingleton(
             GetTvShowByIdServiceTestSupport.NoOpContentLocalizedPosterSynchronizer);
         services.AddSingleton(GetTvShowByIdServiceTestSupport.NoOpTvShowDataProvider);
-        services.AddSingleton<ICatalogTitleKeywordReadRepository>(
-            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
+        services.AddSingleton<IDetailKeywordOverlayService>(DetailKeywordOverlayTestSupport.Create());
         services.AddSingleton<IGetTvShowByIdService, GetTvShowByIdService>();
 
         var provider = services.BuildServiceProvider();

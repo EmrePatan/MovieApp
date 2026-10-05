@@ -6,6 +6,8 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Movies;
 using MovieApp.Domain.Entities;
+using MovieApp.Application.Services.Catalog;
+using MovieApp.UnitTests.Catalog;
 using MovieApp.UnitTests.Keywords;
 
 namespace MovieApp.UnitTests.Movies;
@@ -48,7 +50,7 @@ public sealed class MovieDetailsCacheTests
             new NoOpCatalogProviderUpsertService(),
             cache,
             new MovieApp.UnitTests.Localization.EmptyContentLocalizedPosterRepository(),
-            new MovieApp.UnitTests.Keywords.NoOpCatalogTitleKeywordReadRepository());
+            DetailKeywordOverlayTestSupport.Create());
 
     private static Movie CreateMovie() =>
         new()

@@ -22,7 +22,7 @@ public sealed class GetTvShowByIdService(
     ITvShowDataProvider tvShowDataProvider,
     ITvShowExternalIdLookup externalIdLookup,
     IDetailLocalizationOverlayService detailLocalizationOverlayService,
-    ICatalogTitleKeywordReadRepository catalogTitleKeywordReadRepository) : IGetTvShowByIdService
+    IDetailKeywordOverlayService detailKeywordOverlayService) : IGetTvShowByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
 
@@ -78,8 +78,7 @@ public sealed class GetTvShowByIdService(
             await overlayTask,
             contentLocale);
         localized = await ApplyLocalizedPosterOverlayAsync(id, localized, contentLocale, cancellationToken);
-        return await DetailKeywordOverlay.ApplyTvShowKeywordsAsync(
-            catalogTitleKeywordReadRepository,
+        return await detailKeywordOverlayService.ApplyTvShowKeywordsAsync(
             id,
             localized,
             contentLocale,
@@ -93,8 +92,7 @@ public sealed class GetTvShowByIdService(
         CancellationToken cancellationToken)
     {
         result = await ApplyOverlayAsync(tvShowId, result, contentLocale, cancellationToken);
-        return await DetailKeywordOverlay.ApplyTvShowKeywordsAsync(
-            catalogTitleKeywordReadRepository,
+        return await detailKeywordOverlayService.ApplyTvShowKeywordsAsync(
             tvShowId,
             result,
             contentLocale,

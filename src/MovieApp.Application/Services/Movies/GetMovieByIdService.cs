@@ -27,7 +27,7 @@ public sealed class GetMovieByIdService(
     ICatalogProviderUpsertService catalogProviderUpsertService,
     ICacheService cacheService,
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
-    ICatalogTitleKeywordReadRepository catalogTitleKeywordReadRepository,
+    IDetailKeywordOverlayService detailKeywordOverlayService,
     IDetailLocalizationOverlayService? detailLocalizationOverlayService = null) : IGetMovieByIdService
 {
     private static readonly TimeSpan DetailsCacheTtl = TimeSpan.FromMinutes(15);
@@ -99,8 +99,7 @@ public sealed class GetMovieByIdService(
             await overlayTask,
             contentLocale);
         localized = await ApplyLocalizedPosterOverlayAsync(id, localized, contentLocale, cancellationToken);
-        return await DetailKeywordOverlay.ApplyMovieKeywordsAsync(
-            catalogTitleKeywordReadRepository,
+        return await detailKeywordOverlayService.ApplyMovieKeywordsAsync(
             id,
             localized,
             contentLocale,
@@ -114,8 +113,7 @@ public sealed class GetMovieByIdService(
         CancellationToken cancellationToken)
     {
         result = await ApplyOverlayAsync(movieId, result, contentLocale, cancellationToken);
-        return await DetailKeywordOverlay.ApplyMovieKeywordsAsync(
-            catalogTitleKeywordReadRepository,
+        return await detailKeywordOverlayService.ApplyMovieKeywordsAsync(
             movieId,
             result,
             contentLocale,
