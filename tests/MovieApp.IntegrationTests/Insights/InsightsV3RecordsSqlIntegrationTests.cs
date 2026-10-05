@@ -319,6 +319,6 @@ public sealed class InsightsV3RecordsSqlIntegrationTests
         var services = new ServiceCollection();
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        return new InsightsRepository(context, scopeFactory);
+        return new InsightsRepository(scopeFactory);
     }
 }

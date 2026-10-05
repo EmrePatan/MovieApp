@@ -11,32 +11,8 @@ namespace MovieApp.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/insights")]
-public sealed class InsightsController(
-    IInsightsSummaryService insightsSummaryService,
-    IInsightsAnalyticsService insightsAnalyticsService,
-    IInsightsV3Service insightsV3Service) : ControllerBase
+public sealed class InsightsController(IInsightsV3Service insightsV3Service) : ControllerBase
 {
-    [HttpGet("summary")]
-    [ProducesResponseType(typeof(InsightsSummaryResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<InsightsSummaryResponse>> GetSummary(
-        [FromQuery] string? timeZone,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var summary = await insightsSummaryService.GetSummaryAsync(timeZone, cancellationToken);
-            return Ok(InsightsContractMapper.ToInsightsSummaryResponse(summary));
-        }
-        catch (AuthenticationException exception)
-        {
-            return Unauthorized(CreateProblemDetails(
-                StatusCodes.Status401Unauthorized,
-                "Authentication required.",
-                exception.Message));
-        }
-    }
-
     [HttpGet("v3")]
     [ProducesResponseType(typeof(InsightsV3Response), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -65,37 +41,6 @@ public sealed class InsightsController(
             return BadRequest(CreateProblemDetails(
                 StatusCodes.Status400BadRequest,
                 "Invalid insights request.",
-                exception.Message));
-        }
-    }
-
-    [HttpGet("analytics")]
-    [ProducesResponseType(typeof(InsightsAnalyticsResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<InsightsAnalyticsResponse>> GetAnalytics(
-        [FromQuery] string timeZone,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var analytics = await insightsAnalyticsService.GetAnalyticsAsync(timeZone, cancellationToken);
-            return Ok(InsightsContractMapper.ToInsightsAnalyticsResponse(
-                analytics,
-                Request.ResolveContentLocale()));
-        }
-        catch (AuthenticationException exception)
-        {
-            return Unauthorized(CreateProblemDetails(
-                StatusCodes.Status401Unauthorized,
-                "Authentication required.",
-                exception.Message));
-        }
-        catch (ValidationException exception)
-        {
-            return BadRequest(CreateProblemDetails(
-                StatusCodes.Status400BadRequest,
-                "Invalid insights analytics request.",
                 exception.Message));
         }
     }

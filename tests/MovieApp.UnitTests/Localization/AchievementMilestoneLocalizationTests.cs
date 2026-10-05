@@ -74,7 +74,7 @@ public sealed class AchievementMilestoneLocalizationTests
     }
 
     [Fact]
-    public void InsightsAnalyticsMapper_LocalizesAchievementTitlesWithoutChangingIds()
+    public void InsightsV3Mapper_LocalizesAchievementTitlesWithoutChangingIds()
     {
         var raw = new InsightsAnalyticsRawData(
             DateTime.UtcNow,
@@ -100,24 +100,18 @@ public sealed class AchievementMilestoneLocalizationTests
             null,
             null);
 
-        var analytics = new InsightsAnalyticsResult(
-            new InsightsActivityResult([], new InsightsActivitySummaryResult(0, null, null, 0, 0)),
-            new InsightsTasteResult([]),
-            new InsightsErasResult([], 0),
-            new InsightsEstimatedTimeWatchedResult(0, 0, 0, 0, 0, 0, 0),
-            new InsightsRatingsAnalyticsResult(0, null, [], null),
-            InsightsMilestonesBuilder.Build(raw),
-            DateTime.UtcNow);
+        var achievements = InsightsMilestonesBuilder.Build(raw);
+        var insights = CreateMinimalV3Result(achievements);
 
-        var english = InsightsContractMapper.ToInsightsAnalyticsResponse(
-            analytics,
+        var english = InsightsContractMapper.ToInsightsV3Response(
+            insights,
             ContentLocaleResolver.EnglishUnitedStates);
-        var turkish = InsightsContractMapper.ToInsightsAnalyticsResponse(
-            analytics,
+        var turkish = InsightsContractMapper.ToInsightsV3Response(
+            insights,
             ContentLocaleResolver.TurkishTurkey);
 
-        var englishMilestone = english.Milestones.Single(item => item.Id == "movies-10");
-        var turkishMilestone = turkish.Milestones.Single(item => item.Id == "movies-10");
+        var englishMilestone = english.Achievements.Single(item => item.Id == "movies-10");
+        var turkishMilestone = turkish.Achievements.Single(item => item.Id == "movies-10");
 
         Assert.Equal("10 movies watched", englishMilestone.Title);
         Assert.Equal("10 film izlendi", turkishMilestone.Title);
@@ -165,5 +159,21 @@ public sealed class AchievementMilestoneLocalizationTests
         Assert.Equal("You are shaping your taste profile.", englishMilestone.Description);
         Assert.Equal("10 puan", turkishMilestone.Title);
         Assert.Equal("Zevk profilini şekillendiriyorsun.", turkishMilestone.Description);
+    }
+
+    private static InsightsV3Result CreateMinimalV3Result(IReadOnlyList<InsightsMilestoneResult> achievements)
+    {
+        var generatedAt = DateTime.UtcNow;
+        var emptyMix = new InsightsV3WatchingMixResult(0, 0, 0m, 0m);
+        return new InsightsV3Result(
+            new InsightsV3MetaResult(generatedAt, generatedAt, "UTC", generatedAt.Year),
+            new InsightsV3MovieDnaResult(string.Empty, [], [], [], emptyMix),
+            new InsightsV3YourYearResult([], 0, null, null),
+            new InsightsV3TasteSectionResult([], null),
+            new InsightsV3TimeInStoriesResult(0, 0, 0, 0, 0m),
+            new InsightsV3RatingsSectionResult(0, null, [], null, null),
+            new InsightsV3EraSectionResult([], null, 0, null),
+            new InsightsV3RecordsSectionResult(null, null, null, null),
+            achievements);
     }
 }

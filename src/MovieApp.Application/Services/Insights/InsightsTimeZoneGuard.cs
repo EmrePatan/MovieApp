@@ -19,24 +19,4 @@ public static class InsightsTimeZoneGuard
 
         return timeZone;
     }
-
-    public static DateTime GetActivityUtcStart(TimeZoneInfo timeZone, DateTime utcNow)
-    {
-        var todayLocal = ToLocalDate(utcNow, timeZone);
-        var windowStartLocal = todayLocal.AddDays(-(InsightsActivityBuilder.WindowDays - 1));
-        var localDateTime = DateTime.SpecifyKind(
-            windowStartLocal.ToDateTime(TimeOnly.MinValue),
-            DateTimeKind.Unspecified);
-
-        return TimeZoneInfo.ConvertTimeToUtc(localDateTime, timeZone);
-    }
-
-    private static DateOnly ToLocalDate(DateTime timestampUtc, TimeZoneInfo timeZone)
-    {
-        var utc = timestampUtc.Kind == DateTimeKind.Utc
-            ? timestampUtc
-            : DateTime.SpecifyKind(timestampUtc, DateTimeKind.Utc);
-
-        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone));
-    }
 }

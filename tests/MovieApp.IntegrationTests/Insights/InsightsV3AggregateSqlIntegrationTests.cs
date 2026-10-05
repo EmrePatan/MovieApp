@@ -433,8 +433,7 @@ public sealed class InsightsV3AggregateSqlIntegrationTests
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(connectionString).AddInterceptors(collector));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        return new InsightsRepository(new ApplicationDbContext(
-            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options), scopeFactory);
+        return new InsightsRepository(scopeFactory);
     }
 
     private sealed record WatchSeed(DateTime WatchedAt, int? RuntimeMinutes, bool IsMovie);

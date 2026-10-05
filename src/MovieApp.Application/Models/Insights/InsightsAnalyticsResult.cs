@@ -36,15 +36,6 @@ public sealed record InsightsErasResult(
     IReadOnlyList<InsightsEraBucketResult> Buckets,
     int UnknownCount);
 
-public sealed record InsightsEstimatedTimeWatchedResult(
-    int TotalEstimatedMinutes,
-    int MovieEstimatedMinutes,
-    int EpisodeEstimatedMinutes,
-    int KnownRuntimeItemCount,
-    int TotalWatchedItemCount,
-    decimal CoveragePercent,
-    int? CurrentYearEstimatedMinutes);
-
 public sealed record InsightsRatingsDistributionItemResult(int Stars, int Count);
 
 public sealed record InsightsRatingsAnalyticsResult(
@@ -61,12 +52,3 @@ public sealed record InsightsMilestoneResult(
     int TargetValue,
     bool Achieved,
     DateTime? AchievedAt);
-
-public sealed record InsightsAnalyticsResult(
-    InsightsActivityResult Activity,
-    InsightsTasteResult Taste,
-    InsightsErasResult Eras,
-    InsightsEstimatedTimeWatchedResult EstimatedTimeWatched,
-    InsightsRatingsAnalyticsResult Ratings,
-    IReadOnlyList<InsightsMilestoneResult> Milestones,
-    DateTime GeneratedAtUtc);

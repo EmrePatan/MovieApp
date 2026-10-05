@@ -123,7 +123,6 @@ public sealed class InsightsV3RepositoryConcurrencyIntegrationTests
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         return new InsightsRepository(
-            context,
             scopeFactory,
             Options.Create(new InsightsV3Options { MaxRepositoryConcurrency = maxRepositoryConcurrency }));
     }

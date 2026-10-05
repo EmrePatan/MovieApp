@@ -69,8 +69,6 @@ public sealed class EfQueryQualityIntegrationTests
         var userId = await SeedUserAsync(context, $"ef-insights-{Guid.NewGuid():N}");
 
         var insightsRepository = CreateInsightsRepository(context);
-        _ = await insightsRepository.GetSummaryRawDataAsync(userId);
-        _ = await insightsRepository.GetAnalyticsRawDataAsync(userId, DateTime.UtcNow.AddDays(-30));
         _ = await insightsRepository.GetV3RawDataAsync(userId, TimeZoneInfo.Utc, DateTime.UtcNow.Year);
 
         _ = await new UserStatisticsRepository(context).GetStatisticsAsync(userId);
@@ -287,6 +285,6 @@ public sealed class EfQueryQualityIntegrationTests
         var services = new ServiceCollection();
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        return new InsightsRepository(context, scopeFactory);
+        return new InsightsRepository(scopeFactory);
     }
 }

@@ -231,9 +231,6 @@ function runLibrary(token) {
 
 function runInsights(token) {
   apiGet('/api/insights/v3?timeZone=UTC', { group: 'insights', token });
-  if (Math.random() < 0.3) {
-    apiGet('/api/insights/summary?timeZone=UTC', { group: 'insights', token, name: 'insights-summary' });
-  }
   thinkInsights();
 }
 
