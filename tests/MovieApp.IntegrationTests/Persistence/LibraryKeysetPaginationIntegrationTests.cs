@@ -241,7 +241,7 @@ public sealed class LibraryKeysetPaginationIntegrationTests
     }
 
     [Fact]
-    public async Task SearchLibraryAsync_SkipsPerCategoryCountQueries()
+    public async Task SearchLibraryAsyncSkipsPerCategoryCountQueries()
     {
         await using var context = CreateInstrumentedContext(out var interceptor);
         var userId = await SeedUserAsync(context, $"library-search-count-{Guid.NewGuid():N}");
