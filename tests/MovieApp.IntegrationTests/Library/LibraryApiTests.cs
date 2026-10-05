@@ -81,6 +81,31 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     }
 
     [Fact]
+    public async Task LibraryActionsReturnsMovieFollowState()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var movieId = await SeedFollowEligibleMovieAsync();
+        var followResponse = await SendAuthorizedPutJsonAsync(
+            $"/api/movies/{movieId}/follow",
+            token,
+            new MovieApp.Contracts.MovieFollows.UpsertMovieFollowRequest());
+        Assert.True(
+            followResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created,
+            followResponse.StatusCode.ToString());
+
+        var response = await SendAuthorizedGetAsync(
+            $"/api/library/actions?mediaType=movie&contentId={movieId}",
+            token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<LibraryActionStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload.IsFollowing);
+    }
+
+    [Fact]
     public async Task LibraryActionsReturnsEpisodeWatchedStateForTv()
     {
         await fixture.ResetAsync();
@@ -598,6 +623,29 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
         return await SeedMovieBySearchQueryAsync("Interstellar");
     }
 
+    private async Task<Guid> SeedFollowEligibleMovieAsync()
+    {
+        await using var scope = fixture.Factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var movieId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+        var futureReleaseDate = DateOnly.FromDateTime(utcNow).AddDays(90);
+
+        dbContext.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Library Actions Follow Eligible Movie",
+            ReleaseDate = futureReleaseDate,
+            VoteAverage = 7.5m,
+            VoteCount = 120,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        return movieId;
+    }
+
     private async Task<Guid> SeedMovieWithTurkishSearchAliasAsync()
     {
         await using var scope = fixture.Factory.Services.CreateAsyncScope();
@@ -812,6 +860,19 @@ public sealed class LibraryApiTests(Home.HomeApiFixture fixture)
     private Task<HttpResponseMessage> SendAuthorizedPostAsync(string url, string token)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return _client.SendAsync(request);
+    }
+
+    private Task<HttpResponseMessage> SendAuthorizedPutJsonAsync<TPayload>(
+        string url,
+        string token,
+        TPayload payload)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, url)
+        {
+            Content = JsonContent.Create(payload),
+        };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return _client.SendAsync(request);
     }
