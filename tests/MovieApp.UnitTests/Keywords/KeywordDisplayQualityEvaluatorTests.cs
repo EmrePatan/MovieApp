@@ -105,4 +105,68 @@ public sealed class KeywordDisplayQualityEvaluatorTests
         Assert.True(plain.Displayable);
         Assert.True(thematic.DisplayRank > plain.DisplayRank);
     }
+
+    public static TheoryData<string> ThematicTwoTokenPhrasesNotPersonNames => new()
+    {
+        "high fantasy",
+        "fantasy world",
+        "dark comedy",
+        "space opera",
+        "organized crime",
+        "serial killer",
+        "time travel",
+        "martial arts",
+        "psychological thriller",
+        "police officer",
+        "female protagonist",
+        "anti hero",
+        "double cross",
+        "self sacrifice",
+    };
+
+    [Theory]
+    [MemberData(nameof(ThematicTwoTokenPhrasesNotPersonNames))]
+    public void Evaluate_DoesNotRejectThematicTwoTokenPhraseAsPersonName(string phrase)
+    {
+        var result = KeywordDisplayQualityEvaluator.Evaluate(
+            phrase,
+            documentFrequency: 120,
+            catalogDocumentCount: 10_000,
+            movieTitleCount: 60,
+            tvTitleCount: 40,
+            DefaultOptions);
+
+        Assert.True(result.Displayable);
+        Assert.True(result.DisplayRank > 0);
+    }
+
+    [Theory]
+    [InlineData("John Smith")]
+    [InlineData("Michael Johnson")]
+    public void Evaluate_ExcludesTitleCasedPersonLikeTwoTokenPhrase(string phrase)
+    {
+        var result = KeywordDisplayQualityEvaluator.Evaluate(
+            phrase,
+            documentFrequency: 120,
+            catalogDocumentCount: 10_000,
+            movieTitleCount: 60,
+            tvTitleCount: 40,
+            DefaultOptions);
+
+        Assert.False(result.Displayable);
+    }
+
+    [Fact]
+    public void Evaluate_DoesNotExcludeLowercasePersonLikeSpellingWhenNotTitleCased()
+    {
+        var result = KeywordDisplayQualityEvaluator.Evaluate(
+            "john smith",
+            documentFrequency: 120,
+            catalogDocumentCount: 10_000,
+            movieTitleCount: 60,
+            tvTitleCount: 40,
+            DefaultOptions);
+
+        Assert.True(result.Displayable);
+    }
 }

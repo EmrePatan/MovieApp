@@ -98,7 +98,7 @@ public static partial class KeywordDisplayQualityEvaluator
 
         if (ContainsAny(normalized, RelationshipBoilerplateFragments) ||
             ContainsAny(normalized, IncidentalObjectOrEventFragments) ||
-            LooksLikePersonName(normalized, tokens) ||
+            LooksLikePersonName(canonicalName, normalized, tokens) ||
             NumericOnly(tokens))
         {
             return KeywordDisplayQualityResult.NotDisplayable;
@@ -169,7 +169,7 @@ public static partial class KeywordDisplayQualityEvaluator
         return false;
     }
 
-    private static bool LooksLikePersonName(string normalized, string[] tokens)
+    private static bool LooksLikePersonName(string canonicalName, string normalized, string[] tokens)
     {
         if (tokens.Length != 2)
         {
@@ -181,7 +181,18 @@ public static partial class KeywordDisplayQualityEvaluator
             return false;
         }
 
-        return PersonNameToken().IsMatch(tokens[0]) && PersonNameToken().IsMatch(tokens[1]);
+        if (!PersonNameToken().IsMatch(tokens[0]) || !PersonNameToken().IsMatch(tokens[1]))
+        {
+            return false;
+        }
+
+        var rawTokens = canonicalName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (rawTokens.Length != 2)
+        {
+            return false;
+        }
+
+        return PersonTitleCaseToken().IsMatch(rawTokens[0]) && PersonTitleCaseToken().IsMatch(rawTokens[1]);
     }
 
     private static bool NumericOnly(string[] tokens) =>
@@ -215,7 +226,7 @@ public static partial class KeywordDisplayQualityEvaluator
 
         if (ContainsAny(normalized, RelationshipBoilerplateFragments) ||
             ContainsAny(normalized, IncidentalObjectOrEventFragments) ||
-            LooksLikePersonName(normalized, tokens) ||
+            LooksLikePersonName(canonicalName, normalized, tokens) ||
             NumericOnly(tokens))
         {
             return false;
@@ -231,6 +242,9 @@ public static partial class KeywordDisplayQualityEvaluator
 
     [GeneratedRegex("^[a-z][a-z'-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex PersonNameToken();
+
+    [GeneratedRegex(@"^[A-Z][\p{L}'-]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex PersonTitleCaseToken();
 }
 
 public sealed record KeywordDisplayQualityResult(bool Displayable, int DisplayRank)
