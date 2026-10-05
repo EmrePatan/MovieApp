@@ -110,6 +110,283 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
     }
 
     [Fact]
+    public async Task GetLocalizedKeywordsForMovie_TmdbSourceOutranksHigherDisplayRankMdbListOnlyKeyword()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 10,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var tmdbKeyword = CreateKeyword("tmdb-term", displayable: true, displayRank: 200);
+        var mdbListOnlyKeyword = CreateKeyword("mdblist-term", displayable: true, displayRank: 240);
+
+        context.Keywords.AddRange(tmdbKeyword, mdbListOnlyKeyword);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = tmdbKeyword.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = mdbListOnlyKeyword.Id });
+        context.MovieKeywordSources.Add(new MovieKeywordSource
+        {
+            MovieId = movieId,
+            KeywordId = tmdbKeyword.Id,
+            Provider = KeywordProvider.Tmdb,
+        });
+        context.MovieKeywordSources.Add(new MovieKeywordSource
+        {
+            MovieId = movieId,
+            KeywordId = mdbListOnlyKeyword.Id,
+            Provider = KeywordProvider.MdbList,
+        });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(2, keywords.Count);
+        Assert.Equal(tmdbKeyword.Id, keywords[0].Id);
+        Assert.Equal(mdbListOnlyKeyword.Id, keywords[1].Id);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovie_WithinTmdbTierHigherDisplayRankWins()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 11,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var lower = CreateKeyword("tmdb-low", displayable: true, displayRank: 100);
+        var higher = CreateKeyword("tmdb-high", displayable: true, displayRank: 220);
+
+        context.Keywords.AddRange(lower, higher);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = lower.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = higher.Id });
+        foreach (var keyword in new[] { lower, higher })
+        {
+            context.MovieKeywordSources.Add(new MovieKeywordSource
+            {
+                MovieId = movieId,
+                KeywordId = keyword.Id,
+                Provider = KeywordProvider.Tmdb,
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(higher.Id, keywords[0].Id);
+        Assert.Equal(lower.Id, keywords[1].Id);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovie_WithinMdbListOnlyTierHigherDisplayRankWins()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 12,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var lower = CreateKeyword("mdb-low", displayable: true, displayRank: 100);
+        var higher = CreateKeyword("mdb-high", displayable: true, displayRank: 220);
+
+        context.Keywords.AddRange(lower, higher);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = lower.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = higher.Id });
+        foreach (var keyword in new[] { lower, higher })
+        {
+            context.MovieKeywordSources.Add(new MovieKeywordSource
+            {
+                MovieId = movieId,
+                KeywordId = keyword.Id,
+                Provider = KeywordProvider.MdbList,
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(higher.Id, keywords[0].Id);
+        Assert.Equal(lower.Id, keywords[1].Id);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovie_DualProviderKeywordAppearsOnceInTmdbTier()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 13,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var dual = CreateKeyword("dual", displayable: true, displayRank: 180);
+        var mdbOnly = CreateKeyword("mdb-only", displayable: true, displayRank: 250);
+
+        context.Keywords.AddRange(dual, mdbOnly);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = dual.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = mdbOnly.Id });
+        context.MovieKeywordSources.AddRange(
+            new MovieKeywordSource { MovieId = movieId, KeywordId = dual.Id, Provider = KeywordProvider.Tmdb },
+            new MovieKeywordSource { MovieId = movieId, KeywordId = dual.Id, Provider = KeywordProvider.MdbList },
+            new MovieKeywordSource { MovieId = movieId, KeywordId = mdbOnly.Id, Provider = KeywordProvider.MdbList });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(2, keywords.Count);
+        Assert.Equal(dual.Id, keywords[0].Id);
+        Assert.Equal(mdbOnly.Id, keywords[1].Id);
+        Assert.Equal(keywords.Select(k => k.Id).Distinct().Count(), keywords.Count);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovie_WithNoTmdbSourcesOrdersByDisplayRankOnly()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 14,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var lowRankKeyword = CreateKeyword("elevator", displayable: true, displayRank: 10);
+        var highRankKeyword = CreateKeyword("zombie apocalypse", displayable: true, displayRank: 200);
+
+        context.Keywords.AddRange(lowRankKeyword, highRankKeyword);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = lowRankKeyword.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = highRankKeyword.Id });
+        context.MovieKeywordSources.Add(new MovieKeywordSource
+        {
+            MovieId = movieId,
+            KeywordId = highRankKeyword.Id,
+            Provider = KeywordProvider.MdbList,
+        });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(highRankKeyword.Id, keywords[0].Id);
+        Assert.Equal(lowRankKeyword.Id, keywords[1].Id);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForMovie_AllTmdbSourcesOrdersByDisplayRank()
+    {
+        await using var context = CreateContext();
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Test Movie",
+            TmdbId = 15,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var lowRankKeyword = CreateKeyword("elevator", displayable: true, displayRank: 10);
+        var highRankKeyword = CreateKeyword("zombie apocalypse", displayable: true, displayRank: 200);
+
+        context.Keywords.AddRange(lowRankKeyword, highRankKeyword);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movieId, KeywordId = lowRankKeyword.Id },
+            new MovieKeyword { MovieId = movieId, KeywordId = highRankKeyword.Id });
+        foreach (var keyword in new[] { lowRankKeyword, highRankKeyword })
+        {
+            context.MovieKeywordSources.Add(new MovieKeywordSource
+            {
+                MovieId = movieId,
+                KeywordId = keyword.Id,
+                Provider = KeywordProvider.Tmdb,
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForMovieAsync(movieId, "en-US", maxCount: 30);
+
+        Assert.Equal(highRankKeyword.Id, keywords[0].Id);
+        Assert.Equal(lowRankKeyword.Id, keywords[1].Id);
+    }
+
+    [Fact]
+    public async Task GetLocalizedKeywordsForTvShow_TmdbSourceOutranksHigherDisplayRankMdbListOnlyKeyword()
+    {
+        await using var context = CreateContext();
+        var tvShowId = Guid.NewGuid();
+        context.TvShows.Add(new TvShow
+        {
+            Id = tvShowId,
+            Title = "Test Show",
+            TmdbId = 20,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var tmdbKeyword = CreateKeyword("tmdb-term", displayable: true, displayRank: 200);
+        var mdbListOnlyKeyword = CreateKeyword("mdblist-term", displayable: true, displayRank: 240);
+
+        context.Keywords.AddRange(tmdbKeyword, mdbListOnlyKeyword);
+        context.TvShowKeywords.AddRange(
+            new TvShowKeyword { TvShowId = tvShowId, KeywordId = tmdbKeyword.Id },
+            new TvShowKeyword { TvShowId = tvShowId, KeywordId = mdbListOnlyKeyword.Id });
+        context.TvShowKeywordSources.Add(new TvShowKeywordSource
+        {
+            TvShowId = tvShowId,
+            KeywordId = tmdbKeyword.Id,
+            Provider = KeywordProvider.Tmdb,
+        });
+        context.TvShowKeywordSources.Add(new TvShowKeywordSource
+        {
+            TvShowId = tvShowId,
+            KeywordId = mdbListOnlyKeyword.Id,
+            Provider = KeywordProvider.MdbList,
+        });
+        await context.SaveChangesAsync();
+
+        var repository = CreateRepository(context);
+        var keywords = await repository.GetLocalizedKeywordsForTvShowAsync(tvShowId, "en-US", maxCount: 30);
+
+        Assert.Equal(tmdbKeyword.Id, keywords[0].Id);
+        Assert.Equal(mdbListOnlyKeyword.Id, keywords[1].Id);
+    }
+
+    [Fact]
     public async Task GetLocalizedKeywordsForMovie_FillsWithSupplementalThemesWhenDisplayableCountIsLow()
     {
         await using var context = CreateContext();

@@ -52,12 +52,7 @@ public sealed class CatalogTitleKeywordReadRepository(
         var locale = KeywordDiscoverLocalizationSupport.NormalizeLocale(contentLocale);
         var englishLocale = SupportedContentLocales.EnglishUnitedStates;
 
-        var primaryRows = await movieJoins
-            .Where(join =>
-                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
-                join.Keyword.DisplayProfile != null &&
-                join.Keyword.DisplayProfile.Displayable)
-            .OrderByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+        var primaryRows = await OrderEligibleMovieDetailKeywords(movieJoins)
             .Select(join => new KeywordRowProjection(
                 join.KeywordId,
                 join.Keyword.Name,
@@ -99,12 +94,7 @@ public sealed class CatalogTitleKeywordReadRepository(
         var locale = KeywordDiscoverLocalizationSupport.NormalizeLocale(contentLocale);
         var englishLocale = SupportedContentLocales.EnglishUnitedStates;
 
-        var primaryRows = await tvJoins
-            .Where(join =>
-                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
-                join.Keyword.DisplayProfile != null &&
-                join.Keyword.DisplayProfile.Displayable)
-            .OrderByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+        var primaryRows = await OrderEligibleTvShowDetailKeywords(tvJoins)
             .Select(join => new KeywordRowProjection(
                 join.KeywordId,
                 join.Keyword.Name,
@@ -131,6 +121,32 @@ public sealed class CatalogTitleKeywordReadRepository(
 
         return summaries;
     }
+
+    private IQueryable<MovieKeyword> OrderEligibleMovieDetailKeywords(IQueryable<MovieKeyword> movieJoins) =>
+        movieJoins
+            .Where(join =>
+                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
+                join.Keyword.DisplayProfile != null &&
+                join.Keyword.DisplayProfile.Displayable)
+            .OrderByDescending(join => dbContext.MovieKeywordSources.Any(source =>
+                source.MovieId == join.MovieId &&
+                source.KeywordId == join.KeywordId &&
+                source.Provider == KeywordProvider.Tmdb))
+            .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+            .ThenBy(join => join.KeywordId);
+
+    private IQueryable<TvShowKeyword> OrderEligibleTvShowDetailKeywords(IQueryable<TvShowKeyword> tvJoins) =>
+        tvJoins
+            .Where(join =>
+                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
+                join.Keyword.DisplayProfile != null &&
+                join.Keyword.DisplayProfile.Displayable)
+            .OrderByDescending(join => dbContext.TvShowKeywordSources.Any(source =>
+                source.TvShowId == join.TvShowId &&
+                source.KeywordId == join.KeywordId &&
+                source.Provider == KeywordProvider.Tmdb))
+            .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+            .ThenBy(join => join.KeywordId);
 
     private async Task AppendSupplementalKeywordsAsync(
         IQueryable<MovieKeyword> movieJoins,
