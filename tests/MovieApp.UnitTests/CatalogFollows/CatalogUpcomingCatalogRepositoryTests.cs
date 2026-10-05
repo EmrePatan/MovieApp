@@ -519,6 +519,166 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
     }
 
     [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_SuppressesTvPremiereWhenSeasonOneEpisodeOneSharesDate()
+    {
+        await using var context = CreateContext();
+        var sharedDate = Today.AddDays(4);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Reina",
+            firstAirDate: sharedDate,
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: sharedDate, name: "Pilot")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        var episode = Assert.Single(items);
+        Assert.Equal(CatalogUpcomingKind.TvEpisode, episode.UpcomingKind);
+        Assert.Equal("Reina", episode.Title);
+        Assert.Equal(1, episode.SeasonNumber);
+        Assert.Equal(1, episode.EpisodeNumber);
+        Assert.Equal(sharedDate, episode.ReleaseDate);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_KeepsTvPremiereWhenSeasonOneEpisodeOneMissing()
+    {
+        await using var context = CreateContext();
+        var premiereDate = Today.AddDays(4);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Premiere Only",
+            firstAirDate: premiereDate,
+            episodes: [(seasonNumber: 1, episodeNumber: 2, airDate: Today.AddDays(10), name: "E2")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        Assert.Equal(2, items.Count);
+        var premiere = Assert.Single(items, item => item.UpcomingKind == CatalogUpcomingKind.TvShowPremiere);
+        Assert.Equal(premiereDate, premiere.ReleaseDate);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_KeepsTvPremiereWhenSeasonOneEpisodeOneHasNoAirDate()
+    {
+        await using var context = CreateContext();
+        var premiereDate = Today.AddDays(4);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Undated Pilot",
+            firstAirDate: premiereDate,
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: null, name: "Pilot")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        var premiere = Assert.Single(items);
+        Assert.Equal(CatalogUpcomingKind.TvShowPremiere, premiere.UpcomingKind);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_KeepsTvPremiereWhenDatesDifferFromSeasonOneEpisodeOne()
+    {
+        await using var context = CreateContext();
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Split Dates",
+            firstAirDate: Today.AddDays(4),
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: Today.AddDays(5), name: "Pilot")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        Assert.Equal(2, items.Count);
+        Assert.Contains(items, item => item.UpcomingKind == CatalogUpcomingKind.TvShowPremiere);
+        Assert.Contains(items, item => item.UpcomingKind == CatalogUpcomingKind.TvEpisode);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_DoesNotRemoveDifferentShowsOnSameDate()
+    {
+        await using var context = CreateContext();
+        var sharedDate = Today.AddDays(3);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Show A",
+            firstAirDate: sharedDate,
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: sharedDate, name: "A1")]);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "Show B",
+            firstAirDate: sharedDate,
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: sharedDate, name: "B1")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        Assert.Equal(2, items.Count);
+        Assert.All(items, item => Assert.Equal(CatalogUpcomingKind.TvEpisode, item.UpcomingKind));
+        Assert.Equal(2, items.Select(item => item.Title).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingForHomeAsync_LimitStillAppliedAfterPremiereDedup()
+    {
+        await using var context = CreateContext();
+        var utcNow = DateTime.UtcNow;
+        var movieId = Guid.NewGuid();
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Movie",
+            ReleaseDate = Today.AddDays(1),
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+        context.CatalogFollows.Add(CatalogFollow.CreateMovieFollow(UserId, movieId, utcNow));
+
+        for (var index = 0; index < 6; index++)
+        {
+            var sharedDate = Today.AddDays(index + 2);
+            await SeedTvShowWithEpisodesAsync(
+                context,
+                followUserId: UserId,
+                title: $"Show {index}",
+                firstAirDate: sharedDate,
+                episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: sharedDate, name: $"E{index}")]);
+        }
+
+        var repository = new CatalogFollowCatalogRepository(context);
+        var items = await repository.GetFollowedUpcomingForHomeAsync(UserId, Today, "TR", 5);
+
+        Assert.Equal(5, items.Count);
+        Assert.DoesNotContain(items, item => item.UpcomingKind == CatalogUpcomingKind.TvShowPremiere);
+    }
+
+    [Fact]
+    public async Task GetFollowedUpcomingCatalogAsync_SuppressesTvPremiereWhenSeasonOneEpisodeOneSharesDate()
+    {
+        await using var context = CreateContext();
+        var sharedDate = Today.AddDays(4);
+        await SeedTvShowWithEpisodesAsync(
+            context,
+            followUserId: UserId,
+            title: "See All Show",
+            firstAirDate: sharedDate,
+            episodes: [(seasonNumber: 1, episodeNumber: 1, airDate: sharedDate, name: "Pilot")]);
+        var repository = new CatalogFollowCatalogRepository(context);
+
+        var (items, _) = await repository.GetFollowedUpcomingCatalogAsync(UserId, 1, 10, Today, "TR");
+
+        var episode = Assert.Single(items);
+        Assert.Equal(CatalogUpcomingKind.TvEpisode, episode.UpcomingKind);
+    }
+
+    [Fact]
     public async Task GetUpcomingCatalogAsync_PagePastTheEndDoesNotOverflowOrLoadRows()
     {
         await using var context = CreateContext();
@@ -548,6 +708,7 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
         ApplicationDbContext context,
         Guid? followUserId,
         string title = "Followed Show",
+        DateOnly? firstAirDate = null,
         IReadOnlyList<(int seasonNumber, int episodeNumber, DateOnly? airDate, string name)>? episodes = null)
     {
         episodes ??= [(1, 1, Today.AddDays(2), "Episode")];
@@ -557,6 +718,7 @@ public sealed class CatalogUpcomingCatalogRepositoryTests
         {
             Id = tvShowId,
             Title = title,
+            FirstAirDate = firstAirDate,
             Status = TvShowStatus.ReturningSeries,
             CreatedAt = utcNow,
             UpdatedAt = utcNow

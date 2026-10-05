@@ -137,9 +137,16 @@ public sealed class CatalogFollowCatalogRepository(
             .Take(fetchCount)
             .ToList();
 
-        var rows = movieRows
-            .Concat(tvRows)
-            .Concat(orderedEpisodeRows)
+        var rows = CatalogUpcomingTvPremiereDedup.SuppressShadowedTvShowPremieres(
+                movieRows
+                    .Concat(tvRows)
+                    .Concat(orderedEpisodeRows)
+                    .ToList(),
+                static row => row.UpcomingKind,
+                static row => row.ContentId,
+                static row => row.ReleaseDate,
+                static row => row.SeasonNumber,
+                static row => row.EpisodeNumber)
             .OrderBy(item => item.ReleaseDate)
             .ThenBy(item => item.UpcomingKind)
             .ThenBy(item => item.ContentType)
@@ -242,9 +249,16 @@ public sealed class CatalogFollowCatalogRepository(
             fetchCount,
             cancellationToken);
 
-        var pageRows = movieRows
-            .Concat(tvPremiereRows)
-            .Concat(episodeRows)
+        var pageRows = CatalogUpcomingTvPremiereDedup.SuppressShadowedTvShowPremieres(
+                movieRows
+                    .Concat(tvPremiereRows)
+                    .Concat(episodeRows)
+                    .ToList(),
+                static row => row.UpcomingKind,
+                static row => row.ContentId,
+                static row => row.ReleaseDate,
+                static row => row.SeasonNumber,
+                static row => row.EpisodeNumber)
             .OrderBy(row => row.ReleaseDate)
             .ThenBy(row => row.UpcomingKind)
             .ThenBy(row => row.ContentType)
@@ -386,9 +400,11 @@ public sealed class CatalogFollowCatalogRepository(
         IReadOnlyList<CatalogUpcomingItemResult> tvPremieres,
         IReadOnlyList<CatalogUpcomingItemResult> episodes,
         int limit) =>
-        movies
-            .Concat(tvPremieres)
-            .Concat(episodes)
+        CatalogUpcomingTvPremiereDedup.Apply(
+                movies
+                    .Concat(tvPremieres)
+                    .Concat(episodes)
+                    .ToList())
             .OrderBy(item => item.ReleaseDate)
             .ThenBy(item => item.UpcomingKind)
             .ThenBy(item => item.ContentType)
