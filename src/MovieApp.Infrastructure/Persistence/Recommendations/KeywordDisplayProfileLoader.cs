@@ -94,6 +94,7 @@ public sealed class KeywordDisplayProfileLoader(
 
         await using (var docCommand = new NpgsqlCommand(documentCountSql, connection))
         {
+            docCommand.CommandTimeout = KeywordCatalogBatchLoaderSettings.CommandTimeoutSeconds;
             docCommand.Parameters.AddWithValue("minVote", minVote);
             documentCount = (long)(await docCommand.ExecuteScalarAsync(cancellationToken) ?? 0L);
         }
@@ -106,6 +107,7 @@ public sealed class KeywordDisplayProfileLoader(
         var rows = new List<KeywordDisplayProfileCoverageRow>();
         await using (var command = new NpgsqlCommand(AggregateCoverageSql, connection))
         {
+            command.CommandTimeout = KeywordCatalogBatchLoaderSettings.CommandTimeoutSeconds;
             command.Parameters.AddWithValue("minVote", minVote);
             command.Parameters.AddWithValue("excludedClassificationStatus", KeywordClassificationSql.ExcludedStatus);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);

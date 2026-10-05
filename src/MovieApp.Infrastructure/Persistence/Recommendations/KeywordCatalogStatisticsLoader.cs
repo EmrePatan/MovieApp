@@ -75,6 +75,7 @@ public sealed class KeywordCatalogStatisticsLoader(
         long documentCount;
         await using (var docCommand = new NpgsqlCommand(DocumentCountSql, connection))
         {
+            docCommand.CommandTimeout = KeywordCatalogBatchLoaderSettings.CommandTimeoutSeconds;
             docCommand.Parameters.AddWithValue("minVote", minVote);
             documentCount = (long)(await docCommand.ExecuteScalarAsync(cancellationToken) ?? 0L);
         }
@@ -87,6 +88,7 @@ public sealed class KeywordCatalogStatisticsLoader(
         var documentFrequency = new Dictionary<Guid, int>();
         await using (var dfCommand = new NpgsqlCommand(AggregateDfSql, connection))
         {
+            dfCommand.CommandTimeout = KeywordCatalogBatchLoaderSettings.CommandTimeoutSeconds;
             dfCommand.Parameters.AddWithValue("minVote", minVote);
             dfCommand.Parameters.AddWithValue("excludedClassificationStatus", KeywordClassificationSql.ExcludedStatus);
             await using var reader = await dfCommand.ExecuteReaderAsync(cancellationToken);
