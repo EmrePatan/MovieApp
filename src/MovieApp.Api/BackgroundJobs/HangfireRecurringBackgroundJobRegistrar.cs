@@ -40,13 +40,13 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             recurringJobManager.AddOrUpdate<TmdbTvChangesSyncJob>(
                 RecurringJobIds.TmdbTvChanges,
                 job => job.ExecuteAsync(),
-                Cron.HourInterval(6),
+                backgroundJobs.TmdbTvChangesCron,
                 UtcOptions);
 
             recurringJobManager.AddOrUpdate<TmdbMovieChangesSyncJob>(
                 RecurringJobIds.TmdbMovieChanges,
                 job => job.ExecuteAsync(),
-                Cron.HourInterval(6),
+                backgroundJobs.TmdbMovieChangesCron,
                 UtcOptions);
         }
         else
@@ -60,7 +60,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             recurringJobManager.AddOrUpdate<HotReleaseCheckJob>(
                 RecurringJobIds.HotRelease,
                 job => job.ExecuteAsync(),
-                Cron.Hourly(),
+                backgroundJobs.HotReleaseCron,
                 UtcOptions);
         }
         else
@@ -73,7 +73,7 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
             recurringJobManager.AddOrUpdate<MovieReleaseCheckJob>(
                 RecurringJobIds.MovieRelease,
                 job => job.ExecuteAsync(),
-                Cron.Hourly(),
+                backgroundJobs.MovieReleaseCron,
                 UtcOptions);
         }
         else

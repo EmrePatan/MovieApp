@@ -12,7 +12,10 @@ public static class BackgroundJobsServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<BackgroundJobsOptions>(configuration.GetSection(BackgroundJobsOptions.SectionName));
+        services.AddOptions<BackgroundJobsOptions>()
+            .Bind(configuration.GetSection(BackgroundJobsOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<BackgroundJobsOptions>, BackgroundJobsOptionsValidator>();
         services.Configure<CatalogKeywordBackfillOptions>(
             configuration.GetSection(CatalogKeywordBackfillOptions.SectionName));
         services.Configure<MdbListKeywordBackfillOptions>(
@@ -73,12 +76,8 @@ public static class BackgroundJobsServiceCollectionExtensions
 
         services.AddHangfireServer(options =>
         {
-            options.Queues =
-            [
-                "default",
-                TvShowFollowBaselineJob.QueueName
-            ];
-            options.WorkerCount = Math.Max(Environment.ProcessorCount, 2);
+            options.Queues = HangfireServerSettings.Queues;
+            options.WorkerCount = HangfireServerSettings.WorkerCount;
         });
         services.AddHostedService<RecurringBackgroundJobsStartup>();
 

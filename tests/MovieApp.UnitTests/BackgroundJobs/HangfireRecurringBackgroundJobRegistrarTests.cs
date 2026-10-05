@@ -21,16 +21,16 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
 
         Assert.Contains(
             manager.AddedOrUpdated,
-            entry => entry.JobId == RecurringJobIds.TmdbTvChanges && entry.Cron == Cron.HourInterval(6));
+            entry => entry.JobId == RecurringJobIds.TmdbTvChanges && entry.Cron == "20 */6 * * *");
         Assert.Contains(
             manager.AddedOrUpdated,
-            entry => entry.JobId == RecurringJobIds.TmdbMovieChanges && entry.Cron == Cron.HourInterval(6));
+            entry => entry.JobId == RecurringJobIds.TmdbMovieChanges && entry.Cron == "5 */6 * * *");
         Assert.Contains(
             manager.AddedOrUpdated,
-            entry => entry.JobId == RecurringJobIds.HotRelease && entry.Cron == Cron.Hourly());
+            entry => entry.JobId == RecurringJobIds.HotRelease && entry.Cron == "10 * * * *");
         Assert.Contains(
             manager.AddedOrUpdated,
-            entry => entry.JobId == RecurringJobIds.MovieRelease && entry.Cron == Cron.Hourly());
+            entry => entry.JobId == RecurringJobIds.MovieRelease && entry.Cron == "25 * * * *");
         Assert.Contains(
             manager.AddedOrUpdated,
             entry => entry.JobId == RecurringJobIds.ReleaseFanout && entry.Cron == Cron.MinuteInterval(5));
@@ -142,6 +142,42 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
     }
 
     [Fact]
+    public void RegisterRecurringJobs_UsesConfiguredCronValuesOverDefaults()
+    {
+        var manager = new FakeRecurringJobManager();
+        var registrar = CreateRegistrar(
+            manager,
+            enabled: true,
+            pushEnabled: true,
+            tmdbMovieChangesCron: "7 */6 * * *",
+            tmdbTvChangesCron: "22 */6 * * *",
+            hotReleaseCron: "12 * * * *",
+            movieReleaseCron: "27 * * * *");
+
+        registrar.RegisterRecurringJobs();
+
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.TmdbMovieChanges && entry.Cron == "7 */6 * * *");
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.TmdbTvChanges && entry.Cron == "22 */6 * * *");
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.HotRelease && entry.Cron == "12 * * * *");
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.MovieRelease && entry.Cron == "27 * * * *");
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.HotThisWeekTrendingRefresh && entry.Cron == "0 * * * *");
+        Assert.Contains(
+            manager.AddedOrUpdated,
+            entry => entry.JobId == RecurringJobIds.CatalogMetadataFreshnessSafetyNet &&
+                     entry.Cron == "0 */2 * * *");
+    }
+
+    [Fact]
     public void RegisterRecurringJobs_WhenTmdbChangesDisabled_RemovesMovieAndTvChangesJobs()
     {
         var manager = new FakeRecurringJobManager();
@@ -182,19 +218,46 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
         bool keywordBackfillEnabled = false,
         bool genreBackfillEnabled = false,
         bool tvUpcomingEpisodeSyncEnabled = false,
-        bool tmdbChangesEnabled = true) =>
-        new(
+        bool tmdbChangesEnabled = true,
+        string? tmdbMovieChangesCron = null,
+        string? tmdbTvChangesCron = null,
+        string? hotReleaseCron = null,
+        string? movieReleaseCron = null)
+    {
+        var backgroundJobs = new BackgroundJobsOptions
+        {
+            Enabled = enabled,
+            TmdbChangesEnabled = tmdbChangesEnabled,
+            HotReleaseEnabled = true,
+            TvUpcomingEpisodeSyncEnabled = tvUpcomingEpisodeSyncEnabled,
+            NotificationFanoutEnabled = true,
+            PushDeliveryEnabled = true,
+            NotificationInboxCleanupEnabled = true
+        };
+
+        if (tmdbMovieChangesCron is not null)
+        {
+            backgroundJobs.TmdbMovieChangesCron = tmdbMovieChangesCron;
+        }
+
+        if (tmdbTvChangesCron is not null)
+        {
+            backgroundJobs.TmdbTvChangesCron = tmdbTvChangesCron;
+        }
+
+        if (hotReleaseCron is not null)
+        {
+            backgroundJobs.HotReleaseCron = hotReleaseCron;
+        }
+
+        if (movieReleaseCron is not null)
+        {
+            backgroundJobs.MovieReleaseCron = movieReleaseCron;
+        }
+
+        return new HangfireRecurringBackgroundJobRegistrar(
             manager,
-            Options.Create(new BackgroundJobsOptions
-            {
-                Enabled = enabled,
-                TmdbChangesEnabled = tmdbChangesEnabled,
-                HotReleaseEnabled = true,
-                TvUpcomingEpisodeSyncEnabled = tvUpcomingEpisodeSyncEnabled,
-                NotificationFanoutEnabled = true,
-                PushDeliveryEnabled = true,
-                NotificationInboxCleanupEnabled = true
-            }),
+            Options.Create(backgroundJobs),
             Options.Create(new PushNotificationsOptions
             {
                 Enabled = pushEnabled
@@ -234,4 +297,5 @@ public sealed class HangfireRecurringBackgroundJobRegistrarTests
                 SafetyNetRecurringCron = "0 */2 * * *"
             }),
             NullLogger<HangfireRecurringBackgroundJobRegistrar>.Instance);
+    }
 }
