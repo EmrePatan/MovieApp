@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -94,6 +95,131 @@ public sealed class EpisodeRepositoryTests
     }
 
     [Fact]
+    public async Task GetFirstUnwatchedForTvShowAsyncReturnsPastUnwatchedEpisode()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, today.AddDays(-3))])]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId);
+
+        Assert.NotNull(nextEpisode);
+        Assert.Equal(1, nextEpisode!.EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task GetFirstUnwatchedForTvShowAsyncReturnsTodayUnwatchedEpisode()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, today)])]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId);
+
+        Assert.NotNull(nextEpisode);
+        Assert.Equal(today, nextEpisode!.AirDate);
+    }
+
+    [Fact]
+    public async Task GetFirstUnwatchedForTvShowAsyncSkipsFutureEpisodeWhenItIsFirstUnwatchedByOrder()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, today.AddDays(-1)), (2, today.AddDays(1))])],
+            watchedEpisodeKeys: [(1, 1)]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId);
+
+        Assert.Null(nextEpisode);
+    }
+
+    [Fact]
+    public async Task GetFirstUnwatchedForTvShowAsyncReturnsNullWhenOnlyFutureEpisodesRemain()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, today.AddDays(2)), (2, today.AddDays(3))])]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId);
+
+        Assert.Null(nextEpisode);
+    }
+
+    [Fact]
+    public async Task GetFirstUnwatchedForTvShowAsyncIgnoresNullAirDateEpisode()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, null), (2, today.AddDays(-1))])]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId);
+
+        Assert.NotNull(nextEpisode);
+        Assert.Equal(2, nextEpisode!.EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task GetFirstUnwatchedForTvShowAsyncReturnsNullWhenOnlyNullAirDateRemainsAfterAiredEpisodesWatched()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, today.AddDays(-2)), (2, null)])],
+            watchedEpisodeKeys: [(1, 1)]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForTvShowAsync(tvShowId, userId);
+
+        Assert.Null(nextEpisode);
+    }
+
+    [Fact]
+    public async Task GetFirstUnwatchedForSeasonAsyncExcludesFutureAndNullAirDateEpisodes()
+    {
+        var today = EpisodeWatchEligibility.TodayUtc();
+        await using var context = CreateInMemoryContext();
+        var userId = Guid.NewGuid();
+        var tvShowId = await SeedTvShowWithEpisodesAsync(
+            context,
+            userId,
+            [(seasonNumber: 1, episodes: [(1, today.AddDays(2)), (2, null), (3, today.AddDays(-1))])]);
+        var repository = new EpisodeRepository(context);
+
+        var nextEpisode = await repository.GetFirstUnwatchedForSeasonAsync(tvShowId, 1, userId);
+
+        Assert.NotNull(nextEpisode);
+        Assert.Equal(3, nextEpisode!.EpisodeNumber);
+    }
+
+    [Fact]
     public async Task GetFirstUnwatchedForSeasonAsyncStillReturnsSeasonZeroEpisodeWhenRequested()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -137,11 +263,100 @@ public sealed class EpisodeRepositoryTests
         Assert.Equal(1, await context.Episodes.CountAsync());
     }
 
+    private static DbContextOptions<ApplicationDbContext> CreateInMemoryOptions() =>
+        new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"episode-repository-{Guid.NewGuid()}")
+            .Options;
+
+    private static ApplicationDbContext CreateInMemoryContext() =>
+        new(CreateInMemoryOptions());
+
+    private static async Task<Guid> SeedTvShowWithEpisodesAsync(
+        ApplicationDbContext context,
+        Guid userId,
+        (int seasonNumber, (int episodeNumber, DateOnly? airDate)[] episodes)[] seasons,
+        (int seasonNumber, int episodeNumber)[]? watchedEpisodeKeys = null)
+    {
+        var utcNow = DateTime.UtcNow;
+        var tvShow = new TvShow
+        {
+            Id = Guid.NewGuid(),
+            TmdbId = Random.Shared.Next(1_000_000, 9_999_999),
+            Title = "Air Date Show",
+            Status = TvShowStatus.Ended,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        };
+
+        context.TvShows.Add(tvShow);
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Email = $"{userId:N}@example.com",
+            UserName = $"user-{userId:N}",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+
+        foreach (var (seasonNumber, episodes) in seasons)
+        {
+            var season = new Season
+            {
+                Id = Guid.NewGuid(),
+                TvShowId = tvShow.Id,
+                TvShow = tvShow,
+                SeasonNumber = seasonNumber,
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow,
+            };
+
+            context.Seasons.Add(season);
+
+            foreach (var (episodeNumber, airDate) in episodes)
+            {
+                context.Episodes.Add(new Episode
+                {
+                    Id = Guid.NewGuid(),
+                    SeasonId = season.Id,
+                    Season = season,
+                    EpisodeNumber = episodeNumber,
+                    Name = $"Episode {episodeNumber}",
+                    AirDate = airDate,
+                    CreatedAt = utcNow,
+                    UpdatedAt = utcNow,
+                });
+            }
+        }
+
+        await context.SaveChangesAsync();
+
+        if (watchedEpisodeKeys is { Length: > 0 })
+        {
+            foreach (var (seasonNumber, episodeNumber) in watchedEpisodeKeys)
+            {
+                var episodeId = await context.Episodes
+                    .Where(episode =>
+                        episode.Season.TvShowId == tvShow.Id &&
+                        episode.Season.SeasonNumber == seasonNumber &&
+                        episode.EpisodeNumber == episodeNumber)
+                    .Select(episode => episode.Id)
+                    .SingleAsync();
+
+                context.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodeId, utcNow));
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        return tvShow.Id;
+    }
+
     private static async Task<Guid> SeedTvShowWithSeasonsAsync(
         ApplicationDbContext context,
         params (int seasonNumber, int episodeCount)[] seasons)
     {
         var utcNow = DateTime.UtcNow;
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
         var tvShow = new TvShow
         {
             Id = Guid.NewGuid(),
@@ -177,6 +392,7 @@ public sealed class EpisodeRepositoryTests
                     Season = season,
                     EpisodeNumber = episodeNumber,
                     Name = $"Episode {episodeNumber}",
+                    AirDate = defaultAirDate.AddDays(episodeNumber),
                     CreatedAt = utcNow,
                     UpdatedAt = utcNow,
                 });
@@ -195,6 +411,7 @@ public sealed class EpisodeRepositoryTests
             bool markRegularSeasonsWatched = false)
     {
         var utcNow = DateTime.UtcNow;
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
         var tvShow = new TvShow
         {
             Id = Guid.NewGuid(),
@@ -241,6 +458,7 @@ public sealed class EpisodeRepositoryTests
                     Season = season,
                     EpisodeNumber = episodeNumber,
                     Name = $"Episode {episodeNumber}",
+                    AirDate = defaultAirDate.AddDays(episodeNumber),
                     CreatedAt = utcNow,
                     UpdatedAt = utcNow,
                 };

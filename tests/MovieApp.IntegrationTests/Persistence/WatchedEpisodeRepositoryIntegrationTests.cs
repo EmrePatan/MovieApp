@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
@@ -104,6 +105,24 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
         var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 2);
 
         Assert.Equal(2, items.Count);
+    }
+
+    [Fact]
+    public async Task GetContinueWatchingTvShowsAsyncExcludesShowWhenOnlyFutureEpisodeRemainsUnwatchedAgainstPostgreSql()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var userId = Guid.NewGuid();
+        var today = EpisodeWatchEligibility.TodayUtc();
+        var (tvShowId, episodeIds) = await SeedTvShowEpisodeIdsAsync(
+            context,
+            episodeCount: 2,
+            airDates: [today.AddDays(-1), today.AddDays(2)]);
+        await SeedWatchedEpisodeAsync(context, userId, episodeIds[0], DateTime.UtcNow.AddHours(-1));
+
+        var repository = new WatchedEpisodeRepository(context, NullLogger<WatchedEpisodeRepository>.Instance);
+        var items = await repository.GetContinueWatchingTvShowsAsync(userId, take: 10);
+
+        Assert.DoesNotContain(items, item => item.TvShowId == tvShowId);
     }
 
     [Fact]
@@ -223,9 +242,11 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
     private static async Task<(Guid TvShowId, IReadOnlyList<Guid> EpisodeIds)> SeedTvShowEpisodeIdsAsync(
         ApplicationDbContext context,
         int episodeCount,
-        string titlePrefix = "Continue")
+        string titlePrefix = "Continue",
+        IReadOnlyList<DateOnly?>? airDates = null)
     {
         var utcNow = DateTime.UtcNow;
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
         var tvShowId = Guid.NewGuid();
         var seasonId = Guid.NewGuid();
         var episodeIds = new List<Guid>();
@@ -258,6 +279,9 @@ public sealed class WatchedEpisodeRepositoryIntegrationTests
                 SeasonId = seasonId,
                 EpisodeNumber = episodeNumber,
                 Name = $"Episode {episodeNumber}",
+                AirDate = airDates is not null && airDates.Count >= episodeNumber
+                    ? airDates[episodeNumber - 1]
+                    : defaultAirDate.AddDays(episodeNumber),
                 CreatedAt = utcNow,
                 UpdatedAt = utcNow
             });

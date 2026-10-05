@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.WatchHistory;
+using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.Infrastructure.Persistence;
 
@@ -241,6 +242,8 @@ public sealed class WatchedEpisodeRepository(
 
     private IQueryable<ContinueWatchingRow> BuildContinueWatchingQuery(Guid userId, int take)
     {
+        var today = EpisodeWatchEligibility.TodayUtc();
+
         var watchedShows = dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode => watchedEpisode.UserId == userId)
@@ -253,7 +256,10 @@ public sealed class WatchedEpisodeRepository(
 
         var showsWithUnwatchedEpisodes = dbContext.Episodes
             .AsNoTracking()
-            .Where(episode => episode.Season.SeasonNumber >= 1)
+            .Where(episode =>
+                episode.Season.SeasonNumber >= 1 &&
+                episode.AirDate != null &&
+                episode.AirDate <= today)
             .Where(episode => watchedShows.Select(show => show.TvShowId).Contains(episode.Season.TvShowId))
             .Where(episode => !dbContext.WatchedEpisodes.Any(watchedEpisode =>
                 watchedEpisode.UserId == userId &&

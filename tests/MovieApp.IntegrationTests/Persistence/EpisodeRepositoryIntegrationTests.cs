@@ -1,3 +1,4 @@
+using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
@@ -63,6 +64,7 @@ public sealed class EpisodeRepositoryIntegrationTests
         params (int seasonNumber, int episodeCount)[] seasons)
     {
         var utcNow = DateTime.UtcNow;
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
         var tvShow = new TvShow
         {
             Id = Guid.NewGuid(),
@@ -98,6 +100,7 @@ public sealed class EpisodeRepositoryIntegrationTests
                     Season = season,
                     EpisodeNumber = episodeNumber,
                     Name = $"Episode {episodeNumber}",
+                    AirDate = defaultAirDate.AddDays(episodeNumber),
                     CreatedAt = utcNow,
                     UpdatedAt = utcNow,
                 });

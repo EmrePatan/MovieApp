@@ -68,12 +68,16 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var today = EpisodeWatchEligibility.TodayUtc();
+
         return await dbContext.Episodes
             .AsNoTracking()
             .Include(episode => episode.Season)
             .Where(episode =>
                 episode.Season.TvShowId == tvShowId &&
-                episode.Season.SeasonNumber >= 1)
+                episode.Season.SeasonNumber >= 1 &&
+                episode.AirDate != null &&
+                episode.AirDate <= today)
             .Where(episode => !dbContext.WatchedEpisodes.Any(
                 watchedEpisode =>
                     watchedEpisode.UserId == userId &&
@@ -89,9 +93,15 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var today = EpisodeWatchEligibility.TodayUtc();
+
         return await dbContext.Episodes
             .AsNoTracking()
-            .Where(episode => episode.Season.TvShowId == tvShowId && episode.Season.SeasonNumber == seasonNumber)
+            .Where(episode =>
+                episode.Season.TvShowId == tvShowId &&
+                episode.Season.SeasonNumber == seasonNumber &&
+                episode.AirDate != null &&
+                episode.AirDate <= today)
             .Where(episode => !dbContext.WatchedEpisodes.Any(
                 watchedEpisode =>
                     watchedEpisode.UserId == userId &&
