@@ -19,12 +19,12 @@ public sealed class RecommendationRepository(
     IOptions<RecommendationOptions>? recommendationOptions = null) : IRecommendationRepository
 {
     private const int MaxCastPeople = 20;
-    private const int MaxStratifiedGenres = 8;
     private readonly ILogger<RecommendationRepository> _repositoryLogger =
         repositoryLogger ?? NullLogger<RecommendationRepository>.Instance;
     private readonly RecommendationOptions _recommendationOptions =
         recommendationOptions?.Value ?? new RecommendationOptions();
     private readonly SimilarCandidateIdBatchLoader _similarCandidateIdBatchLoader = new(dbContext);
+    private readonly RecommendationStratifiedGenreCandidateLoader _stratifiedGenreCandidateLoader = new(dbContext);
 
     public Task<bool> MovieExistsAsync(Guid movieId, CancellationToken cancellationToken = default) =>
         dbContext.Movies.AsNoTracking().AnyAsync(movie => movie.Id == movieId, cancellationToken);
@@ -527,11 +527,7 @@ public sealed class RecommendationRepository(
             return [];
         }
 
-        var genres = preferredGenreIds
-            .Where(genreId => genreId != Guid.Empty)
-            .Distinct()
-            .Take(MaxStratifiedGenres)
-            .ToList();
+        var genres = RecommendationStratifiedGenreSelection.PrepareGenreOrder(preferredGenreIds);
         if (genres.Count < 2)
         {
             return await TakeMovieIdsAsync(
@@ -542,19 +538,17 @@ public sealed class RecommendationRepository(
                 cancellationToken);
         }
 
-        var perGenre = Math.Min(
+        var perGenre = RecommendationStratifiedGenreSelection.ComputePerGenreLimit(
             maxCandidates,
-            Math.Max(_recommendationOptions.CandidateMinPerGenre, maxCandidates / genres.Count));
-        var buckets = new List<IReadOnlyList<Guid>>(genres.Count);
-        foreach (var genreId in genres)
-        {
-            buckets.Add(await TakeMovieIdsAsync(
-                [genreId],
-                excludedMovieIds,
-                perGenre,
-                metrics,
-                cancellationToken));
-        }
+            genres.Count,
+            _recommendationOptions.CandidateMinPerGenre);
+        var buckets = await _stratifiedGenreCandidateLoader.LoadMovieGenreBucketsAsync(
+            genres,
+            excludedMovieIds,
+            perGenre,
+            _recommendationOptions,
+            metrics,
+            cancellationToken);
 
         var selected = RecommendationCandidateBudget.RoundRobin(buckets, maxCandidates);
         if (selected.Count >= maxCandidates)
@@ -600,11 +594,7 @@ public sealed class RecommendationRepository(
             return [];
         }
 
-        var genres = preferredGenreIds
-            .Where(genreId => genreId != Guid.Empty)
-            .Distinct()
-            .Take(MaxStratifiedGenres)
-            .ToList();
+        var genres = RecommendationStratifiedGenreSelection.PrepareGenreOrder(preferredGenreIds);
         if (genres.Count < 2)
         {
             return await TakeTvIdsAsync(
@@ -615,19 +605,17 @@ public sealed class RecommendationRepository(
                 cancellationToken);
         }
 
-        var perGenre = Math.Min(
+        var perGenre = RecommendationStratifiedGenreSelection.ComputePerGenreLimit(
             maxCandidates,
-            Math.Max(_recommendationOptions.CandidateMinPerGenre, maxCandidates / genres.Count));
-        var buckets = new List<IReadOnlyList<Guid>>(genres.Count);
-        foreach (var genreId in genres)
-        {
-            buckets.Add(await TakeTvIdsAsync(
-                [genreId],
-                excludedTvShowIds,
-                perGenre,
-                metrics,
-                cancellationToken));
-        }
+            genres.Count,
+            _recommendationOptions.CandidateMinPerGenre);
+        var buckets = await _stratifiedGenreCandidateLoader.LoadTvGenreBucketsAsync(
+            genres,
+            excludedTvShowIds,
+            perGenre,
+            _recommendationOptions,
+            metrics,
+            cancellationToken);
 
         var selected = RecommendationCandidateBudget.RoundRobin(buckets, maxCandidates);
         if (selected.Count >= maxCandidates)
