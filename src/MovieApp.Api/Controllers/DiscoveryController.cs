@@ -20,8 +20,6 @@ namespace MovieApp.Api.Controllers;
 public sealed class DiscoveryController(
     IDiscoverBrowseService discoverBrowseService,
     IAdvancedDiscoverService advancedDiscoverService,
-    IGenreCoverCandidatesBatchService genreCoverCandidatesBatchService,
-    IProviderPreviewsBatchService providerPreviewsBatchService,
     IDiscoveryWatchProvidersService discoveryWatchProvidersService,
     INowInTheatersService nowInTheatersService,
     IOnTvThisWeekService onTvThisWeekService,
@@ -485,92 +483,6 @@ public sealed class DiscoveryController(
                 StatusCodes.Status400BadRequest,
                 "Invalid advanced discover request.",
                 exception.Message));
-        }
-    }
-
-    [HttpPost("genre-cover-candidates")]
-    [ProducesResponseType(typeof(GenreCoverCandidatesBatchResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<GenreCoverCandidatesBatchResponse>> GetGenreCoverCandidates(
-        [FromBody] GenreCoverCandidatesBatchRequest? request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var criteria = GenreCoverCandidatesBatchValidator.CreateCriteria(
-                request?.GenreIds,
-                request?.MediaType,
-                request?.CandidateCount);
-
-            var groups = await genreCoverCandidatesBatchService.GetCandidatesAsync(
-                criteria,
-                Request.ResolveContentLocale(),
-                cancellationToken);
-
-            return Ok(DiscoveryContractMapper.ToGenreCoverCandidatesBatchResponse(groups));
-        }
-        catch (ValidationException exception)
-        {
-            return BadRequest(CreateProblemDetails(
-                StatusCodes.Status400BadRequest,
-                "Invalid genre cover candidates request.",
-                exception.Message));
-        }
-        catch (SearchProviderUnavailableException)
-        {
-            return StatusCode(
-                StatusCodes.Status503ServiceUnavailable,
-                CreateProblemDetails(
-                    StatusCodes.Status503ServiceUnavailable,
-                    "Genre cover candidates are temporarily unavailable.",
-                    "Discovery data could not be loaded right now. Please try again."));
-        }
-    }
-
-    [HttpPost("provider-previews")]
-    [ProducesResponseType(typeof(ProviderPreviewsBatchResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<ProviderPreviewsBatchResponse>> GetProviderPreviews(
-        [FromBody] ProviderPreviewsBatchRequest? request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (request is null)
-            {
-                throw new ValidationException("Request body is required.");
-            }
-
-            var criteria = ProviderPreviewsBatchValidator.CreateCriteria(
-                request.ProviderIds,
-                request.MediaType,
-                request.WatchRegion,
-                request.PageSize);
-
-            var groups = await providerPreviewsBatchService.GetPreviewsAsync(
-                criteria,
-                Request.ResolveContentLocale(),
-                cancellationToken);
-
-            return Ok(DiscoveryContractMapper.ToProviderPreviewsBatchResponse(groups));
-        }
-        catch (ValidationException exception)
-        {
-            return BadRequest(CreateProblemDetails(
-                StatusCodes.Status400BadRequest,
-                "Invalid provider previews request.",
-                exception.Message));
-        }
-        catch (SearchProviderUnavailableException)
-        {
-            return StatusCode(
-                StatusCodes.Status503ServiceUnavailable,
-                CreateProblemDetails(
-                    StatusCodes.Status503ServiceUnavailable,
-                    "Provider previews are temporarily unavailable.",
-                    "Streaming preview data could not be loaded right now. Please try again."));
         }
     }
 

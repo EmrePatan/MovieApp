@@ -1,6 +1,5 @@
 ﻿using MovieApp.Application.Models.Discovery;
 using MovieApp.Application.Models.Movies;
-using MovieApp.Application.Models.Search;
 using MovieApp.Contracts.Discovery;
 
 namespace MovieApp.Api.Mapping;
@@ -32,22 +31,4 @@ public static class DiscoveryContractMapper
             provider.Name,
             provider.LogoPath,
             provider.DisplayPriority);
-
-    public static GenreCoverCandidatesBatchResponse ToGenreCoverCandidatesBatchResponse(
-        IReadOnlyList<GenreCoverCandidatesGroupResult> groups) =>
-        new(groups
-            .Select(group => new GenreCoverCandidatesItemResponse(
-                group.GenreId.ToString(),
-                DiscoveryBatchContractStatus.ToContract(group.Status),
-                group.Candidates.Select(SearchContractMapper.ToSearchItemResponse).ToList()))
-            .ToList());
-
-    public static ProviderPreviewsBatchResponse ToProviderPreviewsBatchResponse(
-        IReadOnlyList<ProviderPreviewGroupResult> groups) =>
-        new(groups
-            .Select(group => new ProviderPreviewItemResponse(
-                group.ProviderId,
-                DiscoveryBatchContractStatus.ToContract(group.Status),
-                group.Items.Select(SearchContractMapper.ToSearchItemResponse).ToList()))
-            .ToList());
 }
