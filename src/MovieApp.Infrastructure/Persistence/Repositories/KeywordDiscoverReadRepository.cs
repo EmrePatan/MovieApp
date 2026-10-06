@@ -28,14 +28,14 @@ public sealed class KeywordDiscoverReadRepository(ApplicationDbContext dbContext
         var normalizedPattern = string.IsNullOrEmpty(normalizedQuery) ? pattern : $"%{normalizedQuery}%";
         var hasNormalizedQuery = normalizedQuery.Length > 0;
 
-        var totalCount = await KeywordDiscoverSearchQuery.BuildMatchingKeywordIds(
-                dbContext,
-                locale,
-                englishLocale,
-                isEnglishLocale,
-                pattern,
-                normalizedPattern)
-            .CountAsync(cancellationToken);
+        var totalCount = await KeywordDiscoverSearchQuery.GetTotalCountAsync(
+            dbContext,
+            locale,
+            englishLocale,
+            isEnglishLocale,
+            pattern,
+            normalizedPattern,
+            cancellationToken);
 
         if (totalCount == 0)
         {
