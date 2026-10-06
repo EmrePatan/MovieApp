@@ -192,6 +192,8 @@ public static class DependencyInjection
         services.AddScoped<IWorldCinemaService, WorldCinemaService>();
         services.AddScoped<IPickSomethingService, PickSomethingService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
+        services.AddScoped<IGenreCoverCandidatesBatchService, GenreCoverCandidatesBatchService>();
+        services.AddScoped<IProviderPreviewsBatchService, ProviderPreviewsBatchService>();
         services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
         services.AddSingleton<ICatalogKeywordReadPathScheduler, BackgroundCatalogKeywordReadPathScheduler>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();

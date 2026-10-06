@@ -17,7 +17,7 @@ public static class SearchContractMapper
             result.HasPreviousPage,
             result.NextCursor);
 
-    private static SearchItemResponse ToSearchItemResponse(SearchItem item) =>
+    public static SearchItemResponse ToSearchItemResponse(SearchItem item) =>
         new(
             item.Id,
             item.Type,
