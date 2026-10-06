@@ -23,8 +23,9 @@ public sealed class StratifiedGenreCandidateSqlIntegrationTests
                 CandidateMinVoteCount = 0
             }));
 
-        var genreA = CreateGenre("Action");
-        var genreB = CreateGenre("Comedy");
+        var genreSuffix = Guid.NewGuid().ToString("N")[..8];
+        var genreA = CreateGenre($"Action-{genreSuffix}");
+        var genreB = CreateGenre($"Comedy-{genreSuffix}");
         context.Genres.AddRange(genreA, genreB);
 
         var shared = CreateMovie(tmdbId: NextTmdbId(), voteCount: 5_000);
