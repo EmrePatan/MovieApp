@@ -10,6 +10,17 @@ public interface IInsightsCache
         int year,
         CancellationToken cancellationToken = default);
 
+    Task<long> GetGenerationAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task SetV3ForGenerationAsync(
+        Guid userId,
+        string? timeZoneId,
+        int year,
+        long generation,
+        InsightsV3Result insights,
+        TimeSpan ttl,
+        CancellationToken cancellationToken = default);
+
     Task SetV3Async(
         Guid userId,
         string? timeZoneId,

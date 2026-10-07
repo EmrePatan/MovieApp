@@ -102,6 +102,45 @@ public sealed class InsightsV3ServiceTests
         Assert.Equal(2, repository.CallCount);
     }
 
+    [Fact]
+    public async Task ConcurrentMissesShareOneRepositoryBuild()
+    {
+        var userId = Guid.NewGuid();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = new GatedV3Repository(entered, release);
+        var service = CreateService(userId, repository, new InsightsCache(new RecordingInsightsCacheService()));
+
+        var first = service.GetInsightsV3Async(TimeZoneId, null);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var second = service.GetInsightsV3Async(TimeZoneId, null);
+        release.TrySetResult();
+
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, repository.CallCount);
+        Assert.Equal(results[0].Meta.GeneratedAtUtc, results[1].Meta.GeneratedAtUtc);
+    }
+
+    [Fact]
+    public async Task BuildSkipsCacheWriteWhenGenerationChangesDuringTheMiss()
+    {
+        var userId = Guid.NewGuid();
+        var cache = new BumpGenerationDuringBuildCache();
+        var insightsCache = new InsightsCache(cache);
+        var repository = new CountingV3Repository();
+        var service = CreateService(userId, repository, insightsCache);
+
+        await service.GetInsightsV3Async(TimeZoneId, null);
+
+        Assert.Equal(1, repository.CallCount);
+        Assert.DoesNotContain(cache.WrittenKeys, key => key.Contains("v3", StringComparison.Ordinal));
+
+        await service.GetInsightsV3Async(TimeZoneId, null);
+
+        Assert.Equal(2, repository.CallCount);
+    }
+
     private static InsightsV3Service CreateService(
         Guid userId,
         IInsightsRepository repository,
@@ -112,6 +151,7 @@ public sealed class InsightsV3ServiceTests
             insightsCache,
             Options.Create(new InsightsOptions { AnalyticsCacheTtlMinutes = 5 }),
             Options.Create(new InsightsV3Options()),
+            new InsightsV3LoadCoordinator(),
             NullLogger<InsightsV3Service>.Instance);
 
     private static InsightsV3Result CreateV3Result()
@@ -137,11 +177,11 @@ public sealed class InsightsV3ServiceTests
         public Guid? UserId => userId;
     }
 
-    private sealed class CountingV3Repository : IInsightsRepository
+    private class CountingV3Repository : IInsightsRepository
     {
         public int CallCount { get; private set; }
 
-        public Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(
+        public virtual Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(
             Guid userId,
             TimeZoneInfo timeZone,
             int year,
@@ -200,6 +240,60 @@ public sealed class InsightsV3ServiceTests
                 milestoneRaw);
 
             return Task.FromResult((raw, new InsightsV3QueryMetrics { DbRoundTrips = 11, DbTotalMs = 20 }));
+        }
+    }
+
+    private sealed class GatedV3Repository(TaskCompletionSource entered, TaskCompletionSource release)
+        : CountingV3Repository
+    {
+        public override async Task<(InsightsV3RawData Raw, InsightsV3QueryMetrics Metrics)> GetV3RawDataAsync(
+            Guid userId,
+            TimeZoneInfo timeZone,
+            int year,
+            CancellationToken cancellationToken = default)
+        {
+            entered.TrySetResult();
+            await release.Task;
+            return await base.GetV3RawDataAsync(userId, timeZone, year, cancellationToken);
+        }
+    }
+
+    private sealed class BumpGenerationDuringBuildCache : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = new();
+        private int _generationReads;
+
+        public List<string> WrittenKeys { get; } = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            if (key.Contains(":gen:", StringComparison.Ordinal))
+            {
+                _generationReads++;
+                var generation = _generationReads >= 5 ? 1L : 0L;
+                return Task.FromResult((T?)(object)new InsightsGenerationState(generation));
+            }
+
+            return Task.FromResult(_entries.TryGetValue(key, out var value) ? value as T : null);
+        }
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value!;
+            WrittenKeys.Add(key);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
         }
     }
 

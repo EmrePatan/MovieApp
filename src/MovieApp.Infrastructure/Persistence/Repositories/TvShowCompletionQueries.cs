@@ -23,8 +23,81 @@ internal static class TvShowCompletionQueries
 
     /// <summary>
     /// One row per show in which the user has watched at least one regular (season ≥ 1) episode.
+    /// Relational providers use one grouped statement. The in-memory provider keeps the original
+    /// correlated shape so unit tests that execute LINQ in memory stay equivalent.
     /// </summary>
     internal static IQueryable<TvShowCompletionRow> StartedShows(ApplicationDbContext dbContext, Guid userId)
+    {
+        if (!dbContext.Database.IsRelational())
+        {
+            return StartedShowsInMemory(dbContext, userId);
+        }
+
+        // Totals match the previous correlated projection exactly:
+        // episode rows in seasons >= 1, plus EpisodeCount (null as 0, negatives preserved)
+        // for regular seasons that have no ingested episodes. Season 0 is excluded.
+        return dbContext.Database.SqlQuery<TvShowCompletionRow>($"""
+            SELECT
+                show."Id" AS "TvShowId",
+                (show."Status" IN ('Ended', 'Canceled')) AS "IsConcluded",
+                (COALESCE(episode_rows.episode_rows, 0) + COALESCE(empty_seasons.placeholder_episodes, 0)) AS "RegularTotalEpisodes",
+                watched.watched_count AS "RegularWatchedEpisodes",
+                watched.last_watched_at AS "LastWatchedAt"
+            FROM (
+                SELECT
+                    season."TvShowId" AS tv_show_id,
+                    COUNT(*)::integer AS watched_count,
+                    MAX(watched_episode."WatchedAt") AS last_watched_at
+                FROM watched_episodes AS watched_episode
+                INNER JOIN episodes AS episode ON episode."Id" = watched_episode."EpisodeId"
+                INNER JOIN seasons AS season ON season."Id" = episode."SeasonId"
+                WHERE watched_episode."UserId" = {userId}
+                  AND season."SeasonNumber" >= 1
+                GROUP BY season."TvShowId"
+            ) AS watched
+            INNER JOIN tv_shows AS show ON show."Id" = watched.tv_show_id
+            LEFT JOIN (
+                SELECT
+                    season."TvShowId" AS tv_show_id,
+                    COUNT(*)::integer AS episode_rows
+                FROM episodes AS episode
+                INNER JOIN seasons AS season ON season."Id" = episode."SeasonId"
+                WHERE season."SeasonNumber" >= 1
+                  AND season."TvShowId" IN (
+                      SELECT started_season."TvShowId"
+                      FROM watched_episodes AS started_watch
+                      INNER JOIN episodes AS started_episode ON started_episode."Id" = started_watch."EpisodeId"
+                      INNER JOIN seasons AS started_season ON started_season."Id" = started_episode."SeasonId"
+                      WHERE started_watch."UserId" = {userId}
+                        AND started_season."SeasonNumber" >= 1
+                  )
+                GROUP BY season."TvShowId"
+            ) AS episode_rows ON episode_rows.tv_show_id = watched.tv_show_id
+            LEFT JOIN (
+                SELECT
+                    season."TvShowId" AS tv_show_id,
+                    COALESCE(SUM(COALESCE(season."EpisodeCount", 0)), 0)::integer AS placeholder_episodes
+                FROM seasons AS season
+                WHERE season."SeasonNumber" >= 1
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM episodes AS episode
+                      WHERE episode."SeasonId" = season."Id"
+                  )
+                  AND season."TvShowId" IN (
+                      SELECT started_season."TvShowId"
+                      FROM watched_episodes AS started_watch
+                      INNER JOIN episodes AS started_episode ON started_episode."Id" = started_watch."EpisodeId"
+                      INNER JOIN seasons AS started_season ON started_season."Id" = started_episode."SeasonId"
+                      WHERE started_watch."UserId" = {userId}
+                        AND started_season."SeasonNumber" >= 1
+                  )
+                GROUP BY season."TvShowId"
+            ) AS empty_seasons ON empty_seasons.tv_show_id = watched.tv_show_id
+            """);
+    }
+
+    private static IQueryable<TvShowCompletionRow> StartedShowsInMemory(ApplicationDbContext dbContext, Guid userId)
     {
         var startedShowIds = dbContext.WatchedEpisodes
             .AsNoTracking()

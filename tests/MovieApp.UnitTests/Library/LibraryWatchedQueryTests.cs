@@ -41,7 +41,7 @@ public sealed class LibraryWatchedQueryTests
 
         Assert.Contains("tv_shows", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("watched_episodes", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"Id\" IN", sql, StringComparison.Ordinal);
+        Assert.Contains("GROUP BY", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LIMIT", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("watched_movies", sql, StringComparison.OrdinalIgnoreCase);
     }

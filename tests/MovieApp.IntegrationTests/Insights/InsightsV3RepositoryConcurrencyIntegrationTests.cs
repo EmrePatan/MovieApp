@@ -82,7 +82,7 @@ public sealed class InsightsV3RepositoryConcurrencyIntegrationTests
     }
 
     [Fact]
-    public void OptionsBindingDefaultsToElevenWhenSectionMissing()
+    public void OptionsBindingDefaultsToConfiguredConcurrencyWhenSectionMissing()
     {
         var options = new InsightsV3Options();
         Assert.Equal(InsightsV3Options.DefaultMaxRepositoryConcurrency, options.MaxRepositoryConcurrency);

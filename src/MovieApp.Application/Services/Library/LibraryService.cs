@@ -35,6 +35,14 @@ public sealed class LibraryService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
+        return await GetLibraryCoreAsync(criteria, contentLocale, cancellationToken);
+    }
+
+    private async Task<PaginatedResult<LibraryItemResult>> GetLibraryCoreAsync(
+        LibraryCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         var totalStopwatch = Stopwatch.StartNew();
         LibraryKeysetCursor? incomingCursor = null;
@@ -166,45 +174,22 @@ public sealed class LibraryService(
         string contentLocale,
         CancellationToken cancellationToken)
     {
-        var items = new List<LibraryItemResult>();
-        string? cursor = null;
-        var page = 1;
-        var pagesFetched = 0;
         var normalizedQuery = QueryNormalizer.Normalize(criteria.Query);
+        var scanLimit = LibrarySearchAggregator.MaxItemsFetchedPerCategory;
+        var libraryCriteria = new LibraryCriteria(
+            category,
+            criteria.MediaType,
+            1,
+            scanLimit,
+            null,
+            normalizedQuery,
+            LibraryCountMode.Skip);
 
-        while (pagesFetched < LibrarySearchAggregator.MaxPagesPerCategory
-            && items.Count < LibrarySearchAggregator.MaxCollectedItems)
-        {
-            var libraryCriteria = new LibraryCriteria(
-                category,
-                criteria.MediaType,
-                page,
-                LibrarySearchAggregator.FetchPageSize,
-                cursor,
-                normalizedQuery,
-                LibraryCountMode.Skip);
-
-            var result = await GetLibraryAsync(libraryCriteria, contentLocale, cancellationToken);
-            if (result.Items.Count > 0)
-            {
-                items.AddRange(result.Items);
-            }
-
-            if (!result.HasNextPage)
-            {
-                break;
-            }
-
-            cursor = result.NextCursor;
-            if (string.IsNullOrWhiteSpace(cursor))
-            {
-                page = result.Page + 1;
-            }
-
-            pagesFetched++;
-        }
-
-        return (category, items);
+        // One ordered scan per category. The limit matches the old page loop
+        // (100-row pages until 750 items, which overshoots to 800) so the merged
+        // title list stays the same, including the cap for very large libraries.
+        var result = await GetLibraryCoreAsync(libraryCriteria, contentLocale, cancellationToken);
+        return (category, result.Items);
     }
 
     private async Task<IReadOnlyList<LibraryItemResult>> ApplyLocalizedPostersAsync(

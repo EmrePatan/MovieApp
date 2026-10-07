@@ -99,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCurrentUserService, GetCurrentUserService>();
         services.AddScoped<IProfileStatisticsCache, ProfileStatisticsCache>();
         services.AddScoped<IInsightsCache, InsightsCache>();
+        services.AddSingleton<InsightsV3LoadCoordinator>();
         services.AddScoped<IUserAnalyticsCacheInvalidator, UserAnalyticsCacheInvalidator>();
         services.AddScoped<IInsightsV3Service, InsightsV3Service>();
         services.AddScoped<IUserProfileService, UserProfileService>();
