@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
@@ -17,6 +18,7 @@ public sealed class InsightsV3Service(
     IInsightsCache insightsCache,
     IOptions<InsightsOptions> options,
     IOptions<InsightsV3Options> insightsV3Options,
+    InsightsV3LoadCoordinator loadCoordinator,
     ILogger<InsightsV3Service> logger) : IInsightsV3Service
 {
     public async Task<InsightsV3Result> GetInsightsV3Async(
@@ -32,6 +34,7 @@ public sealed class InsightsV3Service(
         ValidateYear(resolvedYear, timeZone, utcNow);
 
         var cacheLookupStopwatch = Stopwatch.StartNew();
+        var generation = await insightsCache.GetGenerationAsync(userId, cancellationToken);
         var cached = await insightsCache.GetV3Async(userId, timeZoneId, resolvedYear, cancellationToken);
         cacheLookupStopwatch.Stop();
 
@@ -48,6 +51,44 @@ public sealed class InsightsV3Service(
             return cached;
         }
 
+        var cacheKey = InsightsCacheKeys.V3(userId, timeZoneId, resolvedYear, generation);
+        // The shared build must not die when the first caller disconnects; other waiters
+        // on the same generation still need the result, and the cache write has to finish.
+        return await loadCoordinator.RunAsync(
+            cacheKey,
+            () => BuildAndCacheAsync(
+                userId,
+                timeZone,
+                timeZoneId,
+                resolvedYear,
+                generation,
+                utcNow,
+                totalStopwatch,
+                cacheLookupStopwatch.ElapsedMilliseconds,
+                CancellationToken.None));
+    }
+
+    private async Task<InsightsV3Result> BuildAndCacheAsync(
+        Guid userId,
+        TimeZoneInfo timeZone,
+        string timeZoneId,
+        int resolvedYear,
+        long generation,
+        DateTime utcNow,
+        Stopwatch totalStopwatch,
+        long cacheLookupMs,
+        CancellationToken cancellationToken)
+    {
+        var generationNow = await insightsCache.GetGenerationAsync(userId, cancellationToken);
+        if (generationNow == generation)
+        {
+            var raced = await insightsCache.GetV3Async(userId, timeZoneId, resolvedYear, cancellationToken);
+            if (raced is not null)
+            {
+                return raced;
+            }
+        }
+
         var (raw, metrics) = await insightsRepository.GetV3RawDataAsync(
             userId,
             timeZone,
@@ -60,7 +101,19 @@ public sealed class InsightsV3Service(
 
         var cacheWriteStopwatch = Stopwatch.StartNew();
         var ttl = TimeSpan.FromMinutes(options.Value.AnalyticsCacheTtlMinutes);
-        await insightsCache.SetV3Async(userId, timeZoneId, resolvedYear, result, ttl, cancellationToken);
+        var generationAfterBuild = await insightsCache.GetGenerationAsync(userId, cancellationToken);
+        if (generationAfterBuild == generation)
+        {
+            await insightsCache.SetV3ForGenerationAsync(
+                userId,
+                timeZoneId,
+                resolvedYear,
+                generation,
+                result,
+                ttl,
+                cancellationToken);
+        }
+
         cacheWriteStopwatch.Stop();
 
         totalStopwatch.Stop();
@@ -69,7 +122,7 @@ public sealed class InsightsV3Service(
             logger,
             userId,
             totalStopwatch.ElapsedMilliseconds,
-            cacheLookupStopwatch.ElapsedMilliseconds,
+            cacheLookupMs,
             metrics.DbTotalMs,
             metrics.DbRoundTrips,
             metrics.PgCommandRoundTrips,

@@ -24,8 +24,14 @@ public sealed class LibrarySearchCountModeTests
             new LibrarySearchCriteria("the", SearchContentType.All, 1, 24),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.NotEmpty(repository.RequestedCountModes);
-        Assert.All(repository.RequestedCountModes, mode => Assert.Equal(LibraryCountMode.Skip, mode));
+        Assert.Equal(LibrarySearchAggregator.Categories.Count, repository.Requests.Count);
+        Assert.All(repository.Requests, request =>
+        {
+            Assert.Equal(LibraryCountMode.Skip, request.CountMode);
+            Assert.Equal(1, request.Page);
+            Assert.Equal(LibrarySearchAggregator.MaxItemsFetchedPerCategory, request.PageSize);
+            Assert.Null(request.AfterCursor);
+        });
     }
 
     [Fact]
@@ -110,7 +116,10 @@ public sealed class LibrarySearchCountModeTests
 
     private sealed class RecordingLibraryRepository : ILibraryRepository
     {
-        public List<LibraryCountMode> RequestedCountModes { get; } = [];
+        public List<LibraryCountMode> RequestedCountModes =>
+            Requests.Select(request => request.CountMode).ToList();
+
+        public List<LibraryPageRequest> Requests { get; } = [];
 
         public Dictionary<LibraryCategory, IReadOnlyList<LibraryItemResult>> CategoryItems { get; init; } =
             new()
@@ -153,7 +162,7 @@ public sealed class LibrarySearchCountModeTests
             LibraryCategory category,
             LibraryPageRequest request)
         {
-            RequestedCountModes.Add(request.CountMode);
+            Requests.Add(request);
             var items = CategoryItems.GetValueOrDefault(category) ?? [];
             if (!request.TitleMatch.IsEmpty)
             {

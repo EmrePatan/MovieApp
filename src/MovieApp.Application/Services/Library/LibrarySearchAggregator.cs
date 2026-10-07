@@ -9,6 +9,16 @@ internal static class LibrarySearchAggregator
     public const int MaxPagesPerCategory = 15;
     public const int MaxCollectedItems = 750;
 
+    /// <summary>
+    /// Rows read from one category before title merge. Matches the previous page loop:
+    /// it keeps fetching <see cref="FetchPageSize"/> rows while fewer than
+    /// <see cref="MaxCollectedItems"/> have been collected, so a full extra page can overshoot the cap.
+    /// </summary>
+    public static int MaxItemsFetchedPerCategory { get; } =
+        Math.Min(
+            MaxPagesPerCategory,
+            (MaxCollectedItems + FetchPageSize - 1) / FetchPageSize) * FetchPageSize;
+
     private static readonly LibraryCategory[] SearchCategories =
     [
         LibraryCategory.Watching,

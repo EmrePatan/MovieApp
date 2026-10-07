@@ -4,7 +4,11 @@ public sealed class InsightsV3Options
 {
     public const string SectionName = "InsightsV3";
 
-    public const int DefaultMaxRepositoryConcurrency = 11;
+    /// <summary>
+    /// Enough parallelism for independent aggregates without opening one connection per phase.
+    /// Eleven concurrent scans of the same watch history saturated Postgres for large libraries.
+    /// </summary>
+    public const int DefaultMaxRepositoryConcurrency = 3;
 
     public const int V3RepositoryPhaseCount = 11;
 

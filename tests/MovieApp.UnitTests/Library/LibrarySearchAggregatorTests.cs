@@ -77,4 +77,10 @@ public sealed class LibrarySearchAggregatorTests
         Assert.Equal("Titanic", merged[2].Title);
         Assert.Equal("watchlist", merged[2].CollectionStatus);
     }
+
+    [Fact]
+    public void MaxItemsFetchedPerCategoryMatchesThePreviousPageLoop()
+    {
+        Assert.Equal(800, LibrarySearchAggregator.MaxItemsFetchedPerCategory);
+    }
 }

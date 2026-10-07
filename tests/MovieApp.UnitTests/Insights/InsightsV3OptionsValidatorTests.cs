@@ -37,13 +37,13 @@ public sealed class InsightsV3OptionsValidatorTests
     }
 
     [Fact]
-    public void DefaultOptionsUseElevenWayConcurrency()
+    public void DefaultOptionsUseBoundedConcurrency()
     {
-        Assert.Equal(11, new InsightsV3Options().MaxRepositoryConcurrency);
+        Assert.Equal(InsightsV3Options.DefaultMaxRepositoryConcurrency, new InsightsV3Options().MaxRepositoryConcurrency);
     }
 
     [Theory]
-    [InlineData(null, 11)]
+    [InlineData(null, 3)]
     [InlineData("1", 1)]
     [InlineData("2", 2)]
     [InlineData("11", 11)]
