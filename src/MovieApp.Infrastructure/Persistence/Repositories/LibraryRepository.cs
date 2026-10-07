@@ -12,6 +12,9 @@ namespace MovieApp.Infrastructure.Persistence.Repositories;
 
 public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibraryRepository
 {
+    private Guid? cachedStartedShowsUserId;
+    private IReadOnlyList<TvShowCompletionRow>? cachedStartedShows;
+
     private const string CollectionStatusWatching = "watching";
     private const string CollectionStatusWatched = "watched";
     private const string CollectionStatusLiked = "liked";
@@ -28,68 +31,25 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             return ([], 0);
         }
 
-        var tvShows = dbContext.TvShows.AsNoTracking();
-        if (!request.TitleMatch.IsEmpty)
-        {
-            tvShows = LibrarySearchTitleFilter.WhereTvShowMatches(
-                dbContext,
-                tvShows,
-                request.TitleMatch,
-                request.TitleMatchContentLocale);
-        }
+        var inProgress = (await GetStartedShowsAsync(userId, cancellationToken))
+            .Where(show => IsInProgress(show))
+            .ToList();
+        var shows = await LoadTvShowsAsync(
+            await FilterShowIdsByTitleAsync(inProgress.Select(show => show.TvShowId), request, cancellationToken),
+            cancellationToken);
+        inProgress.RemoveAll(show => !shows.ContainsKey(show.TvShowId));
 
-        var query = TvShowCompletionQueries.StartedShows(dbContext, userId)
-            .Where(TvShowCompletionQueries.IsInProgress)
-            .Join(
-                tvShows,
-                show => show.TvShowId,
-                tvShow => tvShow.Id,
-                (show, tvShow) => new
-                {
-                    show.LastWatchedAt,
-                    show.RegularTotalEpisodes,
-                    show.RegularWatchedEpisodes,
-                    TvShow = tvShow
-                });
-
-        var totalCount = await ResolveTotalCountAsync(query, request, cancellationToken);
-
-        var ordered = query
-            .OrderByDescending(item => item.RegularWatchedEpisodes < item.RegularTotalEpisodes) // IsWatchingLibrarySortInProgress
-            .ThenByDescending(item => item.LastWatchedAt)
-            .ThenBy(item => item.TvShow.Id);
-
-        var watchingCursor = request.AfterCursor;
-        var watchingAnchorInstant = watchingCursor?.GetSortInstant();
-        var rows = watchingCursor is not null
-            ? await ordered
-                .Where(item =>
-                    (watchingCursor.WatchingInProgress
-                        && item.RegularWatchedEpisodes >= item.RegularTotalEpisodes)
-                    || ((item.RegularWatchedEpisodes < item.RegularTotalEpisodes) == watchingCursor.WatchingInProgress
-                        && item.LastWatchedAt < watchingAnchorInstant)
-                    || ((item.RegularWatchedEpisodes < item.RegularTotalEpisodes) == watchingCursor.WatchingInProgress
-                        && item.LastWatchedAt == watchingAnchorInstant
-                        && item.TvShow.Id.CompareTo(watchingCursor.PrimaryId) > 0))
-                .Take(request.FetchLimit)
-                .ToListAsync(cancellationToken)
-            : request.Page > 1
-                ? await ordered
-                    .Skip((request.Page - 1) * request.PageSize)
-                    .Take(request.FetchLimit)
-                    .ToListAsync(cancellationToken)
-                : await ordered
-                    .Take(request.FetchLimit)
-                    .ToListAsync(cancellationToken);
+        var totalCount = ResolveCount(inProgress.Count, request);
+        var rows = PageWatchingRows(inProgress, request);
 
         var nextEpisodesByShowId = await GetNextUnwatchedEpisodesAsync(
             userId,
-            rows.Select(row => row.TvShow.Id).ToList(),
+            rows.Select(row => row.TvShowId).ToList(),
             cancellationToken);
 
         var items = rows
             .Select(row => MapTvShow(
-                row.TvShow,
+                shows[row.TvShowId],
                 CollectionStatusWatching,
                 addedAt: null,
                 watchedAt: null,
@@ -97,7 +57,7 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
                 progressPercentage: WatchHistoryMapper.CalculateProgressPercentage(
                     row.RegularWatchedEpisodes,
                     row.RegularTotalEpisodes),
-                nextEpisode: nextEpisodesByShowId.GetValueOrDefault(row.TvShow.Id),
+                nextEpisode: nextEpisodesByShowId.GetValueOrDefault(row.TvShowId),
                 watchingSortInProgress: TvShowCompletionPolicy.IsWatchingLibrarySortInProgress(
                     row.RegularWatchedEpisodes,
                     row.RegularTotalEpisodes)))
@@ -122,13 +82,16 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             return await GetWatchedTvShowsAsync(userId, request, cancellationToken);
         }
 
-        var merged = WatchedUnionRows(userId, request);
+        var completedShows = await LoadCompletedShowRowsAsync(userId, request, cancellationToken);
+        var movies = WatchedMovieRows(userId, ResolveWatchedMovieIdFilter(request));
+        var totalCount = request.CountMode switch
+        {
+            LibraryCountMode.Skip => 0,
+            LibraryCountMode.UseSnapshot => request.AfterCursor!.SnapshotTotalCount,
+            _ => completedShows.Count + await movies.CountAsync(cancellationToken),
+        };
 
-        var totalCount = await ResolveTotalCountAsync(merged, request, cancellationToken);
-        var pageRows = await PageWatchedRows(merged, request, includeTypeTieBreak: true)
-            .Take(request.FetchLimit)
-            .ToListAsync(cancellationToken);
-
+        var pageRows = await MergeWatchedPageAsync(completedShows, movies, request, includeTypeTieBreak: true, cancellationToken);
         return (pageRows.Select(MapUnionRow).ToList(), totalCount);
     }
 
@@ -322,38 +285,11 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         LibraryPageRequest request,
         CancellationToken cancellationToken)
     {
-        var rows = CompletedTvShowRows(userId, ResolveWatchedTvShowIdFilter(request));
-
-        var totalCount = await ResolveTotalCountAsync(rows, request, cancellationToken);
-        var pageRows = await PageWatchedRows(rows, request, includeTypeTieBreak: false)
-            .Take(request.FetchLimit)
-            .ToListAsync(cancellationToken);
-
+        var rows = await LoadCompletedShowRowsAsync(userId, request, cancellationToken);
+        var totalCount = ResolveCount(rows.Count, request);
+        var pageRows = PageWatchedRowsInMemory(rows, request, includeTypeTieBreak: false);
         return (pageRows.Select(MapUnionRow).ToList(), totalCount);
     }
-
-    internal IQueryable<WatchedUnionRow> WatchedUnionRows(Guid userId, LibraryPageRequest? request = null) =>
-        WatchedMovieRows(userId, ResolveWatchedMovieIdFilter(request))
-            .Concat(CompletedTvShowRows(userId, ResolveWatchedTvShowIdFilter(request)));
-
-    internal IQueryable<WatchedUnionRow> CompletedTvShowRows(
-        Guid userId,
-        IQueryable<Guid>? restrictToTvShowIds = null) =>
-        CompletedTvShows(userId, restrictToTvShowIds)
-            .Select(row => new WatchedUnionRow
-            {
-                Id = row.TvShow.Id,
-                Type = "tv",
-                Title = row.TvShow.Title,
-                OriginalTitle = row.TvShow.OriginalTitle,
-                PosterUrl = row.TvShow.PosterPath,
-                BackdropUrl = row.TvShow.BackdropPath,
-                ReleaseDate = null,
-                FirstAirDate = row.TvShow.FirstAirDate,
-                VoteAverage = row.TvShow.VoteAverage,
-                WatchedAt = row.LastWatchedAt,
-                LastActivityAt = row.LastWatchedAt!.Value
-            });
 
     private IQueryable<Guid>? ResolveWatchedMovieIdFilter(LibraryPageRequest? request)
     {
@@ -363,19 +299,6 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         }
 
         return LibrarySearchTitleFilter.MatchingMovieIds(
-            dbContext,
-            request.TitleMatch,
-            request.TitleMatchContentLocale);
-    }
-
-    private IQueryable<Guid>? ResolveWatchedTvShowIdFilter(LibraryPageRequest? request)
-    {
-        if (request is null || request.TitleMatch.IsEmpty)
-        {
-            return null;
-        }
-
-        return LibrarySearchTitleFilter.MatchingTvShowIds(
             dbContext,
             request.TitleMatch,
             request.TitleMatchContentLocale);
@@ -410,29 +333,302 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
             });
     }
 
-    private IQueryable<CompletedTvJoin> CompletedTvShows(
+    private async Task<IReadOnlyList<TvShowCompletionRow>> GetStartedShowsAsync(
         Guid userId,
-        IQueryable<Guid>? restrictToTvShowIds = null)
+        CancellationToken cancellationToken)
     {
-        var startedShows = TvShowCompletionQueries.StartedShows(dbContext, userId);
-        if (restrictToTvShowIds is not null)
+        if (cachedStartedShows is not null && cachedStartedShowsUserId == userId)
         {
-            startedShows = startedShows.Where(show => restrictToTvShowIds.Contains(show.TvShowId));
+            return cachedStartedShows;
         }
 
-        return startedShows
-            .Where(TvShowCompletionQueries.IsCompleted)
-            .Where(show => show.LastWatchedAt != null)
-            .Join(
-                dbContext.TvShows.AsNoTracking(),
-                show => show.TvShowId,
-                tvShow => tvShow.Id,
-                (show, tvShow) => new CompletedTvJoin
-                {
-                    LastWatchedAt = show.LastWatchedAt,
-                    TvShow = tvShow
-                });
+        var rows = await TvShowCompletionQueries.LoadStartedShowsAsync(dbContext, userId, cancellationToken);
+        cachedStartedShows = rows;
+        cachedStartedShowsUserId = userId;
+        return rows;
     }
+
+    private async Task<List<WatchedUnionRow>> LoadCompletedShowRowsAsync(
+        Guid userId,
+        LibraryPageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var completed = (await GetStartedShowsAsync(userId, cancellationToken))
+            .Where(show => IsCompleted(show) && show.LastWatchedAt is not null)
+            .ToList();
+        var ids = await FilterShowIdsByTitleAsync(completed.Select(show => show.TvShowId), request, cancellationToken);
+        var shows = await LoadTvShowsAsync(ids, cancellationToken);
+
+        return completed
+            .Where(show => shows.ContainsKey(show.TvShowId))
+            .Select(show =>
+            {
+                var tvShow = shows[show.TvShowId];
+                return new WatchedUnionRow
+                {
+                    Id = tvShow.Id,
+                    Type = "tv",
+                    Title = tvShow.Title,
+                    OriginalTitle = tvShow.OriginalTitle,
+                    PosterUrl = tvShow.PosterPath,
+                    BackdropUrl = tvShow.BackdropPath,
+                    ReleaseDate = null,
+                    FirstAirDate = tvShow.FirstAirDate,
+                    VoteAverage = tvShow.VoteAverage,
+                    WatchedAt = show.LastWatchedAt,
+                    LastActivityAt = show.LastWatchedAt!.Value
+                };
+            })
+            .OrderBy(row => row, WatchedRowComparer.WithoutType)
+            .ToList();
+    }
+
+    private async Task<List<Guid>> FilterShowIdsByTitleAsync(
+        IEnumerable<Guid> showIds,
+        LibraryPageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var ids = showIds.Distinct().ToList();
+        if (ids.Count == 0 || request.TitleMatch.IsEmpty)
+        {
+            return ids;
+        }
+
+        return await LibrarySearchTitleFilter.WhereTvShowMatches(
+                dbContext,
+                dbContext.TvShows.AsNoTracking().Where(tvShow => ids.Contains(tvShow.Id)),
+                request.TitleMatch,
+                request.TitleMatchContentLocale)
+            .Select(tvShow => tvShow.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, Domain.Entities.TvShow>> LoadTvShowsAsync(
+        List<Guid> tvShowIds,
+        CancellationToken cancellationToken)
+    {
+        if (tvShowIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => tvShowIds.Contains(tvShow.Id))
+            .ToDictionaryAsync(tvShow => tvShow.Id, cancellationToken);
+    }
+
+    private static List<TvShowCompletionRow> PageWatchingRows(
+        IReadOnlyList<TvShowCompletionRow> rows,
+        LibraryPageRequest request)
+    {
+        IEnumerable<TvShowCompletionRow> ordered = rows
+            .OrderByDescending(row => row.RegularWatchedEpisodes < row.RegularTotalEpisodes)
+            .ThenBy(row => row.LastWatchedAt, PostgresTimestampDescComparer.Instance)
+            .ThenBy(row => row.TvShowId, PostgresGuidComparer.Instance);
+
+        if (request.AfterCursor is { } cursor)
+        {
+            var anchor = cursor.GetSortInstant();
+            ordered = ordered.Where(row => IsAfterWatchingCursor(row, cursor, anchor));
+        }
+        else if (request.Page > 1)
+        {
+            ordered = ordered.Skip(GetPageSkip(request.Page, request.PageSize));
+        }
+
+        return ordered.Take(request.FetchLimit).ToList();
+    }
+
+    private static bool IsAfterWatchingCursor(
+        TvShowCompletionRow row,
+        LibraryKeysetCursor cursor,
+        DateTime anchor)
+    {
+        var inProgress = row.RegularWatchedEpisodes < row.RegularTotalEpisodes;
+        if (cursor.WatchingInProgress && !inProgress)
+        {
+            return true;
+        }
+
+        if (inProgress != cursor.WatchingInProgress || row.LastWatchedAt is not DateTime lastWatchedAt)
+        {
+            return false;
+        }
+
+        if (lastWatchedAt < anchor)
+        {
+            return true;
+        }
+
+        return lastWatchedAt == anchor
+            && PostgresGuidComparer.Instance.Compare(row.TvShowId, cursor.PrimaryId) > 0;
+    }
+
+    private static async Task<List<WatchedUnionRow>> MergeWatchedPageAsync(
+        IReadOnlyList<WatchedUnionRow> completedShows,
+        IQueryable<WatchedUnionRow> movies,
+        LibraryPageRequest request,
+        bool includeTypeTieBreak,
+        CancellationToken cancellationToken)
+    {
+        var skip = request.AfterCursor is null ? GetPageSkip(request.Page, request.PageSize) : 0;
+        var movieLimitLong = (long)skip + request.FetchLimit;
+        var movieLimit = movieLimitLong > int.MaxValue ? int.MaxValue : (int)movieLimitLong;
+        IQueryable<WatchedUnionRow> orderedMovies = OrderWatchedRows(movies, includeTypeTieBreak);
+        if (request.AfterCursor is { } cursor)
+        {
+            var anchor = cursor.GetSortInstant();
+            orderedMovies = includeTypeTieBreak
+                ? orderedMovies.Where(row =>
+                    row.LastActivityAt < anchor
+                    || (row.LastActivityAt == anchor && row.Type.CompareTo(cursor.Type) > 0)
+                    || (row.LastActivityAt == anchor
+                        && row.Type == cursor.Type
+                        && row.Id.CompareTo(cursor.PrimaryId) > 0))
+                : orderedMovies.Where(row =>
+                    row.LastActivityAt < anchor
+                    || (row.LastActivityAt == anchor && row.Id.CompareTo(cursor.PrimaryId) > 0));
+        }
+
+        var movieRows = await orderedMovies
+            .Take(movieLimit)
+            .ToListAsync(cancellationToken);
+
+        IEnumerable<WatchedUnionRow> shows = completedShows;
+        if (request.AfterCursor is not null)
+        {
+            shows = completedShows.Where(row => IsAfterWatchedCursor(row, request.AfterCursor, includeTypeTieBreak));
+        }
+
+        var merged = MergeSorted(shows, movieRows, includeTypeTieBreak);
+        if (request.AfterCursor is null && request.Page > 1)
+        {
+            merged = merged.Skip(GetPageSkip(request.Page, request.PageSize)).ToList();
+        }
+
+        return merged.Take(request.FetchLimit).ToList();
+    }
+
+    private static IOrderedQueryable<WatchedUnionRow> OrderWatchedRows(
+        IQueryable<WatchedUnionRow> rows,
+        bool includeTypeTieBreak) =>
+        includeTypeTieBreak
+            ? rows
+                .OrderByDescending(row => row.LastActivityAt)
+                .ThenBy(row => row.Type)
+                .ThenBy(row => row.Id)
+            : rows
+                .OrderByDescending(row => row.LastActivityAt)
+                .ThenBy(row => row.Id);
+
+    private static List<WatchedUnionRow> MergeSorted(
+        IEnumerable<WatchedUnionRow> shows,
+        List<WatchedUnionRow> movies,
+        bool includeTypeTieBreak)
+    {
+        var comparer = includeTypeTieBreak ? WatchedRowComparer.WithType : WatchedRowComparer.WithoutType;
+        var merged = new List<WatchedUnionRow>();
+        using var showEnumerator = shows.GetEnumerator();
+        var hasShow = showEnumerator.MoveNext();
+        var movieIndex = 0;
+        while (hasShow && movieIndex < movies.Count)
+        {
+            if (comparer.Compare(showEnumerator.Current, movies[movieIndex]) <= 0)
+            {
+                merged.Add(showEnumerator.Current);
+                hasShow = showEnumerator.MoveNext();
+            }
+            else
+            {
+                merged.Add(movies[movieIndex]);
+                movieIndex++;
+            }
+        }
+
+        while (hasShow)
+        {
+            merged.Add(showEnumerator.Current);
+            hasShow = showEnumerator.MoveNext();
+        }
+
+        while (movieIndex < movies.Count)
+        {
+            merged.Add(movies[movieIndex]);
+            movieIndex++;
+        }
+
+        return merged;
+    }
+
+    private static List<WatchedUnionRow> PageWatchedRowsInMemory(
+        IReadOnlyList<WatchedUnionRow> rows,
+        LibraryPageRequest request,
+        bool includeTypeTieBreak)
+    {
+        IEnumerable<WatchedUnionRow> ordered = rows;
+        if (request.AfterCursor is { } cursor)
+        {
+            ordered = ordered.Where(row => IsAfterWatchedCursor(row, cursor, includeTypeTieBreak));
+        }
+        else if (request.Page > 1)
+        {
+            ordered = ordered.Skip(GetPageSkip(request.Page, request.PageSize));
+        }
+
+        return ordered.Take(request.FetchLimit).ToList();
+    }
+
+    private static bool IsAfterWatchedCursor(
+        WatchedUnionRow row,
+        LibraryKeysetCursor cursor,
+        bool includeTypeTieBreak)
+    {
+        var anchor = cursor.GetSortInstant();
+        if (row.LastActivityAt < anchor)
+        {
+            return true;
+        }
+
+        if (row.LastActivityAt != anchor)
+        {
+            return false;
+        }
+
+        if (includeTypeTieBreak)
+        {
+            var typeCompare = string.CompareOrdinal(row.Type, cursor.Type);
+            if (typeCompare > 0)
+            {
+                return true;
+            }
+
+            if (typeCompare < 0)
+            {
+                return false;
+            }
+        }
+
+        return PostgresGuidComparer.Instance.Compare(row.Id, cursor.PrimaryId) > 0;
+    }
+
+    private static int ResolveCount(int count, LibraryPageRequest request) =>
+        request.CountMode switch
+        {
+            LibraryCountMode.Skip => 0,
+            LibraryCountMode.UseSnapshot => request.AfterCursor!.SnapshotTotalCount,
+            _ => count,
+        };
+
+    private static bool IsInProgress(TvShowCompletionRow row) =>
+        !(row.IsConcluded &&
+          row.RegularTotalEpisodes > 0 &&
+          row.RegularWatchedEpisodes >= row.RegularTotalEpisodes);
+
+    private static bool IsCompleted(TvShowCompletionRow row) =>
+        row.IsConcluded &&
+        row.RegularTotalEpisodes > 0 &&
+        row.RegularWatchedEpisodes >= row.RegularTotalEpisodes;
 
     private static async Task<int> ResolveTotalCountAsync<T>(
         IQueryable<T> query,
@@ -747,11 +943,36 @@ public sealed class LibraryRepository(ApplicationDbContext dbContext) : ILibrary
         public DateTime LastActivityAt { get; init; }
     }
 
-    private sealed class CompletedTvJoin
+    private sealed class WatchedRowComparer(bool includeTypeTieBreak) : IComparer<WatchedUnionRow>
     {
-        public DateTime? LastWatchedAt { get; init; }
+        internal static readonly WatchedRowComparer WithType = new(true);
 
-        public Domain.Entities.TvShow TvShow { get; init; } = null!;
+        internal static readonly WatchedRowComparer WithoutType = new(false);
+
+        public int Compare(WatchedUnionRow? x, WatchedUnionRow? y)
+        {
+            if (x is null || y is null)
+            {
+                return x is null ? (y is null ? 0 : -1) : 1;
+            }
+
+            var time = y.LastActivityAt.CompareTo(x.LastActivityAt);
+            if (time != 0)
+            {
+                return time;
+            }
+
+            if (includeTypeTieBreak)
+            {
+                var type = string.CompareOrdinal(x.Type, y.Type);
+                if (type != 0)
+                {
+                    return type;
+                }
+            }
+
+            return PostgresGuidComparer.Instance.Compare(x.Id, y.Id);
+        }
     }
 
     private sealed record LikedPageKey(
