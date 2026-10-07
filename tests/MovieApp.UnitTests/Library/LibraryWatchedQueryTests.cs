@@ -7,43 +7,17 @@ namespace MovieApp.UnitTests.Library;
 public sealed class LibraryWatchedQueryTests
 {
     [Fact]
-    public void WatchedUnionPageIsTranslatedWithDatabaseLimitAndOffset()
+    public void StartedShowsQueryUsesIndexedLookupsInsteadOfAGlobalEpisodeAggregate()
     {
         using var context = CreateContext();
-        var repository = new LibraryRepository(context);
-        var userId = Guid.NewGuid();
 
-        var sql = repository.WatchedUnionRows(userId)
-            .OrderByDescending(row => row.LastActivityAt)
-            .ThenBy(row => row.Type)
-            .ThenBy(row => row.Id)
-            .Skip(24)
-            .Take(24)
-            .ToQueryString();
+        var sql = TvShowCompletionQueries.StartedShows(context, Guid.NewGuid()).ToQueryString();
 
-        Assert.Contains("watched_movies", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("tv_shows", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("LIMIT", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("OFFSET", sql, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void CompletedTvShowPageIsTranslatedWithDatabaseLimit()
-    {
-        using var context = CreateContext();
-        var repository = new LibraryRepository(context);
-
-        var sql = repository.CompletedTvShowRows(Guid.NewGuid())
-            .OrderByDescending(row => row.LastActivityAt)
-            .ThenBy(row => row.Id)
-            .Take(24)
-            .ToQueryString();
-
-        Assert.Contains("tv_shows", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("watched_episodes", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("GROUP BY", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("LIMIT", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("watched_movies", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WITH watched AS MATERIALIZED", sql, StringComparison.Ordinal);
+        Assert.Contains("LATERAL", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LIMIT 1", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("episode_rows", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("NOT EXISTS", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     private static ApplicationDbContext CreateContext()

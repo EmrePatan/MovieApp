@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
+using MovieApp.Application.Services.WatchHistory;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -33,7 +34,15 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
             .Distinct()
             .CountAsync(cancellationToken);
 
-        var showsCompleted = await CountCompletedShowsAsync(userId, cancellationToken);
+        var startedShows = await TvShowCompletionQueries.LoadStartedShowsAsync(
+            dbContext,
+            userId,
+            cancellationToken);
+        var showsCompleted = startedShows.Count(show =>
+            TvShowCompletionPolicy.IsCompleted(
+                show.IsConcluded,
+                show.RegularTotalEpisodes,
+                show.RegularWatchedEpisodes));
         var monthlyActivity = await GetMonthlyActivityAsync(userId, cancellationToken);
         var watchTimestampsUtc = await GetWatchTimestampsUtcAsync(userId, cancellationToken);
         var distinctWatchDates = ProfileWatchDateHelper.TryGetTimeZone(timeZoneId, out var timeZone)
@@ -47,7 +56,16 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
             .OrderBy(watchedMovie => watchedMovie.WatchedAt)
             .Select(watchedMovie => (DateTime?)watchedMovie.WatchedAt)
             .FirstOrDefaultAsync(cancellationToken);
-        var firstCompletedShowAt = await GetFirstCompletedShowAtAsync(userId, cancellationToken);
+        var completedShowTimes = startedShows
+            .Where(show =>
+                TvShowCompletionPolicy.IsCompleted(
+                    show.IsConcluded,
+                    show.RegularTotalEpisodes,
+                    show.RegularWatchedEpisodes)
+                && show.LastWatchedAt is not null)
+            .Select(show => show.LastWatchedAt)
+            .ToList();
+        var firstCompletedShowAt = completedShowTimes.Count == 0 ? null : completedShowTimes.Min();
 
         var raw = new ProfileStatisticsRawData(
             counts.FavoriteMovieCount,
@@ -91,23 +109,6 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
                 dbContext.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
                 dbContext.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId)))
             .FirstAsync(cancellationToken);
-    }
-
-    private async Task<int> CountCompletedShowsAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        return await TvShowCompletionQueries.StartedShows(dbContext, userId)
-            .Where(TvShowCompletionQueries.IsCompleted)
-            .CountAsync(cancellationToken);
-    }
-
-    private async Task<DateTime?> GetFirstCompletedShowAtAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        return await TvShowCompletionQueries.StartedShows(dbContext, userId)
-            .Where(TvShowCompletionQueries.IsCompleted)
-            .Where(show => show.LastWatchedAt != null)
-            .OrderBy(show => show.LastWatchedAt)
-            .Select(show => show.LastWatchedAt)
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyList<MonthlyActivityResult>> GetMonthlyActivityAsync(

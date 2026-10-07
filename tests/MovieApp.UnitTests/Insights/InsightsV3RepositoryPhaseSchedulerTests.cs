@@ -12,7 +12,9 @@ public sealed class InsightsV3RepositoryPhaseSchedulerTests
     {
         var peakConcurrency = 0;
         var running = 0;
+        var entered = 0;
         var sync = new object();
+        var saturated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var phases = Enumerable.Range(0, 11)
             .Select(_ => (Func<CancellationToken, Task>)(async cancellationToken =>
@@ -23,9 +25,17 @@ public sealed class InsightsV3RepositoryPhaseSchedulerTests
                     peakConcurrency = Math.Max(peakConcurrency, running);
                 }
 
+                if (Interlocked.Increment(ref entered) == maxConcurrency)
+                {
+                    saturated.TrySetResult();
+                }
+
                 try
                 {
-                    await Task.Delay(30, cancellationToken);
+                    // Hold the slot until the gate is full. A fixed delay lets early phases
+                    // finish on a busy runner before the rest are scheduled, so the peak
+                    // never reaches the configured concurrency.
+                    await saturated.Task.WaitAsync(cancellationToken);
                 }
                 finally
                 {
@@ -37,7 +47,9 @@ public sealed class InsightsV3RepositoryPhaseSchedulerTests
             }))
             .ToList();
 
-        await InsightsV3RepositoryPhaseScheduler.RunAllAsync(maxConcurrency, phases, CancellationToken.None);
+        await InsightsV3RepositoryPhaseScheduler
+            .RunAllAsync(maxConcurrency, phases, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(expectedPeak, peakConcurrency);
     }

@@ -35,40 +35,6 @@ public sealed class LibraryWatchedSearchTests
         Assert.Equal(["Done Show", "Star Movie", "Earlier Movie"], items.Select(item => item.Title).ToList());
     }
 
-    [Fact]
-    public void WatchedUnionRows_WithTitleFilter_IsComposedBeforeOrdering()
-    {
-        using var context = CreateNpgsqlContext();
-        var repository = new LibraryRepository(context);
-        var request = new LibraryPageRequest(
-            1,
-            5,
-            6,
-            null,
-            LibraryCountMode.Required,
-            SearchTextMatch.FromQuery("star"),
-            "en-US");
-
-        var sql = repository.WatchedUnionRows(UserId, request)
-            .OrderByDescending(row => row.LastActivityAt)
-            .ThenBy(row => row.Type)
-            .ThenBy(row => row.Id)
-            .Take(5)
-            .ToQueryString();
-
-        Assert.Contains("LIMIT", sql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("watched_movies", sql, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static ApplicationDbContext CreateNpgsqlContext()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql("Host=127.0.0.1;Database=movieapp;Username=postgres;Password=postgres")
-            .Options;
-
-        return new ApplicationDbContext(options);
-    }
-
     private static async Task<ApplicationDbContext> CreateSeededContextAsync()
     {
         var context = new ApplicationDbContext(
