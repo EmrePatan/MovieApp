@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Localization;
@@ -93,6 +94,27 @@ public sealed class ExplorePreviewServiceTests
         Assert.NotEmpty(result.NewReleases.Items);
     }
 
+    [Fact]
+    public async Task GetPreviewAsyncJoinsConcurrentMisses()
+    {
+        var discovery = new FakeDiscoveryService();
+        var browse = new DelayingDiscoverBrowseService(TimeSpan.FromMilliseconds(200));
+        var service = CreateService(discovery, browse, new InMemoryCacheService());
+
+        var tasks = Enumerable.Range(0, 6)
+            .Select(_ => service.GetPreviewAsync(
+                new ExplorePreviewCriteria(10),
+                ContentLocaleResolver.EnglishUnitedStates))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+
+        Assert.Equal(1, browse.HiddenGemsCallCount);
+        Assert.Equal(1, browse.PopularCallCount);
+        Assert.Equal(1, discovery.NewReleasesCallCount);
+        Assert.Equal(1, discovery.TopRatedCallCount);
+    }
+
     private static ExplorePreviewService CreateService(
         IDiscoveryService discovery,
         IDiscoverBrowseService browse,
@@ -103,7 +125,10 @@ public sealed class ExplorePreviewServiceTests
         services.AddScoped<IDiscoverBrowseService>(_ => browse);
         var provider = services.BuildServiceProvider();
 
-        return new ExplorePreviewService(provider.GetRequiredService<IServiceScopeFactory>(), cache);
+        return new ExplorePreviewService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            cache,
+            new ExplorePreviewLoadCoordinator());
     }
 
     private static ExplorePreviewService CreateServiceWithScopedDiscovery<TDiscovery>(
@@ -115,7 +140,10 @@ public sealed class ExplorePreviewServiceTests
         services.AddScoped<IDiscoverBrowseService, FakeDiscoverBrowseService>();
         var provider = services.BuildServiceProvider();
 
-        return new ExplorePreviewService(provider.GetRequiredService<IServiceScopeFactory>(), cache);
+        return new ExplorePreviewService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            cache,
+            new ExplorePreviewLoadCoordinator());
     }
 
     private class RecordingDiscoverBrowseService : IDiscoverBrowseService
@@ -128,7 +156,7 @@ public sealed class ExplorePreviewServiceTests
 
         public DiscoverBrowseCriteria? LastPopularCriteria { get; private set; }
 
-        public Task<PaginatedResult<SearchItem>> BrowseAsync(
+        public virtual Task<PaginatedResult<SearchItem>> BrowseAsync(
             DiscoverBrowseCriteria criteria,
             string contentLocale,
             CancellationToken cancellationToken = default)
@@ -169,6 +197,26 @@ public sealed class ExplorePreviewServiceTests
 
     private sealed class FakeDiscoverBrowseService : RecordingDiscoverBrowseService;
 
+    private sealed class DelayingDiscoverBrowseService(TimeSpan delay) : RecordingDiscoverBrowseService
+    {
+        public override Task<PaginatedResult<SearchItem>> BrowseAsync(
+            DiscoverBrowseCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            var pending = base.BrowseAsync(criteria, contentLocale, cancellationToken);
+            return DelayAsync(pending, cancellationToken);
+        }
+
+        private async Task<PaginatedResult<SearchItem>> DelayAsync(
+            Task<PaginatedResult<SearchItem>> pending,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(delay, cancellationToken);
+            return await pending;
+        }
+    }
+
     private sealed class FakeDiscoveryService : IDiscoveryService
     {
         public int TrendingCallCount { get; private set; }
@@ -193,13 +241,25 @@ public sealed class ExplorePreviewServiceTests
             return Task.FromResult(CreatePage("trending"));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CreatePage("new-releases"));
+
+        public Task<PaginatedResult<SearchItem>> GetCatalogListNewReleasesAsync(
+            DiscoveryCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
         {
             NewReleasesCallCount++;
             return Task.FromResult(CreatePage("new-releases"));
         }
 
-        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
+        public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CreatePage("top-rated"));
+
+        public Task<PaginatedResult<SearchItem>> GetCatalogListTopRatedAsync(
+            DiscoveryCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
         {
             TopRatedCallCount++;
             return Task.FromResult(CreatePage("top-rated"));
@@ -331,12 +391,15 @@ public sealed class ExplorePreviewServiceTests
 
         public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class
         {
-            if (_entries.TryGetValue(key, out var value) && value is T typed)
+            lock (_entries)
             {
-                return Task.FromResult<T?>(typed);
-            }
+                if (_entries.TryGetValue(key, out var value) && value is T typed)
+                {
+                    return Task.FromResult<T?>(typed);
+                }
 
-            return Task.FromResult<T?>(null);
+                return Task.FromResult<T?>(null);
+            }
         }
 
         public Task SetAsync<T>(
@@ -346,8 +409,11 @@ public sealed class ExplorePreviewServiceTests
             CancellationToken cancellationToken = default)
             where T : class
         {
-            _entries[key] = value;
-            return Task.CompletedTask;
+            lock (_entries)
+            {
+                _entries[key] = value;
+                return Task.CompletedTask;
+            }
         }
 
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default)

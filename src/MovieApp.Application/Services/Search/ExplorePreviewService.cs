@@ -10,7 +10,8 @@ namespace MovieApp.Application.Services.Search;
 
 public sealed class ExplorePreviewService(
     IServiceScopeFactory scopeFactory,
-    ICacheService cacheService) : IExplorePreviewService
+    ICacheService cacheService,
+    ExplorePreviewLoadCoordinator loadCoordinator) : IExplorePreviewService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
@@ -22,6 +23,24 @@ public sealed class ExplorePreviewService(
         ValidateCriteria(criteria);
 
         var cacheKey = ExplorePreviewCacheKeys.Create(criteria.SectionSize, contentLocale);
+        var cached = await cacheService.GetAsync<ExplorePreviewCacheEntry>(cacheKey, cancellationToken);
+        if (cached is not null)
+        {
+            return cached.Result;
+        }
+
+        return await loadCoordinator.RunInFlightAsync(
+                cacheKey,
+                () => LoadPreviewAsync(criteria, contentLocale, cacheKey, cancellationToken))
+            .WaitAsync(cancellationToken);
+    }
+
+    private async Task<ExplorePreviewResult> LoadPreviewAsync(
+        ExplorePreviewCriteria criteria,
+        string contentLocale,
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
         var cached = await cacheService.GetAsync<ExplorePreviewCacheEntry>(cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -48,11 +67,11 @@ public sealed class ExplorePreviewService(
             cancellationToken);
         var newReleasesTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetNewReleasesAsync(discoveryCriteria, contentLocale, ct),
+                .GetCatalogListNewReleasesAsync(discoveryCriteria, contentLocale, ct),
             cancellationToken);
         var topRatedTask = RunScopedAsync(
             (services, ct) => services.GetRequiredService<IDiscoveryService>()
-                .GetTopRatedAsync(discoveryCriteria, contentLocale, ct),
+                .GetCatalogListTopRatedAsync(discoveryCriteria, contentLocale, ct),
             cancellationToken);
 
         await Task.WhenAll(hiddenGemsTask, popularTask, newReleasesTask, topRatedTask);

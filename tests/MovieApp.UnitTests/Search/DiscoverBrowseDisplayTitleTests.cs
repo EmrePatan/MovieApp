@@ -31,7 +31,6 @@ public sealed class DiscoverBrowseDisplayTitleTests
         var movieId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
         var canonicalSummary = CreateMovieSummary(SpiderManTmdbId, canonicalTitle, canonicalTitle);
-        var localizedSummary = CreateMovieSummary(SpiderManTmdbId, localizedMarketingTitle, canonicalTitle);
 
         var movieRepository = new FixedMovieRepository(
             movieId,
@@ -45,12 +44,12 @@ public sealed class DiscoverBrowseDisplayTitleTests
             new NoOpDiscoveryService(),
             new SinglePageMovieProvider(canonicalSummary),
             new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
-            new SinglePageLocalizedMovieProvider(localizedSummary),
             movieRepository,
             new EmptyTvShowRepository(),
             new EmptyGenreReadRepository(),
             new EmptyKeywordDiscoverReadRepository(),
             new NullCacheService(),
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new EmptyGenreReadRepository()),
             new CatalogSearchItemDisplayTitleEnricher(
@@ -121,62 +120,6 @@ public sealed class DiscoverBrowseDisplayTitleTests
         public Task<MovieProviderDetails?> GetMovieAsync(
             string externalId,
             bool includeKeywords = false,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-    }
-
-    private sealed class SinglePageLocalizedMovieProvider(MovieProviderSummary summary) : ILocalizedListDataProvider
-    {
-        public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
-            DiscoverProviderCriteria criteria,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new MovieProviderSearchResult(
-                [summary],
-                criteria.Page,
-                20,
-                1,
-                1));
-
-        public Task<TvShowProviderSearchResult> DiscoverTvShowsAsync(
-            DiscoverProviderCriteria criteria,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<MovieProviderSearchResult> SearchMoviesAsync(
-            string query,
-            int page,
-            int pageSize,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShowProviderSearchResult> SearchTvShowsAsync(
-            string query,
-            int page,
-            int pageSize,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<PersonProviderSearchResult> SearchPersonsAsync(
-            string query,
-            int page,
-            int pageSize,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<MovieProviderSearchResult> AdvancedDiscoverMoviesAsync(
-            AdvancedDiscoverProviderCriteria criteria,
-            string contentLocale,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TvShowProviderSearchResult> AdvancedDiscoverTvShowsAsync(
-            AdvancedDiscoverProviderCriteria criteria,
-            string contentLocale,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

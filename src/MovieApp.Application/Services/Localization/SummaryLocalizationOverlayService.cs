@@ -20,9 +20,20 @@ public sealed class SummaryLocalizationOverlayService(
     ISummaryLocalizationMetadataReadRepository summaryLocalizationMetadataReadRepository,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher) : ISummaryLocalizationOverlayService
 {
+    public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+        PaginatedResult<SearchItem> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken = default) =>
+        ApplyToSearchItemsAsync(
+            canonical,
+            contentLocale,
+            SearchListLocalizationMode.Full,
+            cancellationToken);
+
     public async Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
         PaginatedResult<SearchItem> canonical,
         string contentLocale,
+        SearchListLocalizationMode localizationMode,
         CancellationToken cancellationToken = default)
     {
         var summaryStopwatch = Stopwatch.StartNew();
@@ -30,6 +41,14 @@ public sealed class SummaryLocalizationOverlayService(
         canonical = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(canonical, cancellationToken);
         enrichStopwatch.Stop();
         LocalizationOverlayPerfAmbient.RecordCatalogGenreEnrichMs(enrichStopwatch.ElapsedMilliseconds);
+
+        if (localizationMode == SearchListLocalizationMode.CatalogTitlesOnly)
+        {
+            canonical = await ApplyCatalogListLocalizationAsync(canonical, contentLocale, cancellationToken);
+            summaryStopwatch.Stop();
+            LocalizationOverlayPerfAmbient.AddSummaryOverlayTotalMs(summaryStopwatch.ElapsedMilliseconds);
+            return canonical;
+        }
 
         if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || canonical.Items.Count == 0)
         {
@@ -504,6 +523,91 @@ public sealed class SummaryLocalizationOverlayService(
                 Overview = localizedFields.Overview,
                 PosterUrl = posterUrl
             }
+        };
+    }
+
+    private async Task<PaginatedResult<SearchItem>> ApplyCatalogListLocalizationAsync(
+        PaginatedResult<SearchItem> canonical,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        if (!ContentLocaleResolver.RequiresLocalization(contentLocale) || canonical.Items.Count == 0)
+        {
+            return canonical;
+        }
+
+        var movieIds = canonical.Items
+            .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        var tvIds = canonical.Items
+            .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToList();
+        LocalizationOverlayPerfAmbient.AddItemCounts(canonical.Items.Count, movieIds.Count, tvIds.Count);
+
+        var posterKeys = canonical.Items
+            .Select(item => CreatePosterKey(item.Type, item.Id))
+            .ToList();
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
+            posterKeys,
+            contentLocale,
+            cancellationToken);
+
+        var items = canonical.Items
+            .Select(item => ApplyCatalogListItem(
+                item,
+                contentLocale,
+                metadata.LocalizedPosters,
+                metadata.MovieProductionContexts,
+                metadata.TvProductionContexts,
+                metadata.LocalizedMovieTitles,
+                metadata.LocalizedTvTitles))
+            .ToList();
+
+        return canonical with { Items = items };
+    }
+
+    private static SearchItem ApplyCatalogListItem(
+        SearchItem item,
+        string contentLocale,
+        IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters,
+        IReadOnlyDictionary<Guid, ContentProductionContext> movieProductionContexts,
+        IReadOnlyDictionary<Guid, ContentProductionContext> tvProductionContexts,
+        IReadOnlyDictionary<Models.Search.CatalogContentKey, string> localizedMovieTitles,
+        IReadOnlyDictionary<Models.Search.CatalogContentKey, string> localizedTvTitles)
+    {
+        var posterKey = CreatePosterKey(item.Type, item.Id);
+        var productionContext = ResolveProductionContext(
+            item.Id,
+            item.Type,
+            movieProductionContexts,
+            tvProductionContexts);
+        var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+            item.PosterUrl,
+            posterKey,
+            localizedPosters,
+            contentLocale,
+            productionContext);
+        var localizedCatalogTitle = ResolveCatalogLocaleTitle(
+            item,
+            localizedMovieTitles,
+            localizedTvTitles);
+        var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+            item.Title,
+            item.OriginalTitle,
+            productionContext.OriginalLanguage,
+            localizedCatalogTitle,
+            contentLocale,
+            productionContext.PrimaryOriginCountryCode);
+
+        return item with
+        {
+            Title = titles.Title,
+            OriginalTitle = titles.OriginalTitle,
+            PosterUrl = posterUrl
         };
     }
 

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 
@@ -10,28 +9,13 @@ namespace MovieApp.Application.Caching;
 /// </summary>
 public sealed class DiscoveryCacheLoadCoordinator
 {
-    private readonly ConcurrentDictionary<string, Task<PaginatedResult<SearchItem>>> _inFlight =
-        new(StringComparer.Ordinal);
+    private readonly InProcessLoadCoordinator<PaginatedResult<SearchItem>> _inner = new();
 
     public Task<PaginatedResult<SearchItem>>? TryGetInFlight(string cacheKey) =>
-        _inFlight.TryGetValue(cacheKey, out var task) ? task : null;
+        _inner.TryGetInFlight(cacheKey);
 
     public Task<PaginatedResult<SearchItem>> RunInFlightAsync(
         string cacheKey,
         Func<Task<PaginatedResult<SearchItem>>> load) =>
-        _inFlight.GetOrAdd(cacheKey, _ => ExecuteAndRemoveAsync(cacheKey, load));
-
-    private async Task<PaginatedResult<SearchItem>> ExecuteAndRemoveAsync(
-        string cacheKey,
-        Func<Task<PaginatedResult<SearchItem>>> load)
-    {
-        try
-        {
-            return await load().ConfigureAwait(false);
-        }
-        finally
-        {
-            _inFlight.TryRemove(cacheKey, out _);
-        }
-    }
+        _inner.RunInFlightAsync(cacheKey, load);
 }

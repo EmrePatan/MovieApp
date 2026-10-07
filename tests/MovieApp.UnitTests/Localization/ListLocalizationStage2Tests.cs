@@ -219,6 +219,42 @@ public sealed class ListLocalizationStage2Tests
     }
 
     [Fact]
+    public async Task SummaryOverlay_CatalogTitlesOnly_SkipsDetailFetchAndKeepsCanonicalOverview()
+    {
+        var movieId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var provider = new RecordingLocalizedDetailDataProvider
+        {
+            MovieLocalization = new MovieDetailLocalizationData("Yıldızlararası", "Turkish overview", null)
+        };
+        var service = new SummaryLocalizationOverlayService(
+            new StubMovieRepository(),
+            new StubTvShowRepository(),
+            new DetailLocalizationOverlayService(provider, new InMemoryCacheService()),
+            new EmptyContentLocalizedPosterRepository(),
+            new ConfiguredSummaryLocalizationMetadataReadRepository(
+                new Dictionary<CatalogContentKey, string>
+                {
+                    [new CatalogContentKey(movieId, "movie")] = "Yıldızlararası"
+                },
+                new Dictionary<Guid, ContentProductionContext>
+                {
+                    [movieId] = new ContentProductionContext("en", "US")
+                }),
+            new SearchItemCatalogMetadataEnricher(new EmptyGenreReadRepository()));
+        var canonical = CreateSearchPage("Interstellar", "English overview");
+
+        var result = await service.ApplyToSearchItemsAsync(
+            canonical,
+            ContentLocaleResolver.TurkishTurkey,
+            SearchListLocalizationMode.CatalogTitlesOnly);
+
+        Assert.Equal(0, provider.MovieCalls);
+        Assert.Equal("Interstellar", result.Items[0].Title);
+        Assert.Equal("Yıldızlararası", result.Items[0].OriginalTitle);
+        Assert.Equal("English overview", result.Items[0].Overview);
+    }
+
+    [Fact]
     public async Task ProviderIngestion_UsesCanonicalSummariesForDatabaseWrites_OnTurkishLocale()
     {
         const int tmdbId = 157336;

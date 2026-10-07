@@ -8,7 +8,6 @@ using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Home;
-using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 using MovieApp.Application.Mapping;
 
@@ -18,12 +17,12 @@ public sealed class DiscoverBrowseService(
     IDiscoveryService discoveryService,
     IMovieDataProvider movieDataProvider,
     ITvShowDataProvider tvShowDataProvider,
-    ILocalizedListDataProvider localizedListDataProvider,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IGenreReadRepository genreReadRepository,
     IKeywordDiscoverReadRepository keywordDiscoverReadRepository,
     ICacheService cacheService,
+    DiscoveryCacheLoadCoordinator loadCoordinator,
     ILogger<DiscoverBrowseService> logger,
     SearchItemCatalogMetadataEnricher searchItemCatalogMetadataEnricher,
     CatalogSearchItemDisplayTitleEnricher catalogSearchItemDisplayTitleEnricher,
@@ -51,8 +50,27 @@ public sealed class DiscoverBrowseService(
             return cachedEntry.Result;
         }
 
+        return await loadCoordinator.RunInFlightAsync(
+                cacheKey,
+                () => LoadBrowseAsync(criteria, contentLocale, cacheKey, cancellationToken))
+            .WaitAsync(cancellationToken);
+    }
+
+    private async Task<PaginatedResult<SearchItem>> LoadBrowseAsync(
+        DiscoverBrowseCriteria criteria,
+        string contentLocale,
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        var cachedEntry = await cacheService.GetAsync<DiscoveryCacheEntry>(cacheKey, cancellationToken);
+        if (cachedEntry is not null)
+        {
+            return cachedEntry.Result;
+        }
+
         PaginatedResult<SearchItem> result;
         var applyDisplayTitleEnrichment = false;
+        var genresAlreadyEnriched = false;
 
         if (criteria.Mode == DiscoverBrowseMode.Trending &&
             !DiscoverBrowseValidator.HasSupplementalFilters(criteria))
@@ -65,10 +83,11 @@ public sealed class DiscoverBrowseService(
         else if (criteria.Mode == DiscoverBrowseMode.NewReleases &&
                  !DiscoverBrowseValidator.HasSupplementalFilters(criteria))
         {
-            result = await discoveryService.GetNewReleasesAsync(
+            result = await discoveryService.GetCatalogListNewReleasesAsync(
                 new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
                 contentLocale,
                 cancellationToken);
+            genresAlreadyEnriched = true;
         }
         else if (criteria.Mode == DiscoverBrowseMode.TopRated)
         {
@@ -76,6 +95,7 @@ public sealed class DiscoverBrowseService(
                 criteria,
                 contentLocale,
                 cancellationToken);
+            genresAlreadyEnriched = true;
         }
         else if (criteria.Mode == DiscoverBrowseMode.HiddenGems)
         {
@@ -83,6 +103,7 @@ public sealed class DiscoverBrowseService(
                 criteria,
                 contentLocale,
                 cancellationToken);
+            genresAlreadyEnriched = true;
         }
         else
         {
@@ -97,25 +118,26 @@ public sealed class DiscoverBrowseService(
             }
             else
             {
-            result = criteria.Type switch
-            {
-                SearchContentType.Movie => await BrowseMoviesAsync(
-                    criteria,
-                    providerCriteria,
-                    contentLocale,
-                    cancellationToken),
-                SearchContentType.Tv => await BrowseTvShowsAsync(
-                    criteria,
-                    providerCriteria,
-                    contentLocale,
-                    cancellationToken),
-                _ => await BrowseAllAsync(criteria, contentLocale, cancellationToken)
-            };
+                result = criteria.Type switch
+                {
+                    SearchContentType.Movie => await BrowseMoviesAsync(
+                        criteria,
+                        providerCriteria,
+                        cancellationToken),
+                    SearchContentType.Tv => await BrowseTvShowsAsync(
+                        criteria,
+                        providerCriteria,
+                        cancellationToken),
+                    _ => await BrowseAllAsync(criteria, cancellationToken)
+                };
                 applyDisplayTitleEnrichment = true;
             }
         }
 
-        result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
+        if (!genresAlreadyEnriched)
+        {
+            result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
+        }
         if (applyDisplayTitleEnrichment)
         {
             result = await catalogSearchItemDisplayTitleEnricher.EnrichAsync(result, contentLocale, cancellationToken);
@@ -215,10 +237,8 @@ public sealed class DiscoverBrowseService(
     private async Task<PaginatedResult<SearchItem>> BrowseMoviesAsync(
         DiscoverBrowseCriteria criteria,
         DiscoverProviderCriteria providerCriteria,
-        string contentLocale,
         CancellationToken cancellationToken)
     {
-        var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
         var items = new List<SearchItem>();
         var totalCount = 0;
         var totalPages = 0;
@@ -228,22 +248,9 @@ public sealed class DiscoverBrowseService(
         while (providerPage <= 500 && items.Count < requiredPrefixSize)
         {
             var pageCriteria = providerCriteria with { Page = providerPage };
-            MovieProviderSearchResult searchResult;
-            MovieProviderSearchResult ingestResult;
-
-            if (useLocalizedDisplay)
-            {
-                var localizedTask = DiscoverMoviesLocalizedSafeAsync(pageCriteria, contentLocale, cancellationToken);
-                var canonicalTask = DiscoverMoviesSafeAsync(pageCriteria, cancellationToken);
-                await Task.WhenAll(localizedTask, canonicalTask);
-                searchResult = await localizedTask;
-                ingestResult = await canonicalTask;
-            }
-            else
-            {
-                searchResult = await DiscoverMoviesSafeAsync(pageCriteria, cancellationToken);
-                ingestResult = searchResult;
-            }
+            // Canonical discover is enough: localized TMDB titles are not mapped onto cards.
+            // tr-TR display titles come from the catalog title enricher after this loop.
+            var searchResult = await DiscoverMoviesSafeAsync(pageCriteria, cancellationToken);
 
             totalCount = searchResult.TotalCount;
             totalPages = searchResult.TotalPages;
@@ -257,21 +264,12 @@ public sealed class DiscoverBrowseService(
                         .Where(summary => !string.IsNullOrWhiteSpace(summary.PosterPath))
                         .ToList()
                 };
-                if (!ReferenceEquals(searchResult, ingestResult))
-                {
-                    ingestResult = ingestResult with
-                    {
-                        Results = ingestResult.Results
-                            .Where(summary => !string.IsNullOrWhiteSpace(summary.PosterPath))
-                            .ToList()
-                    };
-                }
             }
 
             var movieIds = await movieRepository.EnsureFromSummariesAsync(
-                ingestResult.Results,
+                searchResult.Results,
                 cancellationToken);
-            items.AddRange(MapMovieResults(ingestResult.Results, movieIds));
+            items.AddRange(MapMovieResults(searchResult.Results, movieIds));
 
             if (providerPage >= totalPages || providerResultCount == 0)
             {
@@ -292,10 +290,8 @@ public sealed class DiscoverBrowseService(
     private async Task<PaginatedResult<SearchItem>> BrowseTvShowsAsync(
         DiscoverBrowseCriteria criteria,
         DiscoverProviderCriteria providerCriteria,
-        string contentLocale,
         CancellationToken cancellationToken)
     {
-        var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
         var items = new List<SearchItem>();
         var totalCount = 0;
         var totalPages = 0;
@@ -305,22 +301,7 @@ public sealed class DiscoverBrowseService(
         while (providerPage <= 500 && items.Count < requiredPrefixSize)
         {
             var pageCriteria = providerCriteria with { Page = providerPage };
-            TvShowProviderSearchResult searchResult;
-            TvShowProviderSearchResult ingestResult;
-
-            if (useLocalizedDisplay)
-            {
-                var localizedTask = DiscoverTvShowsLocalizedSafeAsync(pageCriteria, contentLocale, cancellationToken);
-                var canonicalTask = DiscoverTvShowsSafeAsync(pageCriteria, cancellationToken);
-                await Task.WhenAll(localizedTask, canonicalTask);
-                searchResult = await localizedTask;
-                ingestResult = await canonicalTask;
-            }
-            else
-            {
-                searchResult = await DiscoverTvShowsSafeAsync(pageCriteria, cancellationToken);
-                ingestResult = searchResult;
-            }
+            var searchResult = await DiscoverTvShowsSafeAsync(pageCriteria, cancellationToken);
 
             totalCount = searchResult.TotalCount;
             totalPages = searchResult.TotalPages;
@@ -334,33 +315,17 @@ public sealed class DiscoverBrowseService(
                         .Where(summary => !string.IsNullOrWhiteSpace(summary.PosterPath))
                         .ToList()
                 };
-                if (!ReferenceEquals(searchResult, ingestResult))
-                {
-                    ingestResult = ingestResult with
-                    {
-                        Results = ingestResult.Results
-                            .Where(summary => !string.IsNullOrWhiteSpace(summary.PosterPath))
-                            .ToList()
-                    };
-                }
             }
 
-            ingestResult = ingestResult with
+            searchResult = searchResult with
             {
-                Results = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, ingestResult.Results)
+                Results = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, searchResult.Results)
             };
-            if (!ReferenceEquals(searchResult, ingestResult))
-            {
-                searchResult = searchResult with
-                {
-                    Results = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, searchResult.Results)
-                };
-            }
 
             var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
-                ingestResult.Results,
+                searchResult.Results,
                 cancellationToken);
-            items.AddRange(MapTvResults(ingestResult.Results, tvIds));
+            items.AddRange(MapTvResults(searchResult.Results, tvIds));
 
             if (providerPage >= totalPages || providerResultCount == 0)
             {
@@ -404,7 +369,6 @@ public sealed class DiscoverBrowseService(
 
     private async Task<PaginatedResult<SearchItem>> BrowseAllAsync(
         DiscoverBrowseCriteria criteria,
-        string contentLocale,
         CancellationToken cancellationToken)
     {
         var movieProviderCriteria = await BuildProviderCriteriaAsync(
@@ -416,7 +380,6 @@ public sealed class DiscoverBrowseService(
             SearchContentType.Tv,
             cancellationToken);
 
-        var useLocalizedDisplay = ContentLocaleResolver.RequiresLocalization(contentLocale);
         var movieItems = new List<SearchItem>();
         var tvItems = new List<SearchItem>();
         var movieTotalCount = 0;
@@ -437,70 +400,29 @@ public sealed class DiscoverBrowseService(
 
             MovieProviderSearchResult movieSearchResult = new([], providerPage, 20, 0, 0);
             TvShowProviderSearchResult tvSearchResult = new([], providerPage, 20, 0, 0);
-            MovieProviderSearchResult movieIngestResult = movieSearchResult;
-            TvShowProviderSearchResult tvIngestResult = tvSearchResult;
 
             if (!movieExhausted && !tvExhausted)
             {
-                if (useLocalizedDisplay)
-                {
-                    var movieLocalizedTask = DiscoverMoviesLocalizedSafeAsync(
-                        moviePageCriteria,
-                        contentLocale,
-                        cancellationToken);
-                    var tvLocalizedTask = DiscoverTvShowsLocalizedSafeAsync(
-                        tvPageCriteria,
-                        contentLocale,
-                        cancellationToken);
-                    var movieCanonicalTask = DiscoverMoviesSafeAsync(moviePageCriteria, cancellationToken);
-                    var tvCanonicalTask = DiscoverTvShowsSafeAsync(tvPageCriteria, cancellationToken);
+                var movieTask = DiscoverMoviesSafeAsync(moviePageCriteria, cancellationToken);
+                var tvTask = DiscoverTvShowsSafeAsync(tvPageCriteria, cancellationToken);
+                await Task.WhenAll(movieTask, tvTask);
 
-                    await Task.WhenAll(
-                        movieLocalizedTask,
-                        tvLocalizedTask,
-                        movieCanonicalTask,
-                        tvCanonicalTask);
-
-                    movieSearchResult = await movieLocalizedTask;
-                    tvSearchResult = await tvLocalizedTask;
-                    movieIngestResult = await movieCanonicalTask;
-                    tvIngestResult = await tvCanonicalTask;
-                }
-                else
-                {
-                    var movieTask = DiscoverMoviesSafeAsync(moviePageCriteria, cancellationToken);
-                    var tvTask = DiscoverTvShowsSafeAsync(tvPageCriteria, cancellationToken);
-                    await Task.WhenAll(movieTask, tvTask);
-
-                    movieSearchResult = await movieTask;
-                    tvSearchResult = await tvTask;
-                    movieIngestResult = movieSearchResult;
-                    tvIngestResult = tvSearchResult;
-                }
+                movieSearchResult = await movieTask;
+                tvSearchResult = await tvTask;
             }
             else if (!movieExhausted)
             {
-                movieSearchResult = useLocalizedDisplay
-                    ? await DiscoverMoviesLocalizedSafeAsync(moviePageCriteria, contentLocale, cancellationToken)
-                    : await DiscoverMoviesSafeAsync(moviePageCriteria, cancellationToken);
-                movieIngestResult = useLocalizedDisplay
-                    ? await DiscoverMoviesSafeAsync(moviePageCriteria, cancellationToken)
-                    : movieSearchResult;
+                movieSearchResult = await DiscoverMoviesSafeAsync(moviePageCriteria, cancellationToken);
             }
             else if (!tvExhausted)
             {
-                tvSearchResult = useLocalizedDisplay
-                    ? await DiscoverTvShowsLocalizedSafeAsync(tvPageCriteria, contentLocale, cancellationToken)
-                    : await DiscoverTvShowsSafeAsync(tvPageCriteria, cancellationToken);
-                tvIngestResult = useLocalizedDisplay
-                    ? await DiscoverTvShowsSafeAsync(tvPageCriteria, cancellationToken)
-                    : tvSearchResult;
+                tvSearchResult = await DiscoverTvShowsSafeAsync(tvPageCriteria, cancellationToken);
             }
 
             if (!movieExhausted)
             {
                 movieTotalCount = movieSearchResult.TotalCount;
-                var movieIngest = FilterPosters(criteria.Mode, movieIngestResult.Results);
+                var movieIngest = FilterPosters(criteria.Mode, movieSearchResult.Results);
                 var movieIds = await movieRepository.EnsureFromSummariesAsync(
                     movieIngest,
                     cancellationToken);
@@ -512,7 +434,7 @@ public sealed class DiscoverBrowseService(
             if (!tvExhausted)
             {
                 tvTotalCount = tvSearchResult.TotalCount;
-                var tvIngest = FilterPosters(criteria.Mode, tvIngestResult.Results);
+                var tvIngest = FilterPosters(criteria.Mode, tvSearchResult.Results);
                 tvIngest = DiscoverPopularTvEligibility.FilterEligible(criteria.Mode, tvIngest);
                 var tvIds = await tvShowRepository.EnsureFromSummariesAsync(
                     tvIngest,
@@ -555,38 +477,6 @@ public sealed class DiscoverBrowseService(
         try
         {
             return await tvShowDataProvider.DiscoverTvShowsAsync(criteria, cancellationToken);
-        }
-        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
-        {
-            DiscoverBrowseLogMessages.LogTvDiscoverFailed(logger, criteria.Page, exception);
-            throw new SearchProviderUnavailableException();
-        }
-    }
-
-    private async Task<MovieProviderSearchResult> DiscoverMoviesLocalizedSafeAsync(
-        DiscoverProviderCriteria criteria,
-        string contentLocale,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await localizedListDataProvider.DiscoverMoviesAsync(criteria, contentLocale, cancellationToken);
-        }
-        catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
-        {
-            DiscoverBrowseLogMessages.LogMovieDiscoverFailed(logger, criteria.Page, exception);
-            throw new SearchProviderUnavailableException();
-        }
-    }
-
-    private async Task<TvShowProviderSearchResult> DiscoverTvShowsLocalizedSafeAsync(
-        DiscoverProviderCriteria criteria,
-        string contentLocale,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await localizedListDataProvider.DiscoverTvShowsAsync(criteria, contentLocale, cancellationToken);
         }
         catch (Exception exception) when (ProviderFailureFilter.IsProviderFailure(exception, cancellationToken))
         {
