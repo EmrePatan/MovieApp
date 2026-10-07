@@ -70,6 +70,22 @@ public sealed class DiscoveryService(
             cancellationToken);
     }
 
+    public Task<PaginatedResult<SearchItem>> GetCatalogListNewReleasesAsync(
+        DiscoveryCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateDiscoveryCriteria(criteria);
+        return GetCachedDiscoveryAsync(
+            "NewReleasesList",
+            CatalogListCacheKey(DiscoveryNewReleasesCacheKeys.Create(criteria, contentLocale)),
+            () => searchRepository.GetNewReleasesAsync(criteria, cancellationToken),
+            PopularCacheTtl,
+            contentLocale,
+            cancellationToken,
+            SearchListLocalizationMode.CatalogTitlesOnly);
+    }
+
     public Task<PaginatedResult<SearchItem>> GetTopRatedAsync(
         DiscoveryCriteria criteria,
         string contentLocale,
@@ -85,6 +101,22 @@ public sealed class DiscoveryService(
             cancellationToken);
     }
 
+    public Task<PaginatedResult<SearchItem>> GetCatalogListTopRatedAsync(
+        DiscoveryCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateDiscoveryCriteria(criteria);
+        return GetCachedDiscoveryAsync(
+            "TopRatedList",
+            CatalogListCacheKey(DiscoveryTopRatedCacheKeys.Create(criteria, contentLocale)),
+            () => searchRepository.GetTopRatedAsync(criteria, cancellationToken),
+            PopularCacheTtl,
+            contentLocale,
+            cancellationToken,
+            SearchListLocalizationMode.CatalogTitlesOnly);
+    }
+
     public Task<PaginatedResult<SearchItem>> GetHiddenGemsAsync(
         DiscoverBrowseCriteria criteria,
         string contentLocale,
@@ -96,7 +128,8 @@ public sealed class DiscoveryService(
             () => searchRepository.GetHiddenGemsAsync(criteria, cancellationToken),
             PopularCacheTtl,
             contentLocale,
-            cancellationToken);
+            cancellationToken,
+            SearchListLocalizationMode.CatalogTitlesOnly);
     }
 
     public Task<PaginatedResult<SearchItem>> GetTopRatedBrowseAsync(
@@ -106,7 +139,7 @@ public sealed class DiscoveryService(
     {
         if (!DiscoverBrowseValidator.HasSupplementalFilters(criteria))
         {
-            return GetTopRatedAsync(
+            return GetCatalogListTopRatedAsync(
                 new DiscoveryCriteria(criteria.Type, criteria.Page, criteria.PageSize),
                 contentLocale,
                 cancellationToken);
@@ -118,7 +151,8 @@ public sealed class DiscoveryService(
             () => searchRepository.GetFilteredTopRatedAsync(criteria, cancellationToken),
             PopularCacheTtl,
             contentLocale,
-            cancellationToken);
+            cancellationToken,
+            SearchListLocalizationMode.CatalogTitlesOnly);
     }
 
     public Task<PaginatedResult<SearchItem>> GetByGenreAsync(
@@ -143,7 +177,8 @@ public sealed class DiscoveryService(
         Func<Task<PaginatedResult<SearchItem>>> loadCanonical,
         TimeSpan ttl,
         string contentLocale,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        SearchListLocalizationMode localizationMode = SearchListLocalizationMode.Full)
     {
         var totalStopwatch = Stopwatch.StartNew();
         var cacheLookupStopwatch = Stopwatch.StartNew();
@@ -270,6 +305,7 @@ public sealed class DiscoveryService(
                     contentLocale,
                     role,
                     initialCacheLookupMs,
+                    localizationMode,
                     cancellationToken);
 
             var loaded = await loadCoordinator.RunInFlightAsync(cacheKey, LoadOwnerAsync);
@@ -337,6 +373,7 @@ public sealed class DiscoveryService(
         string contentLocale,
         string stampedeRole,
         long initialCacheLookupMs,
+        SearchListLocalizationMode localizationMode,
         CancellationToken cancellationToken)
     {
         var totalLoadStopwatch = Stopwatch.StartNew();
@@ -355,6 +392,7 @@ public sealed class DiscoveryService(
             var result = await summaryLocalizationOverlayService.ApplyToSearchItemsAsync(
                 canonical,
                 contentLocale,
+                localizationMode,
                 cancellationToken);
             overlayStopwatch.Stop();
             overlayMs = overlayStopwatch.ElapsedMilliseconds;
@@ -437,6 +475,8 @@ public sealed class DiscoveryService(
 
         return (null, pollCount);
     }
+
+    private static string CatalogListCacheKey(string cacheKey) => cacheKey + ":catalog-list";
 
     private static void LogDiscoveryCacheLoadCompleted(
         ILogger logger,

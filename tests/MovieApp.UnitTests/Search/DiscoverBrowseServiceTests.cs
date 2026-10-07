@@ -119,12 +119,12 @@ public sealed class DiscoverBrowseServiceTests
             new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(tvTracker),
-            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             movieRepository,
             tvRepository,
             new FakeGenreReadRepository(),
             new FakeKeywordDiscoverReadRepository(),
             cache,
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
@@ -168,7 +168,8 @@ public sealed class DiscoverBrowseServiceTests
             SearchContentType.Movie,
             DiscoverBrowseMode.NewReleases), ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(1, discoveryTracker.NewReleasesCallCount);
+        Assert.Equal(1, discoveryTracker.CatalogListNewReleasesCallCount);
+        Assert.Equal(0, discoveryTracker.NewReleasesCallCount);
         Assert.Equal(0, movieTracker.DiscoverMoviesCallCount);
         Assert.Single(result.Items);
         Assert.Equal("Title", result.Items[0].Title);
@@ -326,12 +327,12 @@ public sealed class DiscoverBrowseServiceTests
             new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
-            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
             new FakeKeywordDiscoverReadRepository(),
             new DiscoverBrowseFakeCacheService(null),
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
@@ -398,12 +399,12 @@ public sealed class DiscoverBrowseServiceTests
             new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
-            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
             keywordRepository,
             cache,
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
@@ -448,12 +449,12 @@ public sealed class DiscoverBrowseServiceTests
             new DiscoveryServiceCallTracker(),
             new FakeMovieDataProvider(movieTracker),
             new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
-            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
             keywordRepository,
             cache,
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
@@ -500,8 +501,96 @@ public sealed class DiscoverBrowseServiceTests
         await service.BrowseAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
 
         Assert.Equal(1, cache.SetCount);
-        Assert.Equal(2, cache.GetCount);
+        Assert.Equal(3, cache.GetCount);
         Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncTurkishPopularUsesOneCanonicalDiscoverCallPerMediaType()
+    {
+        var movieTracker = new MovieDataProviderCallTracker();
+        var tvTracker = new TvShowDataProviderCallTracker();
+        var service = CreateService(
+            new DiscoverBrowseFakeCacheService(null),
+            movieTracker,
+            tvTracker);
+
+        await service.BrowseAsync(
+            CreateCriteria(SearchContentType.All),
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(1, movieTracker.DiscoverMoviesCallCount);
+        Assert.Equal(1, tvTracker.DiscoverTvShowsCallCount);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncSkipsGenreEnrichmentWhenDiscoveryAlreadyLocalizedTheRail()
+    {
+        var genres = new FakeGenreReadRepository();
+        var service = new DiscoverBrowseService(
+            new DiscoveryServiceCallTracker(),
+            new FakeMovieDataProvider(new MovieDataProviderCallTracker()),
+            new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+            new SummaryMovieRepository(),
+            new SummaryTvShowRepository(),
+            genres,
+            new FakeKeywordDiscoverReadRepository(),
+            new DiscoverBrowseFakeCacheService(null),
+            new DiscoveryCacheLoadCoordinator(),
+            NullLogger<DiscoverBrowseService>.Instance,
+            new SearchItemCatalogMetadataEnricher(genres),
+            SearchTestDoubles.CreateDisplayTitleEnricher(),
+            new FakeTrendingWeekListService(),
+            EmptyTrendingSnapshotService.Instance);
+
+        await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Movie, DiscoverBrowseMode.NewReleases),
+            ContentLocaleResolver.TurkishTurkey);
+        await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Movie, DiscoverBrowseMode.TopRated),
+            ContentLocaleResolver.TurkishTurkey);
+        await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Movie, DiscoverBrowseMode.HiddenGems),
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal(0, genres.OrderedMovieGenreLookups);
+
+        await service.BrowseAsync(
+            CreateCriteria(SearchContentType.Movie, DiscoverBrowseMode.Popular),
+            ContentLocaleResolver.TurkishTurkey);
+
+        Assert.True(genres.OrderedMovieGenreLookups > 0);
+    }
+
+    [Fact]
+    public async Task BrowseAsyncConcurrentMissesShareOneProviderLoad()
+    {
+        var coordinator = new DiscoveryCacheLoadCoordinator();
+        var cache = new DiscoverBrowseFakeCacheService(null);
+        var provider = new SlowMovieDiscoverProvider(TimeSpan.FromMilliseconds(250));
+        var services = Enumerable.Range(0, 6)
+            .Select(_ => new DiscoverBrowseService(
+                new DiscoveryServiceCallTracker(),
+                provider,
+                new FakeTvShowDataProvider(new TvShowDataProviderCallTracker()),
+                new SummaryMovieRepository(),
+                new SummaryTvShowRepository(),
+                new FakeGenreReadRepository(),
+                new FakeKeywordDiscoverReadRepository(),
+                cache,
+                coordinator,
+                NullLogger<DiscoverBrowseService>.Instance,
+                new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
+                SearchTestDoubles.CreateDisplayTitleEnricher(),
+                new FakeTrendingWeekListService(),
+                EmptyTrendingSnapshotService.Instance))
+            .ToArray();
+
+        var criteria = CreateCriteria(SearchContentType.Movie);
+        await Task.WhenAll(services.Select(service =>
+            service.BrowseAsync(criteria, ContentLocaleResolver.TurkishTurkey)));
+
+        Assert.Equal(1, provider.DiscoverMoviesCallCount);
     }
 
     private static DiscoverBrowseService CreateService(
@@ -524,12 +613,12 @@ public sealed class DiscoverBrowseServiceTests
             discoveryTracker ?? new DiscoveryServiceCallTracker(),
             movieDataProvider,
             tvShowDataProvider,
-            new SearchTestDoubles.FakeLocalizedListDataProvider(),
             new SummaryMovieRepository(),
             new SummaryTvShowRepository(),
             new FakeGenreReadRepository(),
             new FakeKeywordDiscoverReadRepository(),
             cache ?? new DiscoverBrowseFakeCacheService(null),
+            new DiscoveryCacheLoadCoordinator(),
             NullLogger<DiscoverBrowseService>.Instance,
             new SearchItemCatalogMetadataEnricher(new FakeGenreReadRepository()),
             SearchTestDoubles.CreateDisplayTitleEnricher(),
@@ -592,21 +681,24 @@ public sealed class DiscoverBrowseServiceTests
         public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
             where T : class
         {
-            GetCount++;
-
-            if (_seededResult is not null &&
-                typeof(T) == typeof(DiscoveryCacheEntry) &&
-                GetCount == 1)
+            lock (_entries)
             {
-                return Task.FromResult(new DiscoveryCacheEntry { Result = _seededResult } as T);
-            }
+                GetCount++;
 
-            if (_entries.TryGetValue(key, out var value) && value is T typedValue)
-            {
-                return Task.FromResult<T?>(typedValue);
-            }
+                if (_seededResult is not null &&
+                    typeof(T) == typeof(DiscoveryCacheEntry) &&
+                    GetCount == 1)
+                {
+                    return Task.FromResult(new DiscoveryCacheEntry { Result = _seededResult } as T);
+                }
 
-            return Task.FromResult<T?>(null);
+                if (_entries.TryGetValue(key, out var value) && value is T typedValue)
+                {
+                    return Task.FromResult<T?>(typedValue);
+                }
+
+                return Task.FromResult<T?>(null);
+            }
         }
 
         public Task SetAsync<T>(
@@ -616,13 +708,62 @@ public sealed class DiscoverBrowseServiceTests
             CancellationToken cancellationToken = default)
             where T : class
         {
-            SetCount++;
-            _entries[key] = value!;
-            return Task.CompletedTask;
+            lock (_entries)
+            {
+                SetCount++;
+                _entries[key] = value!;
+                return Task.CompletedTask;
+            }
         }
 
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class SlowMovieDiscoverProvider(TimeSpan delay) : IMovieDataProvider
+    {
+        private int _discoverMoviesCallCount;
+
+        public int DiscoverMoviesCallCount => _discoverMoviesCallCount;
+
+        public async Task<MovieProviderSearchResult> DiscoverMoviesAsync(
+            DiscoverProviderCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _discoverMoviesCallCount);
+            await Task.Delay(delay, cancellationToken);
+            return new MovieProviderSearchResult(
+                [
+                    new MovieProviderSummary(
+                        "movie-1",
+                        1,
+                        null,
+                        null,
+                        "Popular",
+                        "Overview",
+                        new DateOnly(2024, 1, 1),
+                        "/poster.jpg",
+                        8m,
+                        20_000)
+                ],
+                criteria.Page,
+                20,
+                1,
+                1);
+        }
+
+        public Task<MovieProviderSearchResult> SearchMoviesAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MovieProviderDetails?> GetMovieAsync(
+            string externalId,
+            bool includeKeywords = false,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class SummaryMovieRepository : MovieApp.Application.Abstractions.Persistence.IMovieRepository
@@ -697,6 +838,8 @@ public sealed class DiscoverBrowseServiceTests
     {
         public int NewReleasesCallCount { get; private set; }
 
+        public int CatalogListNewReleasesCallCount { get; private set; }
+
         public int TopRatedCallCount { get; private set; }
 
         public Task<PaginatedResult<SearchItem>> GetPopularAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default) =>
@@ -708,6 +851,20 @@ public sealed class DiscoverBrowseServiceTests
         public Task<PaginatedResult<SearchItem>> GetNewReleasesAsync(DiscoveryCriteria criteria, string contentLocale, CancellationToken cancellationToken = default)
         {
             NewReleasesCallCount++;
+            return Task.FromResult(new PaginatedResult<SearchItem>(
+                [CreateSearchItem("movie", Guid.NewGuid())],
+                criteria.Page,
+                criteria.PageSize,
+                1,
+                1));
+        }
+
+        public Task<PaginatedResult<SearchItem>> GetCatalogListNewReleasesAsync(
+            DiscoveryCriteria criteria,
+            string contentLocale,
+            CancellationToken cancellationToken = default)
+        {
+            CatalogListNewReleasesCallCount++;
             return Task.FromResult(new PaginatedResult<SearchItem>(
                 [CreateSearchItem("movie", Guid.NewGuid())],
                 criteria.Page,
@@ -800,11 +957,16 @@ public sealed class DiscoverBrowseServiceTests
         public Task<Guid?> GetIdByNameAsync(string name, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
 
+        public int OrderedMovieGenreLookups { get; private set; }
+
         public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByMovieIdsAsync(
             IReadOnlyList<Guid> movieIds,
             int maxGenresPerItem,
-            CancellationToken cancellationToken = default) =>
-            GenreReadRepositoryTestDefaults.EmptyMovieGenresAsync(movieIds, maxGenresPerItem, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            OrderedMovieGenreLookups++;
+            return GenreReadRepositoryTestDefaults.EmptyMovieGenresAsync(movieIds, maxGenresPerItem, cancellationToken);
+        }
 
         public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetOrderedGenreNamesByTvShowIdsAsync(
             IReadOnlyList<Guid> tvShowIds,

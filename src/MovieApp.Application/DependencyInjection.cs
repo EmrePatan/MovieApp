@@ -179,6 +179,7 @@ public static class DependencyInjection
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAutocompleteService, AutocompleteService>();
         services.AddSingleton<DiscoveryCacheLoadCoordinator>();
+        services.AddSingleton<ExplorePreviewLoadCoordinator>();
         services.AddSingleton<HomeLoadCoordinator>();
         services.AddSingleton<HotThisWeekLoadCoordinator>();
         services.AddScoped<IDiscoveryService, DiscoveryService>();

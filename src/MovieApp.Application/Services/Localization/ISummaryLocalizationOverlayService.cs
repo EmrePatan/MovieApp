@@ -14,6 +14,17 @@ public interface ISummaryLocalizationOverlayService
         string contentLocale,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Localizes a list page. <see cref="SearchListLocalizationMode.CatalogTitlesOnly"/> keeps the canonical
+    /// overview and does not call TMDB detail. Existing implementors keep full overlay behavior.
+    /// </summary>
+    Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+        PaginatedResult<SearchItem> canonical,
+        string contentLocale,
+        SearchListLocalizationMode localizationMode,
+        CancellationToken cancellationToken = default) =>
+        ApplyToSearchItemsAsync(canonical, contentLocale, cancellationToken);
+
     Task<IReadOnlyList<SearchSuggestion>> ApplyToSearchSuggestionsAsync(
         IReadOnlyList<SearchSuggestion> canonical,
         string contentLocale,

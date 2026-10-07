@@ -570,13 +570,27 @@ internal static class SearchTestDoubles
 
         public string? LastContentLocale { get; private set; }
 
+        public SearchListLocalizationMode? LastLocalizationMode { get; private set; }
+
         public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
             PaginatedResult<SearchItem> canonical,
             string contentLocale,
+            CancellationToken cancellationToken = default) =>
+            ApplyToSearchItemsAsync(
+                canonical,
+                contentLocale,
+                SearchListLocalizationMode.Full,
+                cancellationToken);
+
+        public Task<PaginatedResult<SearchItem>> ApplyToSearchItemsAsync(
+            PaginatedResult<SearchItem> canonical,
+            string contentLocale,
+            SearchListLocalizationMode localizationMode,
             CancellationToken cancellationToken = default)
         {
             ApplyToSearchItemsCount++;
             LastContentLocale = contentLocale;
+            LastLocalizationMode = localizationMode;
             return Task.FromResult(canonical);
         }
 
