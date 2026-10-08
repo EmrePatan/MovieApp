@@ -331,4 +331,16 @@ internal static partial class BackgroundJobLogMessages
         ILogger logger,
         string reason,
         long durationMilliseconds);
+
+    [LoggerMessage(
+        EventId = 6100,
+        Level = LogLevel.Information,
+        Message = "Explore hub warmup finished: sectionSize={SectionSize}")]
+    internal static partial void LogExploreHubWarmupFinished(ILogger logger, int sectionSize);
+
+    [LoggerMessage(
+        EventId = 6101,
+        Level = LogLevel.Warning,
+        Message = "Explore hub warmup failed")]
+    internal static partial void LogExploreHubWarmupFailed(ILogger logger, Exception exception);
 }

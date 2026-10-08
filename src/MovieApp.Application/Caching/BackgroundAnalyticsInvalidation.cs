@@ -5,7 +5,7 @@ namespace MovieApp.Application.Caching;
 
 public static class BackgroundAnalyticsInvalidation
 {
-    public static Task RunAsync(
+    public static async Task RunAsync(
         IUserAnalyticsCacheInvalidator invalidator,
         IServiceScopeFactory? scopeFactory,
         Guid userId,
@@ -13,7 +13,25 @@ public static class BackgroundAnalyticsInvalidation
     {
         if (scopeFactory is null)
         {
-            return invalidator.InvalidateForUserAsync(userId, cancellationToken);
+            await invalidator.InvalidateForUserAsync(userId, cancellationToken);
+            return;
+        }
+
+        // Recommendation and insights generations are part of the 12h cache keys.
+        // Bump both before the write returns. Profile statistics stay off this path.
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var cache = scope.ServiceProvider.GetService<ICacheService>();
+            if (cache is not null)
+            {
+                await BumpBothGenerationsAsync(cache, userId, CancellationToken.None);
+                scope.ServiceProvider.GetService<IPersonalizedCacheRebuildScheduler>()?.Schedule(userId);
+            }
+        }
+        catch
+        {
+            // A missed bump falls back to the cache TTL.
         }
 
         _ = Task.Run(
@@ -22,20 +40,21 @@ public static class BackgroundAnalyticsInvalidation
                 try
                 {
                     using var scope = scopeFactory.CreateScope();
-                    var scopedInvalidator = scope.ServiceProvider.GetRequiredService<IUserAnalyticsCacheInvalidator>();
-                    await scopedInvalidator.InvalidateForUserAsync(userId, CancellationToken.None);
+                    var profile = scope.ServiceProvider.GetService<IProfileStatisticsCache>();
+                    if (profile is not null)
+                    {
+                        await profile.InvalidateForUserAsync(userId, CancellationToken.None);
+                    }
                 }
                 catch
                 {
-                    // Profile, insights, and recommendation caches are not required to finish the toggle.
+                    // Profile statistics are not required to finish the toggle.
                 }
             },
             CancellationToken.None);
-
-        return Task.CompletedTask;
     }
 
-    public static Task InvalidateRecommendationsAsync(
+    public static async Task InvalidateRecommendationsAsync(
         ICacheService cacheService,
         IServiceScopeFactory? scopeFactory,
         Guid userId,
@@ -43,27 +62,26 @@ public static class BackgroundAnalyticsInvalidation
     {
         if (scopeFactory is null)
         {
-            return new UserRecommendationCacheGeneration(cacheService)
+            await new UserRecommendationCacheGeneration(cacheService)
                 .InvalidateForUserAsync(userId, cancellationToken);
+            return;
         }
 
-        _ = Task.Run(
-            async () =>
-            {
-                try
-                {
-                    using var scope = scopeFactory.CreateScope();
-                    var scopedCache = scope.ServiceProvider.GetRequiredService<ICacheService>();
-                    await new UserRecommendationCacheGeneration(scopedCache)
-                        .InvalidateForUserAsync(userId, CancellationToken.None);
-                }
-                catch
-                {
-                    // Recommendation freshness is not required to finish the follow toggle.
-                }
-            },
-            CancellationToken.None);
+        using var scope = scopeFactory.CreateScope();
+        var cache = scope.ServiceProvider.GetService<ICacheService>() ?? cacheService;
+        await new UserRecommendationCacheGeneration(cache)
+            .InvalidateForUserAsync(userId, CancellationToken.None);
+        scope.ServiceProvider.GetService<IPersonalizedCacheRebuildScheduler>()?.Schedule(userId);
+    }
 
-        return Task.CompletedTask;
+    public static async Task BumpBothGenerationsAsync(
+        ICacheService cacheService,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        await new UserRecommendationCacheGeneration(cacheService)
+            .InvalidateForUserAsync(userId, cancellationToken);
+        await new InsightsCacheGeneration(cacheService)
+            .InvalidateForUserAsync(userId, cancellationToken);
     }
 }

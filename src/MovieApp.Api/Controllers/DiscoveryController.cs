@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Recommendations;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Models.WatchProviders;
 using MovieApp.Application.Services.Discovery;
+using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Search;
 using MovieApp.Application.Validation;
 using MovieApp.Contracts.Discovery;
@@ -27,7 +28,7 @@ public sealed class DiscoveryController(
     IExplorePreviewService explorePreviewService,
     ITrendingWeekListService trendingWeekListService,
     IPickSomethingService pickSomethingService,
-    MovieApp.Application.Abstractions.Persistence.IKeywordDiscoverReadRepository keywordDiscoverReadRepository) : ControllerBase
+    IKeywordDiscoverSearchService keywordDiscoverSearchService) : ControllerBase
 {
     [HttpGet("pick-something")]
     [ProducesResponseType(typeof(PickSomethingResponse), StatusCodes.Status200OK)]
@@ -397,7 +398,7 @@ public sealed class DiscoveryController(
                 throw new ValidationException(paginationValidation.ErrorMessage!);
             }
 
-            var result = await keywordDiscoverReadRepository.SearchAsync(
+            var result = await keywordDiscoverSearchService.SearchAsync(
                 query!.Trim(),
                 Request.ResolveContentLocale(),
                 resolvedPage,

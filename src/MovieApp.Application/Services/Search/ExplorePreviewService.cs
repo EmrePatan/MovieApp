@@ -13,7 +13,7 @@ public sealed class ExplorePreviewService(
     ICacheService cacheService,
     ExplorePreviewLoadCoordinator loadCoordinator) : IExplorePreviewService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(60);
 
     public async Task<ExplorePreviewResult> GetPreviewAsync(
         ExplorePreviewCriteria criteria,

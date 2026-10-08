@@ -1,6 +1,9 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
@@ -13,6 +16,8 @@ namespace MovieApp.UnitTests.Library;
 public sealed class LibrarySearchCountModeTests
 {
     private static readonly Guid UserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    private static readonly JsonSerializerOptions RedisJsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
     public async Task SearchLibraryAsync_UsesSkipCountModeForCategoryFetches()
@@ -71,14 +76,105 @@ public sealed class LibrarySearchCountModeTests
         Assert.Equal(1, result.TotalCount);
     }
 
-    private static LibraryService CreateService(RecordingLibraryRepository repository) =>
+    [Fact]
+    public async Task SearchLibraryAsync_ReusesTheCachedPageUntilTheLibraryGenerationChanges()
+    {
+        var repository = new RecordingLibraryRepository
+        {
+            CategoryItems = new Dictionary<LibraryCategory, IReadOnlyList<LibraryItemResult>>
+            {
+                [LibraryCategory.Watching] = [CreateItem("Alpha One", "movie", LibraryCategory.Watching)],
+                [LibraryCategory.Watched] = [],
+                [LibraryCategory.Liked] = [],
+                [LibraryCategory.Watchlist] = [],
+            },
+        };
+        var cache = new DictionaryCacheService();
+        var service = CreateService(repository, cache, new LibrarySearchLoadCoordinator());
+
+        var criteria = new LibrarySearchCriteria("alpha", SearchContentType.All, 1, 24);
+        var first = await service.SearchLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+        var scansAfterFirst = repository.Requests.Count;
+
+        repository.CategoryItems[LibraryCategory.Watching] = [CreateItem("Alpha Two", "movie", LibraryCategory.Watching)];
+        var second = await service.SearchLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(["Alpha One"], first.Items.Select(item => item.Title).ToArray());
+        Assert.Equal(["Alpha One"], second.Items.Select(item => item.Title).ToArray());
+        Assert.Equal(scansAfterFirst, repository.Requests.Count);
+
+        await new UserRecommendationCacheGeneration(cache).InvalidateForUserAsync(UserId);
+        var third = await service.SearchLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(["Alpha Two"], third.Items.Select(item => item.Title).ToArray());
+        Assert.True(repository.Requests.Count > scansAfterFirst);
+    }
+
+    [Fact]
+    public async Task SearchLibraryAsync_ConcurrentMissesShareOneCategoryScan()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = new RecordingLibraryRepository
+        {
+            SearchEntered = entered,
+            SearchRelease = release.Task,
+        };
+        var service = CreateService(repository, new DictionaryCacheService(), new LibrarySearchLoadCoordinator());
+        var criteria = new LibrarySearchCriteria("alpha", SearchContentType.All, 1, 24);
+
+        var first = service.SearchLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var second = service.SearchLibraryAsync(criteria, ContentLocaleResolver.EnglishUnitedStates);
+        release.TrySetResult();
+
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(LibrarySearchAggregator.Categories.Count, repository.Requests.Count);
+        Assert.Equal(results[0].TotalCount, results[1].TotalCount);
+    }
+
+    [Fact]
+    public void LibrarySearchCacheEntryRoundTripsThroughTheRedisJsonSettings()
+    {
+        var addedAt = new DateTime(2026, 3, 1, 8, 30, 0, DateTimeKind.Utc);
+        var original = new LibrarySearchCacheEntry
+        {
+            Result = new PaginatedResult<LibraryItemResult>(
+                [CreateItem("Alpha One", "movie", LibraryCategory.Watched) with { AddedAt = addedAt }],
+                1,
+                24,
+                1,
+                1,
+                "cursor",
+                false),
+        };
+
+        var json = JsonSerializer.Serialize(original, RedisJsonOptions);
+        var restored = JsonSerializer.Deserialize<LibrarySearchCacheEntry>(json, RedisJsonOptions);
+
+        Assert.NotNull(restored);
+        Assert.Equal(original.Result.TotalCount, restored.Result.TotalCount);
+        Assert.Equal(original.Result.NextCursor, restored.Result.NextCursor);
+        Assert.Equal(original.Result.HasNextPage, restored.Result.HasNextPage);
+        Assert.Equal(original.Result.Items[0].Title, restored.Result.Items[0].Title);
+        Assert.Equal(original.Result.Items[0].Id, restored.Result.Items[0].Id);
+        Assert.Equal(addedAt, restored.Result.Items[0].AddedAt);
+    }
+
+    private static LibraryService CreateService(
+        RecordingLibraryRepository repository,
+        ICacheService? cacheService = null,
+        LibrarySearchLoadCoordinator? searchLoadCoordinator = null) =>
         new(
             repository,
             new AuthenticatedCurrentUser(UserId),
             new EmptyContentLocalizedPosterRepository(),
             new EmptyOriginalLanguageMovieRepository(),
             new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
-            NullLogger<LibraryService>.Instance);
+            NullLogger<LibraryService>.Instance,
+            cacheService,
+            searchLoadCoordinator);
 
     private static LibraryItemResult CreateItem(
         string title,
@@ -121,6 +217,10 @@ public sealed class LibrarySearchCountModeTests
 
         public List<LibraryPageRequest> Requests { get; } = [];
 
+        public TaskCompletionSource? SearchEntered { get; init; }
+
+        public Task? SearchRelease { get; init; }
+
         public Dictionary<LibraryCategory, IReadOnlyList<LibraryItemResult>> CategoryItems { get; init; } =
             new()
             {
@@ -158,11 +258,19 @@ public sealed class LibrarySearchCountModeTests
             CancellationToken cancellationToken = default) =>
             RecordAndReturn(LibraryCategory.Watchlist, request);
 
-        private Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> RecordAndReturn(
+        private async Task<(IReadOnlyList<LibraryItemResult> Items, int TotalCount)> RecordAndReturn(
             LibraryCategory category,
             LibraryPageRequest request)
         {
             Requests.Add(request);
+            if (category == LibraryCategory.Watching)
+            {
+                SearchEntered?.TrySetResult();
+                if (SearchRelease is not null)
+                {
+                    await SearchRelease;
+                }
+            }
             var items = CategoryItems.GetValueOrDefault(category) ?? [];
             if (!request.TitleMatch.IsEmpty)
             {
@@ -171,7 +279,29 @@ public sealed class LibrarySearchCountModeTests
                     .ToList();
             }
 
-            return Task.FromResult(((IReadOnlyList<LibraryItemResult>)items, items.Count));
+            return ((IReadOnlyList<LibraryItemResult>)items, items.Count);
+        }
+    }
+
+    private sealed class DictionaryCacheService : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = new();
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult(_entries.TryGetValue(key, out var value) ? (T?)value : null);
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
         }
     }
 }

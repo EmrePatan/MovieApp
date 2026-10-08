@@ -29,7 +29,7 @@ public sealed class DiscoverBrowseService(
     ITrendingWeekListService trendingWeekListService,
     IHotThisWeekTrendingSnapshotService trendingSnapshotService) : IDiscoverBrowseService
 {
-    private static readonly TimeSpan BrowseCacheTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan BrowseCacheTtl = TimeSpan.FromMinutes(60);
 
     public async Task<PaginatedResult<SearchItem>> BrowseAsync(
         DiscoverBrowseCriteria criteria,

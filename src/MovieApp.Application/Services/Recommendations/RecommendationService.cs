@@ -29,10 +29,17 @@ public sealed class RecommendationService(
     IKeywordAffinityPreferenceBuilder keywordAffinityPreferenceBuilder,
     IOptions<RecommendationOptions> options,
     ILogger<RecommendationService> logger,
-    IServiceScopeFactory? scopeFactory = null) : IRecommendationService
+    IServiceScopeFactory? scopeFactory = null,
+    HomeRecommendationLoadCoordinator? homeLoadCoordinator = null) : IRecommendationService
 {
     private static readonly TimeSpan SimilarCacheTtl = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan PersonalizedCacheTtl = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Personalized lists include <see cref="UserRecommendationCacheGeneration"/> in the key.
+    /// Writes bump that generation and the previous payload becomes unreachable, so the TTL
+    /// only bounds how long an unchanged library can reuse a build.
+    /// </summary>
+    private static readonly TimeSpan PersonalizedCacheTtl = TimeSpan.FromHours(12);
 
     private readonly RecommendationOptions _options = options.Value;
     private readonly UserRecommendationCacheGeneration _cacheGeneration = new(cacheService);
@@ -177,11 +184,15 @@ public sealed class RecommendationService(
                 cancellationToken);
         }
 
-        await cacheService.SetAsync(
-            cacheKey,
-            new RecommendationCacheEntry { Result = result },
-            PersonalizedCacheTtl,
-            cancellationToken);
+        var generationAfterBuild = await _cacheGeneration.GetAsync(userId, cancellationToken);
+        if (generationAfterBuild == generation)
+        {
+            await cacheService.SetAsync(
+                cacheKey,
+                new RecommendationCacheEntry { Result = result },
+                PersonalizedCacheTtl,
+                cancellationToken);
+        }
 
         return result;
     }
@@ -228,6 +239,60 @@ public sealed class RecommendationService(
             return cached.Sections;
         }
 
+        if (homeLoadCoordinator is null)
+        {
+            return await BuildHomeRecommendationsOnMissAsync(
+                userId,
+                contentLocale,
+                contentType,
+                resultLimit,
+                diversify,
+                includeBecauseYouWatched,
+                includeColdStartDiscoverySections,
+                generation,
+                cacheKey,
+                cacheLookupStopwatch.ElapsedMilliseconds,
+                totalStopwatch,
+                cancellationToken);
+        }
+
+        return await homeLoadCoordinator.RunAsync(
+            cacheKey,
+            () => BuildHomeRecommendationsOnMissAsync(
+                userId,
+                contentLocale,
+                contentType,
+                resultLimit,
+                diversify,
+                includeBecauseYouWatched,
+                includeColdStartDiscoverySections,
+                generation,
+                cacheKey,
+                cacheLookupStopwatch.ElapsedMilliseconds,
+                totalStopwatch,
+                CancellationToken.None));
+    }
+
+    private async Task<IReadOnlyList<RecommendationSection>> BuildHomeRecommendationsOnMissAsync(
+        Guid userId,
+        string contentLocale,
+        RecommendationContentType contentType,
+        int resultLimit,
+        bool diversify,
+        bool includeBecauseYouWatched,
+        bool includeColdStartDiscoverySections,
+        long generation,
+        string cacheKey,
+        long cacheLookupMs,
+        Stopwatch totalStopwatch,
+        CancellationToken cancellationToken)
+    {
+        var raced = await cacheService.GetAsync<RecommendationHomeCacheEntry>(cacheKey, cancellationToken);
+        if (raced is not null)
+        {
+            return raced.Sections;
+        }
+
         HomeStampedePerfAmbient.RecordRecommendationHomeBuildStarted();
 
         var userContextStopwatch = Stopwatch.StartNew();
@@ -267,11 +332,16 @@ public sealed class RecommendationService(
             cancellationToken);
 
         var cacheWriteStopwatch = Stopwatch.StartNew();
-        await cacheService.SetAsync(
-            cacheKey,
-            new RecommendationHomeCacheEntry { Sections = sections },
-            PersonalizedCacheTtl,
-            cancellationToken);
+        var generationAfterBuild = await _cacheGeneration.GetAsync(userId, cancellationToken);
+        if (generationAfterBuild == generation)
+        {
+            await cacheService.SetAsync(
+                cacheKey,
+                new RecommendationHomeCacheEntry { Sections = sections },
+                PersonalizedCacheTtl,
+                cancellationToken);
+        }
+
         cacheWriteStopwatch.Stop();
         totalStopwatch.Stop();
 
@@ -279,7 +349,7 @@ public sealed class RecommendationService(
             logger,
             "MISS",
             totalStopwatch.ElapsedMilliseconds,
-            cacheLookupStopwatch.ElapsedMilliseconds,
+            cacheLookupMs,
             userContextStopwatch.ElapsedMilliseconds,
             personalizedSectionMs,
             becauseYouWatchedMs,

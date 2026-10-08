@@ -361,6 +361,11 @@ public sealed class SearchService(
                 normalizedQuery,
                 searchedAtUtc,
                 cancellationToken);
+            await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+                cacheService,
+                scopeFactory: null,
+                userId,
+                CancellationToken.None);
             return;
         }
 
@@ -374,6 +379,11 @@ public sealed class SearchService(
                 normalizedQuery,
                 searchedAtUtc,
                 cancellationToken);
+            await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+                cacheService,
+                searchHistoryScopeFactory,
+                userId,
+                CancellationToken.None);
         }
         catch (Exception exception)
         {

@@ -100,6 +100,10 @@ public static class DependencyInjection
         services.AddScoped<IProfileStatisticsCache, ProfileStatisticsCache>();
         services.AddScoped<IInsightsCache, InsightsCache>();
         services.AddSingleton<InsightsV3LoadCoordinator>();
+        services.AddSingleton<HomeRecommendationLoadCoordinator>();
+        services.AddSingleton<PersonalizedHomeLoadCoordinator>();
+        services.AddSingleton<LibrarySearchLoadCoordinator>();
+        services.AddSingleton<KeywordDiscoverSearchLoadCoordinator>();
         services.AddScoped<IUserAnalyticsCacheInvalidator, UserAnalyticsCacheInvalidator>();
         services.AddScoped<IInsightsV3Service, InsightsV3Service>();
         services.AddScoped<IUserProfileService, UserProfileService>();
@@ -194,6 +198,7 @@ public static class DependencyInjection
         services.AddScoped<IWorldCinemaService, WorldCinemaService>();
         services.AddScoped<IPickSomethingService, PickSomethingService>();
         services.AddScoped<IExplorePreviewService, ExplorePreviewService>();
+        services.AddScoped<IKeywordDiscoverSearchService, KeywordDiscoverSearchService>();
         services.AddScoped<ICatalogKeywordIngestionService, CatalogKeywordIngestionService>();
         services.AddSingleton<ICatalogKeywordReadPathScheduler, BackgroundCatalogKeywordReadPathScheduler>();
         services.AddScoped<ICatalogKeywordBackfillItemProcessor, CatalogKeywordBackfillItemProcessor>();

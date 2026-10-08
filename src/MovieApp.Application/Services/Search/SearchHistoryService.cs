@@ -1,5 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Movies;
@@ -10,7 +13,9 @@ namespace MovieApp.Application.Services.Search;
 
 public sealed class SearchHistoryService(
     ICurrentUser currentUser,
-    ISearchHistoryRepository searchHistoryRepository) : ISearchHistoryService
+    ISearchHistoryRepository searchHistoryRepository,
+    ICacheService? cacheService = null,
+    IServiceScopeFactory? recommendationScopeFactory = null) : ISearchHistoryService
 {
     public async Task<PaginatedResult<SearchHistoryItem>> GetHistoryAsync(
         int page,
@@ -45,6 +50,7 @@ public sealed class SearchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await searchHistoryRepository.DeleteAllAsync(userId, cancellationToken);
+        await BumpRecommendationsAsync(userId, cancellationToken);
     }
 
     public async Task DeleteHistoryItemAsync(Guid historyId, CancellationToken cancellationToken = default)
@@ -56,5 +62,21 @@ public sealed class SearchHistoryService(
         {
             throw new NotFoundException("The requested search history entry was not found.");
         }
+
+        await BumpRecommendationsAsync(userId, cancellationToken);
+    }
+
+    private async Task BumpRecommendationsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (cacheService is null)
+        {
+            return;
+        }
+
+        await BackgroundAnalyticsInvalidation.InvalidateRecommendationsAsync(
+            cacheService,
+            recommendationScopeFactory,
+            userId,
+            cancellationToken);
     }
 }
