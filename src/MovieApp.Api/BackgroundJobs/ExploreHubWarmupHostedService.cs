@@ -3,8 +3,8 @@ using MovieApp.Application.Services.Search;
 namespace MovieApp.Api.BackgroundJobs;
 
 /// <summary>
-/// Warms the shared Keşfet caches on startup and every 30 minutes so the first hub open
-/// after a deploy or TTL expiry is not the request that pays for explore-preview.
+/// Warms the shared Keşfet caches, including the eight genre rails, on startup and every
+/// 30 minutes so the first hub open after a deploy or TTL expiry is a cache hit.
 /// </summary>
 public sealed class ExploreHubWarmupHostedService(
     IServiceScopeFactory scopeFactory,

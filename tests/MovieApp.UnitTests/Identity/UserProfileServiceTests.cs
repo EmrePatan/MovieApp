@@ -1,6 +1,8 @@
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Storage;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
@@ -115,6 +117,21 @@ public sealed class UserProfileServiceTests
         await service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null));
 
         Assert.Equal(1, repository.DeleteCount);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsyncBumpsPersonalizedGenerationsBeforeReturning()
+    {
+        var user = CreateUser();
+        var repository = new FakeUserRepository(user);
+        var cache = new MemoryCache();
+        var service = CreateService(user, repository, passwordShouldVerify: true, cacheService: cache);
+
+        await service.DeleteAccountAsync(new DeleteAccountCommand("StrongPassword123", null, null));
+
+        Assert.Equal(1, repository.DeleteCount);
+        Assert.Equal(1, await new UserRecommendationCacheGeneration(cache).GetAsync(user.Id));
+        Assert.Equal(1, await new InsightsCache(cache).GetGenerationAsync(user.Id));
     }
 
     [Fact]
@@ -297,6 +314,7 @@ public sealed class UserProfileServiceTests
         bool passwordShouldVerify = true,
         bool newPasswordMatchesCurrent = false,
         IUserAvatarService? avatarService = null,
+        ICacheService? cacheService = null,
         params FakeSocialIdentityTokenVerifier[] socialVerifiers)
     {
         repository ??= new FakeUserRepository(user);
@@ -318,7 +336,8 @@ public sealed class UserProfileServiceTests
             new FakeAuthenticationSessionService(),
             accountReauthenticationService,
             new FakeUserAvatarPresentationService(),
-            avatarService ?? new TrackingUserAvatarService());
+            avatarService ?? new TrackingUserAvatarService(),
+            cacheService);
     }
 
     private static UserAvatarService CreateUserAvatarServiceWithFailingBlobDelete(User user) =>
@@ -578,5 +597,27 @@ public sealed class UserProfileServiceTests
             string identityToken,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_identity);
+    }
+
+    private sealed class MemoryCache : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult(_entries.TryGetValue(key, out var value) ? (T?)value : null);
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 }

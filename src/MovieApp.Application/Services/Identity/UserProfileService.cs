@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
@@ -20,7 +21,8 @@ public sealed class UserProfileService(
     IAuthenticationSessionService authenticationSessionService,
     IAccountReauthenticationService accountReauthenticationService,
     IUserAvatarPresentationService avatarPresentationService,
-    IUserAvatarService avatarService) : IUserProfileService
+    IUserAvatarService avatarService,
+    ICacheService? cacheService = null) : IUserProfileService
 {
     private const string InvalidCurrentPasswordMessage = "Current password is incorrect.";
 
@@ -132,6 +134,14 @@ public sealed class UserProfileService(
         }
 
         await avatarService.BestEffortDeleteCustomAvatarAsync(avatarKey, cancellationToken);
+
+        if (cacheService is not null)
+        {
+            await BackgroundAnalyticsInvalidation.BumpBothGenerationsAsync(
+                cacheService,
+                user.Id,
+                CancellationToken.None);
+        }
     }
 
     private static void ValidatePasswordChangeRequest(string currentPassword, string newPassword)

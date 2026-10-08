@@ -11,6 +11,7 @@ using MovieApp.Api.Observability;
 using MovieApp.Api.CatalogShare;
 using MovieApp.Api.Security;
 using MovieApp.Application;
+using MovieApp.Application.Caching;
 using MovieApp.Infrastructure;
 using MovieApp.Infrastructure.Identity;
 using Serilog;
@@ -39,6 +40,12 @@ public static class ApplicationBootstrap
             .AddPasswordResetDelivery(builder.Configuration, builder.Environment)
             .AddTvShowFollowBaselineProcessing(builder.Configuration, builder.Environment)
             .AddExternalRatingsRefreshProcessing(builder.Configuration, builder.Environment);
+
+        if (!builder.Environment.IsEnvironment("Testing"))
+        {
+            builder.Services.AddSingleton<IPersonalizedCacheRebuildScheduler, PersonalizedCacheRebuildScheduler>();
+            builder.Services.AddScoped<IPersonalizedCacheRebuilder, PersonalizedCacheRebuilder>();
+        }
     }
 
     public static void ConfigurePipeline(WebApplication app)

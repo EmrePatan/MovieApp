@@ -69,7 +69,9 @@ public sealed class FavoriteMutationCriticalPathTests
             CancellationToken.None);
 
         var generation = await new UserRecommendationCacheGeneration(cache).GetAsync(userId);
+        var insightsGeneration = await new InsightsCache(cache).GetGenerationAsync(userId);
         Assert.Equal(1, generation);
+        Assert.Equal(1, insightsGeneration);
         gate.TrySetResult();
     }
 

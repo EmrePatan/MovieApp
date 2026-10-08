@@ -5,8 +5,6 @@ namespace MovieApp.Application.Caching;
 
 public sealed class InsightsCache(ICacheService cacheService) : IInsightsCache
 {
-    private static readonly TimeSpan GenerationTtl = TimeSpan.FromDays(30);
-
     public async Task<InsightsV3Result?> GetV3Async(
         Guid userId,
         string? timeZoneId,
@@ -47,26 +45,8 @@ public sealed class InsightsCache(ICacheService cacheService) : IInsightsCache
         await cacheService.SetAsync(cacheKey, insights, ttl, cancellationToken);
     }
 
-    public async Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var generationKey = InsightsCacheKeys.Generation(userId);
-            var current = await cacheService.GetAsync<InsightsGenerationState>(
-                generationKey,
-                cancellationToken);
-            var nextGeneration = (current?.Value ?? 0) + 1;
-            await cacheService.SetAsync(
-                generationKey,
-                new InsightsGenerationState(nextGeneration),
-                GenerationTtl,
-                cancellationToken);
-        }
-        catch
-        {
-            // Cache invalidation must not fail the originating write operation.
-        }
-    }
+    public Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        new InsightsCacheGeneration(cacheService).InvalidateForUserAsync(userId, cancellationToken);
 
     private async Task<long> ReadGenerationAsync(Guid userId, CancellationToken cancellationToken)
     {

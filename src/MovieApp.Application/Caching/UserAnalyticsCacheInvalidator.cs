@@ -5,7 +5,8 @@ namespace MovieApp.Application.Caching;
 public sealed class UserAnalyticsCacheInvalidator(
     IProfileStatisticsCache profileStatisticsCache,
     IInsightsCache insightsCache,
-    ICacheService cacheService) : IUserAnalyticsCacheInvalidator
+    ICacheService cacheService,
+    IPersonalizedCacheRebuildScheduler? rebuildScheduler = null) : IUserAnalyticsCacheInvalidator
 {
     private readonly UserRecommendationCacheGeneration _recommendationCacheGeneration = new(cacheService);
 
@@ -15,5 +16,6 @@ public sealed class UserAnalyticsCacheInvalidator(
             profileStatisticsCache.InvalidateForUserAsync(userId, cancellationToken),
             insightsCache.InvalidateForUserAsync(userId, cancellationToken),
             _recommendationCacheGeneration.InvalidateForUserAsync(userId, cancellationToken));
+        rebuildScheduler?.Schedule(userId);
     }
 }
