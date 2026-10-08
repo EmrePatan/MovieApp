@@ -34,6 +34,7 @@ public static class ApplicationBootstrap
             .AddMovieAppDataProtection(builder.Configuration, builder.Environment)
             .AddApi(builder.Configuration)
             .AddBackgroundJobs(builder.Configuration)
+            .AddHostedService<ExploreHubWarmupHostedService>()
             .AddEmailVerificationDelivery(builder.Configuration, builder.Environment)
             .AddPasswordResetDelivery(builder.Configuration, builder.Environment)
             .AddTvShowFollowBaselineProcessing(builder.Configuration, builder.Environment)

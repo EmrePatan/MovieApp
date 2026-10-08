@@ -5,7 +5,7 @@ namespace MovieApp.Application.Caching;
 
 public static class BackgroundAnalyticsInvalidation
 {
-    public static Task RunAsync(
+    public static async Task RunAsync(
         IUserAnalyticsCacheInvalidator invalidator,
         IServiceScopeFactory? scopeFactory,
         Guid userId,
@@ -13,7 +13,26 @@ public static class BackgroundAnalyticsInvalidation
     {
         if (scopeFactory is null)
         {
-            return invalidator.InvalidateForUserAsync(userId, cancellationToken);
+            await invalidator.InvalidateForUserAsync(userId, cancellationToken);
+            return;
+        }
+
+        // The library-search cache key includes this generation. Bump it before the write
+        // returns so the next search misses. Profile and insights invalidation stay off
+        // the favorite/watch critical path.
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var cache = scope.ServiceProvider.GetService<ICacheService>();
+            if (cache is not null)
+            {
+                await new UserRecommendationCacheGeneration(cache)
+                    .InvalidateForUserAsync(userId, CancellationToken.None);
+            }
+        }
+        catch
+        {
+            // A missed bump falls back to the short search TTL.
         }
 
         _ = Task.Run(
@@ -22,17 +41,24 @@ public static class BackgroundAnalyticsInvalidation
                 try
                 {
                     using var scope = scopeFactory.CreateScope();
-                    var scopedInvalidator = scope.ServiceProvider.GetRequiredService<IUserAnalyticsCacheInvalidator>();
-                    await scopedInvalidator.InvalidateForUserAsync(userId, CancellationToken.None);
+                    var profile = scope.ServiceProvider.GetService<IProfileStatisticsCache>();
+                    var insights = scope.ServiceProvider.GetService<IInsightsCache>();
+                    if (profile is not null)
+                    {
+                        await profile.InvalidateForUserAsync(userId, CancellationToken.None);
+                    }
+
+                    if (insights is not null)
+                    {
+                        await insights.InvalidateForUserAsync(userId, CancellationToken.None);
+                    }
                 }
                 catch
                 {
-                    // Profile, insights, and recommendation caches are not required to finish the toggle.
+                    // Profile and insights caches are not required to finish the toggle.
                 }
             },
             CancellationToken.None);
-
-        return Task.CompletedTask;
     }
 
     public static Task InvalidateRecommendationsAsync(

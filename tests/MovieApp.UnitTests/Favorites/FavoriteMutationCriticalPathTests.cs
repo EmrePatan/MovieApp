@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Models.Favorites;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Favorites;
@@ -47,6 +48,28 @@ public sealed class FavoriteMutationCriticalPathTests
 
         Assert.Same(add, completed);
         Assert.Equal(FavoriteMutationResult.Created, await add);
+        gate.TrySetResult();
+    }
+
+    [Fact]
+    public async Task RunAsyncBumpsTheLibraryGenerationBeforeReturningAndDoesNotWaitForInsights()
+    {
+        var userId = Guid.NewGuid();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cache = new DictionaryCacheService();
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheService>(cache);
+        services.AddSingleton<IInsightsCache>(new GatedInsightsCache(gate.Task));
+        await using var provider = services.BuildServiceProvider();
+
+        await BackgroundAnalyticsInvalidation.RunAsync(
+            new CompletingInvalidator(),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            userId,
+            CancellationToken.None);
+
+        var generation = await new UserRecommendationCacheGeneration(cache).GetAsync(userId);
+        Assert.Equal(1, generation);
         gate.TrySetResult();
     }
 
@@ -126,5 +149,62 @@ public sealed class FavoriteMutationCriticalPathTests
     {
         public async Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
             await gate;
+    }
+
+    private sealed class GatedInsightsCache(Task gate) : IInsightsCache
+    {
+        public Task<MovieApp.Application.Models.Insights.InsightsV3Result?> GetV3Async(
+            Guid userId,
+            string? timeZoneId,
+            int year,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<long> GetGenerationAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task SetV3ForGenerationAsync(
+            Guid userId,
+            string? timeZoneId,
+            int year,
+            long generation,
+            MovieApp.Application.Models.Insights.InsightsV3Result insights,
+            TimeSpan ttl,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task SetV3Async(
+            Guid userId,
+            string? timeZoneId,
+            int year,
+            MovieApp.Application.Models.Insights.InsightsV3Result insights,
+            TimeSpan ttl,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async Task InvalidateForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            await gate;
+    }
+
+    private sealed class DictionaryCacheService : ICacheService
+    {
+        private readonly Dictionary<string, object> _entries = new();
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult(_entries.TryGetValue(key, out var value) ? (T?)value : null);
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            _entries[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _entries.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 }

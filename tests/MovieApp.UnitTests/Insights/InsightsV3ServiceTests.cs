@@ -18,6 +18,12 @@ public sealed class InsightsV3ServiceTests
         : "Europe/Istanbul";
 
     [Fact]
+    public void DefaultAnalyticsCacheTtlKeepsAnUnchangedLibraryForTwelveHours()
+    {
+        Assert.Equal(12 * 60, new InsightsOptions().AnalyticsCacheTtlMinutes);
+    }
+
+    [Fact]
     public async Task GetInsightsV3AsyncReturnsCachedResultWithoutRepositoryCall()
     {
         var userId = Guid.NewGuid();

@@ -158,13 +158,59 @@ public sealed class RecommendationQueryFanOutTests
         Assert.Equal(2, repository.GetUserContextCount);
     }
 
+    [Fact]
+    public async Task ConcurrentHomeRecommendationMissesShareOneContextLoad()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = new CountingRecommendationRepository
+        {
+            ContextEntered = entered,
+            ContextRelease = release.Task
+        };
+        var service = CreateService(
+            repository,
+            new CountingDiscoveryService(),
+            new InMemoryCacheService(),
+            homeLoadCoordinator: new HomeRecommendationLoadCoordinator());
+
+        var first = service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var second = service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+        release.TrySetResult();
+
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, repository.GetUserContextCount);
+        Assert.Equal(results[0].Count, results[1].Count);
+    }
+
+    [Fact]
+    public async Task HomeRecommendationMissSkipsCacheWriteWhenGenerationChangesDuringTheBuild()
+    {
+        var repository = new CountingRecommendationRepository();
+        var cache = new GenerationBumpCache();
+        var service = CreateService(repository, new CountingDiscoveryService(), cache);
+
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+
+        Assert.Equal(1, repository.GetUserContextCount);
+        Assert.False(cache.StoredHomeRecommendation);
+
+        await service.GetHomeRecommendationsForCurrentUserAsync(includeColdStartDiscoverySections: false);
+
+        Assert.Equal(2, repository.GetUserContextCount);
+        Assert.True(cache.StoredHomeRecommendation);
+    }
+
     private static readonly Guid CurrentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     private static RecommendationService CreateService(
         IRecommendationRepository repository,
         IDiscoveryService discoveryService,
         ICacheService? cacheService = null,
-        IServiceScopeFactory? scopeFactory = null) =>
+        IServiceScopeFactory? scopeFactory = null,
+        HomeRecommendationLoadCoordinator? homeLoadCoordinator = null) =>
         new(
             repository,
             discoveryService,
@@ -181,7 +227,8 @@ public sealed class RecommendationQueryFanOutTests
                 MaximumCandidates = 500
             }),
             NullLogger<RecommendationService>.Instance,
-            scopeFactory);
+            scopeFactory,
+            homeLoadCoordinator);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser
     {
@@ -221,6 +268,40 @@ public sealed class RecommendationQueryFanOutTests
             _entries.Remove(key);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class GenerationBumpCache : ICacheService
+    {
+        private int _generationReads;
+
+        public bool StoredHomeRecommendation { get; private set; }
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            if (key.StartsWith(RecommendationCacheKeys.GenerationPrefix, StringComparison.Ordinal))
+            {
+                var read = Interlocked.Increment(ref _generationReads);
+                var state = new RecommendationGenerationState(read == 1 ? 0 : 1);
+                return Task.FromResult((T?)(object)state);
+            }
+
+            return Task.FromResult<T?>(null);
+        }
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken cancellationToken = default)
+            where T : class
+        {
+            if (key.StartsWith(RecommendationCacheKeys.HomePrefix, StringComparison.Ordinal))
+            {
+                StoredHomeRecommendation = true;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class CountingDiscoveryService : IDiscoveryService
@@ -374,6 +455,10 @@ public sealed class RecommendationQueryFanOutTests
 
         public ParallelSectionGate? SectionGate { get; init; }
 
+        public TaskCompletionSource? ContextEntered { get; init; }
+
+        public Task? ContextRelease { get; init; }
+
         public int GetUserContextCount { get; private set; }
 
         public int GetMovieProfilesBatchCount { get; private set; }
@@ -396,13 +481,19 @@ public sealed class RecommendationQueryFanOutTests
             GetSimilarMovieCandidatesCount = 0;
         }
 
-        public Task<UserRecommendationContext> GetUserRecommendationContextAsync(
+        public async Task<UserRecommendationContext> GetUserRecommendationContextAsync(
             Guid userId,
             int minimumInteractionsForEnrichment = 0,
             int mildRatingMinScore = 6,
             CancellationToken cancellationToken = default)
         {
             GetUserContextCount++;
+            ContextEntered?.TrySetResult();
+            if (ContextRelease is not null)
+            {
+                await ContextRelease;
+            }
+
             _ = minimumInteractionsForEnrichment;
             _ = mildRatingMinScore;
             var watchedSignals = Enumerable.Range(0, WatchedSignalCount)
@@ -418,11 +509,11 @@ public sealed class RecommendationQueryFanOutTests
                     []))
                 .ToList();
 
-            return Task.FromResult(new UserRecommendationContext(
+            return new UserRecommendationContext(
                 watchedSignals,
                 watchedSignals.Select(signal => signal.ContentId).ToHashSet(),
                 new HashSet<Guid>(),
-                3));
+                3);
         }
 
         public Task<bool> MovieExistsAsync(Guid movieId, CancellationToken cancellationToken = default) =>

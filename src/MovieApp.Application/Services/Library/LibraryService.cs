@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Common;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Library;
@@ -22,7 +24,9 @@ public sealed class LibraryService(
     IContentLocalizedPosterRepository contentLocalizedPosterRepository,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
-    ILogger<LibraryService> logger) : ILibraryService
+    ILogger<LibraryService> logger,
+    ICacheService? cacheService = null,
+    LibrarySearchLoadCoordinator? searchLoadCoordinator = null) : ILibraryService
 {
     public async Task<PaginatedResult<LibraryItemResult>> GetLibraryAsync(
         LibraryCriteria criteria,
@@ -135,6 +139,8 @@ public sealed class LibraryService(
             hasNextPage);
     }
 
+    private static readonly TimeSpan LibrarySearchCacheTtl = TimeSpan.FromMinutes(2);
+
     public async Task<PaginatedResult<LibraryItemResult>> SearchLibraryAsync(
         LibrarySearchCriteria criteria,
         string contentLocale,
@@ -146,6 +152,77 @@ public sealed class LibraryService(
             throw new ValidationException(validation.ErrorMessage!);
         }
 
+        if (cacheService is null)
+        {
+            return await SearchLibraryUncachedAsync(criteria, contentLocale, cancellationToken);
+        }
+
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        var generation = await new UserRecommendationCacheGeneration(cacheService).GetAsync(userId, cancellationToken);
+        var cacheKey = LibrarySearchCacheKeys.Create(userId, generation, contentLocale, criteria);
+        var cached = await cacheService.GetAsync<LibrarySearchCacheEntry>(cacheKey, cancellationToken);
+        if (cached is not null)
+        {
+            return cached.Result;
+        }
+
+        if (searchLoadCoordinator is null)
+        {
+            return await SearchLibraryAndCacheAsync(
+                criteria,
+                contentLocale,
+                userId,
+                generation,
+                cacheKey,
+                cancellationToken);
+        }
+
+        return await searchLoadCoordinator.RunAsync(
+            cacheKey,
+            () => SearchLibraryAndCacheAsync(
+                criteria,
+                contentLocale,
+                userId,
+                generation,
+                cacheKey,
+                CancellationToken.None));
+    }
+
+    private async Task<PaginatedResult<LibraryItemResult>> SearchLibraryAndCacheAsync(
+        LibrarySearchCriteria criteria,
+        string contentLocale,
+        Guid userId,
+        long generation,
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        var raced = await cacheService!.GetAsync<LibrarySearchCacheEntry>(cacheKey, cancellationToken);
+        if (raced is not null)
+        {
+            return raced.Result;
+        }
+
+        var result = await SearchLibraryUncachedAsync(criteria, contentLocale, cancellationToken);
+        var generationAfterBuild = await new UserRecommendationCacheGeneration(cacheService).GetAsync(
+            userId,
+            cancellationToken);
+        if (generationAfterBuild == generation)
+        {
+            await cacheService.SetAsync(
+                cacheKey,
+                new LibrarySearchCacheEntry { Result = result },
+                LibrarySearchCacheTtl,
+                cancellationToken);
+        }
+
+        return result;
+    }
+
+    private async Task<PaginatedResult<LibraryItemResult>> SearchLibraryUncachedAsync(
+        LibrarySearchCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
         // Categories are collected sequentially so each page fetch uses one DbContext instance.
         var categoryMap = new Dictionary<LibraryCategory, IReadOnlyList<LibraryItemResult>>();
         foreach (var category in LibrarySearchAggregator.Categories)

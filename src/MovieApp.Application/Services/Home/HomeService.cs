@@ -29,7 +29,8 @@ public sealed class HomeService(
     IOptions<HomeOptions> options,
     IOptions<ReleaseRegionOptions> releaseRegionOptions,
     IOptions<RecommendationOptions> recommendationOptions,
-    ILogger<HomeService> logger) : IHomeService
+    ILogger<HomeService> logger,
+    PersonalizedHomeLoadCoordinator? personalizedLoadCoordinator = null) : IHomeService
 {
     private const string RecommendedForYouKey = "recommended-for-you";
 
@@ -434,6 +435,33 @@ public sealed class HomeService(
         string contentLocale,
         string? releaseRegion = null,
         CancellationToken cancellationToken = default)
+    {
+        ValidateCriteria(criteria);
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        var generation = await _recommendationCacheGeneration.GetAsync(userId, cancellationToken);
+        var flightKey = PersonalizedHomeFlightKeys.Create(
+            userId,
+            criteria.Type,
+            criteria.SectionSize,
+            contentLocale,
+            ResolveReleaseRegion(releaseRegion),
+            generation);
+
+        if (personalizedLoadCoordinator is null)
+        {
+            return await BuildHomePersonalizedAsync(criteria, contentLocale, releaseRegion, cancellationToken);
+        }
+
+        return await personalizedLoadCoordinator.RunAsync(
+            flightKey,
+            () => BuildHomePersonalizedAsync(criteria, contentLocale, releaseRegion, CancellationToken.None));
+    }
+
+    private async Task<HomePersonalizedResult> BuildHomePersonalizedAsync(
+        HomeCriteria criteria,
+        string contentLocale,
+        string? releaseRegion,
+        CancellationToken cancellationToken)
     {
         var totalStopwatch = Stopwatch.StartNew();
 
