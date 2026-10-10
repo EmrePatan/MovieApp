@@ -1,0 +1,48 @@
+name: Regenerate keyword migration metadata
+
+on:
+  push:
+    branches:
+      - chore/keyword-sources-jsonb
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/keyword-sources-jsonb
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore MovieApp.sln
+
+      - name: Install EF CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.12
+
+      - name: Regenerate migration and snapshot
+        shell: bash
+        run: |
+          rm src/MovieApp.Infrastructure/Persistence/Migrations/20261010170000_CollapseKeywordSourcesIntoRelationships.cs
+          dotnet ef migrations add CollapseKeywordSourcesIntoRelationships \
+            --project src/MovieApp.Infrastructure/MovieApp.Infrastructure.csproj \
+            --startup-project src/MovieApp.Api/MovieApp.Api.csproj \
+            --output-dir Persistence/Migrations
+
+      - name: Commit generated EF metadata
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/regenerate-keyword-migration.yml
+          git add src/MovieApp.Infrastructure/Persistence/Migrations
+          git commit -m "chore(keywords): regenerate EF migration metadata"
+          git push origin HEAD:chore/keyword-sources-jsonb
