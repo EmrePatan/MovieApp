@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,12 +11,6 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "movie_keyword_sources");
-
-            migrationBuilder.DropTable(
-                name: "tv_show_keyword_sources");
-
             migrationBuilder.AddColumn<string>(
                 name: "Sources",
                 table: "tv_show_keywords",
@@ -30,19 +24,72 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 type: "jsonb",
                 nullable: false,
                 defaultValueSql: "'[]'::jsonb");
+
+            // Keep the relationship tables as the single source of truth, but preserve every
+            // provider membership before dropping the old provenance tables. INSERT ... ON
+            // CONFLICT also protects against a legacy/inconsistent database where a source row
+            // exists but its materialized relationship row is missing.
+            migrationBuilder.Sql(
+                """
+                INSERT INTO movie_keywords ("MovieId", "KeywordId", "Sources")
+                SELECT DISTINCT s."MovieId", s."KeywordId", '[]'::jsonb
+                FROM movie_keyword_sources AS s
+                ON CONFLICT ("MovieId", "KeywordId") DO NOTHING;
+
+                UPDATE movie_keywords AS mk
+                SET "Sources" = aggregated."Sources"
+                FROM (
+                    SELECT
+                        s."MovieId",
+                        s."KeywordId",
+                        to_jsonb(array_agg(DISTINCT s."Provider" ORDER BY s."Provider")) AS "Sources"
+                    FROM movie_keyword_sources AS s
+                    GROUP BY s."MovieId", s."KeywordId"
+                ) AS aggregated
+                WHERE mk."MovieId" = aggregated."MovieId"
+                  AND mk."KeywordId" = aggregated."KeywordId";
+
+                INSERT INTO tv_show_keywords ("TvShowId", "KeywordId", "Sources")
+                SELECT DISTINCT s."TvShowId", s."KeywordId", '[]'::jsonb
+                FROM tv_show_keyword_sources AS s
+                ON CONFLICT ("TvShowId", "KeywordId") DO NOTHING;
+
+                UPDATE tv_show_keywords AS tk
+                SET "Sources" = aggregated."Sources"
+                FROM (
+                    SELECT
+                        s."TvShowId",
+                        s."KeywordId",
+                        to_jsonb(array_agg(DISTINCT s."Provider" ORDER BY s."Provider")) AS "Sources"
+                    FROM tv_show_keyword_sources AS s
+                    GROUP BY s."TvShowId", s."KeywordId"
+                ) AS aggregated
+                WHERE tk."TvShowId" = aggregated."TvShowId"
+                  AND tk."KeywordId" = aggregated."KeywordId";
+
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM movie_keywords WHERE "Sources" = '[]'::jsonb) THEN
+                        RAISE EXCEPTION 'Cannot collapse movie keyword sources: at least one movie_keywords relationship has no provider source.';
+                    END IF;
+
+                    IF EXISTS (SELECT 1 FROM tv_show_keywords WHERE "Sources" = '[]'::jsonb) THEN
+                        RAISE EXCEPTION 'Cannot collapse TV keyword sources: at least one tv_show_keywords relationship has no provider source.';
+                    END IF;
+                END
+                $$;
+                """);
+
+            migrationBuilder.DropTable(
+                name: "movie_keyword_sources");
+
+            migrationBuilder.DropTable(
+                name: "tv_show_keyword_sources");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Sources",
-                table: "tv_show_keywords");
-
-            migrationBuilder.DropColumn(
-                name: "Sources",
-                table: "movie_keywords");
-
             migrationBuilder.CreateTable(
                 name: "movie_keyword_sources",
                 columns: table => new
@@ -97,6 +144,22 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            // Timestamp history was intentionally retired by the forward migration. A rollback
+            // can faithfully reconstruct provider membership, but not historical first/last-seen
+            // timestamps, so those nullable legacy columns remain null.
+            migrationBuilder.Sql(
+                """
+                INSERT INTO movie_keyword_sources ("MovieId", "KeywordId", "Provider", "FirstSeenAtUtc", "LastSeenAtUtc")
+                SELECT mk."MovieId", mk."KeywordId", source.value, NULL, NULL
+                FROM movie_keywords AS mk
+                CROSS JOIN LATERAL jsonb_array_elements_text(mk."Sources") AS source(value);
+
+                INSERT INTO tv_show_keyword_sources ("TvShowId", "KeywordId", "Provider", "FirstSeenAtUtc", "LastSeenAtUtc")
+                SELECT tk."TvShowId", tk."KeywordId", source.value, NULL, NULL
+                FROM tv_show_keywords AS tk
+                CROSS JOIN LATERAL jsonb_array_elements_text(tk."Sources") AS source(value);
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_movie_keyword_sources_KeywordId",
                 table: "movie_keyword_sources",
@@ -116,6 +179,14 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 name: "IX_tv_show_keyword_sources_TvShowId_Provider",
                 table: "tv_show_keyword_sources",
                 columns: new[] { "TvShowId", "Provider" });
+
+            migrationBuilder.DropColumn(
+                name: "Sources",
+                table: "tv_show_keywords");
+
+            migrationBuilder.DropColumn(
+                name: "Sources",
+                table: "movie_keywords");
         }
     }
 }
