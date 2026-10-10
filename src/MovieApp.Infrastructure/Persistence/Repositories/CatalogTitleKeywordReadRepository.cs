@@ -128,10 +128,9 @@ public sealed class CatalogTitleKeywordReadRepository(
                 join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 join.Keyword.DisplayProfile != null &&
                 join.Keyword.DisplayProfile.Displayable)
-            .OrderByDescending(join => dbContext.MovieKeywordSources.Any(source =>
-                source.MovieId == join.MovieId &&
-                source.KeywordId == join.KeywordId &&
-                source.Provider == KeywordProvider.Tmdb))
+            .OrderByDescending(join =>
+                EF.Functions.JsonContains(join.Sources, "[\"Tmdb\"]") ||
+                EF.Functions.JsonContains(join.Sources, "[\"tmdb\"]"))
             .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
             .ThenBy(join => join.KeywordId);
 
@@ -141,10 +140,9 @@ public sealed class CatalogTitleKeywordReadRepository(
                 join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
                 join.Keyword.DisplayProfile != null &&
                 join.Keyword.DisplayProfile.Displayable)
-            .OrderByDescending(join => dbContext.TvShowKeywordSources.Any(source =>
-                source.TvShowId == join.TvShowId &&
-                source.KeywordId == join.KeywordId &&
-                source.Provider == KeywordProvider.Tmdb))
+            .OrderByDescending(join =>
+                EF.Functions.JsonContains(join.Sources, "[\"Tmdb\"]") ||
+                EF.Functions.JsonContains(join.Sources, "[\"tmdb\"]"))
             .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
             .ThenBy(join => join.KeywordId);
 
