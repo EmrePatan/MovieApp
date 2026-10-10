@@ -122,29 +122,47 @@ public sealed class CatalogTitleKeywordReadRepository(
         return summaries;
     }
 
-    private static IQueryable<MovieKeyword> OrderEligibleMovieDetailKeywords(IQueryable<MovieKeyword> movieJoins) =>
-        movieJoins
-            .Where(join =>
-                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
-                join.Keyword.DisplayProfile != null &&
-                join.Keyword.DisplayProfile.Displayable)
-            .OrderByDescending(join =>
-                EF.Functions.JsonContains(join.Sources, "[\"Tmdb\"]") ||
-                EF.Functions.JsonContains(join.Sources, "[\"tmdb\"]"))
-            .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
-            .ThenBy(join => join.KeywordId);
+    private IQueryable<MovieKeyword> OrderEligibleMovieDetailKeywords(IQueryable<MovieKeyword> movieJoins)
+    {
+        var eligible = movieJoins.Where(join =>
+            join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
+            join.Keyword.DisplayProfile != null &&
+            join.Keyword.DisplayProfile.Displayable);
 
-    private static IQueryable<TvShowKeyword> OrderEligibleTvShowDetailKeywords(IQueryable<TvShowKeyword> tvJoins) =>
-        tvJoins
-            .Where(join =>
-                join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
-                join.Keyword.DisplayProfile != null &&
-                join.Keyword.DisplayProfile.Displayable)
-            .OrderByDescending(join =>
-                EF.Functions.JsonContains(join.Sources, "[\"Tmdb\"]") ||
-                EF.Functions.JsonContains(join.Sources, "[\"tmdb\"]"))
-            .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
-            .ThenBy(join => join.KeywordId);
+        return IsNpgsql()
+            ? eligible
+                .OrderByDescending(join =>
+                    EF.Functions.JsonContains(join.Sources, "[\"Tmdb\"]") ||
+                    EF.Functions.JsonContains(join.Sources, "[\"tmdb\"]"))
+                .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+                .ThenBy(join => join.KeywordId)
+            : eligible
+                .OrderByDescending(join =>
+                    join.Sources.Contains("\"Tmdb\"") || join.Sources.Contains("\"tmdb\""))
+                .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+                .ThenBy(join => join.KeywordId);
+    }
+
+    private IQueryable<TvShowKeyword> OrderEligibleTvShowDetailKeywords(IQueryable<TvShowKeyword> tvJoins)
+    {
+        var eligible = tvJoins.Where(join =>
+            join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
+            join.Keyword.DisplayProfile != null &&
+            join.Keyword.DisplayProfile.Displayable);
+
+        return IsNpgsql()
+            ? eligible
+                .OrderByDescending(join =>
+                    EF.Functions.JsonContains(join.Sources, "[\"Tmdb\"]") ||
+                    EF.Functions.JsonContains(join.Sources, "[\"tmdb\"]"))
+                .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+                .ThenBy(join => join.KeywordId)
+            : eligible
+                .OrderByDescending(join =>
+                    join.Sources.Contains("\"Tmdb\"") || join.Sources.Contains("\"tmdb\""))
+                .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
+                .ThenBy(join => join.KeywordId);
+    }
 
     private async Task AppendSupplementalKeywordsAsync(
         IQueryable<MovieKeyword> movieJoins,
@@ -291,6 +309,10 @@ public sealed class CatalogTitleKeywordReadRepository(
             .Select(group => group.First())
             .Take(maxCount)
             .ToList();
+
+    private bool IsNpgsql() =>
+        dbContext.Database.IsRelational() &&
+        dbContext.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true;
 
     private sealed record KeywordRowProjection(
         Guid KeywordId,
