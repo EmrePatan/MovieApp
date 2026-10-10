@@ -210,18 +210,12 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
                 cancellationToken);
 
         var movieJoinCount = await dbContext.MovieKeywords.CountAsync(cancellationToken);
-        var movieSources = await dbContext.MovieKeywords
-            .AsNoTracking()
-            .Select(join => join.Sources)
-            .ToListAsync(cancellationToken);
-        var missingMovieKeywordSource = movieSources.Count(source => !KeywordProviderSources.HasAny(source));
+        var missingMovieKeywordSource = await dbContext.MovieKeywords
+            .CountAsync(join => join.Sources == KeywordProviderSources.Empty, cancellationToken);
 
         var tvJoinCount = await dbContext.TvShowKeywords.CountAsync(cancellationToken);
-        var tvSources = await dbContext.TvShowKeywords
-            .AsNoTracking()
-            .Select(join => join.Sources)
-            .ToListAsync(cancellationToken);
-        var missingTvKeywordSource = tvSources.Count(source => !KeywordProviderSources.HasAny(source));
+        var missingTvKeywordSource = await dbContext.TvShowKeywords
+            .CountAsync(join => join.Sources == KeywordProviderSources.Empty, cancellationToken);
 
         const int missingMovieMaterializedJoin = 0;
         const int missingTvMaterializedJoin = 0;
