@@ -1,41 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 
 namespace MovieApp.Infrastructure.Persistence.Keywords;
 
 internal static class KeywordGraphMaterializer
 {
-    public static async Task MaterializeMovieKeywordsUnionAsync(
-        ApplicationDbContext dbContext,
-        Guid movieId,
-        CancellationToken cancellationToken)
-    {
-        var sourceKeywordIds = await dbContext.MovieKeywordSources
-            .AsNoTracking()
-            .Where(source => source.MovieId == movieId)
-            .Select(source => source.KeywordId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        await ApplyMovieKeywordUnionAsync(dbContext, movieId, sourceKeywordIds, cancellationToken);
-    }
-
-    public static async Task MaterializeTvShowKeywordsUnionAsync(
-        ApplicationDbContext dbContext,
-        Guid tvShowId,
-        CancellationToken cancellationToken)
-    {
-        var sourceKeywordIds = await dbContext.TvShowKeywordSources
-            .AsNoTracking()
-            .Where(source => source.TvShowId == tvShowId)
-            .Select(source => source.KeywordId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        await ApplyTvShowKeywordUnionAsync(dbContext, tvShowId, sourceKeywordIds, cancellationToken);
-    }
-
     public static Task ReconcileTmdbMovieSourcesAsync(
         ApplicationDbContext dbContext,
         Guid movieId,
@@ -47,72 +18,32 @@ internal static class KeywordGraphMaterializer
             movieId,
             KeywordProvider.Tmdb,
             incomingKeywordIds,
-            syncedAtUtc,
             cancellationToken);
 
-    private static async Task ReconcileProviderMovieSourcesAsync(
-        ApplicationDbContext dbContext,
-        Guid movieId,
-        KeywordProvider provider,
-        IReadOnlySet<Guid> incomingKeywordIds,
-        DateTime syncedAtUtc,
-        CancellationToken cancellationToken)
-    {
-        var currentSources = await dbContext.MovieKeywordSources
-            .Where(source => source.MovieId == movieId && source.Provider == provider)
-            .ToListAsync(cancellationToken);
-
-        var currentKeywordIds = currentSources.Select(source => source.KeywordId).ToHashSet();
-        var toRemove = currentSources.Where(source => !incomingKeywordIds.Contains(source.KeywordId)).ToList();
-        if (toRemove.Count > 0)
-        {
-            dbContext.MovieKeywordSources.RemoveRange(toRemove);
-        }
-
-        foreach (var keywordId in incomingKeywordIds.Where(id => !currentKeywordIds.Contains(id)))
-        {
-            dbContext.MovieKeywordSources.Add(new MovieKeywordSource
-            {
-                MovieId = movieId,
-                KeywordId = keywordId,
-                Provider = provider,
-                FirstSeenAtUtc = syncedAtUtc,
-                LastSeenAtUtc = syncedAtUtc,
-            });
-        }
-
-        foreach (var source in currentSources.Where(source => incomingKeywordIds.Contains(source.KeywordId)))
-        {
-            source.LastSeenAtUtc = syncedAtUtc;
-        }
-    }
-
-    public static async Task ReconcileMdbListMovieSourcesAsync(
+    public static Task ReconcileMdbListMovieSourcesAsync(
         ApplicationDbContext dbContext,
         Guid movieId,
         IReadOnlySet<Guid> incomingKeywordIds,
         DateTime syncedAtUtc,
         CancellationToken cancellationToken) =>
-        await ReconcileProviderMovieSourcesAsync(
+        ReconcileProviderMovieSourcesAsync(
             dbContext,
             movieId,
             KeywordProvider.MdbList,
             incomingKeywordIds,
-            syncedAtUtc,
             cancellationToken);
 
-    public static async Task ReconcileMdbListTvShowSourcesAsync(
+    public static Task ReconcileMdbListTvShowSourcesAsync(
         ApplicationDbContext dbContext,
         Guid tvShowId,
         IReadOnlySet<Guid> incomingKeywordIds,
         DateTime syncedAtUtc,
         CancellationToken cancellationToken) =>
-        await ReconcileProviderTvShowSourcesAsync(
+        ReconcileProviderTvShowSourcesAsync(
             dbContext,
             tvShowId,
             KeywordProvider.MdbList,
             incomingKeywordIds,
-            syncedAtUtc,
             cancellationToken);
 
     public static Task ReconcileTmdbTvShowSourcesAsync(
@@ -126,109 +57,129 @@ internal static class KeywordGraphMaterializer
             tvShowId,
             KeywordProvider.Tmdb,
             incomingKeywordIds,
-            syncedAtUtc,
             cancellationToken);
+
+    private static async Task ReconcileProviderMovieSourcesAsync(
+        ApplicationDbContext dbContext,
+        Guid movieId,
+        KeywordProvider provider,
+        IReadOnlySet<Guid> incomingKeywordIds,
+        CancellationToken cancellationToken)
+    {
+        var currentRelationships = await dbContext.MovieKeywords
+            .Where(relationship => relationship.MovieId == movieId)
+            .ToListAsync(cancellationToken);
+        var byKeywordId = currentRelationships.ToDictionary(relationship => relationship.KeywordId);
+
+        foreach (var relationship in currentRelationships)
+        {
+            var providerIsPresent = KeywordProviderSources.Contains(relationship.Sources, provider);
+            var providerShouldBePresent = incomingKeywordIds.Contains(relationship.KeywordId);
+            if (providerIsPresent == providerShouldBePresent)
+            {
+                continue;
+            }
+
+            var updatedSources = KeywordProviderSources.SetProvider(
+                relationship.Sources,
+                provider,
+                providerShouldBePresent);
+
+            if (!KeywordProviderSources.HasAny(updatedSources))
+            {
+                dbContext.MovieKeywords.Remove(relationship);
+                byKeywordId.Remove(relationship.KeywordId);
+                continue;
+            }
+
+            relationship.Sources = updatedSources;
+        }
+
+        foreach (var keywordId in incomingKeywordIds)
+        {
+            if (byKeywordId.TryGetValue(keywordId, out var existingRelationship))
+            {
+                if (!KeywordProviderSources.Contains(existingRelationship.Sources, provider))
+                {
+                    existingRelationship.Sources = KeywordProviderSources.SetProvider(
+                        existingRelationship.Sources,
+                        provider,
+                        include: true);
+                }
+
+                continue;
+            }
+
+            var relationship = new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = keywordId,
+                Sources = KeywordProviderSources.Create(provider),
+            };
+            dbContext.MovieKeywords.Add(relationship);
+            byKeywordId[keywordId] = relationship;
+        }
+    }
 
     private static async Task ReconcileProviderTvShowSourcesAsync(
         ApplicationDbContext dbContext,
         Guid tvShowId,
         KeywordProvider provider,
         IReadOnlySet<Guid> incomingKeywordIds,
-        DateTime syncedAtUtc,
         CancellationToken cancellationToken)
     {
-        var currentSources = await dbContext.TvShowKeywordSources
-            .Where(source => source.TvShowId == tvShowId && source.Provider == provider)
+        var currentRelationships = await dbContext.TvShowKeywords
+            .Where(relationship => relationship.TvShowId == tvShowId)
             .ToListAsync(cancellationToken);
+        var byKeywordId = currentRelationships.ToDictionary(relationship => relationship.KeywordId);
 
-        var currentKeywordIds = currentSources.Select(source => source.KeywordId).ToHashSet();
-        var toRemove = currentSources.Where(source => !incomingKeywordIds.Contains(source.KeywordId)).ToList();
-        if (toRemove.Count > 0)
+        foreach (var relationship in currentRelationships)
         {
-            dbContext.TvShowKeywordSources.RemoveRange(toRemove);
+            var providerIsPresent = KeywordProviderSources.Contains(relationship.Sources, provider);
+            var providerShouldBePresent = incomingKeywordIds.Contains(relationship.KeywordId);
+            if (providerIsPresent == providerShouldBePresent)
+            {
+                continue;
+            }
+
+            var updatedSources = KeywordProviderSources.SetProvider(
+                relationship.Sources,
+                provider,
+                providerShouldBePresent);
+
+            if (!KeywordProviderSources.HasAny(updatedSources))
+            {
+                dbContext.TvShowKeywords.Remove(relationship);
+                byKeywordId.Remove(relationship.KeywordId);
+                continue;
+            }
+
+            relationship.Sources = updatedSources;
         }
 
-        foreach (var keywordId in incomingKeywordIds.Where(id => !currentKeywordIds.Contains(id)))
+        foreach (var keywordId in incomingKeywordIds)
         {
-            dbContext.TvShowKeywordSources.Add(new TvShowKeywordSource
+            if (byKeywordId.TryGetValue(keywordId, out var existingRelationship))
+            {
+                if (!KeywordProviderSources.Contains(existingRelationship.Sources, provider))
+                {
+                    existingRelationship.Sources = KeywordProviderSources.SetProvider(
+                        existingRelationship.Sources,
+                        provider,
+                        include: true);
+                }
+
+                continue;
+            }
+
+            var relationship = new TvShowKeyword
             {
                 TvShowId = tvShowId,
                 KeywordId = keywordId,
-                Provider = provider,
-                FirstSeenAtUtc = syncedAtUtc,
-                LastSeenAtUtc = syncedAtUtc,
-            });
-        }
-
-        foreach (var source in currentSources.Where(source => incomingKeywordIds.Contains(source.KeywordId)))
-        {
-            source.LastSeenAtUtc = syncedAtUtc;
-        }
-    }
-
-    private static async Task ApplyMovieKeywordUnionAsync(
-        ApplicationDbContext dbContext,
-        Guid movieId,
-        IReadOnlyCollection<Guid> sourceKeywordIds,
-        CancellationToken cancellationToken)
-    {
-        var currentKeywordIds = await dbContext.MovieKeywords
-            .Where(join => join.MovieId == movieId)
-            .Select(join => join.KeywordId)
-            .ToListAsync(cancellationToken);
-
-        var sourceSet = sourceKeywordIds.ToHashSet();
-        var currentSet = currentKeywordIds.ToHashSet();
-
-        var toRemove = currentSet.Except(sourceSet).ToList();
-        if (toRemove.Count > 0)
-        {
-            var joinsToRemove = await dbContext.MovieKeywords
-                .Where(join => join.MovieId == movieId && toRemove.Contains(join.KeywordId))
-                .ToListAsync(cancellationToken);
-            dbContext.MovieKeywords.RemoveRange(joinsToRemove);
-        }
-
-        foreach (var keywordId in sourceSet.Except(currentSet))
-        {
-            dbContext.MovieKeywords.Add(new MovieKeyword
-            {
-                MovieId = movieId,
-                KeywordId = keywordId,
-            });
-        }
-    }
-
-    private static async Task ApplyTvShowKeywordUnionAsync(
-        ApplicationDbContext dbContext,
-        Guid tvShowId,
-        IReadOnlyCollection<Guid> sourceKeywordIds,
-        CancellationToken cancellationToken)
-    {
-        var currentKeywordIds = await dbContext.TvShowKeywords
-            .Where(join => join.TvShowId == tvShowId)
-            .Select(join => join.KeywordId)
-            .ToListAsync(cancellationToken);
-
-        var sourceSet = sourceKeywordIds.ToHashSet();
-        var currentSet = currentKeywordIds.ToHashSet();
-
-        var toRemove = currentSet.Except(sourceSet).ToList();
-        if (toRemove.Count > 0)
-        {
-            var joinsToRemove = await dbContext.TvShowKeywords
-                .Where(join => join.TvShowId == tvShowId && toRemove.Contains(join.KeywordId))
-                .ToListAsync(cancellationToken);
-            dbContext.TvShowKeywords.RemoveRange(joinsToRemove);
-        }
-
-        foreach (var keywordId in sourceSet.Except(currentSet))
-        {
-            dbContext.TvShowKeywords.Add(new TvShowKeyword
-            {
-                TvShowId = tvShowId,
-                KeywordId = keywordId,
-            });
+                Sources = KeywordProviderSources.Create(provider),
+            };
+            dbContext.TvShowKeywords.Add(relationship);
+            byKeywordId[keywordId] = relationship;
         }
     }
 }
