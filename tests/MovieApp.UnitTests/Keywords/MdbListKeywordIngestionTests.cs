@@ -8,6 +8,7 @@ using MovieApp.Application.Models.Keywords;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -42,7 +43,8 @@ public sealed class MdbListKeywordIngestionTests
         Assert.Equal(1, result.Stats!.PromotedCanonicalCount);
         Assert.Equal(1, result.Stats.ExternalReferencesReused);
         Assert.Equal(0, result.Stats.ExternalReferencesCreated);
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
@@ -64,11 +66,12 @@ public sealed class MdbListKeywordIngestionTests
         var reference = await context.KeywordExternalReferences.SingleAsync();
         Assert.Equal(keyword.Id, reference.KeywordId);
         Assert.Equal("297503", reference.ExternalId);
-        Assert.Single(await context.MovieKeywords.ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
-    public async Task TwoMdbListIdsForSameConceptShareCanonicalKeywordAndOneSource()
+    public async Task TwoMdbListIdsForSameConceptShareCanonicalKeywordAndOneRelationship()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
@@ -85,8 +88,8 @@ public sealed class MdbListKeywordIngestionTests
             CancellationToken.None);
 
         Assert.Equal(2, await context.KeywordExternalReferences.CountAsync());
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
-        Assert.Single(await context.MovieKeywords.ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
@@ -105,7 +108,7 @@ public sealed class MdbListKeywordIngestionTests
         Assert.Equal(1, result.Stats!.SkippedNoMatchCount);
         Assert.Empty(await context.Keywords.Where(keyword => keyword.TmdbKeywordId == null).ToListAsync());
         Assert.Empty(await context.KeywordExternalReferences.ToListAsync());
-        Assert.Empty(await context.MovieKeywordSources.ToListAsync());
+        Assert.Empty(await context.MovieKeywords.ToListAsync());
     }
 
     [Fact]
@@ -149,36 +152,23 @@ public sealed class MdbListKeywordIngestionTests
     }
 
     [Fact]
-    public async Task MdbListRefreshRemovesStaleMdbListSourcesAndPreservesTmdbSources()
+    public async Task MdbListRefreshRemovesStaleMdbListOwnershipAndPreservesTmdbOwnership()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var keywordA = await SeedKeywordAsync(context, 1, "alpha");
         var keywordB = await SeedKeywordAsync(context, 2, "beta");
-        context.MovieKeywordSources.AddRange(
-            new MovieKeywordSource
-            {
-                MovieId = movie.Id,
-                KeywordId = keywordA.Id,
-                Provider = KeywordProvider.Tmdb,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            },
-            new MovieKeywordSource
-            {
-                MovieId = movie.Id,
-                KeywordId = keywordA.Id,
-                Provider = KeywordProvider.MdbList,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            },
-            new MovieKeywordSource
+        var sharedSources = KeywordProviderSources.SetProvider(
+            KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            KeywordProvider.MdbList,
+            include: true);
+        context.MovieKeywords.AddRange(
+            new MovieKeyword { MovieId = movie.Id, KeywordId = keywordA.Id, Sources = sharedSources },
+            new MovieKeyword
             {
                 MovieId = movie.Id,
                 KeywordId = keywordB.Id,
-                Provider = KeywordProvider.MdbList,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
             });
         context.KeywordExternalReferences.Add(new KeywordExternalReference
         {
@@ -197,24 +187,23 @@ public sealed class MdbListKeywordIngestionTests
             DateTime.UtcNow,
             CancellationToken.None);
 
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.Tmdb).ToListAsync());
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
-        Assert.Single(await context.MovieKeywords.ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.Equal(keywordA.Id, relationship.KeywordId);
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.Tmdb));
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
-    public async Task TvShowMdbListRefreshPreservesTmdbSources()
+    public async Task TvShowMdbListRefreshPreservesTmdbOwnership()
     {
         await using var context = CreateContext();
         var tvShow = await SeedTvShowAsync(context);
         var keyword = await SeedKeywordAsync(context, 5, "drama");
-        context.TvShowKeywordSources.Add(new TvShowKeywordSource
+        context.TvShowKeywords.Add(new TvShowKeyword
         {
             TvShowId = tvShow.Id,
             KeywordId = keyword.Id,
-            Provider = KeywordProvider.Tmdb,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
         });
         context.KeywordExternalReferences.Add(new KeywordExternalReference
         {
@@ -233,34 +222,22 @@ public sealed class MdbListKeywordIngestionTests
             DateTime.UtcNow,
             CancellationToken.None);
 
-        Assert.Single(await context.TvShowKeywordSources.Where(source => source.Provider == KeywordProvider.Tmdb).ToListAsync());
-        Assert.Single(await context.TvShowKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
+        var relationship = await context.TvShowKeywords.SingleAsync();
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.Tmdb));
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
-    public async Task SuccessfulEmptyMdbListResultClearsMdbListSourcesPreservesTmdbAndAdvancesMarker()
+    public async Task SuccessfulEmptyMdbListResultClearsMdbListOwnershipPreservesTmdbAndAdvancesMarker()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var keyword = await SeedKeywordAsync(context, 3, "solo");
-        context.MovieKeywordSources.AddRange(
-            new MovieKeywordSource
-            {
-                MovieId = movie.Id,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.Tmdb,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            },
-            new MovieKeywordSource
-            {
-                MovieId = movie.Id,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.MdbList,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            });
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
+        var sources = KeywordProviderSources.SetProvider(
+            KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            KeywordProvider.MdbList,
+            include: true);
+        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id, Sources = sources });
         await context.SaveChangesAsync();
 
         var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
@@ -269,24 +246,22 @@ public sealed class MdbListKeywordIngestionTests
 
         Assert.Equal(MdbListKeywordIngestionStatus.Succeeded, result.Status);
         Assert.NotNull(result.MdbListKeywordsSyncedAtUtc);
-        Assert.Empty(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.Tmdb).ToListAsync());
-        Assert.Single(await context.MovieKeywords.ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.False(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.Tmdb));
     }
 
     [Fact]
-    public async Task TransportFailureDoesNotAdvanceMarkerOrMutateMdbListSources()
+    public async Task TransportFailureDoesNotAdvanceMarkerOrMutateMdbListOwnership()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var keyword = await SeedKeywordAsync(context, 8, "kept");
-        context.MovieKeywordSources.Add(new MovieKeywordSource
+        context.MovieKeywords.Add(new MovieKeyword
         {
             MovieId = movie.Id,
             KeywordId = keyword.Id,
-            Provider = KeywordProvider.MdbList,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
         });
         await context.SaveChangesAsync();
 
@@ -300,7 +275,8 @@ public sealed class MdbListKeywordIngestionTests
 
         Assert.Equal(MdbListKeywordIngestionStatus.TransportUnavailable, result.Status);
         Assert.Null(stored.MdbListKeywordsSyncedAtUtc);
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
