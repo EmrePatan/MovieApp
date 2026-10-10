@@ -70,8 +70,8 @@ public sealed class ExpandKeywordGraphPr1MigrationInvariantIntegrationTests : IA
             .CountAsync(reference => reference.Provider == KeywordProvider.Tmdb);
         var movieKeywordCountAfter = await context.MovieKeywords.CountAsync();
         var tvShowKeywordCountAfter = await context.TvShowKeywords.CountAsync();
-        var movieSourceCount = await context.MovieKeywordSources.CountAsync();
-        var tvSourceCount = await context.TvShowKeywordSources.CountAsync();
+        var movieSourceCount = await ScalarCountAsync(context, "SELECT COUNT(*) FROM movie_keyword_sources");
+        var tvSourceCount = await ScalarCountAsync(context, "SELECT COUNT(*) FROM tv_show_keyword_sources");
 
         Assert.Equal(keywordCountBefore, keywordCountAfter);
         Assert.Equal(keywordCountAfter, tmdbRefCount);
