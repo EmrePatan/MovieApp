@@ -122,7 +122,7 @@ public sealed class CatalogTitleKeywordReadRepository(
         return summaries;
     }
 
-    private IQueryable<MovieKeyword> OrderEligibleMovieDetailKeywords(IQueryable<MovieKeyword> movieJoins) =>
+    private static IQueryable<MovieKeyword> OrderEligibleMovieDetailKeywords(IQueryable<MovieKeyword> movieJoins) =>
         movieJoins
             .Where(join =>
                 join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
@@ -134,7 +134,7 @@ public sealed class CatalogTitleKeywordReadRepository(
             .ThenByDescending(join => join.Keyword.DisplayProfile!.DisplayRank)
             .ThenBy(join => join.KeywordId);
 
-    private IQueryable<TvShowKeyword> OrderEligibleTvShowDetailKeywords(IQueryable<TvShowKeyword> tvJoins) =>
+    private static IQueryable<TvShowKeyword> OrderEligibleTvShowDetailKeywords(IQueryable<TvShowKeyword> tvJoins) =>
         tvJoins
             .Where(join =>
                 join.Keyword.ClassificationStatus != KeywordClassificationStatus.Excluded &&
