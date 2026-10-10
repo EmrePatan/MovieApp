@@ -11,7 +11,7 @@ public static class KeywordProviderSources
         JsonSerializer.Serialize(new[] { ToStorageName(provider) });
 
     public static bool Contains(string? sources, KeywordProvider provider) =>
-        Read(sources).Contains(ToStorageName(provider), StringComparer.Ordinal);
+        Read(sources).Contains(ToStorageName(provider), StringComparer.OrdinalIgnoreCase);
 
     public static bool HasAny(string? sources) => Read(sources).Count > 0;
 
@@ -19,7 +19,7 @@ public static class KeywordProviderSources
     {
         var values = Read(sources);
         var storageName = ToStorageName(provider);
-        var contains = values.Contains(storageName, StringComparer.Ordinal);
+        var contains = values.Contains(storageName, StringComparer.OrdinalIgnoreCase);
 
         if (contains == include)
         {
@@ -32,10 +32,10 @@ public static class KeywordProviderSources
         }
         else
         {
-            values.RemoveAll(value => string.Equals(value, storageName, StringComparison.Ordinal));
+            values.RemoveAll(value => string.Equals(value, storageName, StringComparison.OrdinalIgnoreCase));
         }
 
-        values.Sort(StringComparer.Ordinal);
+        values.Sort(StringComparer.OrdinalIgnoreCase);
         return JsonSerializer.Serialize(values);
     }
 
@@ -54,7 +54,7 @@ public static class KeywordProviderSources
 
         return values
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.Ordinal)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 }
