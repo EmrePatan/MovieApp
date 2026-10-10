@@ -97,8 +97,9 @@ public sealed class CollapseKeywordSourcesIntoRelationshipsMigrationIntegrationT
             3,
             await ScalarCountAsync(
                 context,
-                "SELECT COUNT(*) FROM movie_keyword_sources WHERE \"FirstSeenAtUtc\" IS NULL AND \"LastSeenAtUtc\" IS NULL " +
-                "UNION ALL SELECT COUNT(*) FROM tv_show_keyword_sources WHERE \"FirstSeenAtUtc\" IS NULL AND \"LastSeenAtUtc\" IS NULL"));
+                "SELECT " +
+                "(SELECT COUNT(*) FROM movie_keyword_sources WHERE \"FirstSeenAtUtc\" IS NULL AND \"LastSeenAtUtc\" IS NULL) + " +
+                "(SELECT COUNT(*) FROM tv_show_keyword_sources WHERE \"FirstSeenAtUtc\" IS NULL AND \"LastSeenAtUtc\" IS NULL)"));
     }
 
     private static async Task<long> ScalarCountAsync(ApplicationDbContext context, string sql)
