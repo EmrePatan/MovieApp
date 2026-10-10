@@ -1,22 +1,21 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace MovieApp.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20261010170000_CollapseKeywordSourcesIntoRelationships")]
+    /// <inheritdoc />
     public partial class CollapseKeywordSourcesIntoRelationships : Migration
     {
+        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Sources",
-                table: "movie_keywords",
-                type: "jsonb",
-                nullable: false,
-                defaultValueSql: "'[]'::jsonb");
+            migrationBuilder.DropTable(
+                name: "movie_keyword_sources");
+
+            migrationBuilder.DropTable(
+                name: "tv_show_keyword_sources");
 
             migrationBuilder.AddColumn<string>(
                 name: "Sources",
@@ -25,51 +24,25 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 nullable: false,
                 defaultValueSql: "'[]'::jsonb");
 
-            migrationBuilder.Sql(
-                """
-                INSERT INTO movie_keywords ("MovieId", "KeywordId", "Sources")
-                SELECT DISTINCT source."MovieId", source."KeywordId", '[]'::jsonb
-                FROM movie_keyword_sources AS source
-                ON CONFLICT ("MovieId", "KeywordId") DO NOTHING;
-
-                UPDATE movie_keywords AS relationship
-                SET "Sources" = COALESCE(
-                    (
-                        SELECT jsonb_agg(provider."Provider" ORDER BY provider."Provider")
-                        FROM (
-                            SELECT DISTINCT source."Provider"
-                            FROM movie_keyword_sources AS source
-                            WHERE source."MovieId" = relationship."MovieId"
-                              AND source."KeywordId" = relationship."KeywordId"
-                        ) AS provider
-                    ),
-                    '[]'::jsonb);
-
-                INSERT INTO tv_show_keywords ("TvShowId", "KeywordId", "Sources")
-                SELECT DISTINCT source."TvShowId", source."KeywordId", '[]'::jsonb
-                FROM tv_show_keyword_sources AS source
-                ON CONFLICT ("TvShowId", "KeywordId") DO NOTHING;
-
-                UPDATE tv_show_keywords AS relationship
-                SET "Sources" = COALESCE(
-                    (
-                        SELECT jsonb_agg(provider."Provider" ORDER BY provider."Provider")
-                        FROM (
-                            SELECT DISTINCT source."Provider"
-                            FROM tv_show_keyword_sources AS source
-                            WHERE source."TvShowId" = relationship."TvShowId"
-                              AND source."KeywordId" = relationship."KeywordId"
-                        ) AS provider
-                    ),
-                    '[]'::jsonb);
-                """);
-
-            migrationBuilder.DropTable(name: "movie_keyword_sources");
-            migrationBuilder.DropTable(name: "tv_show_keyword_sources");
+            migrationBuilder.AddColumn<string>(
+                name: "Sources",
+                table: "movie_keywords",
+                type: "jsonb",
+                nullable: false,
+                defaultValueSql: "'[]'::jsonb");
         }
 
+        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "Sources",
+                table: "tv_show_keywords");
+
+            migrationBuilder.DropColumn(
+                name: "Sources",
+                table: "movie_keywords");
+
             migrationBuilder.CreateTable(
                 name: "movie_keyword_sources",
                 columns: table => new
@@ -143,22 +116,6 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 name: "IX_tv_show_keyword_sources_TvShowId_Provider",
                 table: "tv_show_keyword_sources",
                 columns: new[] { "TvShowId", "Provider" });
-
-            migrationBuilder.Sql(
-                """
-                INSERT INTO movie_keyword_sources ("MovieId", "KeywordId", "Provider", "FirstSeenAtUtc", "LastSeenAtUtc")
-                SELECT relationship."MovieId", relationship."KeywordId", source.value, NULL, NULL
-                FROM movie_keywords AS relationship
-                CROSS JOIN LATERAL jsonb_array_elements_text(relationship."Sources") AS source(value);
-
-                INSERT INTO tv_show_keyword_sources ("TvShowId", "KeywordId", "Provider", "FirstSeenAtUtc", "LastSeenAtUtc")
-                SELECT relationship."TvShowId", relationship."KeywordId", source.value, NULL, NULL
-                FROM tv_show_keywords AS relationship
-                CROSS JOIN LATERAL jsonb_array_elements_text(relationship."Sources") AS source(value);
-                """);
-
-            migrationBuilder.DropColumn(name: "Sources", table: "movie_keywords");
-            migrationBuilder.DropColumn(name: "Sources", table: "tv_show_keywords");
         }
     }
 }
