@@ -9,4 +9,6 @@ public sealed class TvShowKeyword
     public Guid KeywordId { get; set; }
 
     public Keyword Keyword { get; set; } = null!;
+
+    public string Sources { get; set; } = "[]";
 }

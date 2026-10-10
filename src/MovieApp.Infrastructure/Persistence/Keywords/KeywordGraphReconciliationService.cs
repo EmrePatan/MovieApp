@@ -5,6 +5,7 @@ using MovieApp.Application.Models.Keywords;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 
 namespace MovieApp.Infrastructure.Persistence.Keywords;
 
@@ -210,35 +211,14 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
 
         var movieJoinCount = await dbContext.MovieKeywords.CountAsync(cancellationToken);
         var missingMovieKeywordSource = await dbContext.MovieKeywords
-            .AsNoTracking()
-            .Where(join => !dbContext.MovieKeywordSources.Any(source =>
-                source.MovieId == join.MovieId &&
-                source.KeywordId == join.KeywordId))
-            .CountAsync(cancellationToken);
+            .CountAsync(join => join.Sources == KeywordProviderSources.Empty, cancellationToken);
 
         var tvJoinCount = await dbContext.TvShowKeywords.CountAsync(cancellationToken);
         var missingTvKeywordSource = await dbContext.TvShowKeywords
-            .AsNoTracking()
-            .Where(join => !dbContext.TvShowKeywordSources.Any(source =>
-                source.TvShowId == join.TvShowId &&
-                source.KeywordId == join.KeywordId))
-            .CountAsync(cancellationToken);
+            .CountAsync(join => join.Sources == KeywordProviderSources.Empty, cancellationToken);
 
-        var missingMovieMaterializedJoin = await dbContext.MovieKeywordSources
-            .AsNoTracking()
-            .GroupBy(source => new { source.MovieId, source.KeywordId })
-            .Where(group => !dbContext.MovieKeywords.Any(join =>
-                join.MovieId == group.Key.MovieId &&
-                join.KeywordId == group.Key.KeywordId))
-            .CountAsync(cancellationToken);
-
-        var missingTvMaterializedJoin = await dbContext.TvShowKeywordSources
-            .AsNoTracking()
-            .GroupBy(source => new { source.TvShowId, source.KeywordId })
-            .Where(group => !dbContext.TvShowKeywords.Any(join =>
-                join.TvShowId == group.Key.TvShowId &&
-                join.KeywordId == group.Key.KeywordId))
-            .CountAsync(cancellationToken);
+        const int missingMovieMaterializedJoin = 0;
+        const int missingTvMaterializedJoin = 0;
 
         var conflictingCount = conflicts.Count;
         var isReady = conflictingCount == 0 &&
@@ -246,9 +226,7 @@ public sealed class KeywordGraphReconciliationService(ApplicationDbContext dbCon
                       missingNormalized == 0 &&
                       missingTmdbExternalRef == 0 &&
                       missingMovieKeywordSource == 0 &&
-                      missingTvKeywordSource == 0 &&
-                      missingMovieMaterializedJoin == 0 &&
-                      missingTvMaterializedJoin == 0;
+                      missingTvKeywordSource == 0;
 
         return new KeywordGraphReconciliationResult
         {

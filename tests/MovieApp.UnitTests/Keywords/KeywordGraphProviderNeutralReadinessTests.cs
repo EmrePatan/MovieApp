@@ -4,6 +4,7 @@ using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Keywords;
 using MovieApp.Infrastructure.Persistence.Repositories;
@@ -103,12 +104,12 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
     }
 
     [Fact]
-    public async Task OrphanMovieJoinIncreasesMissingMovieSourceCount()
+    public async Task MovieRelationshipWithoutSourcesFailsReadiness()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var keyword = await SeedTmdbKeywordAsync(context, 5, "orphan");
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
+        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id, Sources = "[]" });
         await context.SaveChangesAsync();
 
         var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
@@ -117,14 +118,13 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
     }
 
     [Fact]
-    public async Task MovieJoinWithOnlyMdbListSourceIsNotMissingSource()
+    public async Task MovieRelationshipWithOnlyMdbListSourceIsReady()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var keyword = new Keyword
         {
             Id = Guid.NewGuid(),
-            TmdbKeywordId = null,
             Name = "mdb",
             CanonicalName = "mdb",
             NormalizedName = "mdb",
@@ -132,15 +132,12 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
             UpdatedAt = DateTime.UtcNow,
         };
         context.Keywords.Add(keyword);
-        context.MovieKeywordSources.Add(new MovieKeywordSource
+        context.MovieKeywords.Add(new MovieKeyword
         {
             MovieId = movie.Id,
             KeywordId = keyword.Id,
-            Provider = KeywordProvider.MdbList,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
         });
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
         await context.SaveChangesAsync();
 
         var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
@@ -149,27 +146,27 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
     }
 
     [Fact]
-    public async Task OrphanTvJoinIncreasesMissingTvSourceCount()
+    public async Task TvRelationshipWithoutSourcesFailsReadiness()
     {
         await using var context = CreateContext();
         var tvShow = await SeedTvShowAsync(context);
         var keyword = await SeedTmdbKeywordAsync(context, 8, "tv orphan");
-        context.TvShowKeywords.Add(new TvShowKeyword { TvShowId = tvShow.Id, KeywordId = keyword.Id });
+        context.TvShowKeywords.Add(new TvShowKeyword { TvShowId = tvShow.Id, KeywordId = keyword.Id, Sources = "[]" });
         await context.SaveChangesAsync();
 
         var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
         Assert.Equal(1, result.MissingTvShowKeywordSourceCount);
+        Assert.False(result.IsReadyForProviderAwareSync);
     }
 
     [Fact]
-    public async Task ReconcileDoesNotCreateTmdbSourceFromMdbListOnlyJoin()
+    public async Task ReconcileDoesNotInventTmdbOwnershipForMdbListOnlyRelationship()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var keyword = new Keyword
         {
             Id = Guid.NewGuid(),
-            TmdbKeywordId = null,
             Name = "mdb join",
             CanonicalName = "mdb join",
             NormalizedName = "mdb join",
@@ -177,129 +174,32 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
             UpdatedAt = DateTime.UtcNow,
         };
         context.Keywords.Add(keyword);
-        context.MovieKeywordSources.Add(new MovieKeywordSource
+        context.MovieKeywords.Add(new MovieKeyword
         {
             MovieId = movie.Id,
             KeywordId = keyword.Id,
-            Provider = KeywordProvider.MdbList,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
         });
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
         await context.SaveChangesAsync();
 
         await new KeywordGraphReconciliationService(context).ReconcileAsync();
 
-        Assert.DoesNotContain(
-            await context.MovieKeywordSources.ToListAsync(),
-            source => source.Provider == KeywordProvider.Tmdb);
-        Assert.Single(await context.MovieKeywordSources.Where(source => source.Provider == KeywordProvider.MdbList).ToListAsync());
+        var relationship = await context.MovieKeywords.SingleAsync();
+        Assert.False(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.Tmdb));
+        Assert.True(KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
     }
 
     [Fact]
-    public async Task MovieSourceWithoutMaterializedJoinFailsReadiness()
+    public async Task EmbeddedSourcesCannotExistWithoutMaterializedJoin()
     {
         await using var context = CreateContext();
-        var movie = await SeedMovieAsync(context);
-        var keyword = await SeedTmdbKeywordAsync(context, 11, "source only");
-        context.MovieKeywordSources.Add(new MovieKeywordSource
-        {
-            MovieId = movie.Id,
-            KeywordId = keyword.Id,
-            Provider = KeywordProvider.Tmdb,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
-        });
-        await context.SaveChangesAsync();
-
-        var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
-        Assert.Equal(1, result.MissingMovieMaterializedJoinCount);
-        Assert.False(result.IsReadyForProviderAwareSync);
-    }
-
-    [Fact]
-    public async Task MovieDualProviderSourcesWithOneMaterializedJoinIsNotMissingMaterializedJoin()
-    {
-        await using var context = CreateContext();
-        var movie = await SeedMovieAsync(context);
-        var keyword = await SeedTmdbKeywordAsync(context, 12, "dual source");
-        context.MovieKeywordSources.AddRange(
-            new MovieKeywordSource
-            {
-                MovieId = movie.Id,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.Tmdb,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            },
-            new MovieKeywordSource
-            {
-                MovieId = movie.Id,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.MdbList,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            });
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
-        await context.SaveChangesAsync();
-
         var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
         Assert.Equal(0, result.MissingMovieMaterializedJoinCount);
-    }
-
-    [Fact]
-    public async Task TvSourceWithoutMaterializedJoinFailsReadiness()
-    {
-        await using var context = CreateContext();
-        var tvShow = await SeedTvShowAsync(context);
-        var keyword = await SeedTmdbKeywordAsync(context, 13, "tv source only");
-        context.TvShowKeywordSources.Add(new TvShowKeywordSource
-        {
-            TvShowId = tvShow.Id,
-            KeywordId = keyword.Id,
-            Provider = KeywordProvider.Tmdb,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
-        });
-        await context.SaveChangesAsync();
-
-        var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
-        Assert.Equal(1, result.MissingTvShowMaterializedJoinCount);
-        Assert.False(result.IsReadyForProviderAwareSync);
-    }
-
-    [Fact]
-    public async Task TvDualProviderSourcesWithOneMaterializedJoinIsNotMissingMaterializedJoin()
-    {
-        await using var context = CreateContext();
-        var tvShow = await SeedTvShowAsync(context);
-        var keyword = await SeedTmdbKeywordAsync(context, 14, "tv dual");
-        context.TvShowKeywordSources.AddRange(
-            new TvShowKeywordSource
-            {
-                TvShowId = tvShow.Id,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.Tmdb,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            },
-            new TvShowKeywordSource
-            {
-                TvShowId = tvShow.Id,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.MdbList,
-                FirstSeenAtUtc = DateTime.UtcNow,
-                LastSeenAtUtc = DateTime.UtcNow,
-            });
-        context.TvShowKeywords.Add(new TvShowKeyword { TvShowId = tvShow.Id, KeywordId = keyword.Id });
-        await context.SaveChangesAsync();
-
-        var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
         Assert.Equal(0, result.MissingTvShowMaterializedJoinCount);
     }
 
     [Fact]
-    public async Task FullyHealthyBidirectionalGraphIsReady()
+    public async Task FullyHealthyEmbeddedGraphIsReady()
     {
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
@@ -318,24 +218,18 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
             });
         }
 
-        context.MovieKeywordSources.Add(new MovieKeywordSource
+        context.MovieKeywords.Add(new MovieKeyword
         {
             MovieId = movie.Id,
             KeywordId = movieKeyword.Id,
-            Provider = KeywordProvider.Tmdb,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
         });
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = movieKeyword.Id });
-        context.TvShowKeywordSources.Add(new TvShowKeywordSource
+        context.TvShowKeywords.Add(new TvShowKeyword
         {
             TvShowId = tvShow.Id,
             KeywordId = tvKeyword.Id,
-            Provider = KeywordProvider.Tmdb,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
         });
-        context.TvShowKeywords.Add(new TvShowKeyword { TvShowId = tvShow.Id, KeywordId = tvKeyword.Id });
         await context.SaveChangesAsync();
 
         var result = await new KeywordGraphReconciliationService(context).VerifyReadinessAsync();
@@ -352,16 +246,13 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context);
         var mdbKeyword = await SeedTmdbKeywordAsync(context, 99, "mdb preserved");
-        var tmdbKeyword = await SeedTmdbKeywordAsync(context, 1, "tmdb");
-        context.MovieKeywordSources.Add(new MovieKeywordSource
+        _ = await SeedTmdbKeywordAsync(context, 1, "tmdb");
+        context.MovieKeywords.Add(new MovieKeyword
         {
             MovieId = movie.Id,
             KeywordId = mdbKeyword.Id,
-            Provider = KeywordProvider.MdbList,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow,
+            Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
         });
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = mdbKeyword.Id });
         await context.SaveChangesAsync();
 
         var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context, providerAwareSyncEnabled: true);
@@ -370,10 +261,11 @@ public sealed class KeywordGraphProviderNeutralReadinessTests
             [new ProviderKeywordSummary(1, "tmdb")],
             DateTime.UtcNow);
 
-        Assert.Contains(
-            await context.MovieKeywordSources.ToListAsync(),
-            source => source.Provider == KeywordProvider.MdbList && source.KeywordId == mdbKeyword.Id);
-        Assert.Equal(2, await context.MovieKeywords.CountAsync(join => join.MovieId == movie.Id));
+        var relationships = await context.MovieKeywords.Where(join => join.MovieId == movie.Id).ToListAsync();
+        Assert.Contains(relationships, relationship =>
+            relationship.KeywordId == mdbKeyword.Id &&
+            KeywordProviderSources.Contains(relationship.Sources, KeywordProvider.MdbList));
+        Assert.Equal(2, relationships.Count);
     }
 
     private static ApplicationDbContext CreateContext()

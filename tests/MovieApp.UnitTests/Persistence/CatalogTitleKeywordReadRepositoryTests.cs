@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Configuration;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -128,20 +129,18 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         context.Keywords.AddRange(tmdbKeyword, mdbListOnlyKeyword);
         context.MovieKeywords.AddRange(
-            new MovieKeyword { MovieId = movieId, KeywordId = tmdbKeyword.Id },
-            new MovieKeyword { MovieId = movieId, KeywordId = mdbListOnlyKeyword.Id });
-        context.MovieKeywordSources.Add(new MovieKeywordSource
-        {
-            MovieId = movieId,
-            KeywordId = tmdbKeyword.Id,
-            Provider = KeywordProvider.Tmdb,
-        });
-        context.MovieKeywordSources.Add(new MovieKeywordSource
-        {
-            MovieId = movieId,
-            KeywordId = mdbListOnlyKeyword.Id,
-            Provider = KeywordProvider.MdbList,
-        });
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = tmdbKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            },
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = mdbListOnlyKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
+            });
         await context.SaveChangesAsync();
 
         var repository = CreateRepository(context);
@@ -171,17 +170,18 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         context.Keywords.AddRange(lower, higher);
         context.MovieKeywords.AddRange(
-            new MovieKeyword { MovieId = movieId, KeywordId = lower.Id },
-            new MovieKeyword { MovieId = movieId, KeywordId = higher.Id });
-        foreach (var keyword in new[] { lower, higher })
-        {
-            context.MovieKeywordSources.Add(new MovieKeywordSource
+            new MovieKeyword
             {
                 MovieId = movieId,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.Tmdb,
+                KeywordId = lower.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            },
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = higher.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
             });
-        }
 
         await context.SaveChangesAsync();
 
@@ -211,17 +211,18 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         context.Keywords.AddRange(lower, higher);
         context.MovieKeywords.AddRange(
-            new MovieKeyword { MovieId = movieId, KeywordId = lower.Id },
-            new MovieKeyword { MovieId = movieId, KeywordId = higher.Id });
-        foreach (var keyword in new[] { lower, higher })
-        {
-            context.MovieKeywordSources.Add(new MovieKeywordSource
+            new MovieKeyword
             {
                 MovieId = movieId,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.MdbList,
+                KeywordId = lower.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
+            },
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = higher.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
             });
-        }
 
         await context.SaveChangesAsync();
 
@@ -248,15 +249,20 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         var dual = CreateKeyword("dual", displayable: true, displayRank: 180);
         var mdbOnly = CreateKeyword("mdb-only", displayable: true, displayRank: 250);
+        var dualSources = KeywordProviderSources.SetProvider(
+            KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            KeywordProvider.MdbList,
+            include: true);
 
         context.Keywords.AddRange(dual, mdbOnly);
         context.MovieKeywords.AddRange(
-            new MovieKeyword { MovieId = movieId, KeywordId = dual.Id },
-            new MovieKeyword { MovieId = movieId, KeywordId = mdbOnly.Id });
-        context.MovieKeywordSources.AddRange(
-            new MovieKeywordSource { MovieId = movieId, KeywordId = dual.Id, Provider = KeywordProvider.Tmdb },
-            new MovieKeywordSource { MovieId = movieId, KeywordId = dual.Id, Provider = KeywordProvider.MdbList },
-            new MovieKeywordSource { MovieId = movieId, KeywordId = mdbOnly.Id, Provider = KeywordProvider.MdbList });
+            new MovieKeyword { MovieId = movieId, KeywordId = dual.Id, Sources = dualSources },
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = mdbOnly.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
+            });
         await context.SaveChangesAsync();
 
         var repository = CreateRepository(context);
@@ -288,13 +294,12 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
         context.Keywords.AddRange(lowRankKeyword, highRankKeyword);
         context.MovieKeywords.AddRange(
             new MovieKeyword { MovieId = movieId, KeywordId = lowRankKeyword.Id },
-            new MovieKeyword { MovieId = movieId, KeywordId = highRankKeyword.Id });
-        context.MovieKeywordSources.Add(new MovieKeywordSource
-        {
-            MovieId = movieId,
-            KeywordId = highRankKeyword.Id,
-            Provider = KeywordProvider.MdbList,
-        });
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = highRankKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
+            });
         await context.SaveChangesAsync();
 
         var repository = CreateRepository(context);
@@ -323,17 +328,18 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         context.Keywords.AddRange(lowRankKeyword, highRankKeyword);
         context.MovieKeywords.AddRange(
-            new MovieKeyword { MovieId = movieId, KeywordId = lowRankKeyword.Id },
-            new MovieKeyword { MovieId = movieId, KeywordId = highRankKeyword.Id });
-        foreach (var keyword in new[] { lowRankKeyword, highRankKeyword })
-        {
-            context.MovieKeywordSources.Add(new MovieKeywordSource
+            new MovieKeyword
             {
                 MovieId = movieId,
-                KeywordId = keyword.Id,
-                Provider = KeywordProvider.Tmdb,
+                KeywordId = lowRankKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            },
+            new MovieKeyword
+            {
+                MovieId = movieId,
+                KeywordId = highRankKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
             });
-        }
 
         await context.SaveChangesAsync();
 
@@ -363,20 +369,18 @@ public sealed class CatalogTitleKeywordReadRepositoryTests
 
         context.Keywords.AddRange(tmdbKeyword, mdbListOnlyKeyword);
         context.TvShowKeywords.AddRange(
-            new TvShowKeyword { TvShowId = tvShowId, KeywordId = tmdbKeyword.Id },
-            new TvShowKeyword { TvShowId = tvShowId, KeywordId = mdbListOnlyKeyword.Id });
-        context.TvShowKeywordSources.Add(new TvShowKeywordSource
-        {
-            TvShowId = tvShowId,
-            KeywordId = tmdbKeyword.Id,
-            Provider = KeywordProvider.Tmdb,
-        });
-        context.TvShowKeywordSources.Add(new TvShowKeywordSource
-        {
-            TvShowId = tvShowId,
-            KeywordId = mdbListOnlyKeyword.Id,
-            Provider = KeywordProvider.MdbList,
-        });
+            new TvShowKeyword
+            {
+                TvShowId = tvShowId,
+                KeywordId = tmdbKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            },
+            new TvShowKeyword
+            {
+                TvShowId = tvShowId,
+                KeywordId = mdbListOnlyKeyword.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.MdbList),
+            });
         await context.SaveChangesAsync();
 
         var repository = CreateRepository(context);

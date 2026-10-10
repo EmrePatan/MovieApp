@@ -5,6 +5,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -34,10 +35,14 @@ public sealed class KeywordGraphExpandPr1IntegrationTests
             [new ProviderKeywordSummary(12345, "probe")],
             DateTime.UtcNow);
 
-        Assert.Equal(1, await context.MovieKeywordSources.CountAsync(
-            source => source.MovieId == movie.Id && source.Provider == KeywordProvider.Tmdb));
-        Assert.Equal(0, await context.TvShowKeywordSources.CountAsync());
-        Assert.Equal(1, await context.MovieKeywords.CountAsync(join => join.MovieId == movie.Id));
+        var movieRelationships = await context.MovieKeywords
+            .AsNoTracking()
+            .Where(join => join.MovieId == movie.Id)
+            .ToListAsync();
+
+        Assert.Single(movieRelationships);
+        Assert.True(KeywordProviderSources.Contains(movieRelationships[0].Sources, KeywordProvider.Tmdb));
+        Assert.Equal(0, await context.TvShowKeywords.CountAsync());
     }
 
     [Fact]
