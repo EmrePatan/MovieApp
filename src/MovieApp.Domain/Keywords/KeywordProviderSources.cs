@@ -39,8 +39,7 @@ public static class KeywordProviderSources
         return JsonSerializer.Serialize(values);
     }
 
-    public static string ToStorageName(KeywordProvider provider) =>
-        provider.ToString().ToLowerInvariant();
+    public static string ToStorageName(KeywordProvider provider) => provider.ToString();
 
     private static List<string> Read(string? sources)
     {
