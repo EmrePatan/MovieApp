@@ -154,11 +154,8 @@ internal static class KeywordGraphMaterializer
             SELECT {movieId}, incoming."KeywordId", jsonb_build_array({providerName})
             FROM unnest({keywordIds}) AS incoming("KeywordId")
             ON CONFLICT ("MovieId", "KeywordId") DO UPDATE
-            SET "Sources" = CASE
-                WHEN movie_keywords."Sources" ? {providerName}
-                    THEN movie_keywords."Sources"
-                ELSE movie_keywords."Sources" || jsonb_build_array({providerName})
-            END;
+            SET "Sources" = movie_keywords."Sources" || jsonb_build_array({providerName})
+            WHERE NOT (movie_keywords."Sources" ? {providerName});
             """,
             cancellationToken);
     }
@@ -206,11 +203,8 @@ internal static class KeywordGraphMaterializer
             SELECT {tvShowId}, incoming."KeywordId", jsonb_build_array({providerName})
             FROM unnest({keywordIds}) AS incoming("KeywordId")
             ON CONFLICT ("TvShowId", "KeywordId") DO UPDATE
-            SET "Sources" = CASE
-                WHEN tv_show_keywords."Sources" ? {providerName}
-                    THEN tv_show_keywords."Sources"
-                ELSE tv_show_keywords."Sources" || jsonb_build_array({providerName})
-            END;
+            SET "Sources" = tv_show_keywords."Sources" || jsonb_build_array({providerName})
+            WHERE NOT (tv_show_keywords."Sources" ? {providerName});
             """,
             cancellationToken);
     }
