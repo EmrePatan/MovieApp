@@ -25,47 +25,30 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 nullable: false,
                 defaultValueSql: "'[]'::jsonb");
 
-            // Keep the relationship tables as the single source of truth, but preserve every
-            // provider membership before dropping the old provenance tables. INSERT ... ON
-            // CONFLICT also protects against a legacy/inconsistent database where a source row
-            // exists but its materialized relationship row is missing.
+            // Collapse provider membership directly into the relationship row in one grouped
+            // pass per source table. ON CONFLICT also recovers a legacy/inconsistent database
+            // where a source row exists but its materialized relationship row is missing.
             migrationBuilder.Sql(
                 """
                 INSERT INTO movie_keywords ("MovieId", "KeywordId", "Sources")
-                SELECT DISTINCT s."MovieId", s."KeywordId", '[]'::jsonb
+                SELECT
+                    s."MovieId",
+                    s."KeywordId",
+                    to_jsonb(array_agg(DISTINCT s."Provider" ORDER BY s."Provider"))
                 FROM movie_keyword_sources AS s
-                ON CONFLICT ("MovieId", "KeywordId") DO NOTHING;
-
-                UPDATE movie_keywords AS mk
-                SET "Sources" = aggregated."Sources"
-                FROM (
-                    SELECT
-                        s."MovieId",
-                        s."KeywordId",
-                        to_jsonb(array_agg(DISTINCT s."Provider" ORDER BY s."Provider")) AS "Sources"
-                    FROM movie_keyword_sources AS s
-                    GROUP BY s."MovieId", s."KeywordId"
-                ) AS aggregated
-                WHERE mk."MovieId" = aggregated."MovieId"
-                  AND mk."KeywordId" = aggregated."KeywordId";
+                GROUP BY s."MovieId", s."KeywordId"
+                ON CONFLICT ("MovieId", "KeywordId") DO UPDATE
+                SET "Sources" = EXCLUDED."Sources";
 
                 INSERT INTO tv_show_keywords ("TvShowId", "KeywordId", "Sources")
-                SELECT DISTINCT s."TvShowId", s."KeywordId", '[]'::jsonb
+                SELECT
+                    s."TvShowId",
+                    s."KeywordId",
+                    to_jsonb(array_agg(DISTINCT s."Provider" ORDER BY s."Provider"))
                 FROM tv_show_keyword_sources AS s
-                ON CONFLICT ("TvShowId", "KeywordId") DO NOTHING;
-
-                UPDATE tv_show_keywords AS tk
-                SET "Sources" = aggregated."Sources"
-                FROM (
-                    SELECT
-                        s."TvShowId",
-                        s."KeywordId",
-                        to_jsonb(array_agg(DISTINCT s."Provider" ORDER BY s."Provider")) AS "Sources"
-                    FROM tv_show_keyword_sources AS s
-                    GROUP BY s."TvShowId", s."KeywordId"
-                ) AS aggregated
-                WHERE tk."TvShowId" = aggregated."TvShowId"
-                  AND tk."KeywordId" = aggregated."KeywordId";
+                GROUP BY s."TvShowId", s."KeywordId"
+                ON CONFLICT ("TvShowId", "KeywordId") DO UPDATE
+                SET "Sources" = EXCLUDED."Sources";
 
                 DO $$
                 BEGIN
