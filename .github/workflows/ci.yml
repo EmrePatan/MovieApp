@@ -42,15 +42,7 @@ jobs:
         run: dotnet build tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-restore
 
       - name: Run unit tests (Release)
-        run: dotnet test tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-build --no-restore --verbosity normal --logger "trx;LogFileName=unit-tests.trx" --results-directory "${{ runner.temp }}/unit-test-results"
-
-      - name: Upload unit test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-results
-          path: ${{ runner.temp }}/unit-test-results
-          retention-days: 7
+        run: dotnet test tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-build --no-restore --verbosity normal
 
       - name: Publish API (Release)
         run: dotnet publish src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-build --no-restore -o "${{ runner.temp }}/movieapp-api-publish"
