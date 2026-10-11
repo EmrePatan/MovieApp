@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -79,8 +81,18 @@ public sealed class KeywordCatalogRepositoryTests
         var keywordA = await SeedKeywordAsync(context, 1, "alpha");
         var keywordB = await SeedKeywordAsync(context, 2, "beta");
         context.MovieKeywords.AddRange(
-            new MovieKeyword { MovieId = movie.Id, KeywordId = keywordA.Id },
-            new MovieKeyword { MovieId = movie.Id, KeywordId = keywordB.Id });
+            new MovieKeyword
+            {
+                MovieId = movie.Id,
+                KeywordId = keywordA.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            },
+            new MovieKeyword
+            {
+                MovieId = movie.Id,
+                KeywordId = keywordB.Id,
+                Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+            });
         await context.SaveChangesAsync();
 
         var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
@@ -105,7 +117,12 @@ public sealed class KeywordCatalogRepositoryTests
         await using var context = CreateContext();
         var movie = await SeedMovieAsync(context, 27205);
         var keyword = await SeedKeywordAsync(context, 1, "alpha");
-        context.MovieKeywords.Add(new MovieKeyword { MovieId = movie.Id, KeywordId = keyword.Id });
+        context.MovieKeywords.Add(new MovieKeyword
+        {
+            MovieId = movie.Id,
+            KeywordId = keyword.Id,
+            Sources = KeywordProviderSources.Create(KeywordProvider.Tmdb),
+        });
         await context.SaveChangesAsync();
 
         var repository = KeywordCatalogRepositoryTestHelper.CreateRepository(context);
