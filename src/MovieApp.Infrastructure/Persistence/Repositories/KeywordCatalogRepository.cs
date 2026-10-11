@@ -5,6 +5,8 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Keywords;
 using MovieApp.Application.Models.Providers;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
+using MovieApp.Domain.Keywords;
 using MovieApp.Infrastructure.Persistence.Keywords;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
@@ -119,8 +121,6 @@ public sealed class KeywordCatalogRepository(
                         incomingKeywordIds,
                         syncedAtUtc,
                         ct);
-                    await dbContext.SaveChangesAsync(ct);
-                    await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, ct);
                     movie.KeywordsSyncedAtUtc = syncedAtUtc;
                     await dbContext.SaveChangesAsync(ct);
                 },
@@ -135,8 +135,6 @@ public sealed class KeywordCatalogRepository(
             inMemoryIncoming,
             syncedAtUtc,
             cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, cancellationToken);
         movie.KeywordsSyncedAtUtc = syncedAtUtc;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -161,8 +159,6 @@ public sealed class KeywordCatalogRepository(
                         incomingKeywordIds,
                         syncedAtUtc,
                         ct);
-                    await dbContext.SaveChangesAsync(ct);
-                    await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, ct);
                     tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
                     await dbContext.SaveChangesAsync(ct);
                 },
@@ -177,8 +173,6 @@ public sealed class KeywordCatalogRepository(
             inMemoryIncoming,
             syncedAtUtc,
             cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, cancellationToken);
         tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -206,35 +200,12 @@ public sealed class KeywordCatalogRepository(
             syncedAtUtc,
             async linkedKeywordIds =>
             {
-                var relationshipsToRemove = movie.MovieKeywords
-                    .Where(movieKeyword => !linkedKeywordIds.Contains(movieKeyword.KeywordId))
-                    .ToList();
-
-                foreach (var movieKeyword in relationshipsToRemove)
-                {
-                    movie.MovieKeywords.Remove(movieKeyword);
-                }
-
-                foreach (var keywordId in linkedKeywordIds)
-                {
-                    if (movie.MovieKeywords.Any(movieKeyword => movieKeyword.KeywordId == keywordId))
-                    {
-                        continue;
-                    }
-
-                    movie.MovieKeywords.Add(new MovieKeyword
-                    {
-                        MovieId = movie.Id,
-                        KeywordId = keywordId
-                    });
-                }
-
-                movie.KeywordsSyncedAtUtc = syncedAtUtc;
                 await MirrorTmdbMovieSourcesForLegacySyncAsync(
                     movie.Id,
                     linkedKeywordIds,
                     syncedAtUtc,
                     cancellationToken);
+                movie.KeywordsSyncedAtUtc = syncedAtUtc;
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken);
@@ -249,35 +220,12 @@ public sealed class KeywordCatalogRepository(
             syncedAtUtc,
             async linkedKeywordIds =>
             {
-                var relationshipsToRemove = tvShow.TvShowKeywords
-                    .Where(tvShowKeyword => !linkedKeywordIds.Contains(tvShowKeyword.KeywordId))
-                    .ToList();
-
-                foreach (var tvShowKeyword in relationshipsToRemove)
-                {
-                    tvShow.TvShowKeywords.Remove(tvShowKeyword);
-                }
-
-                foreach (var keywordId in linkedKeywordIds)
-                {
-                    if (tvShow.TvShowKeywords.Any(tvShowKeyword => tvShowKeyword.KeywordId == keywordId))
-                    {
-                        continue;
-                    }
-
-                    tvShow.TvShowKeywords.Add(new TvShowKeyword
-                    {
-                        TvShowId = tvShow.Id,
-                        KeywordId = keywordId
-                    });
-                }
-
-                tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
                 await MirrorTmdbTvShowSourcesForLegacySyncAsync(
                     tvShow.Id,
                     linkedKeywordIds,
                     syncedAtUtc,
                     cancellationToken);
+                tvShow.KeywordsSyncedAtUtc = syncedAtUtc;
                 await dbContext.SaveChangesAsync(cancellationToken);
             },
             cancellationToken);
@@ -536,19 +484,27 @@ public sealed class KeywordCatalogRepository(
             syncedAtUtc,
             cancellationToken);
 
-    public async Task<int> CountMovieMdbListSourcesAsync(Guid movieId, CancellationToken cancellationToken = default) =>
-        await dbContext.MovieKeywordSources
+    public async Task<int> CountMovieMdbListSourcesAsync(Guid movieId, CancellationToken cancellationToken = default)
+    {
+        var sources = await dbContext.MovieKeywords
             .AsNoTracking()
-            .CountAsync(
-                source => source.MovieId == movieId && source.Provider == Domain.Enums.KeywordProvider.MdbList,
-                cancellationToken);
+            .Where(relationship => relationship.MovieId == movieId)
+            .Select(relationship => relationship.Sources)
+            .ToListAsync(cancellationToken);
 
-    public async Task<int> CountTvShowMdbListSourcesAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
-        await dbContext.TvShowKeywordSources
+        return sources.Count(source => KeywordProviderSources.Contains(source, KeywordProvider.MdbList));
+    }
+
+    public async Task<int> CountTvShowMdbListSourcesAsync(Guid tvShowId, CancellationToken cancellationToken = default)
+    {
+        var sources = await dbContext.TvShowKeywords
             .AsNoTracking()
-            .CountAsync(
-                source => source.TvShowId == tvShowId && source.Provider == Domain.Enums.KeywordProvider.MdbList,
-                cancellationToken);
+            .Where(relationship => relationship.TvShowId == tvShowId)
+            .Select(relationship => relationship.Sources)
+            .ToListAsync(cancellationToken);
+
+        return sources.Count(source => KeywordProviderSources.Contains(source, KeywordProvider.MdbList));
+    }
 
     private async Task<MdbListKeywordIngestionResult> ApplyMdbListKeywordIngestionAsync(
         Guid contentId,
@@ -605,8 +561,6 @@ public sealed class KeywordCatalogRepository(
                             resolution.PromotedKeywordIds,
                             syncedAtUtc,
                             ct);
-                        await dbContext.SaveChangesAsync(ct);
-                        await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, ct);
                         movie.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
                         await dbContext.SaveChangesAsync(ct);
                         return resolution.Stats;
@@ -627,8 +581,6 @@ public sealed class KeywordCatalogRepository(
                     resolution.PromotedKeywordIds,
                     syncedAtUtc,
                     cancellationToken);
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await KeywordGraphMaterializer.MaterializeMovieKeywordsUnionAsync(dbContext, movie.Id, cancellationToken);
                 movie.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
                 await dbContext.SaveChangesAsync(cancellationToken);
                 stats = resolution.Stats;
@@ -666,8 +618,6 @@ public sealed class KeywordCatalogRepository(
                         resolution.PromotedKeywordIds,
                         syncedAtUtc,
                         ct);
-                    await dbContext.SaveChangesAsync(ct);
-                    await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, ct);
                     tvShow.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
                     await dbContext.SaveChangesAsync(ct);
                     return resolution.Stats;
@@ -688,8 +638,6 @@ public sealed class KeywordCatalogRepository(
                 resolution.PromotedKeywordIds,
                 syncedAtUtc,
                 cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await KeywordGraphMaterializer.MaterializeTvShowKeywordsUnionAsync(dbContext, tvShow.Id, cancellationToken);
             tvShow.MdbListKeywordsSyncedAtUtc = syncedAtUtc;
             await dbContext.SaveChangesAsync(cancellationToken);
             tvStats = resolution.Stats;

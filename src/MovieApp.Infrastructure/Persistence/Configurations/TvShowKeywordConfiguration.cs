@@ -12,6 +12,11 @@ internal sealed class TvShowKeywordConfiguration : IEntityTypeConfiguration<TvSh
 
         builder.HasKey(tvShowKeyword => new { tvShowKeyword.TvShowId, tvShowKeyword.KeywordId });
 
+        builder.Property(tvShowKeyword => tvShowKeyword.Sources)
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'[]'::jsonb")
+            .IsRequired();
+
         builder.HasOne(tvShowKeyword => tvShowKeyword.TvShow)
             .WithMany(tvShow => tvShow.TvShowKeywords)
             .HasForeignKey(tvShowKeyword => tvShowKeyword.TvShowId)

@@ -12,6 +12,11 @@ internal sealed class MovieKeywordConfiguration : IEntityTypeConfiguration<Movie
 
         builder.HasKey(movieKeyword => new { movieKeyword.MovieId, movieKeyword.KeywordId });
 
+        builder.Property(movieKeyword => movieKeyword.Sources)
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'[]'::jsonb")
+            .IsRequired();
+
         builder.HasOne(movieKeyword => movieKeyword.Movie)
             .WithMany(movie => movie.MovieKeywords)
             .HasForeignKey(movieKeyword => movieKeyword.MovieId)

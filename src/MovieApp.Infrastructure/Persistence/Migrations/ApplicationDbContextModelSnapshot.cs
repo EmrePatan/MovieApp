@@ -38,7 +38,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("DataProtectionKeys", (string)null);
+                    b.ToTable("DataProtectionKeys");
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.CatalogFollow", b =>
@@ -796,38 +796,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("KeywordId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Sources")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.HasKey("MovieId", "KeywordId");
 
                     b.HasIndex("KeywordId");
 
                     b.ToTable("movie_keywords", (string)null);
-                });
-
-            modelBuilder.Entity("MovieApp.Domain.Entities.MovieKeywordSource", b =>
-                {
-                    b.Property<Guid>("MovieId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("KeywordId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Provider")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTime?>("FirstSeenAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastSeenAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("MovieId", "KeywordId", "Provider");
-
-                    b.HasIndex("KeywordId");
-
-                    b.HasIndex("MovieId", "Provider");
-
-                    b.ToTable("movie_keyword_sources", (string)null);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.MoviePerson", b =>
@@ -1563,38 +1542,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("KeywordId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Sources")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.HasKey("TvShowId", "KeywordId");
 
                     b.HasIndex("KeywordId");
 
                     b.ToTable("tv_show_keywords", (string)null);
-                });
-
-            modelBuilder.Entity("MovieApp.Domain.Entities.TvShowKeywordSource", b =>
-                {
-                    b.Property<Guid>("TvShowId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("KeywordId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Provider")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTime?>("FirstSeenAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastSeenAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("TvShowId", "KeywordId", "Provider");
-
-                    b.HasIndex("KeywordId");
-
-                    b.HasIndex("TvShowId", "Provider");
-
-                    b.ToTable("tv_show_keyword_sources", (string)null);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.TvShowPerson", b =>
@@ -2158,25 +2116,6 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Movie");
                 });
 
-            modelBuilder.Entity("MovieApp.Domain.Entities.MovieKeywordSource", b =>
-                {
-                    b.HasOne("MovieApp.Domain.Entities.Keyword", "Keyword")
-                        .WithMany("MovieKeywordSources")
-                        .HasForeignKey("KeywordId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
-                        .WithMany("MovieKeywordSources")
-                        .HasForeignKey("MovieId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Keyword");
-
-                    b.Navigation("Movie");
-                });
-
             modelBuilder.Entity("MovieApp.Domain.Entities.MoviePerson", b =>
                 {
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
@@ -2371,25 +2310,6 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
                         .WithMany("TvShowKeywords")
-                        .HasForeignKey("TvShowId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Keyword");
-
-                    b.Navigation("TvShow");
-                });
-
-            modelBuilder.Entity("MovieApp.Domain.Entities.TvShowKeywordSource", b =>
-                {
-                    b.HasOne("MovieApp.Domain.Entities.Keyword", "Keyword")
-                        .WithMany("TvShowKeywordSources")
-                        .HasForeignKey("KeywordId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
-                        .WithMany("TvShowKeywordSources")
                         .HasForeignKey("TvShowId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2600,11 +2520,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Localizations");
 
-                    b.Navigation("MovieKeywordSources");
-
                     b.Navigation("MovieKeywords");
-
-                    b.Navigation("TvShowKeywordSources");
 
                     b.Navigation("TvShowKeywords");
                 });
@@ -2616,8 +2532,6 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Favorites");
 
                     b.Navigation("MovieGenres");
-
-                    b.Navigation("MovieKeywordSources");
 
                     b.Navigation("MovieKeywords");
 
@@ -2665,8 +2579,6 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("Seasons");
 
                     b.Navigation("TvShowGenres");
-
-                    b.Navigation("TvShowKeywordSources");
 
                     b.Navigation("TvShowKeywords");
 

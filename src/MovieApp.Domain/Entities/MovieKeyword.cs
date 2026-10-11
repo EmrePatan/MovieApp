@@ -9,4 +9,6 @@ public sealed class MovieKeyword
     public Guid KeywordId { get; set; }
 
     public Keyword Keyword { get; set; } = null!;
+
+    public string Sources { get; set; } = "[]";
 }

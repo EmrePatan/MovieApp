@@ -60,8 +60,6 @@ public sealed class Movie
 
     public ICollection<MovieGenre> MovieGenres { get; set; } = [];
 
-    public ICollection<MovieKeywordSource> MovieKeywordSources { get; set; } = [];
-
     public ICollection<MovieKeyword> MovieKeywords { get; set; } = [];
 
     public ICollection<MoviePerson> MoviePeople { get; set; } = [];

@@ -35,10 +35,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<KeywordLocalization> KeywordLocalizations => Set<KeywordLocalization>();
 
-    public DbSet<MovieKeywordSource> MovieKeywordSources => Set<MovieKeywordSource>();
-
-    public DbSet<TvShowKeywordSource> TvShowKeywordSources => Set<TvShowKeywordSource>();
-
     public DbSet<Person> People => Set<Person>();
 
     public DbSet<MoviePerson> MoviePeople => Set<MoviePerson>();
