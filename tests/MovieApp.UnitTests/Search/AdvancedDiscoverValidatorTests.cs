@@ -40,6 +40,18 @@ public sealed class AdvancedDiscoverValidatorTests
     }
 
     [Fact]
+    public void ValidateAcceptsCurrentDecadeYearRange()
+    {
+        var decadeStart = DateTime.UtcNow.Year / 10 * 10;
+        var decadeEnd = decadeStart + 9;
+        var criteria = CreateCriteria(yearFrom: decadeStart, yearTo: decadeEnd);
+
+        var validation = AdvancedDiscoverValidator.Validate(criteria);
+
+        Assert.True(validation.IsValid);
+    }
+
+    [Fact]
     public void ValidateRejectsYearAndYearRangeTogether()
     {
         var criteria = CreateCriteria(year: 2024, yearFrom: 2020, yearTo: 2024);

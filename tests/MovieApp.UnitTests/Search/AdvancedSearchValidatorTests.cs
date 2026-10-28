@@ -63,6 +63,27 @@ public sealed class AdvancedSearchValidatorTests
         Assert.False(result.IsValid);
     }
 
+    [Theory]
+    [InlineData(2026, 2029)]
+    [InlineData(2029, 2030)]
+    [InlineData(2030, 2039)]
+    public void GetMaximumYearAllowsCurrentDecadeEnd(int currentYear, int expectedMaximum)
+    {
+        var maximumYear = AdvancedSearchValidator.GetMaximumYear(new DateTime(currentYear, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal(expectedMaximum, maximumYear);
+    }
+
+    [Fact]
+    public void ValidateYearAcceptsCurrentDecadeEnd()
+    {
+        var decadeEnd = DateTime.UtcNow.Year / 10 * 10 + 9;
+
+        var result = AdvancedSearchValidator.ValidateYear(decadeEnd);
+
+        Assert.True(result.IsValid);
+    }
+
     [Fact]
     public void ValidateAcceptsValidCriteria()
     {

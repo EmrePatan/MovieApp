@@ -67,6 +67,13 @@ public static class AdvancedSearchValidator
                 "Sort must be one of: relevance, rating, rating_desc, rating_asc, date_desc, date_asc, title_asc, title_desc, popular.");
     }
 
+    public static int GetMaximumYear(DateTime? utcNow = null)
+    {
+        var currentYear = (utcNow ?? DateTime.UtcNow).Year;
+        var currentDecadeEnd = currentYear / 10 * 10 + 9;
+        return Math.Max(currentYear + 1, currentDecadeEnd);
+    }
+
     public static SearchQueryValidationResult ValidateYear(int? year)
     {
         if (year is null)
@@ -74,7 +81,7 @@ public static class AdvancedSearchValidator
             return SearchQueryValidationResult.Success();
         }
 
-        var maximumYear = DateTime.UtcNow.Year + 1;
+        var maximumYear = GetMaximumYear();
         if (year < MinimumYear || year > maximumYear)
         {
             return SearchQueryValidationResult.Failure(
