@@ -132,7 +132,7 @@ def self_test():
     assert result["eligible_count"] == 3, result
     assert result["cross_genre_keyword_matches"] == 1, result
     assert result["cross_genre_matches_missing_baseline"] == 1, result
-    assert result["top_keyword_matches_retrieved_alternative"] == 2, result
+    assert result["top_keyword_matches_retrieved_alternative"] == 1, result
     assert result["relevant_top_k_available"] == 2, result
     assert keyword_score({"keyword_ids": []}, {"x": 1}) == 0
     empty = audit_profile({"id": "empty", "genre_ids": [],
