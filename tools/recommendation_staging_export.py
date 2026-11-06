@@ -87,8 +87,30 @@ def main():
         )
     if proc.returncode:
         dest.unlink(missing_ok=True)
-        # Do not emit psql stderr, which may include connection information.
-        raise RuntimeError(f"Read-only staging export failed (psql exit {proc.returncode})")
+        # Classify errors without printing connection strings, hostnames,
+        # database names, usernames, or arbitrary server messages.
+        diagnostic = (proc.stderr or "").lower()
+        if "could not translate host name" in diagnostic or "name or service not known" in diagnostic:
+            reason = "DNS resolution failed"
+        elif "connection timed out" in diagnostic or "timeout expired" in diagnostic:
+            reason = "network connection timed out"
+        elif "connection refused" in diagnostic:
+            reason = "server refused TCP connection"
+        elif "no pg_hba.conf entry" in diagnostic:
+            reason = "server access rules or SSL mode rejected connection"
+        elif "certificate verify failed" in diagnostic or "ssl error" in diagnostic:
+            reason = "SSL certificate or negotiation error"
+        elif "password authentication failed" in diagnostic:
+            reason = "password authentication failed"
+        elif "could not connect to server" in diagnostic or "connection to server" in diagnostic:
+            reason = "PostgreSQL connection failed"
+        elif "permission denied" in diagnostic:
+            reason = "database permission denied"
+        elif "does not exist" in diagnostic or "syntax error" in diagnostic:
+            reason = "SQL schema or syntax mismatch"
+        else:
+            reason = "unclassified PostgreSQL client error"
+        raise RuntimeError(f"Read-only staging export failed: {reason} (psql exit {proc.returncode})")
     data = json.loads(dest.read_text(encoding="utf-8"))
     if not isinstance(data.get("candidates"), list):
         raise ValueError("Unexpected export JSON")
