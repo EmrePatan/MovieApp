@@ -6,6 +6,7 @@ on:
       - research/recommendation-keyword-first-benchmark
     paths:
       - tools/recommendation_retrieval_audit.py
+      - tools/recommendation_audit_summary.py
       - tools/tests/test_recommendation_retrieval_audit.py
       - tools/fixtures/recommendation_retrieval_synthetic.json
       - .github/workflows/recommendation-retrieval-audit.yml
@@ -29,8 +30,9 @@ jobs:
         run: python tools/recommendation_retrieval_audit.py --self-test
       - name: Run unit tests
         run: python -m unittest discover -s tools/tests -p 'test_recommendation_retrieval_audit.py' -v
-      - name: Run fixture diagnostic
+      - name: Run fixture diagnostic and aggregate report
         run: |
           python tools/recommendation_retrieval_audit.py \
             --input tools/fixtures/recommendation_retrieval_synthetic.json \
-            --budget 3 --top-k 3
+            --budget 3 --top-k 3 > /tmp/recommendation-audit.json
+          python tools/recommendation_audit_summary.py --input /tmp/recommendation-audit.json
