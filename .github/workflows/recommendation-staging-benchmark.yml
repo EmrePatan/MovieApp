@@ -1,0 +1,61 @@
+name: Recommendation Staging Benchmark
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      STAGING_DATABASE: ${{ secrets.STAGING_DATABASE }}
+      PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=60000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require staging connection secret
+        shell: bash
+        run: |
+          if [[ -z "$STAGING_DATABASE" ]]; then
+            echo "::error::STAGING_DATABASE secret is missing or unavailable"
+            exit 1
+          fi
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Export staging catalog (read only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          psql "$STAGING_DATABASE" -X -q -v ON_ERROR_STOP=1 -At \
+            -f tools/sql/recommendation_candidate_export_staging.sql \
+            > "$RUNNER_TEMP/recommendation-catalog.json"
+          python -m json.tool "$RUNNER_TEMP/recommendation-catalog.json" > /dev/null
+      - name: Build synthetic profiles from staging catalog
+        run: |
+          python tools/recommendation_synthetic_profiles.py \
+            --input "$RUNNER_TEMP/recommendation-catalog.json" \
+            --output "$RUNNER_TEMP/recommendation-profiles.json" \
+            --profiles 12
+      - name: Run offline retrieval comparison
+        run: |
+          python tools/recommendation_retrieval_audit.py \
+            --input "$RUNNER_TEMP/recommendation-profiles.json" \
+            --budget 500 --top-k 10 \
+            > "$RUNNER_TEMP/recommendation-audit.json"
+          python tools/recommendation_audit_summary.py \
+            --input "$RUNNER_TEMP/recommendation-audit.json"
+      - name: Remove local data
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/recommendation-catalog.json" \
+                "$RUNNER_TEMP/recommendation-profiles.json" \
+                "$RUNNER_TEMP/recommendation-audit.json"
