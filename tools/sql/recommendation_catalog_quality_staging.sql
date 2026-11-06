@@ -6,6 +6,20 @@
 -- IMPORTANT: relation names assumed from conventional EF mappings.
 -- Verify against pg_catalog before running. If names differ, adapt query.
 --
+-- Preflight: verify actual table/column names BEFORE running the queries.
+-- If any expected column is absent, stop and adapt to actual migrations.
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('movies','tv_shows','movie_genres','tv_show_genres',
+                     'movie_keywords','tv_show_keywords','genres','keywords')
+ORDER BY table_name, ordinal_position;
+
+-- The diagnostic deliberately counts raw keyword links. To measure the
+-- effective recommender coverage, filter out Excluded classification and
+-- apply the same runtime keyword options after verifying enum persistence.
+-- Do not interpret raw keyword coverage as usable keyword coverage.
+
 -- 1. Eligible title and keyword coverage (movies and TV independently).
 WITH eligible AS (
     SELECT 'movie'::text AS content_type, m."Id" AS id, m."VoteCount" AS votes
