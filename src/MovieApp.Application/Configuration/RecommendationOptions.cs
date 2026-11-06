@@ -50,7 +50,7 @@ public sealed class RecommendationOptions
     /// Opt-in experiment: keyword-forward scoring without changing candidate retrieval.
     /// Defaults off to preserve the current production recommendation behavior.
     /// </summary>
-    public bool KeywordScoringExperimentEnabled { get; set; } = false;
+    public bool KeywordScoringExperimentEnabled { get; set; }
 
     public double KeywordScoringExperimentGenreWeight { get; set; } = 0.20;
 
