@@ -29,6 +29,15 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
+      - name: Reject non-staging database
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_name=$(psql "$STAGING_DATABASE" -X -q -v ON_ERROR_STOP=1 -At -c 'SELECT current_database()')
+          if [[ "$db_name" != *staging* ]]; then
+            echo "::error::Refusing benchmark: database name does not contain staging"
+            exit 1
+          fi
       - name: Export staging catalog (read only)
         shell: bash
         run: |
