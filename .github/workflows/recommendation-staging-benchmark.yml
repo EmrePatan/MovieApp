@@ -2,6 +2,16 @@ name: Recommendation Staging Benchmark
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - research/recommendation-keyword-first-benchmark
+    paths:
+      - .github/workflows/recommendation-staging-benchmark.yml
+      - tools/recommendation_staging_export.py
+      - tools/sql/recommendation_candidate_export_staging.sql
+      - tools/recommendation_synthetic_profiles.py
+      - tools/recommendation_retrieval_audit.py
+      - tools/recommendation_audit_summary.py
 
 permissions:
   contents: read
