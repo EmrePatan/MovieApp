@@ -2,15 +2,19 @@
 -- Execute with psql -X -q -v ON_ERROR_STOP=1 -At -f tools/sql/recommendation_candidate_export_staging.sql
 -- Redirect stdout to a local .json file. NEVER commit exported catalog data.
 -- Prerequisite: verify tables/columns using recommendation_catalog_quality_staging.sql.
--- Date eligibility matches BuildMovieCandidateQuery/BuildTvCandidateQuery:\n-- NULL release/first-air dates remain eligible; future dates do not.\n-- No user table or user activity accessed. Profile is intentionally empty;
+-- Date eligibility matches BuildMovieCandidateQuery/BuildTvCandidateQuery:
+-- NULL release/first-air dates remain eligible; future dates do not.
+-- No user table or user activity accessed. Profile is intentionally empty;
 -- use anonymized, consented profiles separately for meaningful personalization.
--- The 20,000-row vote-first cap is a pragmatic export limit and introduces\n-- popularity bias. It must not be used to estimate full-catalog coverage.\n-- This is a catalog export, NOT a production-equivalent recommendation benchmark.
+-- The 20,000-row vote-first cap is a pragmatic export limit and introduces
+-- popularity bias. It must not be used to estimate full-catalog coverage.
+-- This is a catalog export, NOT a production-equivalent recommendation benchmark.
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL statement_timeout = '60s';
 WITH candidate_rows AS (
   SELECT m."Id"::text AS id, 'movie'::text AS content_type,
          m."VoteCount" AS vote_count, m."VoteAverage" AS vote_average,
-         (m."ReleaseDate" IS NULL OR m."ReleaseDate" <= CURRENT_DATE
+         ((m."ReleaseDate" IS NULL OR m."ReleaseDate" <= CURRENT_DATE)
           AND m."VoteCount" >= 20) AS eligible,
          COALESCE((SELECT jsonb_agg(DISTINCT mg."GenreId"::text)
                    FROM public.movie_genres mg WHERE mg."MovieId" = m."Id"), '[]'::jsonb) AS genre_ids,
@@ -19,7 +23,7 @@ WITH candidate_rows AS (
   FROM public.movies m
   UNION ALL
   SELECT t."Id"::text, 'tv', t."VoteCount", t."VoteAverage",
-         (t."FirstAirDate" IS NULL OR t."FirstAirDate" <= CURRENT_DATE
+         ((t."FirstAirDate" IS NULL OR t."FirstAirDate" <= CURRENT_DATE)
           AND t."VoteCount" >= 20),
          COALESCE((SELECT jsonb_agg(DISTINCT tg."GenreId"::text)
                    FROM public.tv_show_genres tg WHERE tg."TvShowId" = t."Id"), '[]'::jsonb),
