@@ -95,9 +95,16 @@ public static class PersonalizedRecommendationEngine
                 var popularityScore = CalculatePopularityScore(candidate, maxVoteCount);
                 var recencyScore = SimilarityEngine.CalculateYearProximity(currentYear, candidate.Year);
 
+                var genreWeight = options.KeywordScoringExperimentEnabled
+                    ? options.KeywordScoringExperimentGenreWeight
+                    : options.PersonalizedGenreWeight;
+                var keywordWeight = options.KeywordScoringExperimentEnabled
+                    ? options.KeywordScoringExperimentKeywordWeight
+                    : options.PersonalizedKeywordWeight;
+
                 var score = SimilarityEngine.RoundScore(
-                    genreScore * (decimal)options.PersonalizedGenreWeight +
-                    keywordScore * (decimal)options.PersonalizedKeywordWeight +
+                    genreScore * (decimal)genreWeight +
+                    keywordScore * (decimal)keywordWeight +
                     behavior.Score * (decimal)options.PersonalizedBehaviorWeight +
                     popularityScore * (decimal)options.PersonalizedPopularityWeight +
                     recencyScore * (decimal)options.PersonalizedRecencyWeight);
