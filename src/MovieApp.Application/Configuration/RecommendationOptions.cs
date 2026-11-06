@@ -46,6 +46,16 @@ public sealed class RecommendationOptions
 
     public double SimilarityYearWeight { get; set; } = 0.15;
 
+    /// <summary>
+    /// Opt-in experiment: keyword-forward scoring without changing candidate retrieval.
+    /// Defaults off to preserve the current production recommendation behavior.
+    /// </summary>
+    public bool KeywordScoringExperimentEnabled { get; set; } = false;
+
+    public double KeywordScoringExperimentGenreWeight { get; set; } = 0.20;
+
+    public double KeywordScoringExperimentKeywordWeight { get; set; } = 0.40;
+
     public double PersonalizedGenreWeight { get; set; } = 0.50;
 
     public double PersonalizedKeywordWeight { get; set; } = 0.15;
