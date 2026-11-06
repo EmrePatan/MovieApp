@@ -72,9 +72,10 @@ def audit_profile(profile, candidates, budget=500, top_k=10):
     chosen.extend(keyword_candidates[:max(0, budget - len(chosen))])
     chosen_ids = {c["id"] for c in chosen}
     # Only diagnostic proxies, not accuracy or relevance metrics.
-    top_keywords = sorted(eligible,
-                          key=lambda c: (-keyword_score(c, weights),
-                                         -int(c["vote_count"]), str(c["id"])))[:top_k]
+    top_keywords = sorted(
+        (c for c in eligible if keyword_score(c, weights) > 0),
+        key=lambda c: (-keyword_score(c, weights),
+                       -int(c["vote_count"]), str(c["id"])))[:top_k]
     return {
         "profile_id": profile["id"],
         "eligible_count": len(eligible),
@@ -92,6 +93,7 @@ def audit_profile(profile, candidates, budget=500, top_k=10):
         "top_keyword_matches_retrieved_alternative": sum(
             c["id"] in chosen_ids for c in top_keywords),
         "top_k": top_k,
+        "relevant_top_k_available": len(top_keywords),
     }
 
 
@@ -120,7 +122,12 @@ def self_test():
     assert result["cross_genre_keyword_matches"] == 1, result
     assert result["cross_genre_matches_missing_baseline"] == 1, result
     assert result["top_keyword_matches_retrieved_alternative"] >= 1, result
+    assert result["relevant_top_k_available"] == 2, result
     assert keyword_score({"keyword_ids": []}, {"x": 1}) == 0
+    empty = audit_profile({"id": "empty", "genre_ids": [],
+                           "keyword_weights": {}, "excluded_ids": []},
+                          candidates, budget=2, top_k=2)
+    assert empty["relevant_top_k_available"] == 0, empty
     print("Self-test passed (synthetic data only).")
 
 
