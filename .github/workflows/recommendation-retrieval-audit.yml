@@ -1,0 +1,33 @@
+name: Recommendation Retrieval Audit
+
+on:
+  push:
+    branches:
+      - research/recommendation-keyword-first-benchmark
+    paths:
+      - tools/recommendation_retrieval_audit.py
+      - tools/fixtures/recommendation_retrieval_synthetic.json
+      - .github/workflows/recommendation-retrieval-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile diagnostic
+        run: python -m py_compile tools/recommendation_retrieval_audit.py
+      - name: Run self-test
+        run: python tools/recommendation_retrieval_audit.py --self-test
+      - name: Run fixture diagnostic
+        run: |
+          python tools/recommendation_retrieval_audit.py \
+            --input tools/fixtures/recommendation_retrieval_synthetic.json \
+            --budget 3 --top-k 3
