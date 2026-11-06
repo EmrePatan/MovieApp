@@ -1,0 +1,108 @@
+{
+  "profiles": [
+    {
+      "id": "synthetic-psychological",
+      "genre_ids": [
+        "drama"
+      ],
+      "keyword_weights": {
+        "time-loop": 1,
+        "psychological-manipulation": 0.8
+      },
+      "excluded_ids": [
+        "watched-1"
+      ]
+    },
+    {
+      "id": "synthetic-space",
+      "genre_ids": [
+        "sci-fi"
+      ],
+      "keyword_weights": {
+        "space-travel": 1,
+        "time-loop": 0.7
+      },
+      "excluded_ids": []
+    }
+  ],
+  "candidates": [
+    {
+      "id": "watched-1",
+      "type": "movie",
+      "genre_ids": [
+        "drama"
+      ],
+      "keyword_ids": [
+        "time-loop"
+      ],
+      "vote_count": 10000,
+      "vote_average": 9,
+      "eligible": true
+    },
+    {
+      "id": "popular-drama",
+      "type": "movie",
+      "genre_ids": [
+        "drama"
+      ],
+      "keyword_ids": [
+        "family"
+      ],
+      "vote_count": 9000,
+      "vote_average": 8,
+      "eligible": true
+    },
+    {
+      "id": "cross-genre-time-loop",
+      "type": "movie",
+      "genre_ids": [
+        "sci-fi"
+      ],
+      "keyword_ids": [
+        "time-loop"
+      ],
+      "vote_count": 500,
+      "vote_average": 8.1,
+      "eligible": true
+    },
+    {
+      "id": "cross-genre-manipulation",
+      "type": "movie",
+      "genre_ids": [
+        "thriller"
+      ],
+      "keyword_ids": [
+        "psychological-manipulation"
+      ],
+      "vote_count": 200,
+      "vote_average": 7.8,
+      "eligible": true
+    },
+    {
+      "id": "space-exploration",
+      "type": "movie",
+      "genre_ids": [
+        "sci-fi"
+      ],
+      "keyword_ids": [
+        "space-travel"
+      ],
+      "vote_count": 1500,
+      "vote_average": 8,
+      "eligible": true
+    },
+    {
+      "id": "future-unreleased",
+      "type": "movie",
+      "genre_ids": [
+        "sci-fi"
+      ],
+      "keyword_ids": [
+        "time-loop"
+      ],
+      "vote_count": 20000,
+      "vote_average": 9.9,
+      "eligible": false
+    }
+  ]
+}
