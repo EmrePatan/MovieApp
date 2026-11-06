@@ -1,10 +1,10 @@
 -- Movie Cave: staging-only, read-only catalog candidate export.
--- Execute with psql -X -v ON_ERROR_STOP=1 -At -f tools/sql/recommendation_candidate_export_staging.sql
+-- Execute with psql -X -q -v ON_ERROR_STOP=1 -At -f tools/sql/recommendation_candidate_export_staging.sql
 -- Redirect stdout to a local .json file. NEVER commit exported catalog data.
 -- Prerequisite: verify tables/columns using recommendation_catalog_quality_staging.sql.
 -- No user table or user activity accessed. Profile is intentionally empty;
 -- use anonymized, consented profiles separately for meaningful personalization.
--- This is a catalog export, NOT a production-equivalent recommendation benchmark.
+-- The 20,000-row vote-first cap is a pragmatic export limit and introduces\n-- popularity bias. It must not be used to estimate full-catalog coverage.\n-- This is a catalog export, NOT a production-equivalent recommendation benchmark.
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL statement_timeout = '60s';
 WITH candidate_rows AS (
