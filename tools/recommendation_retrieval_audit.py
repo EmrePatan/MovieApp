@@ -61,7 +61,9 @@ def audit_profile(profile, candidates, budget=500, top_k=10):
     truncated = [c for c in genre_pool if c["id"] not in baseline_ids
                  and keyword_score(c, weights) > 0]
     # Controlled alternative retrieval: 70% baseline, 30% keyword-ranked.
-    keep = math.ceil(budget * 0.7)
+    # Reserve at least one keyword slot when budget > 1; for budget=1,
+    # a deterministic baseline-only result avoids a meaningless split.
+    keep = budget if budget == 1 else max(1, math.floor(budget * 0.7))
     chosen = ordered(genre_pool)[:keep]
     selected = {c["id"] for c in chosen}
     keyword_candidates = sorted(
@@ -70,6 +72,15 @@ def audit_profile(profile, candidates, budget=500, top_k=10):
         key=lambda c: (-keyword_score(c, weights),
                        -int(c["vote_count"]), str(c["id"])))
     chosen.extend(keyword_candidates[:max(0, budget - len(chosen))])
+    # Fill unused keyword slots with the remaining eligible baseline titles.
+    # Otherwise sparse keyword profiles unfairly shrink the candidate pool.
+    selected = {c["id"] for c in chosen}
+    if len(chosen) < budget:
+        fallback = (c for c in ordered(genre_pool) if c["id"] not in selected)
+        for c in fallback:
+            chosen.append(c)
+            if len(chosen) == budget:
+                break
     chosen_ids = {c["id"] for c in chosen}
     # Only diagnostic proxies, not accuracy or relevance metrics.
     top_keywords = sorted(
@@ -121,13 +132,14 @@ def self_test():
     assert result["eligible_count"] == 3, result
     assert result["cross_genre_keyword_matches"] == 1, result
     assert result["cross_genre_matches_missing_baseline"] == 1, result
-    assert result["top_keyword_matches_retrieved_alternative"] >= 1, result
+    assert result["top_keyword_matches_retrieved_alternative"] == 2, result
     assert result["relevant_top_k_available"] == 2, result
     assert keyword_score({"keyword_ids": []}, {"x": 1}) == 0
     empty = audit_profile({"id": "empty", "genre_ids": [],
                            "keyword_weights": {}, "excluded_ids": []},
                           candidates, budget=2, top_k=2)
     assert empty["relevant_top_k_available"] == 0, empty
+    assert empty["keyword_first_pool_count"] == 2, empty
     print("Self-test passed (synthetic data only).")
 
 
