@@ -12,58 +12,31 @@ jobs:
     timeout-minutes: 12
     env:
       MOVIEAPP_STAGING_POSTGRES_CONNECTION: ${{ secrets.MOVIEAPP_STAGING_POSTGRES_CONNECTION }}
-      PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=60000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Require staging connection secret
-        shell: bash
-        run: |
-          if [[ -z "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" ]]; then
-            echo "::error::MOVIEAPP_STAGING_POSTGRES_CONNECTION secret is missing or unavailable"
-            exit 1
-          fi
-      - name: Check connection-string format\n        shell: bash\n        run: |\n          if [[ "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" != postgres://* && "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" != postgresql://* ]]; then\n            echo "::error::Connection is not a PostgreSQL URI. Existing migration action supports Npgsql key/value too; adapt benchmark client before running."\n            exit 1\n          fi\n      - name: Install PostgreSQL client
+      - name: Install PostgreSQL client
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
-      - name: Reject non-staging database
-        shell: bash
-        run: |
-          set -euo pipefail
-          db_name=$(psql "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" -X -q -v ON_ERROR_STOP=1 -At -c 'SELECT current_database()')
-          if [[ "$db_name" != *staging* ]]; then
-            echo "::error::Refusing benchmark: database name does not contain staging"
-            exit 1
-          fi
-      - name: Export staging catalog (read only)
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          psql "$MOVIEAPP_STAGING_POSTGRES_CONNECTION" -X -q -v ON_ERROR_STOP=1 -At \
-            -f tools/sql/recommendation_candidate_export_staging.sql \
-            > "$RUNNER_TEMP/recommendation-catalog.json"
-          python -m json.tool "$RUNNER_TEMP/recommendation-catalog.json" > /dev/null
-      - name: Build synthetic profiles from staging catalog
+      - name: Export staging catalog (read-only, fail closed)
+        run: python tools/recommendation_staging_export.py
+      - name: Generate synthetic profiles
         run: |
           python tools/recommendation_synthetic_profiles.py \
             --input "$RUNNER_TEMP/recommendation-catalog.json" \
-            --output "$RUNNER_TEMP/recommendation-profiles.json" \
-            --profiles 12
-      - name: Run offline retrieval comparison
+            --output "$RUNNER_TEMP/recommendation-profiles.json" --profiles 12
+      - name: Compare retrieval strategies
         run: |
           python tools/recommendation_retrieval_audit.py \
             --input "$RUNNER_TEMP/recommendation-profiles.json" \
-            --budget 500 --top-k 10 \
-            > "$RUNNER_TEMP/recommendation-audit.json"
+            --budget 500 --top-k 10 > "$RUNNER_TEMP/recommendation-audit.json"
           python tools/recommendation_audit_summary.py \
             --input "$RUNNER_TEMP/recommendation-audit.json"
       - name: Remove local data
         if: always()
-        shell: bash
         run: |
           rm -f "$RUNNER_TEMP/recommendation-catalog.json" \
                 "$RUNNER_TEMP/recommendation-profiles.json" \
