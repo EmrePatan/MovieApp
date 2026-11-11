@@ -39,13 +39,13 @@ public sealed class HangfireRecurringBackgroundJobRegistrar(
         {
             recurringJobManager.AddOrUpdate<TmdbTvChangesSyncJob>(
                 RecurringJobIds.TmdbTvChanges,
-                job => job.ExecuteAsync(),
+                job => job.ExecuteAsync(CancellationToken.None),
                 backgroundJobs.TmdbTvChangesCron,
                 UtcOptions);
 
             recurringJobManager.AddOrUpdate<TmdbMovieChangesSyncJob>(
                 RecurringJobIds.TmdbMovieChanges,
-                job => job.ExecuteAsync(),
+                job => job.ExecuteAsync(CancellationToken.None),
                 backgroundJobs.TmdbMovieChangesCron,
                 UtcOptions);
         }
