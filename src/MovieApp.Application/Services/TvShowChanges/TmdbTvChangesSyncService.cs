@@ -30,6 +30,7 @@ public sealed class TmdbTvChangesSyncService(
             utcNow,
             cancellationToken);
     }
+
     private async Task<TmdbChangesTargetRefreshResult> RefreshShowAsync(
         Guid tvShowId,
         DateOnly boundaryDate,
