@@ -21,10 +21,11 @@ public static class SearchTitleFolder
             return string.Empty;
         }
 
-        var normalized = collapsed.Normalize(NormalizationForm.FormC);
-        var builder = new StringBuilder(normalized.Length * 2);
+        var builder = new StringBuilder(collapsed.Length * 2);
 
-        foreach (var character in normalized)
+        // Enumerating Runes keeps valid surrogate pairs intact and maps malformed UTF-16
+        // to Rune.ReplacementChar instead of letting Normalize throw on provider data.
+        foreach (var character in collapsed.EnumerateRunes())
         {
             if (TryMapTurkishSearchCharacter(character, out var mapped))
             {
@@ -32,13 +33,7 @@ public static class SearchTitleFolder
                 continue;
             }
 
-            if (character == 'ß')
-            {
-                builder.Append("ss");
-                continue;
-            }
-
-            if (character == 'ẞ')
+            if (character.Value is 'ß' or 'ẞ')
             {
                 builder.Append("ss");
                 continue;
@@ -46,9 +41,9 @@ public static class SearchTitleFolder
 
             var decomposed = character.ToString().Normalize(NormalizationForm.FormD);
             var hasBase = false;
-            foreach (var decomposedCharacter in decomposed)
+            foreach (var decomposedCharacter in decomposed.EnumerateRunes())
             {
-                if (CharUnicodeInfo.GetUnicodeCategory(decomposedCharacter) == UnicodeCategory.NonSpacingMark)
+                if (Rune.GetUnicodeCategory(decomposedCharacter) == UnicodeCategory.NonSpacingMark)
                 {
                     continue;
                 }
@@ -59,7 +54,7 @@ public static class SearchTitleFolder
                 }
                 else
                 {
-                    builder.Append(char.ToLowerInvariant(decomposedCharacter));
+                    builder.Append(Rune.ToLowerInvariant(decomposedCharacter).ToString());
                 }
 
                 hasBase = true;
@@ -67,16 +62,16 @@ public static class SearchTitleFolder
 
             if (!hasBase)
             {
-                builder.Append(char.ToLowerInvariant(character));
+                builder.Append(Rune.ToLowerInvariant(character).ToString());
             }
         }
 
         return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
-    private static bool TryMapTurkishSearchCharacter(char character, out string mapped)
+    private static bool TryMapTurkishSearchCharacter(Rune character, out string mapped)
     {
-        switch (character)
+        switch (character.Value)
         {
             case 'ı':
                 mapped = "i";
