@@ -6,15 +6,16 @@ namespace MovieApp.Api.BackgroundJobs;
 
 public sealed class TmdbTvChangesSyncJob(ITmdbTvChangesSyncService syncService, ILogger<TmdbTvChangesSyncJob> logger)
 {
-    [DisableConcurrentExecution(timeoutInSeconds: 6 * 60 * 60)]
-    [AutomaticRetry(Attempts = 3)]
-    public Task ExecuteAsync() =>
+    // Shares the movie sync lock so movie and TV refreshes cannot overlap.
+    [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
+    [AutomaticRetry(Attempts = 5)]
+    public Task ExecuteAsync(CancellationToken cancellationToken = default) =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
             RecurringJobIds.TmdbTvChanges,
             async () =>
             {
-                var result = await syncService.SyncAsync(DateTime.UtcNow);
+                var result = await syncService.SyncAsync(DateTime.UtcNow, cancellationToken);
 
                 BackgroundJobLogMessages.LogTmdbTvChangesSyncCompleted(
                     logger,
