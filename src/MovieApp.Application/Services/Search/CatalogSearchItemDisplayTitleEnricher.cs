@@ -115,7 +115,19 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
                 localizedTitle,
                 contentLocale,
                 context.PrimaryOriginCountryCode);
-            return item with { Title = titles.Title, OriginalTitle = titles.OriginalTitle };
+            var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+                item.PosterUrl,
+                posterKey,
+                localizedPosters,
+                contentLocale,
+                context);
+
+            return item with
+            {
+                Title = titles.Title,
+                OriginalTitle = titles.OriginalTitle,
+                PosterUrl = posterUrl
+            };
         }
 
         var fallbackPosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
