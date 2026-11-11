@@ -8,15 +8,16 @@ public sealed class TmdbMovieChangesSyncJob(
     ITmdbMovieChangesSyncService syncService,
     ILogger<TmdbMovieChangesSyncJob> logger)
 {
-    [DisableConcurrentExecution(timeoutInSeconds: 6 * 60 * 60)]
-    [AutomaticRetry(Attempts = 3)]
-    public Task ExecuteAsync() =>
+    // Both media types use the same distributed lock; duplicate runs must not occupy workers for hours.
+    [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
+    [AutomaticRetry(Attempts = 5)]
+    public Task ExecuteAsync(CancellationToken cancellationToken = default) =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
             RecurringJobIds.TmdbMovieChanges,
             async () =>
             {
-                var result = await syncService.SyncAsync(DateTime.UtcNow);
+                var result = await syncService.SyncAsync(DateTime.UtcNow, cancellationToken);
 
                 BackgroundJobLogMessages.LogTmdbMovieChangesSyncCompleted(
                     logger,
