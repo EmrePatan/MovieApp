@@ -1,4 +1,6 @@
+using Hangfire;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Reflection;
 using Microsoft.Extensions.Options;
 using MovieApp.Api.BackgroundJobs;
 using MovieApp.Application.Abstractions.Persistence;
@@ -24,25 +26,49 @@ public sealed class BackgroundJobWrapperTests
     [Fact]
     public async Task TmdbJob_UsesUtcNowAndCallsSyncService()
     {
+        using var cancellation = new CancellationTokenSource();
         var sync = new FakeTmdbChangesSyncService();
         var job = new TmdbTvChangesSyncJob(sync, NullLogger<TmdbTvChangesSyncJob>.Instance);
 
-        await job.ExecuteAsync();
+        await job.ExecuteAsync(cancellation.Token);
 
         Assert.NotNull(sync.ReceivedUtcNow);
         Assert.Equal(DateTimeKind.Utc, sync.ReceivedUtcNow!.Value.Kind);
+        Assert.Equal(cancellation.Token, sync.ReceivedCancellationToken);
     }
 
     [Fact]
     public async Task TmdbMovieChangesJob_UsesUtcNowAndCallsSyncService()
     {
+        using var cancellation = new CancellationTokenSource();
         var sync = new FakeTmdbMovieChangesSyncService();
         var job = new TmdbMovieChangesSyncJob(sync, NullLogger<TmdbMovieChangesSyncJob>.Instance);
 
-        await job.ExecuteAsync();
+        await job.ExecuteAsync(cancellation.Token);
 
         Assert.NotNull(sync.ReceivedUtcNow);
         Assert.Equal(DateTimeKind.Utc, sync.ReceivedUtcNow!.Value.Kind);
+        Assert.Equal(cancellation.Token, sync.ReceivedCancellationToken);
+    }
+
+
+    [Fact]
+    public void TmdbChangesJobs_ShareShortDistributedLockAndBoundRetries()
+    {
+        foreach (var jobType in new[] { typeof(TmdbTvChangesSyncJob), typeof(TmdbMovieChangesSyncJob) })
+        {
+            var execute = jobType.GetMethod(nameof(TmdbTvChangesSyncJob.ExecuteAsync))!;
+            var lockAttribute = (DisableConcurrentExecutionAttribute)execute
+                .GetCustomAttributes(typeof(DisableConcurrentExecutionAttribute), inherit: true)
+                .Single();
+            var retryAttribute = (AutomaticRetryAttribute)execute
+                .GetCustomAttributes(typeof(AutomaticRetryAttribute), inherit: true)
+                .Single();
+
+            Assert.Equal("movieapp:tmdb-changes-sync", lockAttribute.Resource);
+            Assert.Equal(10, lockAttribute.TimeoutSec);
+            Assert.Equal(5, retryAttribute.Attempts);
+        }
     }
 
     [Fact]
@@ -192,9 +218,12 @@ public sealed class BackgroundJobWrapperTests
     {
         public DateTime? ReceivedUtcNow { get; private set; }
 
+        public CancellationToken ReceivedCancellationToken { get; private set; }
+
         public Task<TmdbChangesSyncResult> SyncAsync(DateTime? utcNow = null, CancellationToken cancellationToken = default)
         {
             ReceivedUtcNow = utcNow;
+            ReceivedCancellationToken = cancellationToken;
             return Task.FromResult(new TmdbChangesSyncResult(1, 2, 1, 1, 0, 0, DateOnly.FromDateTime(DateTime.UtcNow)));
         }
     }
