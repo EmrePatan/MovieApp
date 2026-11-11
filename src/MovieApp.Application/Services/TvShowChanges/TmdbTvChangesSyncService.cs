@@ -13,7 +13,8 @@ public sealed class TmdbTvChangesSyncService(
     ICatalogChangesRelevanceRepository relevanceRepository,
     ITvShowChangesTargetedRefreshService targetedRefreshService,
     IServiceScopeFactory scopeFactory,
-    ILogger<TmdbTvChangesSyncService> logger) : ITmdbTvChangesSyncService
+    ILogger<TmdbTvChangesSyncService> logger,
+    IServiceScopeFactory? scopeFactory = null) : ITmdbTvChangesSyncService
 {
     public async Task<TmdbChangesSyncResult> SyncAsync(
         DateTime? utcNow = null,
@@ -36,6 +37,15 @@ public sealed class TmdbTvChangesSyncService(
         DateOnly changeSignalDate,
         CancellationToken cancellationToken)
     {
+        if (scopeFactory is null)
+        {
+            return await targetedRefreshService.RefreshRelevantShowAsync(
+                tvShowId,
+                boundaryDate,
+                changeSignalDate,
+                cancellationToken);
+        }
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var refreshService = scope.ServiceProvider.GetRequiredService<ITvShowChangesTargetedRefreshService>();
         return await refreshService.RefreshRelevantShowAsync(
