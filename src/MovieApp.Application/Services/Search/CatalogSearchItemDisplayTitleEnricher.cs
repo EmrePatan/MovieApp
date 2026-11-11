@@ -30,10 +30,19 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
             .Distinct()
             .ToList();
 
+        var posterKeys = page.Items
+            .Select(item => new ContentLocalizedPosterKey(
+                string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+                    ? CatalogContentType.Tv
+                    : CatalogContentType.Movie,
+                item.Id))
+            .Distinct()
+            .ToList();
+
         var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
             movieIds,
             tvIds,
-            [],
+            posterKeys,
             contentLocale,
             cancellationToken);
         var localizedMovieTitles = metadata.LocalizedMovieTitles;
@@ -48,7 +57,8 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
                 localizedMovieTitles,
                 localizedTvTitles,
                 movieContexts,
-                tvContexts))
+                tvContexts,
+                metadata.LocalizedPosters))
             .ToList();
 
         return page with { Items = items };
@@ -60,8 +70,14 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
         IReadOnlyDictionary<CatalogContentKey, string> localizedMovieTitles,
         IReadOnlyDictionary<CatalogContentKey, string> localizedTvTitles,
         IReadOnlyDictionary<Guid, ContentProductionContext> movieContexts,
-        IReadOnlyDictionary<Guid, ContentProductionContext> tvContexts)
+        IReadOnlyDictionary<Guid, ContentProductionContext> tvContexts,
+        IReadOnlyDictionary<ContentLocalizedPosterKey, string> localizedPosters)
     {
+        var posterKey = new ContentLocalizedPosterKey(
+            string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
+                ? CatalogContentType.Tv
+                : CatalogContentType.Movie,
+            item.Id);
         if (string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
         {
             movieContexts.TryGetValue(item.Id, out var context);
@@ -73,7 +89,19 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
                 localizedTitle,
                 contentLocale,
                 context.PrimaryOriginCountryCode);
-            return item with { Title = titles.Title, OriginalTitle = titles.OriginalTitle };
+            var posterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+                item.PosterUrl,
+                posterKey,
+                localizedPosters,
+                contentLocale,
+                context);
+
+            return item with
+            {
+                Title = titles.Title,
+                OriginalTitle = titles.OriginalTitle,
+                PosterUrl = posterUrl
+            };
         }
 
         if (string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
@@ -90,6 +118,13 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
             return item with { Title = titles.Title, OriginalTitle = titles.OriginalTitle };
         }
 
-        return item;
+        var fallbackPosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
+            item.PosterUrl,
+            posterKey,
+            localizedPosters,
+            contentLocale,
+            default);
+
+        return item with { PosterUrl = fallbackPosterUrl };
     }
 }
