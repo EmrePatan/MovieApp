@@ -9,6 +9,10 @@ namespace MovieApp.Application.Services.Changes;
 
 internal static partial class TmdbChangesSyncCoordinator
 {
+    // Movie and TV sync jobs share this process-wide gate so parallel refreshes never
+    // overwhelm the small production database or TMDB rate limits.
+    private static readonly SemaphoreSlim TargetRefreshGate = new(2, 2);
+
     internal static async Task<TmdbChangesSyncResult> SyncAsync(
         string checkpointKey,
         Func<DateOnly, DateOnly, int, CancellationToken, Task<TmdbChangesPageResult>> getChangesPageAsync,
@@ -37,6 +41,7 @@ internal static partial class TmdbChangesSyncCoordinator
         }
 
         var chunks = TmdbTvChangesWindowPlanner.BuildChunks(windowStart.Value, targetDate);
+        var windowsProcessed = 0;
         var totalChangedIds = 0;
         var totalRelevantTargets = 0;
         var totalRefreshed = 0;
@@ -88,49 +93,65 @@ internal static partial class TmdbChangesSyncCoordinator
             var chunkSkipped = 0;
             var chunkFailed = 0;
 
-            foreach (var targetId in targetIds)
-            {
-                try
+            await Parallel.ForEachAsync(
+                targetIds,
+                new ParallelOptions
                 {
-                    var refreshResult = await refreshTargetAsync(
-                        targetId,
-                        chunk.End,
-                        chunk.End,
-                        cancellationToken);
-
-                    switch (refreshResult.Outcome)
+                    MaxDegreeOfParallelism = 2,
+                    CancellationToken = cancellationToken
+                },
+                async (targetId, token) =>
+                {
+                    await TargetRefreshGate.WaitAsync(token);
+                    try
                     {
-                        case TmdbChangesTargetRefreshOutcome.Refreshed:
-                            chunkRefreshed++;
-                            break;
-                        case TmdbChangesTargetRefreshOutcome.SkippedUnavailable:
-                        case TmdbChangesTargetRefreshOutcome.SkippedNotFound:
-                            chunkSkipped++;
-                            TmdbChangesSyncLogMessages.LogSkippedTargetRefresh(
-                                logger,
-                                mediaTypeLabel,
-                                targetId,
-                                refreshResult.Outcome);
-                            break;
-                        default:
-                            chunkFailed++;
-                            TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
-                                logger,
-                                mediaTypeLabel,
-                                targetId);
-                            break;
+                        var refreshResult = await refreshTargetAsync(
+                            targetId,
+                            chunk.End,
+                            chunk.End,
+                            token);
+
+                        switch (refreshResult.Outcome)
+                        {
+                            case TmdbChangesTargetRefreshOutcome.Refreshed:
+                                Interlocked.Increment(ref chunkRefreshed);
+                                break;
+                            case TmdbChangesTargetRefreshOutcome.SkippedUnavailable:
+                            case TmdbChangesTargetRefreshOutcome.SkippedNotFound:
+                                Interlocked.Increment(ref chunkSkipped);
+                                TmdbChangesSyncLogMessages.LogSkippedTargetRefresh(
+                                    logger,
+                                    mediaTypeLabel,
+                                    targetId,
+                                    refreshResult.Outcome);
+                                break;
+                            default:
+                                Interlocked.Increment(ref chunkFailed);
+                                TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
+                                    logger,
+                                    mediaTypeLabel,
+                                    targetId);
+                                break;
+                        }
                     }
-                }
-                catch (Exception exception)
-                {
-                    chunkFailed++;
-                    TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
-                        logger,
-                        exception,
-                        mediaTypeLabel,
-                        targetId);
-                }
-            }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        Interlocked.Increment(ref chunkFailed);
+                        TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
+                            logger,
+                            exception,
+                            mediaTypeLabel,
+                            targetId);
+                    }
+                    finally
+                    {
+                        TargetRefreshGate.Release();
+                    }
+                });
 
             totalRefreshed += chunkRefreshed;
             totalSkipped += chunkSkipped;
@@ -151,12 +172,20 @@ internal static partial class TmdbChangesSyncCoordinator
                 chunkSkipped,
                 chunkFailed);
 
+            // Do not advance the date checkpoint when any target failed. Otherwise a
+            // transient provider/database error would permanently skip that target.
+            if (chunkFailed > 0)
+            {
+                break;
+            }
+
             await checkpointRepository.CompleteWindowAsync(
                 checkpointKey,
                 chunk.End,
                 syncInstant,
                 cancellationToken);
 
+            windowsProcessed++;
             latestCompletedEndDate = chunk.End;
         }
 
@@ -173,7 +202,7 @@ internal static partial class TmdbChangesSyncCoordinator
             totalFailed);
 
         return new TmdbChangesSyncResult(
-            chunks.Count,
+            windowsProcessed,
             totalChangedIds,
             totalRelevantTargets,
             totalRefreshed,
