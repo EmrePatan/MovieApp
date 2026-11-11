@@ -14,7 +14,7 @@ namespace MovieApp.UnitTests.Home;
 
 public sealed class TrendingWeekReleasePresentationTests
 {
-    private static readonly DateOnly Today = new(2026, 10, 4);
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
 
     [Fact]
     public async Task HotThisWeekSkipsFutureReleaseAndFillsHeroFromNextEligibleTitle()
@@ -122,7 +122,8 @@ public sealed class TrendingWeekReleasePresentationTests
             releaseDate,
             7m,
             100,
-            releaseDate.Year);
+            releaseDate.Year,
+            title.GetHashCode(StringComparison.Ordinal));
 
     private sealed class FakeSnapshotService(IReadOnlyList<SearchItem> items) : IHotThisWeekTrendingSnapshotService
     {
