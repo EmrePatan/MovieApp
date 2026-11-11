@@ -168,7 +168,8 @@ internal sealed class EmptySummaryLocalizationMetadataReadRepository : ISummaryL
 internal sealed class ConfiguredSummaryLocalizationMetadataReadRepository(
     IReadOnlyDictionary<CatalogContentKey, string> localizedTitles,
     IReadOnlyDictionary<Guid, ContentProductionContext> movieContexts,
-    IReadOnlyDictionary<Guid, ContentProductionContext>? tvContexts = null) : ISummaryLocalizationMetadataReadRepository
+    IReadOnlyDictionary<Guid, ContentProductionContext>? tvContexts = null,
+    IReadOnlyDictionary<ContentLocalizedPosterKey, string>? localizedPosters = null) : ISummaryLocalizationMetadataReadRepository
 {
     public Task<SummaryLocalizationMetadataBatch> LoadAsync(
         IReadOnlyList<Guid> movieIds,
@@ -208,6 +209,6 @@ internal sealed class ConfiguredSummaryLocalizationMetadataReadRepository(
                 tvs,
                 movieTitles,
                 tvTitles,
-                new Dictionary<ContentLocalizedPosterKey, string>()));
+                localizedPosters ?? new Dictionary<ContentLocalizedPosterKey, string>()));
     }
 }
