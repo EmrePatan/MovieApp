@@ -12,12 +12,12 @@ public sealed class TmdbTvChangesSyncJob(
 {
     // Keep the parameterless overload for jobs already persisted by older deployments.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
-    [AutomaticRetry(Attempts = 5)]
+    [AutomaticRetry(Attempts = 5, DelaysInSeconds = new int[] { 60, 180, 300, 600, 900 })]
     public Task ExecuteAsync() => ExecuteAsync(hostApplicationLifetime.ApplicationStopping);
 
     // Shares the movie sync lock so movie and TV refreshes cannot overlap.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
-    [AutomaticRetry(Attempts = 5)]
+    [AutomaticRetry(Attempts = 5, DelaysInSeconds = new int[] { 60, 180, 300, 600, 900 })]
     public Task ExecuteAsync(CancellationToken cancellationToken) =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
