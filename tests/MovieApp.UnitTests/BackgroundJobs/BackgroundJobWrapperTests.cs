@@ -232,9 +232,12 @@ public sealed class BackgroundJobWrapperTests
     {
         public DateTime? ReceivedUtcNow { get; private set; }
 
+        public CancellationToken ReceivedCancellationToken { get; private set; }
+
         public Task<TmdbChangesSyncResult> SyncAsync(DateTime? utcNow = null, CancellationToken cancellationToken = default)
         {
             ReceivedUtcNow = utcNow;
+            ReceivedCancellationToken = cancellationToken;
             return Task.FromResult(new TmdbChangesSyncResult(1, 2, 1, 1, 0, 0, DateOnly.FromDateTime(DateTime.UtcNow)));
         }
     }
