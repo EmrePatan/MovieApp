@@ -3,15 +3,17 @@ using MovieApp.Application.Services.Search;
 namespace MovieApp.Api.BackgroundJobs;
 
 /// <summary>
-/// Warms the shared Keşfet caches, including the eight genre rails, on startup and every
-/// 30 minutes so the first hub open after a deploy or TTL expiry is a cache hit.
+/// Warms the shared Keşfet caches, including the eight genre rails, on startup and
+/// shortly before their 60-minute preview cache expires.
 /// </summary>
 public sealed class ExploreHubWarmupHostedService(
     IServiceScopeFactory scopeFactory,
     IHostEnvironment environment,
     ILogger<ExploreHubWarmupHostedService> logger) : IHostedService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(30);
+    // Explore preview entries live for 60 minutes. Refresh once per 55 minutes rather
+    // than every 30 minutes to avoid repeatedly rebuilding the same cache entries.
+    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(55);
 
     private CancellationTokenSource? _stop;
 

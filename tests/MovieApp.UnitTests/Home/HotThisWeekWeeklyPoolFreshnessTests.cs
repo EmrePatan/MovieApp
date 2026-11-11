@@ -20,7 +20,7 @@ namespace MovieApp.UnitTests.Home;
 
 public sealed class HotThisWeekWeeklyPoolFreshnessTests
 {
-    private static readonly DateOnly Today = new(2026, 10, 4);
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
     private static readonly Guid MovieId = Guid.Parse("11111111-1111-1111-1111-111111111101");
 
     [Fact]
