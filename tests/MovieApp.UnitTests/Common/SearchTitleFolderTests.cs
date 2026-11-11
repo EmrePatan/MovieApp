@@ -53,6 +53,14 @@ public sealed class SearchTitleFolderTests
     }
 
     [Fact]
+    public void FoldHandlesSupplementaryAndMalformedUtf16Characters()
+    {
+        Assert.Equal("😀 film", SearchTitleFolder.Fold("😀 FILM"));
+        Assert.Equal("a\uFFFD b", SearchTitleFolder.Fold("A\uD800 B"));
+        Assert.Equal("c\uFFFD d", SearchTitleFolder.Fold("C\uDC00 D"));
+    }
+
+    [Fact]
     public void FoldUsesLowercaseForLatinLetters()
     {
         Assert.Equal("whistle if you", SearchTitleFolder.Fold("WHISTLE IF YOU"));
