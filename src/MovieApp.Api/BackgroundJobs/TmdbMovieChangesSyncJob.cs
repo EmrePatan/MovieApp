@@ -1,4 +1,5 @@
 using Hangfire;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Services.MovieChanges;
 
@@ -6,12 +7,13 @@ namespace MovieApp.Api.BackgroundJobs;
 
 public sealed class TmdbMovieChangesSyncJob(
     ITmdbMovieChangesSyncService syncService,
-    ILogger<TmdbMovieChangesSyncJob> logger)
+    ILogger<TmdbMovieChangesSyncJob> logger,
+    IHostApplicationLifetime hostApplicationLifetime)
 {
     // Keep the parameterless overload for jobs already persisted by older deployments.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
     [AutomaticRetry(Attempts = 5)]
-    public Task ExecuteAsync() => ExecuteAsync(CancellationToken.None);
+    public Task ExecuteAsync() => ExecuteAsync(hostApplicationLifetime.ApplicationStopping);
 
     // Both media types share a short distributed lock so duplicates never occupy workers for hours.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
