@@ -57,17 +57,20 @@ public sealed class BackgroundJobWrapperTests
     {
         foreach (var jobType in new[] { typeof(TmdbTvChangesSyncJob), typeof(TmdbMovieChangesSyncJob) })
         {
-            var execute = jobType.GetMethod(nameof(TmdbTvChangesSyncJob.ExecuteAsync), [typeof(CancellationToken)])!;
-            var lockAttribute = (DisableConcurrentExecutionAttribute)execute
-                .GetCustomAttributes(typeof(DisableConcurrentExecutionAttribute), inherit: true)
-                .Single();
-            var retryAttribute = (AutomaticRetryAttribute)execute
-                .GetCustomAttributes(typeof(AutomaticRetryAttribute), inherit: true)
-                .Single();
+            foreach (var parameterTypes in new[] { Type.EmptyTypes, new[] { typeof(CancellationToken) } })
+            {
+                var execute = jobType.GetMethod(nameof(TmdbTvChangesSyncJob.ExecuteAsync), parameterTypes)!;
+                var lockAttribute = (DisableConcurrentExecutionAttribute)execute
+                    .GetCustomAttributes(typeof(DisableConcurrentExecutionAttribute), inherit: true)
+                    .Single();
+                var retryAttribute = (AutomaticRetryAttribute)execute
+                    .GetCustomAttributes(typeof(AutomaticRetryAttribute), inherit: true)
+                    .Single();
 
-            Assert.Equal("movieapp:tmdb-changes-sync", lockAttribute.Resource);
-            Assert.Equal(10, lockAttribute.TimeoutSec);
-            Assert.Equal(5, retryAttribute.Attempts);
+                Assert.Equal("movieapp:tmdb-changes-sync", lockAttribute.Resource);
+                Assert.Equal(10, lockAttribute.TimeoutSec);
+                Assert.Equal(5, retryAttribute.Attempts);
+            }
         }
     }
 
