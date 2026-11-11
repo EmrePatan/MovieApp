@@ -16,7 +16,7 @@ namespace MovieApp.UnitTests.Home;
 
 public sealed class TrendingWeekListServiceSnapshotConsistencyTests
 {
-    private static readonly DateOnly Today = new(2026, 10, 4);
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
 
     [Fact]
     public async Task GetPageAsyncPrefersSnapshotAndDoesNotCallProvider()
