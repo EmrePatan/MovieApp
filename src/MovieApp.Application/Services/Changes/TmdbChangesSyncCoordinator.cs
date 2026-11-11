@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
@@ -48,6 +49,8 @@ internal static class TmdbChangesSyncCoordinator
 
         foreach (var chunk in chunks)
         {
+            LogMemorySnapshot(logger, mediaTypeLabel, chunk.Start, chunk.End, "BeforeFetch", 0, 0);
+
             var changedTmdbIds = await FetchAllChangedTmdbIdsAsync(
                 getChangesPageAsync,
                 chunk.Start,
@@ -55,6 +58,7 @@ internal static class TmdbChangesSyncCoordinator
                 cancellationToken);
 
             totalChangedIds += changedTmdbIds.Count;
+            LogMemorySnapshot(logger, mediaTypeLabel, chunk.Start, chunk.End, "AfterFetch", changedTmdbIds.Count, 0);
 
             var refreshMaps = await resolveRefreshMapsAsync(changedTmdbIds, cancellationToken);
             var relevantTargets = refreshMaps.UnionByTmdbId;
@@ -78,6 +82,7 @@ internal static class TmdbChangesSyncCoordinator
                 .ToList();
 
             totalRelevantTargets += targetIds.Count;
+            LogMemorySnapshot(logger, mediaTypeLabel, chunk.Start, chunk.End, "AfterResolve", changedTmdbIds.Count, targetIds.Count);
 
             var chunkRefreshed = 0;
             var chunkSkipped = 0;
@@ -130,6 +135,7 @@ internal static class TmdbChangesSyncCoordinator
             totalRefreshed += chunkRefreshed;
             totalSkipped += chunkSkipped;
             totalFailed += chunkFailed;
+            LogMemorySnapshot(logger, mediaTypeLabel, chunk.Start, chunk.End, "AfterRefresh", changedTmdbIds.Count, targetIds.Count);
 
             TmdbChangesSyncLogMessages.LogChunkProcessed(
                 logger,
@@ -177,6 +183,31 @@ internal static class TmdbChangesSyncCoordinator
             totalExistingUserMatches,
             totalDiscoveryMatches,
             totalDiscoveryOnlyMatches);
+    }
+
+    private static void LogMemorySnapshot(
+        ILogger logger,
+        string mediaTypeLabel,
+        DateOnly startDate,
+        DateOnly endDate,
+        string stage,
+        int changedIds,
+        int targetIds)
+    {
+        using var process = Process.GetCurrentProcess();
+        var managedHeapMb = GC.GetTotalMemory(forceFullCollection: false) / 1024d / 1024d;
+        var workingSetMb = process.WorkingSet64 / 1024d / 1024d;
+
+        logger.LogInformation(
+            "TMDB changes sync memory: mediaType={MediaType} window={StartDate}..{EndDate} stage={Stage} changedIds={ChangedIds} targetIds={TargetIds} managedHeapMb={ManagedHeapMb:F1} workingSetMb={WorkingSetMb:F1}",
+            mediaTypeLabel,
+            startDate,
+            endDate,
+            stage,
+            changedIds,
+            targetIds,
+            managedHeapMb,
+            workingSetMb);
     }
 
     private static async Task<HashSet<int>> FetchAllChangedTmdbIdsAsync(
