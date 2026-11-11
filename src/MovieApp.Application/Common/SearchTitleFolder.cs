@@ -21,11 +21,11 @@ public static class SearchTitleFolder
             return string.Empty;
         }
 
-        var builder = new StringBuilder(collapsed.Length * 2);
+        var normalized = NormalizeFormC(collapsed);
+        var builder = new StringBuilder(normalized.Length * 2);
 
-        // Enumerating Runes keeps valid surrogate pairs intact and maps malformed UTF-16
-        // to Rune.ReplacementChar instead of letting Normalize throw on provider data.
-        foreach (var character in collapsed.EnumerateRunes())
+        // Enumerating Runes keeps valid surrogate pairs intact during per-character folding.
+        foreach (var character in normalized.EnumerateRunes())
         {
             if (TryMapTurkishSearchCharacter(character, out var mapped))
             {
@@ -67,6 +67,26 @@ public static class SearchTitleFolder
         }
 
         return builder.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+
+    private static string NormalizeFormC(string value)
+    {
+        try
+        {
+            return value.Normalize(NormalizationForm.FormC);
+        }
+        catch (ArgumentException)
+        {
+            // EnumerateRunes replaces malformed UTF-16 sequences with Rune.ReplacementChar.
+            var sanitized = new StringBuilder(value.Length);
+            foreach (var rune in value.EnumerateRunes())
+            {
+                sanitized.Append(rune.ToString());
+            }
+
+            return sanitized.ToString().Normalize(NormalizationForm.FormC);
+        }
     }
 
     private static bool TryMapTurkishSearchCharacter(Rune character, out string mapped)
