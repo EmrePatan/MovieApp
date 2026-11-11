@@ -107,7 +107,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_FailedShowRefresh_SkipsTitleAndAdvancesCheckpoint()
+    public async Task SyncAsync_FailedShowRefresh_DoesNotAdvanceCheckpoint()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
@@ -123,7 +123,7 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         var result = await service.SyncAsync(SyncInstant);
 
-        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Null(checkpointRepository.LastCompletedEndDate);
         Assert.Equal(1, result.Failed);
         Assert.Equal(0, result.Refreshed);
     }
@@ -151,7 +151,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_ExceptionDuringRefresh_SkipsTitleAndAdvancesCheckpoint()
+    public async Task SyncAsync_ExceptionDuringRefresh_DoesNotAdvanceCheckpoint()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
@@ -164,7 +164,7 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         var result = await service.SyncAsync(SyncInstant);
 
-        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Null(checkpointRepository.LastCompletedEndDate);
         Assert.Equal(1, result.Failed);
     }
 

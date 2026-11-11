@@ -17,7 +17,7 @@ namespace MovieApp.IntegrationTests.Catalog;
 [Collection("CatalogPersistence")]
 public sealed class CatalogMetadataFreshnessIntegrationTests
 {
-    private static readonly DateTime UtcNow = new(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime UtcNow = DateTime.UtcNow;
 
     [Fact]
     public async Task DiscoveryRelevanceRecentReleaseQualifiesWithoutVoteFloor()

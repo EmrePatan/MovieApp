@@ -52,11 +52,10 @@ public sealed class TvShowChangesTargetedRefreshService(
             enrichKeywords: true,
             cancellationToken);
 
-        var seasons = await releaseDetectionCatalogRepository.GetSeasonsWithEpisodesAsync(
+        var seasonsToHydrate = await releaseDetectionCatalogRepository.GetSeasonNumbersNeedingEpisodeHydrationAsync(
             tvShowId,
+            boundaryDate,
             cancellationToken);
-
-        var seasonsToHydrate = TvShowChangesRefreshRules.DetermineSeasonsToHydrate(seasons, boundaryDate);
         var hydratedSeasons = new List<TmdbChangesHydratedSeasonCacheTarget>();
 
         foreach (var seasonNumber in seasonsToHydrate)

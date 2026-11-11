@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
@@ -11,7 +12,8 @@ public sealed class TmdbTvChangesSyncService(
     ITmdbTvChangesSyncCheckpointRepository checkpointRepository,
     ICatalogChangesRelevanceRepository relevanceRepository,
     ITvShowChangesTargetedRefreshService targetedRefreshService,
-    ILogger<TmdbTvChangesSyncService> logger) : ITmdbTvChangesSyncService
+    ILogger<TmdbTvChangesSyncService> logger,
+    IServiceScopeFactory? scopeFactory = null) : ITmdbTvChangesSyncService
 {
     public async Task<TmdbChangesSyncResult> SyncAsync(
         DateTime? utcNow = null,
@@ -21,11 +23,35 @@ public sealed class TmdbTvChangesSyncService(
             TmdbChangesSyncCheckpointKeys.Tv,
             tmdbTvChangesProvider.GetTvChangesPageAsync,
             relevanceRepository.GetTvShowChangesRefreshMapsForTmdbIdsAsync,
-            targetedRefreshService.RefreshRelevantShowAsync,
+            RefreshShowAsync,
             checkpointRepository,
             logger,
             "tv",
             utcNow,
+            cancellationToken);
+    }
+
+    private async Task<TmdbChangesTargetRefreshResult> RefreshShowAsync(
+        Guid tvShowId,
+        DateOnly boundaryDate,
+        DateOnly changeSignalDate,
+        CancellationToken cancellationToken)
+    {
+        if (scopeFactory is null)
+        {
+            return await targetedRefreshService.RefreshRelevantShowAsync(
+                tvShowId,
+                boundaryDate,
+                changeSignalDate,
+                cancellationToken);
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var refreshService = scope.ServiceProvider.GetRequiredService<ITvShowChangesTargetedRefreshService>();
+        return await refreshService.RefreshRelevantShowAsync(
+            tvShowId,
+            boundaryDate,
+            changeSignalDate,
             cancellationToken);
     }
 }

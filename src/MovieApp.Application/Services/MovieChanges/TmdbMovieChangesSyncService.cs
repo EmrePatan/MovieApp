@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
@@ -11,7 +12,8 @@ public sealed class TmdbMovieChangesSyncService(
     ITmdbTvChangesSyncCheckpointRepository checkpointRepository,
     ICatalogChangesRelevanceRepository relevanceRepository,
     IMovieChangesTargetedRefreshService targetedRefreshService,
-    ILogger<TmdbMovieChangesSyncService> logger) : ITmdbMovieChangesSyncService
+    ILogger<TmdbMovieChangesSyncService> logger,
+    IServiceScopeFactory? scopeFactory = null) : ITmdbMovieChangesSyncService
 {
     public async Task<TmdbChangesSyncResult> SyncAsync(
         DateTime? utcNow = null,
@@ -29,10 +31,19 @@ public sealed class TmdbMovieChangesSyncService(
             cancellationToken);
     }
 
-    private Task<TmdbChangesTargetRefreshResult> RefreshMovieAsync(
+    private async Task<TmdbChangesTargetRefreshResult> RefreshMovieAsync(
         Guid movieId,
         DateOnly _,
         DateOnly __,
-        CancellationToken cancellationToken) =>
-        targetedRefreshService.RefreshRelevantMovieAsync(movieId, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (scopeFactory is null)
+        {
+            return await targetedRefreshService.RefreshRelevantMovieAsync(movieId, cancellationToken);
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var refreshService = scope.ServiceProvider.GetRequiredService<IMovieChangesTargetedRefreshService>();
+        return await refreshService.RefreshRelevantMovieAsync(movieId, cancellationToken);
+    }
 }
