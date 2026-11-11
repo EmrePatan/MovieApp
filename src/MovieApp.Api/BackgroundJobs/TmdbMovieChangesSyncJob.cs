@@ -8,10 +8,15 @@ public sealed class TmdbMovieChangesSyncJob(
     ITmdbMovieChangesSyncService syncService,
     ILogger<TmdbMovieChangesSyncJob> logger)
 {
-    // Both media types use the same distributed lock; duplicate runs must not occupy workers for hours.
+    // Keep the parameterless overload for jobs already persisted by older deployments.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
     [AutomaticRetry(Attempts = 5)]
-    public Task ExecuteAsync(CancellationToken cancellationToken = default) =>
+    public Task ExecuteAsync() => ExecuteAsync(CancellationToken.None);
+
+    // Both media types share a short distributed lock so duplicates never occupy workers for hours.
+    [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
+    [AutomaticRetry(Attempts = 5)]
+    public Task ExecuteAsync(CancellationToken cancellationToken) =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
             RecurringJobIds.TmdbMovieChanges,
