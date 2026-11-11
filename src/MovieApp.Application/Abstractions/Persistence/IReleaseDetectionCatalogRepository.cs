@@ -23,7 +23,7 @@ public interface IReleaseDetectionCatalogRepository
                      episode.EpisodeNumber >= 1 &&
                      episode.AirDate.HasValue &&
                      episode.AirDate.Value <= boundaryDate)) &&
-                season.Episodes.Count(episode => episode.EpisodeNumber >= 1) < season.EpisodeCount.Value)
+                season.Episodes.Count(episode => episode.EpisodeNumber >= 1) < season.EpisodeCount.GetValueOrDefault())
             .Select(season => season.SeasonNumber)
             .ToList();
     }
