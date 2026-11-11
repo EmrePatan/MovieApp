@@ -147,6 +147,39 @@ public sealed class CatalogSearchItemDisplayTitleEnricherTests
         Assert.Equal("Spider-Man", result.Items[0].OriginalTitle);
     }
 
+    [Fact]
+    public async Task TurkishLocale_UsesStoredPosterOnlyForTurkishProduction()
+    {
+        var turkishKey = new ContentLocalizedPosterKey(CatalogContentType.Movie, TurkishMovieId);
+        var foreignKey = new ContentLocalizedPosterKey(CatalogContentType.Movie, UsMovieId);
+        var enricher = CreateEnricher(
+            localizedTitles: new Dictionary<CatalogContentKey, string>(),
+            movieContexts: new Dictionary<Guid, ContentProductionContext>
+            {
+                [TurkishMovieId] = new("tr", "TR"),
+                [UsMovieId] = new("en", "US")
+            },
+            localizedPosters: new Dictionary<ContentLocalizedPosterKey, string>
+            {
+                [turkishKey] = "/poster-tr.jpg",
+                [foreignKey] = "/fan-poster-tr.jpg"
+            });
+        var page = new PaginatedResult<SearchItem>(
+            [
+                CreateMovieItem(TurkishMovieId, "Alev Alev", "Alev Alev"),
+                CreateMovieItem(UsMovieId, "Spider-Man", "Spider-Man")
+            ],
+            1,
+            20,
+            2,
+            1);
+
+        var result = await enricher.EnrichAsync(page, ContentLocaleResolver.TurkishTurkey);
+
+        Assert.Equal("/poster-tr.jpg", result.Items[0].PosterUrl);
+        Assert.Equal("/poster.jpg", result.Items[1].PosterUrl);
+    }
+
     private static SearchItem CreateMovieItem(Guid id, string title, string? originalTitle) =>
         new(
             id,
@@ -164,6 +197,10 @@ public sealed class CatalogSearchItemDisplayTitleEnricherTests
 
     private static CatalogSearchItemDisplayTitleEnricher CreateEnricher(
         IReadOnlyDictionary<CatalogContentKey, string> localizedTitles,
-        IReadOnlyDictionary<Guid, ContentProductionContext> movieContexts) =>
-        new(new ConfiguredSummaryLocalizationMetadataReadRepository(localizedTitles, movieContexts));
+        IReadOnlyDictionary<Guid, ContentProductionContext> movieContexts,
+        IReadOnlyDictionary<ContentLocalizedPosterKey, string>? localizedPosters = null) =>
+        new(new ConfiguredSummaryLocalizationMetadataReadRepository(
+            localizedTitles,
+            movieContexts,
+            localizedPosters: localizedPosters));
 }
