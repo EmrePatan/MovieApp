@@ -12,7 +12,6 @@ public sealed class TmdbMovieChangesSyncService(
     ITmdbTvChangesSyncCheckpointRepository checkpointRepository,
     ICatalogChangesRelevanceRepository relevanceRepository,
     IMovieChangesTargetedRefreshService targetedRefreshService,
-    IServiceScopeFactory scopeFactory,
     ILogger<TmdbMovieChangesSyncService> logger,
     IServiceScopeFactory? scopeFactory = null) : ITmdbMovieChangesSyncService
 {
