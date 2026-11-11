@@ -6,10 +6,15 @@ namespace MovieApp.Api.BackgroundJobs;
 
 public sealed class TmdbTvChangesSyncJob(ITmdbTvChangesSyncService syncService, ILogger<TmdbTvChangesSyncJob> logger)
 {
+    // Keep the parameterless overload for jobs already persisted by older deployments.
+    [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
+    [AutomaticRetry(Attempts = 5)]
+    public Task ExecuteAsync() => ExecuteAsync(CancellationToken.None);
+
     // Shares the movie sync lock so movie and TV refreshes cannot overlap.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
     [AutomaticRetry(Attempts = 5)]
-    public Task ExecuteAsync(CancellationToken cancellationToken = default) =>
+    public Task ExecuteAsync(CancellationToken cancellationToken) =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
             RecurringJobIds.TmdbTvChanges,
