@@ -130,13 +130,6 @@ public sealed class CatalogSearchItemDisplayTitleEnricher(
             };
         }
 
-        var fallbackPosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
-            item.PosterUrl,
-            posterKey,
-            localizedPosters,
-            contentLocale,
-            default);
-
-        return item with { PosterUrl = fallbackPosterUrl };
+        return item;
     }
 }
