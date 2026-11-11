@@ -12,12 +12,12 @@ public sealed class TmdbMovieChangesSyncJob(
 {
     // Keep the parameterless overload for jobs already persisted by older deployments.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
-    [AutomaticRetry(Attempts = 5)]
+    [AutomaticRetry(Attempts = 5, DelaysInSeconds = new int[] { 60, 180, 300, 600, 900 })]
     public Task ExecuteAsync() => ExecuteAsync(hostApplicationLifetime.ApplicationStopping);
 
     // Both media types share a short distributed lock so duplicates never occupy workers for hours.
     [DisableConcurrentExecution("movieapp:tmdb-changes-sync", timeoutSec: 10)]
-    [AutomaticRetry(Attempts = 5)]
+    [AutomaticRetry(Attempts = 5, DelaysInSeconds = new int[] { 60, 180, 300, 600, 900 })]
     public Task ExecuteAsync(CancellationToken cancellationToken) =>
         BackgroundJobOperationalRunner.RunAsync(
             logger,
