@@ -13,7 +13,8 @@ public sealed class TmdbMovieChangesSyncService(
     ICatalogChangesRelevanceRepository relevanceRepository,
     IMovieChangesTargetedRefreshService targetedRefreshService,
     IServiceScopeFactory scopeFactory,
-    ILogger<TmdbMovieChangesSyncService> logger) : ITmdbMovieChangesSyncService
+    ILogger<TmdbMovieChangesSyncService> logger,
+    IServiceScopeFactory? scopeFactory = null) : ITmdbMovieChangesSyncService
 {
     public async Task<TmdbChangesSyncResult> SyncAsync(
         DateTime? utcNow = null,
@@ -37,6 +38,11 @@ public sealed class TmdbMovieChangesSyncService(
         DateOnly __,
         CancellationToken cancellationToken)
     {
+        if (scopeFactory is null)
+        {
+            return await targetedRefreshService.RefreshRelevantMovieAsync(movieId, cancellationToken);
+        }
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var refreshService = scope.ServiceProvider.GetRequiredService<IMovieChangesTargetedRefreshService>();
         return await refreshService.RefreshRelevantMovieAsync(movieId, cancellationToken);
