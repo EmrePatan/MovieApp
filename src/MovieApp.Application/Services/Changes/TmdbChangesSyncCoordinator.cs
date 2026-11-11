@@ -7,7 +7,7 @@ using MovieApp.Application.Services.TvShowChanges;
 
 namespace MovieApp.Application.Services.Changes;
 
-internal static class TmdbChangesSyncCoordinator
+internal static partial class TmdbChangesSyncCoordinator
 {
     internal static async Task<TmdbChangesSyncResult> SyncAsync(
         string checkpointKey,
@@ -185,6 +185,21 @@ internal static class TmdbChangesSyncCoordinator
             totalDiscoveryOnlyMatches);
     }
 
+    [LoggerMessage(
+        EventId = 6401,
+        Level = LogLevel.Information,
+        Message = "TMDB changes sync memory: mediaType={MediaType} window={StartDate}..{EndDate} stage={Stage} changedIds={ChangedIds} targetIds={TargetIds} managedHeapMb={ManagedHeapMb:F1} workingSetMb={WorkingSetMb:F1}")]
+    private static partial void LogMemorySnapshotMessage(
+        ILogger logger,
+        string mediaType,
+        DateOnly startDate,
+        DateOnly endDate,
+        string stage,
+        int changedIds,
+        int targetIds,
+        double managedHeapMb,
+        double workingSetMb);
+
     private static void LogMemorySnapshot(
         ILogger logger,
         string mediaTypeLabel,
@@ -198,8 +213,8 @@ internal static class TmdbChangesSyncCoordinator
         var managedHeapMb = GC.GetTotalMemory(forceFullCollection: false) / 1024d / 1024d;
         var workingSetMb = process.WorkingSet64 / 1024d / 1024d;
 
-        logger.LogInformation(
-            "TMDB changes sync memory: mediaType={MediaType} window={StartDate}..{EndDate} stage={Stage} changedIds={ChangedIds} targetIds={TargetIds} managedHeapMb={ManagedHeapMb:F1} workingSetMb={WorkingSetMb:F1}",
+        LogMemorySnapshotMessage(
+            logger,
             mediaTypeLabel,
             startDate,
             endDate,
