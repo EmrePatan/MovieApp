@@ -1,4 +1,5 @@
 using Hangfire;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using Microsoft.Extensions.Options;
@@ -28,7 +29,7 @@ public sealed class BackgroundJobWrapperTests
     {
         using var cancellation = new CancellationTokenSource();
         var sync = new FakeTmdbChangesSyncService();
-        var job = new TmdbTvChangesSyncJob(sync, NullLogger<TmdbTvChangesSyncJob>.Instance);
+        var job = new TmdbTvChangesSyncJob(sync, NullLogger<TmdbTvChangesSyncJob>.Instance, new FakeHostApplicationLifetime());
 
         await job.ExecuteAsync(cancellation.Token);
 
@@ -42,7 +43,7 @@ public sealed class BackgroundJobWrapperTests
     {
         using var cancellation = new CancellationTokenSource();
         var sync = new FakeTmdbMovieChangesSyncService();
-        var job = new TmdbMovieChangesSyncJob(sync, NullLogger<TmdbMovieChangesSyncJob>.Instance);
+        var job = new TmdbMovieChangesSyncJob(sync, NullLogger<TmdbMovieChangesSyncJob>.Instance, new FakeHostApplicationLifetime());
 
         await job.ExecuteAsync(cancellation.Token);
 
@@ -51,6 +52,21 @@ public sealed class BackgroundJobWrapperTests
         Assert.Equal(cancellation.Token, sync.ReceivedCancellationToken);
     }
 
+
+    [Fact]
+    public async Task LegacyParameterlessTmdbJob_UsesApplicationStoppingToken()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var sync = new FakeTmdbChangesSyncService();
+        var job = new TmdbTvChangesSyncJob(
+            sync,
+            NullLogger<TmdbTvChangesSyncJob>.Instance,
+            new FakeHostApplicationLifetime(cancellation.Token));
+
+        await job.ExecuteAsync();
+
+        Assert.Equal(cancellation.Token, sync.ReceivedCancellationToken);
+    }
 
     [Fact]
     public void TmdbChangesJobs_ShareShortDistributedLockAndBoundRetries()
@@ -173,6 +189,19 @@ public sealed class BackgroundJobWrapperTests
         Assert.Equal(0, backfillService.GetCoverageCalls);
         Assert.Equal(0, backfillService.SelectCandidatesCalls);
         Assert.Equal(0, backfillService.ProcessBatchCalls);
+    }
+
+    private sealed class FakeHostApplicationLifetime(CancellationToken applicationStopping = default) : IHostApplicationLifetime
+    {
+        public CancellationToken ApplicationStarted => CancellationToken.None;
+
+        public CancellationToken ApplicationStopping => applicationStopping;
+
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+
+        public void StopApplication()
+        {
+        }
     }
 
     private sealed class FakeCatalogKeywordBackfillService : ICatalogKeywordBackfillService
