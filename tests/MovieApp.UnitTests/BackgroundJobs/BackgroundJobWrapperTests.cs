@@ -57,7 +57,7 @@ public sealed class BackgroundJobWrapperTests
     {
         foreach (var jobType in new[] { typeof(TmdbTvChangesSyncJob), typeof(TmdbMovieChangesSyncJob) })
         {
-            var execute = jobType.GetMethod(nameof(TmdbTvChangesSyncJob.ExecuteAsync))!;
+            var execute = jobType.GetMethod(nameof(TmdbTvChangesSyncJob.ExecuteAsync), [typeof(CancellationToken)])!;
             var lockAttribute = (DisableConcurrentExecutionAttribute)execute
                 .GetCustomAttributes(typeof(DisableConcurrentExecutionAttribute), inherit: true)
                 .Single();
