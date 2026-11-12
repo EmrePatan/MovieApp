@@ -38,6 +38,27 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     }
 
     [Fact]
+    public async Task TurkishProductionNotificationUsesOriginalTitle()
+    {
+        await ReleaseNotificationFanoutFixture.ResetAsync();
+
+        var (_, _, releaseEventId) = await SeedFollowedShowWithEventAsync(
+            title: "Ethos",
+            originalTitle: "Bir Başkadır",
+            originalLanguage: "tr",
+            primaryOriginCountryCode: "TR");
+
+        using var scope = fixture.Factory.Services.CreateScope();
+        await scope.ServiceProvider
+            .GetRequiredService<IReleaseNotificationFanoutService>()
+            .ProcessAsync([releaseEventId]);
+
+        await using var context = ReleaseNotificationFanoutFixture.CreateContext();
+        var notification = await context.UserReleaseNotifications.SingleAsync();
+        Assert.Equal("Bir Başkadır", notification.Title);
+    }
+
+    [Fact]
     public async Task PreferencesAreRespected()
     {
         await ReleaseNotificationFanoutFixture.ResetAsync();
@@ -259,7 +280,11 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
     private static async Task<(Guid TvShowId, Guid UserId, Guid ReleaseEventId)> SeedFollowedShowWithEventAsync(
         bool notifyNewEpisodes = true,
         CatalogReleaseEventSource source = CatalogReleaseEventSource.BoundaryDetection,
-        DateTime? notifyFromUtc = null)
+        DateTime? notifyFromUtc = null,
+        string title = "Fanout Show",
+        string? originalTitle = null,
+        string? originalLanguage = null,
+        string? primaryOriginCountryCode = null)
     {
         await using var context = ReleaseNotificationFanoutFixture.CreateContext();
         var user = User.Create(Guid.NewGuid(), "fanout@example.com", "hash", "Fanout User", DateTime.UtcNow);
@@ -268,7 +293,10 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
         context.TvShows.Add(new TvShow
         {
             Id = tvShowId,
-            Title = "Fanout Show",
+            Title = title,
+            OriginalTitle = originalTitle,
+            OriginalLanguage = originalLanguage,
+            PrimaryOriginCountryCode = primaryOriginCountryCode,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });

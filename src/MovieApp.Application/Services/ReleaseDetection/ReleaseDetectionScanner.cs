@@ -18,8 +18,14 @@ internal static class ReleaseDetectionScanner
 
         foreach (var season in seasons.Where(season => season.SeasonNumber >= 1))
         {
+            var simultaneousFullSeasonRelease = IsSimultaneousFullSeasonRelease(season);
+
             foreach (var episode in season.Episodes.Where(episode => episode.EpisodeNumber >= 1))
             {
+                if (simultaneousFullSeasonRelease)
+                {
+                    continue;
+                }
                 if (!episode.AirDate.HasValue || episode.AirDate.Value > boundary)
                 {
                     continue;
@@ -65,6 +71,30 @@ internal static class ReleaseDetectionScanner
         }
 
         return events;
+    }
+
+    private static bool IsSimultaneousFullSeasonRelease(Season season)
+    {
+        if (season.EpisodeCount is not > 0)
+        {
+            return false;
+        }
+
+        var regularEpisodes = season.Episodes
+            .Where(episode => episode.EpisodeNumber >= 1)
+            .ToList();
+
+        if (regularEpisodes.Count < season.EpisodeCount ||
+            regularEpisodes.Any(episode => !episode.AirDate.HasValue))
+        {
+            return false;
+        }
+
+        return regularEpisodes
+            .Select(episode => episode.AirDate!.Value)
+            .Distinct()
+            .Take(2)
+            .Count() == 1;
     }
 
     internal static DateOnly? ResolveSeasonPremiereDate(Season season)
