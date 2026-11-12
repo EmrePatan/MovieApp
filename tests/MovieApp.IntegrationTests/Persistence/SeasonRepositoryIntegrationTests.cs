@@ -118,10 +118,10 @@ public sealed class SeasonRepositoryIntegrationTests
             .ToDictionaryAsync(episode => episode.EpisodeNumber);
 
         Assert.Equal(firstEpisodeId, episodes[2].Id);
-        Assert.Equal(910_501, episodes[2].TmdbId);
+        Assert.Equal<int?>(910_501, episodes[2].TmdbId);
         Assert.Equal("Episode One", episodes[2].Name);
         Assert.Equal(secondEpisodeId, episodes[1].Id);
-        Assert.Equal(910_502, episodes[1].TmdbId);
+        Assert.Equal<int?>(910_502, episodes[1].TmdbId);
         Assert.Equal("Episode Two", episodes[1].Name);
     }
 
