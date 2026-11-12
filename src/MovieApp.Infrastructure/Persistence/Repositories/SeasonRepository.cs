@@ -452,7 +452,7 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
     }
 
     private async Task MoveReassignedEpisodeNumbersToTemporaryValuesAsync(
-        IReadOnlyDictionary<int, Episode> episodesByNumber,
+        Dictionary<int, Episode> episodesByNumber,
         IReadOnlyList<EpisodeProviderDetails> episodeDetails,
         CancellationToken cancellationToken)
     {
