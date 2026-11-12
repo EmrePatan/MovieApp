@@ -56,6 +56,50 @@ public sealed class ReleaseDetectionScannerTests
     }
 
     [Fact]
+    public void CompleteSeasonReleasedOnSameDay_CreatesOnlySeasonPremiereEvent()
+    {
+        var seasons = new[]
+        {
+            CreateSeason(
+                1,
+                episodeCount: 3,
+                episodes:
+                [
+                    CreateEpisode(1, Past)[0],
+                    CreateEpisode(2, Past)[0],
+                    CreateEpisode(3, Past)[0]
+                ])
+        };
+
+        var events = Detect(seasons, Today);
+
+        var premiereEvent = Assert.Single(events);
+        Assert.Equal(CatalogReleaseEventType.NewSeasonPremiere, premiereEvent.EventType);
+        Assert.Equal(1, premiereEvent.SeasonNumber);
+    }
+
+    [Fact]
+    public void PartialEpisodeMetadata_DoesNotSuppressEpisodeNotification()
+    {
+        var seasons = new[]
+        {
+            CreateSeason(
+                1,
+                episodeCount: 8,
+                episodes:
+                [
+                    CreateEpisode(1, Past)[0],
+                    CreateEpisode(2, Past)[0]
+                ])
+        };
+
+        var events = Detect(seasons, Today);
+
+        Assert.Contains(events, eventItem => eventItem.EventType == CatalogReleaseEventType.NewEpisode);
+        Assert.Contains(events, eventItem => eventItem.EventType == CatalogReleaseEventType.NewSeasonPremiere);
+    }
+
+    [Fact]
     public void RepeatedScan_DoesNotCreateDuplicate()
     {
         var seasons = new[]
