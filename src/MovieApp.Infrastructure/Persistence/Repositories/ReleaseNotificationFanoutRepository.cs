@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.ReleaseNotifications;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
+using MovieApp.Application.Services.Localization;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -57,10 +58,28 @@ public sealed class ReleaseNotificationFanoutRepository(
             return new Dictionary<Guid, string>();
         }
 
-        return await dbContext.TvShows
+        var shows = await dbContext.TvShows
             .AsNoTracking()
             .Where(tvShow => tvShowIds.Contains(tvShow.Id))
-            .ToDictionaryAsync(tvShow => tvShow.Id, tvShow => tvShow.Title, cancellationToken);
+            .Select(tvShow => new
+            {
+                tvShow.Id,
+                tvShow.Title,
+                tvShow.OriginalTitle,
+                tvShow.OriginalLanguage,
+                tvShow.PrimaryOriginCountryCode
+            })
+            .ToListAsync(cancellationToken);
+
+        return shows.ToDictionary(
+            tvShow => tvShow.Id,
+            tvShow => ContentProductionHeuristics.IsTurkishProduction(
+                          tvShow.OriginalLanguage,
+                          tvShow.PrimaryOriginCountryCode,
+                          tvShow.OriginalTitle) &&
+                      !string.IsNullOrWhiteSpace(tvShow.OriginalTitle)
+                ? tvShow.OriginalTitle.Trim()
+                : tvShow.Title);
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> GetMovieTitlesByIdsAsync(
@@ -72,10 +91,28 @@ public sealed class ReleaseNotificationFanoutRepository(
             return new Dictionary<Guid, string>();
         }
 
-        return await dbContext.Movies
+        var movies = await dbContext.Movies
             .AsNoTracking()
             .Where(movie => movieIds.Contains(movie.Id))
-            .ToDictionaryAsync(movie => movie.Id, movie => movie.Title, cancellationToken);
+            .Select(movie => new
+            {
+                movie.Id,
+                movie.Title,
+                movie.OriginalTitle,
+                movie.OriginalLanguage,
+                movie.PrimaryOriginCountryCode
+            })
+            .ToListAsync(cancellationToken);
+
+        return movies.ToDictionary(
+            movie => movie.Id,
+            movie => ContentProductionHeuristics.IsTurkishProduction(
+                         movie.OriginalLanguage,
+                         movie.PrimaryOriginCountryCode,
+                         movie.OriginalTitle) &&
+                     !string.IsNullOrWhiteSpace(movie.OriginalTitle)
+                ? movie.OriginalTitle.Trim()
+                : movie.Title);
     }
 
     public async Task<IReadOnlyList<UserReleaseNotification>> GetNotificationsByBucketsAsync(
