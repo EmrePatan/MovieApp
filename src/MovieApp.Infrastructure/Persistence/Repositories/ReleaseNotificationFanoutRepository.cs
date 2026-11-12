@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.ReleaseNotifications;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
-using MovieApp.Application.Services.Localization;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
