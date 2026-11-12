@@ -35,7 +35,8 @@ public sealed class CatalogChangesRelevanceRepository(
     public async Task<IReadOnlyDictionary<int, Guid>> GetRelevantTvShowIdsByTmdbIdAsync(
         CancellationToken cancellationToken = default)
     {
-        var relevantTvShowIds = BuildRelevantTvShowIdsQuery();
+        var watchingTvShowIds = await LoadWatchingTvShowIdsAsync(cancellationToken);
+        var relevantTvShowIds = BuildRelevantTvShowIdsQuery(watchingTvShowIds);
 
         var rows = await dbContext.TvShows
             .AsNoTracking()
@@ -136,7 +137,8 @@ public sealed class CatalogChangesRelevanceRepository(
 
         var userRelevant = new Dictionary<int, Guid>();
         var discoveryRelevant = new Dictionary<int, Guid>();
-        var relevantTvShowIds = BuildRelevantTvShowIdsQuery();
+        var watchingTvShowIds = await LoadWatchingTvShowIdsAsync(cancellationToken);
+        var relevantTvShowIds = BuildRelevantTvShowIdsQuery(watchingTvShowIds);
         var thresholds = BuildThresholds();
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -240,26 +242,41 @@ public sealed class CatalogChangesRelevanceRepository(
                 .AsNoTracking()
                 .Select(watchedMovie => watchedMovie.MovieId));
 
-    private IQueryable<Guid> BuildRelevantTvShowIdsQuery()
+    private async Task<Guid[]> LoadWatchingTvShowIdsAsync(CancellationToken cancellationToken)
     {
-        // Start from shows that have actual watch-history rows. Building the global set of
-        // every show with an unwatched episode scans the full episode catalog on each sync.
-        // Correlating the unwatched-episode existence check to already-watched shows keeps
-        // the result semantics while avoiding that catalog-wide anti-join.
-        var watchedTvShowIds = dbContext.WatchedEpisodes
+        // First materialize only shows with regular-season watch history. The original
+        // query built a global anti-join over the entire episode catalog on every sync.
+        var watchedTvShowIds = await dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode => watchedEpisode.Episode.Season.SeasonNumber >= 1)
             .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-            .Distinct();
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
 
-        var watchingTvShowIds = watchedTvShowIds
-            .Where(tvShowId => dbContext.Episodes
-                .AsNoTracking()
-                .Where(episode =>
-                    episode.Season.TvShowId == tvShowId &&
-                    episode.Season.SeasonNumber >= 1)
-                .Any(episode => !dbContext.WatchedEpisodes.Any(
-                    watchedEpisode => watchedEpisode.EpisodeId == episode.Id)));
+        if (watchedTvShowIds.Length == 0)
+        {
+            return [];
+        }
+
+        // Then check for remaining unwatched regular episodes only in those started shows.
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode =>
+                episode.Season.SeasonNumber >= 1 &&
+                watchedTvShowIds.Contains(episode.Season.TvShowId) &&
+                !dbContext.WatchedEpisodes.Any(
+                    watchedEpisode => watchedEpisode.EpisodeId == episode.Id))
+            .Select(episode => episode.Season.TvShowId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private IQueryable<Guid> BuildRelevantTvShowIdsQuery(Guid[] watchingTvShowIds)
+    {
+        var watchingTvShowIdsQuery = dbContext.TvShows
+            .AsNoTracking()
+            .Where(tvShow => watchingTvShowIds.Contains(tvShow.Id))
+            .Select(tvShow => tvShow.Id);
 
         return dbContext.CatalogFollows
             .AsNoTracking()
@@ -273,6 +290,6 @@ public sealed class CatalogChangesRelevanceRepository(
                 .AsNoTracking()
                 .Where(item => item.TvShowId != null)
                 .Select(item => item.TvShowId!.Value))
-            .Union(watchingTvShowIds);
+            .Union(watchingTvShowIdsQuery);
     }
 }
