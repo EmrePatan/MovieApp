@@ -88,6 +88,81 @@ public sealed class CatalogMetadataFreshnessIntegrationTests
     }
 
     [Fact]
+    public async Task RelevantTvShowsIncludeStartedShowsWithUnwatchedRegularEpisodesOnly()
+    {
+        await using var context = await CreateIsolatedContextAsync();
+        var userId = Guid.NewGuid();
+        context.Users.Add(User.Create(userId, $"tv-relevance-{userId:N}@test.com", "hash", "Test", UtcNow));
+
+        var watchingShow = CreateTvShow(82101, "Watching show");
+        var completedShow = CreateTvShow(82102, "Completed show");
+        var specialsOnlyShow = CreateTvShow(82103, "Specials only show");
+        var untouchedShow = CreateTvShow(82104, "Untouched show");
+
+        context.TvShows.AddRange(watchingShow, completedShow, specialsOnlyShow, untouchedShow);
+
+        var watchingSeason = CreateSeason(watchingShow.Id, 1);
+        var completedSeason = CreateSeason(completedShow.Id, 1);
+        var specialsSeason = CreateSeason(specialsOnlyShow.Id, 0);
+        var untouchedSeason = CreateSeason(untouchedShow.Id, 1);
+        context.Seasons.AddRange(watchingSeason, completedSeason, specialsSeason, untouchedSeason);
+
+        var watchingEpisode = CreateEpisode(watchingSeason.Id, 1);
+        var completedEpisode = CreateEpisode(completedSeason.Id, 1);
+        var specialEpisode = CreateEpisode(specialsSeason.Id, 1);
+        context.Episodes.AddRange(
+            watchingEpisode,
+            CreateEpisode(watchingSeason.Id, 2),
+            completedEpisode,
+            specialEpisode,
+            CreateEpisode(untouchedSeason.Id, 1),
+            CreateEpisode(untouchedSeason.Id, 2));
+
+        context.WatchedEpisodes.AddRange(
+            WatchedEpisode.Create(userId, watchingEpisode.Id, UtcNow),
+            WatchedEpisode.Create(userId, completedEpisode.Id, UtcNow),
+            WatchedEpisode.Create(userId, specialEpisode.Id, UtcNow));
+        await context.SaveChangesAsync();
+
+        var map = await CreateRelevanceRepository(context).GetRelevantTvShowIdsByTmdbIdAsync();
+
+        Assert.Contains(82101, map.Keys);
+        Assert.DoesNotContain(82102, map.Keys);
+        Assert.DoesNotContain(82103, map.Keys);
+        Assert.DoesNotContain(82104, map.Keys);
+    }
+
+    private static TvShow CreateTvShow(int tmdbId, string title) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            TmdbId = tmdbId,
+            Title = title,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        };
+
+    private static Season CreateSeason(Guid tvShowId, int seasonNumber) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = tvShowId,
+            SeasonNumber = seasonNumber,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        };
+
+    private static Episode CreateEpisode(Guid seasonId, int episodeNumber) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            SeasonId = seasonId,
+            EpisodeNumber = episodeNumber,
+            CreatedAt = UtcNow,
+            UpdatedAt = UtcNow
+        };
+
+    [Fact]
     public async Task ChangesRefreshMapsUserRelevantChangedIdIsSelected()
     {
         await using var context = await CreateIsolatedContextAsync();
