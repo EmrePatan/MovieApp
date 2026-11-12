@@ -43,13 +43,18 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
+        var today = EpisodeWatchEligibility.TodayUtc();
+
         var rows = await dbContext.Seasons
             .AsNoTracking()
             .Where(season => season.TvShowId == tvShowId)
             .Select(season => new
             {
                 season.SeasonNumber,
+                season.AirDate,
                 IngestedEpisodeCount = season.Episodes.Count(),
+                ReleasedEpisodeCount = season.Episodes.Count(episode =>
+                    episode.AirDate != null && episode.AirDate <= today),
                 SummaryEpisodeCount = season.EpisodeCount,
             })
             .OrderBy(row => row.SeasonNumber)
@@ -58,7 +63,14 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         return rows
             .Select(row => new SeasonEpisodeCountResult(
                 row.SeasonNumber,
-                TvShowCompletionPolicy.ResolveSeasonEpisodeTotal(row.IngestedEpisodeCount, row.SummaryEpisodeCount)))
+                row.IngestedEpisodeCount > 0
+                    ? row.SummaryEpisodeCount is > 0 &&
+                      row.IngestedEpisodeCount < row.SummaryEpisodeCount.Value
+                        ? row.SummaryEpisodeCount.Value
+                        : row.ReleasedEpisodeCount
+                    : row.AirDate is null || row.AirDate <= today
+                        ? Math.Max(0, row.SummaryEpisodeCount ?? 0)
+                        : 0))
             .Where(row => row.EpisodeCount > 0)
             .ToList();
     }
