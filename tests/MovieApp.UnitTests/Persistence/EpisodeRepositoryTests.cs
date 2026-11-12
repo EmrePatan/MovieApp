@@ -356,7 +356,7 @@ public sealed class EpisodeRepositoryTests
         params (int seasonNumber, int episodeCount)[] seasons)
     {
         var utcNow = DateTime.UtcNow;
-        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-30);
         var tvShow = new TvShow
         {
             Id = Guid.NewGuid(),
@@ -411,7 +411,7 @@ public sealed class EpisodeRepositoryTests
             bool markRegularSeasonsWatched = false)
     {
         var utcNow = DateTime.UtcNow;
-        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-30);
         var tvShow = new TvShow
         {
             Id = Guid.NewGuid(),
