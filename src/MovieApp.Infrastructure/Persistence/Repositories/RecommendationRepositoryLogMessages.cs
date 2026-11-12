@@ -20,6 +20,19 @@ internal static partial class RecommendationRepositoryLogMessages
         string contentType);
 
     [LoggerMessage(
+        EventId = 7213,
+        Level = LogLevel.Information,
+        Message = "RecHomePerf TvCandidateFetch TotalMs={TotalMs} IdSelectionMs={IdSelectionMs} HydrationMs={HydrationMs} DbRoundTrips={DbRoundTrips} CandidateIdCount={CandidateIdCount} ResultCount={ResultCount}")]
+    public static partial void LogTvCandidateFetch(
+        ILogger logger,
+        long totalMs,
+        long idSelectionMs,
+        long hydrationMs,
+        int dbRoundTrips,
+        int candidateIdCount,
+        int resultCount);
+
+    [LoggerMessage(
         EventId = 7212,
         Level = LogLevel.Information,
         Message = "RecHomePerf MovieCandidateFetch TotalMs={TotalMs} IdSelectionMs={IdSelectionMs} HydrationMs={HydrationMs} KeywordMs={KeywordMs} DbRoundTrips={DbRoundTrips} CandidateIdCount={CandidateIdCount} ResultCount={ResultCount}")]
