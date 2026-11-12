@@ -37,6 +37,95 @@ public sealed class SeasonRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task UpsertFromProviderAsyncReassignsTmdbIdsWhenEpisodeNumbersAreSwapped()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var tvShowId = Guid.NewGuid();
+        var seasonId = Guid.NewGuid();
+        var firstEpisodeId = Guid.NewGuid();
+        var secondEpisodeId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+
+        context.TvShows.Add(new TvShow
+        {
+            Id = tvShowId,
+            TmdbId = 910_005,
+            Title = "Episode Renumbering Show",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+
+        context.Seasons.Add(new Season
+        {
+            Id = seasonId,
+            TvShowId = tvShowId,
+            SeasonNumber = 1,
+            EpisodeCount = 2,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        });
+
+        context.Episodes.AddRange(
+            new Episode
+            {
+                Id = firstEpisodeId,
+                SeasonId = seasonId,
+                TmdbId = 910_501,
+                EpisodeNumber = 1,
+                Name = "Episode One",
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            },
+            new Episode
+            {
+                Id = secondEpisodeId,
+                SeasonId = seasonId,
+                TmdbId = 910_502,
+                EpisodeNumber = 2,
+                Name = "Episode Two",
+                CreatedAt = utcNow,
+                UpdatedAt = utcNow
+            });
+
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var repository = new SeasonRepository(context);
+        var details = new SeasonProviderDetails(
+            "fake-tv-910005",
+            910_105,
+            null,
+            1,
+            "Season 1",
+            "Overview",
+            new DateOnly(2003, 1, 26),
+            2,
+            null,
+            [
+                new EpisodeProviderDetails(
+                    "fake-tv-910005", 910_502, null, null, 1, 1, "Episode Two", "Overview",
+                    new DateOnly(2003, 1, 27), 45, null, 7.5m, 10),
+                new EpisodeProviderDetails(
+                    "fake-tv-910005", 910_501, null, null, 1, 2, "Episode One", "Overview",
+                    new DateOnly(2003, 1, 26), 45, null, 7.4m, 9)
+            ]);
+
+        await repository.UpsertFromProviderAsync(tvShowId, details);
+
+        var episodes = await context.Episodes
+            .AsNoTracking()
+            .Where(episode => episode.SeasonId == seasonId)
+            .ToDictionaryAsync(episode => episode.EpisodeNumber);
+
+        Assert.Equal(firstEpisodeId, episodes[2].Id);
+        Assert.Equal<int?>(910_501, episodes[2].TmdbId);
+        Assert.Equal("Episode One", episodes[2].Name);
+        Assert.Equal(secondEpisodeId, episodes[1].Id);
+        Assert.Equal<int?>(910_502, episodes[1].TmdbId);
+        Assert.Equal("Episode Two", episodes[1].Name);
+    }
+
+    [Fact]
     public async Task UpsertSeasonsFromProviderAsyncCompletesUnderNpgsqlRetryExecutionStrategy()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
