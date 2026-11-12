@@ -353,6 +353,7 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         // TMDB ID, even when the provider has changed its episode number. Fall back to the
         // current episode-number match for episodes whose TMDB ID is new or unavailable.
         episodesByNumber = BuildProviderEpisodeIndex(season, episodeDetails);
+        await MoveReassignedEpisodeNumbersToTemporaryValuesAsync(episodesByNumber, episodeDetails, cancellationToken);
         await ClearReassignedEpisodeTmdbIdsAsync(season, episodeDetails, cancellationToken);
 
         foreach (var episodeDetail in episodeDetails)
@@ -447,6 +448,48 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             {
                 season.Episodes.Add(episode);
             }
+        }
+    }
+
+    private async Task MoveReassignedEpisodeNumbersToTemporaryValuesAsync(
+        IReadOnlyDictionary<int, Episode> episodesByNumber,
+        IReadOnlyList<EpisodeProviderDetails> episodeDetails,
+        CancellationToken cancellationToken)
+    {
+        var reassignedEpisodes = episodeDetails
+            .Where(details =>
+                episodesByNumber.TryGetValue(details.EpisodeNumber, out var episode) &&
+                episode.EpisodeNumber != details.EpisodeNumber)
+            .Select(details =>
+            {
+                var episode = episodesByNumber[details.EpisodeNumber];
+                return (Episode: episode, OriginalNumber: episode.EpisodeNumber);
+            })
+            .ToList();
+
+        if (reassignedEpisodes.Count == 0)
+        {
+            return;
+        }
+
+        var episodeIds = reassignedEpisodes
+            .Select(item => item.Episode.Id)
+            .ToList();
+
+        // The (SeasonId, EpisodeNumber) unique index is immediate. Move only the
+        // rows whose numbers are changing to temporary negative values so EF can
+        // persist swaps without building a circular unique-index dependency graph.
+        await dbContext.Episodes
+            .Where(episode => episodeIds.Contains(episode.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(episode => episode.EpisodeNumber, episode => -episode.EpisodeNumber),
+                cancellationToken);
+
+        foreach (var (episode, originalNumber) in reassignedEpisodes)
+        {
+            dbContext.Entry(episode)
+                .Property(item => item.EpisodeNumber)
+                .OriginalValue = -originalNumber;
         }
     }
 
