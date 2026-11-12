@@ -5,7 +5,6 @@ using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
-using MovieApp.Domain.Entities;
 
 namespace MovieApp.IntegrationTests.Persistence;
 
