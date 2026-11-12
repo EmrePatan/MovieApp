@@ -459,15 +459,19 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             return;
         }
 
-        foreach (var episode in episodesToRelease)
-        {
-            episode.TmdbId = null;
-        }
+        var episodeIdsToRelease = episodesToRelease
+            .Select(episode => episode.Id)
+            .ToList();
 
         // Free all IDs involved in a provider-side episode renumbering/swap before assigning
         // their new owners; the unique index is immediate, so a single UPDATE batch can fail.
-        dbContext.ChangeTracker.DetectChanges();
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // ExecuteUpdate keeps this as one targeted SQL statement and leaves tracked entities ready
+        // to receive their replacement IDs in the normal SaveChanges call.
+        await dbContext.Episodes
+            .Where(episode => episodeIdsToRelease.Contains(episode.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(episode => episode.TmdbId, (int?)null),
+                cancellationToken);
     }
 
     private void UpsertLoadedEpisode(
