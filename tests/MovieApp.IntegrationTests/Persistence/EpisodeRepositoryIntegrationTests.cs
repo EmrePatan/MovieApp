@@ -130,7 +130,7 @@ public sealed class EpisodeRepositoryIntegrationTests
         params (int seasonNumber, int episodeCount)[] seasons)
     {
         var utcNow = DateTime.UtcNow;
-        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-7);
+        var defaultAirDate = EpisodeWatchEligibility.TodayUtc().AddDays(-30);
         var tvShow = new TvShow
         {
             Id = Guid.NewGuid(),
