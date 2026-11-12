@@ -96,6 +96,49 @@ public sealed class EpisodeRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task WatchProgressDoesNotTreatPartiallyIngestedSeasonAsCaughtUp()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var tvShowId = await SeedTvShowAsync(context, (seasonNumber: 1, episodeCount: 3));
+        var userId = Guid.NewGuid();
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Email = $"partial-progress-{userId:N}@example.com",
+            UserName = $"partial-progress-{userId:N}",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+
+        var season = await context.Seasons.SingleAsync(item =>
+            item.TvShowId == tvShowId && item.SeasonNumber == 1);
+        season.EpisodeCount = 5;
+
+        var episodes = await context.Episodes
+            .Where(episode => episode.SeasonId == season.Id)
+            .ToListAsync();
+        foreach (var episode in episodes)
+        {
+            context.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episode.Id, DateTime.UtcNow));
+        }
+
+        await context.SaveChangesAsync();
+
+        var episodeRepository = new EpisodeRepository(context);
+        var watchedRepository = new WatchedEpisodeRepository(
+            context,
+            NullLogger<WatchedEpisodeRepository>.Instance);
+
+        var totals = await episodeRepository.GetEpisodeCountsBySeasonAsync(tvShowId);
+        var watched = await watchedRepository.GetWatchedEpisodeCountsBySeasonAsync(userId, tvShowId);
+
+        Assert.Single(totals);
+        Assert.Equal(5, totals[0].EpisodeCount);
+        Assert.Single(watched);
+        Assert.Equal(3, watched[0].EpisodeCount);
+    }
+
+    [Fact]
     public async Task GetFirstUnwatchedForTvShowAsyncIgnoresSeasonZeroAgainstPostgreSql()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
