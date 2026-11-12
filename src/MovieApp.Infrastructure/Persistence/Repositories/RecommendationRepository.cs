@@ -453,18 +453,28 @@ public sealed class RecommendationRepository(
         }
 
         var stopwatch = Stopwatch.StartNew();
+        var idSelectionStopwatch = Stopwatch.StartNew();
         var tvShowIds = await SelectTvCandidateIdsAsync(
             preferredGenreIds,
             excludedTvShowIds,
             maxCandidates,
             metrics,
             cancellationToken);
+        idSelectionStopwatch.Stop();
         if (tvShowIds.Count == 0)
         {
             stopwatch.Stop();
+            LogTvCandidateFetchSummary(
+                stopwatch.ElapsedMilliseconds,
+                idSelectionStopwatch.ElapsedMilliseconds,
+                0,
+                metrics.DbRoundTrips,
+                0,
+                0);
             return new ConsolidatedCandidateLoadResult([], stopwatch.ElapsedMilliseconds);
         }
 
+        var hydrationStopwatch = Stopwatch.StartNew();
         metrics.RecordRoundTrip();
         var rows = await BuildTvCandidateQuery(preferredGenreIds, excludedTvShowIds)
             .Where(tvShow => tvShowIds.Contains(tvShow.Id))
@@ -497,6 +507,7 @@ public sealed class RecommendationRepository(
                     .Select(keyword => keyword.KeywordId)
                     .ToList()))
             .ToListAsync(cancellationToken);
+        hydrationStopwatch.Stop();
         stopwatch.Stop();
 
         var rowById = rows.ToDictionary(row => row.Projection.Id);
@@ -508,7 +519,33 @@ public sealed class RecommendationRepository(
                 franchiseKeywordIds))
             .ToList();
 
+        LogTvCandidateFetchSummary(
+            stopwatch.ElapsedMilliseconds,
+            idSelectionStopwatch.ElapsedMilliseconds,
+            hydrationStopwatch.ElapsedMilliseconds,
+            metrics.DbRoundTrips,
+            tvShowIds.Count,
+            candidates.Count);
+
         return new ConsolidatedCandidateLoadResult(candidates, stopwatch.ElapsedMilliseconds);
+    }
+
+    private void LogTvCandidateFetchSummary(
+        long totalMs,
+        long idSelectionMs,
+        long hydrationMs,
+        int dbRoundTrips,
+        int candidateIdCount,
+        int resultCount)
+    {
+        RecommendationRepositoryLogMessages.LogTvCandidateFetch(
+            _repositoryLogger,
+            totalMs,
+            idSelectionMs,
+            hydrationMs,
+            dbRoundTrips,
+            candidateIdCount,
+            resultCount);
     }
 
     private sealed record PersonalizedCandidateQueryRow(
