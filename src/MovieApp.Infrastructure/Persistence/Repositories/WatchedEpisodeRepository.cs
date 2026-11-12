@@ -137,11 +137,15 @@ public sealed class WatchedEpisodeRepository(
         Guid tvShowId,
         CancellationToken cancellationToken = default)
     {
+        var today = EpisodeWatchEligibility.TodayUtc();
+
         var rows = await dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode =>
                 watchedEpisode.UserId == userId &&
-                watchedEpisode.Episode.Season.TvShowId == tvShowId)
+                watchedEpisode.Episode.Season.TvShowId == tvShowId &&
+                watchedEpisode.Episode.AirDate != null &&
+                watchedEpisode.Episode.AirDate <= today)
             .GroupBy(watchedEpisode => watchedEpisode.Episode.Season.SeasonNumber)
             .Select(group => new
             {
