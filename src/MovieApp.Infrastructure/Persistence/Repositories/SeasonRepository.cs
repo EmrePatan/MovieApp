@@ -349,6 +349,8 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             await LoadMissingEpisodesAsync(season, episodeDetails, episodesByNumber, cancellationToken);
         }
 
+        await ClearReassignedEpisodeTmdbIdsAsync(season, episodeDetails, cancellationToken);
+
         foreach (var episodeDetail in episodeDetails)
         {
             UpsertLoadedEpisode(season, episodeDetail, utcNow, episodesByNumber);
@@ -403,6 +405,69 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
                 season.Episodes.Add(episode);
             }
         }
+    }
+
+    private async Task ClearReassignedEpisodeTmdbIdsAsync(
+        Season season,
+        IReadOnlyList<EpisodeProviderDetails> episodeDetails,
+        CancellationToken cancellationToken)
+    {
+        var duplicateIncomingTmdbIds = episodeDetails
+            .Where(episode => episode.TmdbId.HasValue)
+            .GroupBy(episode => episode.TmdbId!.Value)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToList();
+
+        if (duplicateIncomingTmdbIds.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Provider returned duplicate TMDB episode IDs for season {season.SeasonNumber}: " +
+                string.Join(", ", duplicateIncomingTmdbIds));
+        }
+
+        var incomingByEpisodeNumber = episodeDetails.ToDictionary(episode => episode.EpisodeNumber);
+        var existingByTmdbId = season.Episodes
+            .Where(episode => episode.TmdbId.HasValue)
+            .GroupBy(episode => episode.TmdbId!.Value)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        var episodesToRelease = new HashSet<Episode>();
+        foreach (var incomingEpisode in episodeDetails)
+        {
+            if (!incomingEpisode.TmdbId.HasValue ||
+                !existingByTmdbId.TryGetValue(incomingEpisode.TmdbId.Value, out var currentOwner) ||
+                currentOwner.EpisodeNumber == incomingEpisode.EpisodeNumber)
+            {
+                continue;
+            }
+
+            if (!incomingByEpisodeNumber.TryGetValue(currentOwner.EpisodeNumber, out var ownerReplacement) ||
+                ownerReplacement.TmdbId == currentOwner.TmdbId)
+            {
+                throw new InvalidOperationException(
+                    $"TMDB episode ID {incomingEpisode.TmdbId.Value} is already assigned to episode " +
+                    $"{currentOwner.EpisodeNumber} in season {season.SeasonNumber}, and the provider payload " +
+                    "does not reassign that existing episode.");
+            }
+
+            episodesToRelease.Add(currentOwner);
+        }
+
+        if (episodesToRelease.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var episode in episodesToRelease)
+        {
+            episode.TmdbId = null;
+        }
+
+        // Free all IDs involved in a provider-side episode renumbering/swap before assigning
+        // their new owners; the unique index is immediate, so a single UPDATE batch can fail.
+        dbContext.ChangeTracker.DetectChanges();
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private void UpsertLoadedEpisode(
