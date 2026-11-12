@@ -101,14 +101,11 @@ public sealed class EpisodeRepositoryIntegrationTests
         await using var context = CatalogPersistenceFixture.CreateContext();
         var tvShowId = await SeedTvShowAsync(context, (seasonNumber: 1, episodeCount: 3));
         var userId = Guid.NewGuid();
-        context.Users.Add(new User
-        {
-            Id = userId,
-            Email = $"partial-progress-{userId:N}@example.com",
-            UserName = $"partial-progress-{userId:N}",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-        });
+        context.Users.Add(User.CreateFromExternalIdentity(
+            userId,
+            $"partial-progress-{userId:N}@example.com",
+            $"Partial Progress {userId:N}",
+            DateTime.UtcNow));
 
         var season = await context.Seasons.SingleAsync(item =>
             item.TvShowId == tvShowId && item.SeasonNumber == 1);
