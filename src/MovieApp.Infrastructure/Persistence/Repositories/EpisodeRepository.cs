@@ -51,8 +51,11 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
             .Select(season => new
             {
                 season.SeasonNumber,
+                season.AirDate,
+                IngestedEpisodeCount = season.Episodes.Count(),
                 ReleasedEpisodeCount = season.Episodes.Count(episode =>
                     episode.AirDate != null && episode.AirDate <= today),
+                SummaryEpisodeCount = season.EpisodeCount,
             })
             .OrderBy(row => row.SeasonNumber)
             .ToListAsync(cancellationToken);
@@ -60,7 +63,11 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
         return rows
             .Select(row => new SeasonEpisodeCountResult(
                 row.SeasonNumber,
-                row.ReleasedEpisodeCount))
+                row.IngestedEpisodeCount > 0
+                    ? row.ReleasedEpisodeCount
+                    : row.AirDate is null || row.AirDate <= today
+                        ? Math.Max(0, row.SummaryEpisodeCount ?? 0)
+                        : 0))
             .Where(row => row.EpisodeCount > 0)
             .ToList();
     }
