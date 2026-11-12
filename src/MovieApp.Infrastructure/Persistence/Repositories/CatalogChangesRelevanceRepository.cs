@@ -242,20 +242,24 @@ public sealed class CatalogChangesRelevanceRepository(
 
     private IQueryable<Guid> BuildRelevantTvShowIdsQuery()
     {
-        var showsWithUnwatchedRegularEpisodes = dbContext.Episodes
-            .AsNoTracking()
-            .Where(episode => episode.Season.SeasonNumber >= 1)
-            .Where(episode => !dbContext.WatchedEpisodes.Any(
-                watchedEpisode => watchedEpisode.EpisodeId == episode.Id))
-            .Select(episode => episode.Season.TvShowId)
-            .Distinct();
-
-        var watchingTvShowIds = dbContext.WatchedEpisodes
+        // Start from shows that have actual watch-history rows. Building the global set of
+        // every show with an unwatched episode scans the full episode catalog on each sync.
+        // Correlating the unwatched-episode existence check to already-watched shows keeps
+        // the result semantics while avoiding that catalog-wide anti-join.
+        var watchedTvShowIds = dbContext.WatchedEpisodes
             .AsNoTracking()
             .Where(watchedEpisode => watchedEpisode.Episode.Season.SeasonNumber >= 1)
             .Select(watchedEpisode => watchedEpisode.Episode.Season.TvShowId)
-            .Distinct()
-            .Where(tvShowId => showsWithUnwatchedRegularEpisodes.Contains(tvShowId));
+            .Distinct();
+
+        var watchingTvShowIds = watchedTvShowIds
+            .Where(tvShowId => dbContext.Episodes
+                .AsNoTracking()
+                .Where(episode =>
+                    episode.Season.TvShowId == tvShowId &&
+                    episode.Season.SeasonNumber >= 1)
+                .Any(episode => !dbContext.WatchedEpisodes.Any(
+                    watchedEpisode => watchedEpisode.EpisodeId == episode.Id)));
 
         return dbContext.CatalogFollows
             .AsNoTracking()
