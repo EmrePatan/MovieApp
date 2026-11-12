@@ -56,6 +56,27 @@ public sealed class EpisodeRepositoryIntegrationTests
         episodes[2].AirDate = null;
         context.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodes[0].Id, DateTime.UtcNow));
         context.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodes[1].Id, DateTime.UtcNow));
+        context.Seasons.AddRange(
+            new Season
+            {
+                Id = Guid.NewGuid(),
+                TvShowId = tvShowId,
+                SeasonNumber = 2,
+                AirDate = today.AddDays(-30),
+                EpisodeCount = 5,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            },
+            new Season
+            {
+                Id = Guid.NewGuid(),
+                TvShowId = tvShowId,
+                SeasonNumber = 3,
+                AirDate = today.AddDays(30),
+                EpisodeCount = 6,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
         await context.SaveChangesAsync();
 
         var episodeRepository = new EpisodeRepository(context);
@@ -66,8 +87,10 @@ public sealed class EpisodeRepositoryIntegrationTests
         var totals = await episodeRepository.GetEpisodeCountsBySeasonAsync(tvShowId);
         var watched = await watchedRepository.GetWatchedEpisodeCountsBySeasonAsync(userId, tvShowId);
 
-        Assert.Single(totals);
-        Assert.Equal(1, totals[0].EpisodeCount);
+        Assert.Equal(2, totals.Count);
+        Assert.Equal(1, totals.Single(count => count.SeasonNumber == 1).EpisodeCount);
+        Assert.Equal(5, totals.Single(count => count.SeasonNumber == 2).EpisodeCount);
+        Assert.DoesNotContain(totals, count => count.SeasonNumber == 3);
         Assert.Single(watched);
         Assert.Equal(1, watched[0].EpisodeCount);
     }
