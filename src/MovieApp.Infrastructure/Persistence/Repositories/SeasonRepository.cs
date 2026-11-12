@@ -349,6 +349,10 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             await LoadMissingEpisodesAsync(season, episodeDetails, episodesByNumber, cancellationToken);
         }
 
+        // TMDB IDs identify logical episodes. Prefer the existing row that owns an incoming
+        // TMDB ID, even when the provider has changed its episode number. Fall back to the
+        // current episode-number match for episodes whose TMDB ID is new or unavailable.
+        episodesByNumber = BuildProviderEpisodeIndex(season, episodeDetails);
         await ClearReassignedEpisodeTmdbIdsAsync(season, episodeDetails, cancellationToken);
 
         foreach (var episodeDetail in episodeDetails)
@@ -369,6 +373,45 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
         }
 
         return episodesByNumber;
+    }
+
+    private static Dictionary<int, Episode> BuildProviderEpisodeIndex(
+        Season season,
+        IReadOnlyList<EpisodeProviderDetails> episodeDetails)
+    {
+        var existingByTmdbId = season.Episodes
+            .Where(episode => episode.TmdbId.HasValue)
+            .GroupBy(episode => episode.TmdbId!.Value)
+            .ToDictionary(group => group.Key, group => group.First());
+        var existingByNumber = BuildEpisodeIndex(season);
+        var result = new Dictionary<int, Episode>();
+        var assignedEpisodeIds = new HashSet<Guid>();
+
+        foreach (var details in episodeDetails)
+        {
+            if (details.TmdbId.HasValue &&
+                existingByTmdbId.TryGetValue(details.TmdbId.Value, out var tmdbMatch))
+            {
+                result[details.EpisodeNumber] = tmdbMatch;
+                assignedEpisodeIds.Add(tmdbMatch.Id);
+            }
+        }
+
+        foreach (var details in episodeDetails)
+        {
+            if (result.ContainsKey(details.EpisodeNumber))
+            {
+                continue;
+            }
+
+            if (existingByNumber.TryGetValue(details.EpisodeNumber, out var numberMatch) &&
+                assignedEpisodeIds.Add(numberMatch.Id))
+            {
+                result[details.EpisodeNumber] = numberMatch;
+            }
+        }
+
+        return result;
     }
 
     private async Task LoadMissingEpisodesAsync(
