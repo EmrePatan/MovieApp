@@ -35,6 +35,8 @@ public sealed class TvWatchStatePreparationRepository(ApplicationDbContext dbCon
                         FROM episodes e
                         INNER JOIN seasons s ON e."SeasonId" = s."Id"
                         WHERE s."TvShowId" = @tv_show_id AND s."SeasonNumber" >= 1
+                          AND e."AirDate" IS NOT NULL
+                          AND e."AirDate" <= CURRENT_DATE
                     ),
                     ARRAY[]::uuid[]) AS episode_ids
             """;
