@@ -1,8 +1,11 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Services.WatchHistory;
 using MovieApp.Domain.Entities;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 using MovieApp.Infrastructure.Persistence.Repositories;
+using MovieApp.Domain.Entities;
 
 namespace MovieApp.IntegrationTests.Persistence;
 
@@ -27,6 +30,48 @@ public sealed class EpisodeRepositoryIntegrationTests
         Assert.Equal(2, counts[0].EpisodeCount);
         Assert.Equal(8, counts[1].EpisodeCount);
         Assert.Equal(13, counts[2].EpisodeCount);
+    }
+
+    [Fact]
+    public async Task WatchProgressCountsOnlyReleasedEpisodesAndIgnoresFutureOrUnknownAirDates()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var tvShowId = await SeedTvShowAsync(context, (seasonNumber: 1, episodeCount: 3));
+        var userId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = userId,
+            Email = $"progress-{userId:N}@example.com",
+            UserName = $"progress-{userId:N}",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+        context.Users.Add(user);
+
+        var episodes = await context.Episodes
+            .Where(episode => episode.Season.TvShowId == tvShowId)
+            .OrderBy(episode => episode.EpisodeNumber)
+            .ToListAsync();
+        var today = EpisodeWatchEligibility.TodayUtc();
+        episodes[0].AirDate = today.AddDays(-1);
+        episodes[1].AirDate = today.AddDays(1);
+        episodes[2].AirDate = null;
+        context.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodes[0].Id, DateTime.UtcNow));
+        context.WatchedEpisodes.Add(WatchedEpisode.Create(userId, episodes[1].Id, DateTime.UtcNow));
+        await context.SaveChangesAsync();
+
+        var episodeRepository = new EpisodeRepository(context);
+        var watchedRepository = new WatchedEpisodeRepository(
+            context,
+            NullLogger<WatchedEpisodeRepository>.Instance);
+
+        var totals = await episodeRepository.GetEpisodeCountsBySeasonAsync(tvShowId);
+        var watched = await watchedRepository.GetWatchedEpisodeCountsBySeasonAsync(userId, tvShowId);
+
+        Assert.Single(totals);
+        Assert.Equal(1, totals[0].EpisodeCount);
+        Assert.Single(watched);
+        Assert.Equal(1, watched[0].EpisodeCount);
     }
 
     [Fact]
