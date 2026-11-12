@@ -558,6 +558,15 @@ public sealed class SeasonRepository(ApplicationDbContext dbContext) : ISeasonRe
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(episode => episode.TmdbId, (int?)null),
                 cancellationToken);
+
+        // ExecuteUpdate bypasses the change tracker. Mark the tracked original values as null
+        // so the incoming TMDB IDs assigned by ApplyEpisodeDetails are persisted by SaveChanges.
+        foreach (var episode in episodesToRelease)
+        {
+            dbContext.Entry(episode)
+                .Property(item => item.TmdbId)
+                .OriginalValue = null;
+        }
     }
 
     private void UpsertLoadedEpisode(
