@@ -64,7 +64,10 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
             .Select(row => new SeasonEpisodeCountResult(
                 row.SeasonNumber,
                 row.IngestedEpisodeCount > 0
-                    ? row.ReleasedEpisodeCount
+                    ? row.SummaryEpisodeCount is > 0 &&
+                      row.IngestedEpisodeCount < row.SummaryEpisodeCount.Value
+                        ? row.SummaryEpisodeCount.Value
+                        : row.ReleasedEpisodeCount
                     : row.AirDate is null || row.AirDate <= today
                         ? Math.Max(0, row.SummaryEpisodeCount ?? 0)
                         : 0))
