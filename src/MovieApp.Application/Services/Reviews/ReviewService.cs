@@ -143,14 +143,27 @@ public sealed class ReviewService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var deleted = await reviewRepository.DeleteForMovieAsync(userId, movieId, cancellationToken);
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await reviewRepository.DeleteForMovieAsync(userId, movieId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedMovie, movieId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await reviewRepository.DeleteForMovieAsync(userId, movieId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedMovie, movieId, cancellationToken);
+        }
+
         if (!deleted)
         {
             throw new NotFoundException("The requested review was not found.");
         }
-
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedMovie, movieId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
@@ -158,14 +171,27 @@ public sealed class ReviewService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var deleted = await reviewRepository.DeleteForTvShowAsync(userId, tvShowId, cancellationToken);
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await reviewRepository.DeleteForTvShowAsync(userId, tvShowId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedTvShow, tvShowId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await reviewRepository.DeleteForTvShowAsync(userId, tvShowId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedTvShow, tvShowId, cancellationToken);
+        }
+
         if (!deleted)
         {
             throw new NotFoundException("The requested review was not found.");
         }
-
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedTvShow, tvShowId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
