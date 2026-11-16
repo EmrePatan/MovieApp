@@ -18,7 +18,8 @@ public sealed class AddTvShowFavoriteService(
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     IServiceScopeFactory? analyticsScopeFactory = null,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IAddTvShowFavoriteService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IAddTvShowFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
