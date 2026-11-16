@@ -82,9 +82,23 @@ public sealed class RatingService(
         }
 
         var rating = Rating.CreateForTvShow(userId, tvShowId, score, utcNow);
-        var (savedRating, created) = await ratingRepository.AddAsync(rating, cancellationToken);
-        if (created && socialActivityRecorder is not null)
-            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.RatedTvShow, savedRating.Id, tvShowId, "TvShow", savedRating.CreatedAt, cancellationToken);
+        Rating savedRating = rating;
+        var created = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                (savedRating, created) = await ratingRepository.AddAsync(rating, ct);
+                if (created && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.RatedTvShow, savedRating.Id, tvShowId, "TvShow", savedRating.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            (savedRating, created) = await ratingRepository.AddAsync(rating, cancellationToken);
+            if (created && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.RatedTvShow, savedRating.Id, tvShowId, "TvShow", savedRating.CreatedAt, cancellationToken);
+        }
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
         return new RatingUpsertResult(RatingMapper.ToResult(savedRating), created);
     }
