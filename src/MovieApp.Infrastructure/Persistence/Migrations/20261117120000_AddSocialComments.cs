@@ -32,7 +32,7 @@ public partial class AddSocialComments : Migration
                 table.CheckConstraint("CK_social_comments_not_self_parent", "\"ParentCommentId\" IS NULL OR \"ParentCommentId\" <> \"Id\"");
                 table.ForeignKey("FK_social_comments_social_activities_ActivityId", x => x.ActivityId, "social_activities", "Id", onDelete: ReferentialAction.Cascade);
                 table.ForeignKey("FK_social_comments_users_AuthorId", x => x.AuthorId, "users", "Id", onDelete: ReferentialAction.Cascade);
-                table.ForeignKey("FK_social_comments_social_comments_ParentCommentId", x => x.ParentCommentId, "social_comments", "Id", onDelete: ReferentialAction.Restrict);
+                table.ForeignKey("FK_social_comments_social_comments_ParentCommentId", x => x.ParentCommentId, "social_comments", "Id", onDelete: ReferentialAction.SetNull);
             });
         migrationBuilder.CreateTable(
             name: "social_comment_likes",
