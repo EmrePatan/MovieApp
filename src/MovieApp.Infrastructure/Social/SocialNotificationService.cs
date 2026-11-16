@@ -23,6 +23,9 @@ public sealed class SocialNotificationService(
             from notification in query
             join actor in dbContext.Users.AsNoTracking() on notification.ActorId equals actor.Id
             where actor.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == userId && block.BlockedUserId == actor.Id)
+                    || (block.BlockerId == actor.Id && block.BlockedUserId == userId))
             orderby notification.CreatedAt descending, notification.Id descending
             select new
             {
@@ -31,8 +34,10 @@ public sealed class SocialNotificationService(
                 notification.CreatedAt, notification.ReadAt
             })
             .Skip((safePage - 1) * safeSize).Take(safeSize).ToListAsync(cancellationToken);
-        var avatars = await avatarPresentationService.GetForUsersAsync(
-            rows.Select(row => row.ActorId).Distinct().ToArray(), cancellationToken);
+        var avatars = rows.Count == 0
+            ? new Dictionary<Guid, UserAvatarPresentation>()
+            : await avatarPresentationService.GetForUsersAsync(
+                rows.Select(row => row.ActorId).Distinct().ToArray(), cancellationToken);
         var items = rows.Select(row => new SocialNotificationItem(
             row.Id, row.NotificationType, row.ActorId, row.UserName, row.DisplayName,
             avatars.TryGetValue(row.ActorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
