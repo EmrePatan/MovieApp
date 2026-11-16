@@ -2568,9 +2568,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("RecipientId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                     b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("ActorId").OnDelete(DeleteBehavior.Cascade).IsRequired();
-                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.Cascade);
-                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("CommentId").OnDelete(DeleteBehavior.Cascade);
-                    b.HasOne("MovieApp.Domain.Entities.UserFollow", null).WithMany().HasForeignKey("FollowId").OnDelete(DeleteBehavior.Cascade);
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("CommentId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MovieApp.Domain.Entities.UserFollow", null).WithMany().HasForeignKey("FollowId").OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
