@@ -35,7 +35,8 @@ public sealed class WatchHistoryService(
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     ILogger<WatchHistoryService> logger,
     IServiceScopeFactory? analyticsScopeFactory = null,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IWatchHistoryService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
