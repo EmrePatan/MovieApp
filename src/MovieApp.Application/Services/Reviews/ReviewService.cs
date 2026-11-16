@@ -22,7 +22,8 @@ public sealed class ReviewService(
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     IUserAvatarPresentationService avatarPresentationService,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IReviewService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IReviewService
 {
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
