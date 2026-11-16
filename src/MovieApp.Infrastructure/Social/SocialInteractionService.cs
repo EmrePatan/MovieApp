@@ -47,18 +47,18 @@ public sealed class SocialInteractionService(
         var safeSize = Math.Clamp(pageSize, 1, 50);
         var rows = await (
             from comment in dbContext.SocialComments.AsNoTracking()
-            join user in dbContext.Users.AsNoTracking() on comment.UserId equals user.Id
+            join user in dbContext.Users.AsNoTracking() on comment.AuthorId equals user.Id
             where comment.ActivityId == activityId && comment.ParentCommentId == parentCommentId && user.IsActive
             orderby comment.CreatedAt, comment.Id
             select new
             {
-                comment.Id, comment.ActivityId, comment.UserId, user.UserName, user.DisplayName,
-                comment.ParentCommentId, comment.Content, comment.CreatedAt, comment.UpdatedAt, comment.DeletedAt
+                comment.Id, comment.ActivityId, comment.AuthorId, user.UserName, user.DisplayName,
+                comment.ParentCommentId, comment.Content, comment.CreatedAt, comment.UpdatedAt, comment.IsDeleted
             })
             .Skip((safePage - 1) * safeSize).Take(safeSize).ToListAsync(cancellationToken);
 
         var ids = rows.Select(row => row.Id).ToArray();
-        var avatars = await avatarPresentationService.GetForUsersAsync(rows.Select(row => row.UserId).Distinct().ToArray(), cancellationToken);
+        var avatars = await avatarPresentationService.GetForUsersAsync(rows.Select(row => row.AuthorId).Distinct().ToArray(), cancellationToken);
         var likes = await dbContext.SocialCommentLikes.AsNoTracking().Where(like => ids.Contains(like.CommentId))
             .GroupBy(like => like.CommentId).Select(group => new { Id = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
@@ -70,9 +70,9 @@ public sealed class SocialInteractionService(
             .Select(like => like.CommentId).ToHashSetAsync(cancellationToken);
 
         var items = rows.Select(row => new SocialCommentResult(
-            row.Id, row.ActivityId, row.UserId, row.UserName, row.DisplayName,
-            avatars.TryGetValue(row.UserId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
-            row.ParentCommentId, row.DeletedAt.HasValue ? "[deleted]" : row.Content,
+            row.Id, row.ActivityId, row.AuthorId, row.UserName, row.DisplayName,
+            avatars.TryGetValue(row.AuthorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
+            row.ParentCommentId, row.IsDeleted.HasValue ? "[deleted]" : row.Content,
             row.CreatedAt, row.UpdatedAt, likes.GetValueOrDefault(row.Id), replies.GetValueOrDefault(row.Id),
             likedIds.Contains(row.Id))).ToList();
         return new SocialCommentPageResult(items, safePage, safeSize);
@@ -103,9 +103,9 @@ public sealed class SocialInteractionService(
     {
         var viewerId = GetViewerId();
         var comment = await dbContext.SocialComments.FirstOrDefaultAsync(item => item.Id == commentId, cancellationToken);
-        if (comment is null || comment.UserId != viewerId)
+        if (comment is null || comment.AuthorId != viewerId)
             throw new NotFoundException("Comment not found.");
-        comment.Delete(DateTime.UtcNow);
+        comment.Delete(viewerId);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -113,7 +113,7 @@ public sealed class SocialInteractionService(
     {
         var viewerId = GetViewerId();
         var comment = await dbContext.SocialComments.AsNoTracking()
-            .Where(item => item.Id == commentId && item.DeletedAt == null)
+            .Where(item => item.Id == commentId && !item.IsDeleted)
             .Select(item => new { item.ActivityId })
             .FirstOrDefaultAsync(cancellationToken);
         if (comment is null) throw new NotFoundException("Comment not found.");
