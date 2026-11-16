@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Infrastructure.Persistence;
 
