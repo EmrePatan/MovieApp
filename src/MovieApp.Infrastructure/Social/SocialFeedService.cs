@@ -105,7 +105,18 @@ public sealed class SocialFeedService(
             .ToDictionaryAsync(review => review.Id, review => review.Content, cancellationToken);
 
         var actorIds = rows.Select(row => row.ActorId).Distinct().ToArray();
+        var activityIds = rows.Select(row => row.Activity.Id).ToArray();
         var avatars = await avatarPresentationService.GetForUsersAsync(actorIds, cancellationToken);
+        var likes = await dbContext.SocialActivityLikes.AsNoTracking().Where(like => activityIds.Contains(like.ActivityId))
+            .GroupBy(like => like.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
+        var comments = await dbContext.SocialComments.AsNoTracking()
+            .Where(comment => activityIds.Contains(comment.ActivityId) && comment.DeletedAt == null)
+            .GroupBy(comment => comment.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
+        var likedIds = await dbContext.SocialActivityLikes.AsNoTracking()
+            .Where(like => like.UserId == viewerId && activityIds.Contains(like.ActivityId))
+            .Select(like => like.ActivityId).ToHashSetAsync(cancellationToken);
         var items = new List<SocialFeedItemResult>(rows.Count);
         foreach (var row in rows)
         {
@@ -136,7 +147,8 @@ public sealed class SocialFeedService(
                 activity.ActivityType, activity.CreatedAt, activity.TargetContentId,
                 activity.TargetContentType, title, subtitle, poster,
                 ratings.TryGetValue(activity.SourceEntityId, out var ratingScore) ? ratingScore : null,
-                reviews.TryGetValue(activity.SourceEntityId, out var review) ? review : null));
+                reviews.TryGetValue(activity.SourceEntityId, out var review) ? review : null,
+                likes.GetValueOrDefault(activity.Id), comments.GetValueOrDefault(activity.Id), likedIds.Contains(activity.Id)));
         }
 
         var nextCursor = hasMore && rows.Count > 0
