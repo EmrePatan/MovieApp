@@ -12,4 +12,6 @@ public interface ISocialActivityRecorder
         string targetContentType,
         DateTime createdAt,
         CancellationToken cancellationToken = default);
+
+    Task RetractAsync(Guid actorId, SocialActivityType activityType, Guid targetContentId, CancellationToken cancellationToken = default);
 }
