@@ -69,6 +69,27 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SocialFollowRequestResult>> GetPendingRequestsAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var followedUserId = GetCurrentUserId();
+        var safePage = Math.Max(1, page);
+        var safeSize = Math.Clamp(pageSize, 1, 50);
+        return await dbContext.UserFollows.AsNoTracking()
+            .Where(follow => follow.FollowedUserId == followedUserId
+                && follow.Status == UserFollowStatus.Pending)
+            .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
+                follow => follow.FollowerId,
+                user => user.Id,
+                (follow, user) => new SocialFollowRequestResult(
+                    user.Id, user.UserName, user.DisplayName, follow.CreatedAt))
+            .OrderByDescending(request => request.RequestedAt)
+            .ThenBy(request => request.UserId)
+            .Skip((safePage - 1) * safeSize)
+            .Take(safeSize)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<SocialFollowResult> AcceptRequestAsync(
         Guid followerUserId, CancellationToken cancellationToken = default)
     {
