@@ -18,7 +18,8 @@ public sealed class AddMovieFavoriteService(
     IMovieRepository movieRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     IServiceScopeFactory? analyticsScopeFactory = null,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IAddMovieFavoriteService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IAddMovieFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
