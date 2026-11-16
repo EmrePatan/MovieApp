@@ -1,12 +1,14 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Ratings;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Ratings;
 
@@ -15,7 +17,8 @@ public sealed class RatingService(
     IRatingRepository ratingRepository,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
-    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator) : IRatingService
+    IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
+    ISocialActivityRecorder? socialActivityRecorder = null) : IRatingService
 {
     public async Task<RatingUpsertResult> UpsertMovieRatingAsync(
         Guid movieId,
@@ -38,6 +41,8 @@ public sealed class RatingService(
 
         var rating = Rating.CreateForMovie(userId, movieId, score, utcNow);
         var (savedRating, created) = await ratingRepository.AddAsync(rating, cancellationToken);
+        if (created && socialActivityRecorder is not null)
+            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.RatedMovie, savedRating.Id, movieId, "Movie", savedRating.CreatedAt, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
         return new RatingUpsertResult(RatingMapper.ToResult(savedRating), created);
     }
@@ -63,6 +68,8 @@ public sealed class RatingService(
 
         var rating = Rating.CreateForTvShow(userId, tvShowId, score, utcNow);
         var (savedRating, created) = await ratingRepository.AddAsync(rating, cancellationToken);
+        if (created && socialActivityRecorder is not null)
+            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.RatedTvShow, savedRating.Id, tvShowId, "TvShow", savedRating.CreatedAt, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
         return new RatingUpsertResult(RatingMapper.ToResult(savedRating), created);
     }
