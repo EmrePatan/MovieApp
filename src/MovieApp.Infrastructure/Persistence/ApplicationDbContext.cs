@@ -47,6 +47,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<User> Users => Set<User>();
 
+    public DbSet<UserFollow> UserFollows => Set<UserFollow>();
+
+    public DbSet<UserPrivacySettings> UserPrivacySettings => Set<UserPrivacySettings>();
+
+    public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
+
     public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
 
     public DbSet<Favorite> Favorites => Set<Favorite>();
