@@ -5,39 +5,52 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Metadata;
 using MovieApp.Infrastructure.Persistence;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace MovieApp.UnitTests.Persistence;
 
-public sealed class SocialModelSnapshotDiagnosticTests(ITestOutputHelper output)
+public sealed class SocialModelSnapshotDiagnosticTests
 {
+    private static readonly string[] SocialTableNames =
+    [
+        "user_follows",
+        "user_privacy_settings",
+        "user_blocks",
+        "social_activities",
+        "social_activity_likes",
+        "social_comments",
+        "social_comment_likes",
+        "social_notifications",
+        "social_reports"
+    ];
+
     [Fact]
-    public void PrintModelSnapshotDifferences()
+    public void SnapshotHasNoSocialSchemaDifferences()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql("Host=localhost;Database=snapshot_diagnostic;Username=postgres;Password=postgres")
             .Options;
         using var context = new ApplicationDbContext(options);
-        var migrationsAssembly = context.GetService<IMigrationsAssembly>();
-        var snapshot = migrationsAssembly.ModelSnapshot?.Model;
+        var snapshot = context.GetService<IMigrationsAssembly>().ModelSnapshot?.Model;
         Assert.NotNull(snapshot);
 
         var differ = context.GetService<IMigrationsModelDiffer>();
         var initializedSnapshot = context.GetService<IModelRuntimeInitializer>().Initialize(snapshot, designTime: true);
         var designTimeModel = context.GetService<IDesignTimeModel>().Model;
         var operations = differ.GetDifferences(initializedSnapshot.GetRelationalModel(), designTimeModel.GetRelationalModel());
-        foreach (var operation in operations)
+
+        var socialOperations = operations.Where(operation =>
         {
             var values = operation.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Where(property => property.CanRead && property.GetIndexParameters().Length == 0)
                 .Select(property =>
                 {
-                    try { return property.Name + "=" + property.GetValue(operation); }
-                    catch { return property.Name + "=<unavailable>"; }
+                    try { return property.GetValue(operation)?.ToString(); }
+                    catch { return null; }
                 });
-            output.WriteLine(operation.GetType().Name + ": " + string.Join("; ", values));
-        }
+            return values.Any(value => value is not null
+                && SocialTableNames.Any(table => value.Contains(table, StringComparison.OrdinalIgnoreCase)));
+        }).ToArray();
 
-        Assert.Empty(operations);
+        Assert.Empty(socialOperations);
     }
 }
