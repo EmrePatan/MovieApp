@@ -111,6 +111,19 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
     }
 
 
+
+    public async Task<IReadOnlyList<SocialBlockedUserResult>> GetBlockedUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var blockerId = GetCurrentUserId();
+        return await dbContext.UserBlocks.AsNoTracking()
+            .Where(block => block.BlockerId == blockerId)
+            .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
+                block => block.BlockedUserId, user => user.Id,
+                (block, user) => new SocialBlockedUserResult(user.Id, user.UserName, user.DisplayName, block.CreatedAt))
+            .OrderByDescending(item => item.BlockedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task BlockAsync(Guid targetUserId, CancellationToken cancellationToken = default)
     {
         var blockerId = GetCurrentUserId();
