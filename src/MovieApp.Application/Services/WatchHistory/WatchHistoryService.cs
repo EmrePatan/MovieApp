@@ -53,9 +53,22 @@ public sealed class WatchHistoryService(
         var watchedMovie = WatchedMovie.Create(userId, movieId, utcNow);
 
         var upsertStopwatch = Stopwatch.StartNew();
-        var (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
-        if (created && socialActivityRecorder is not null)
-            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedMovie, entity.Id, movieId, "Movie", entity.WatchedAt, cancellationToken);
+        (WatchedMovie entity, bool created) = (watchedMovie, false);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, ct);
+                if (created && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedMovie, entity.Id, movieId, "Movie", entity.WatchedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
+            if (created && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedMovie, entity.Id, movieId, "Movie", entity.WatchedAt, cancellationToken);
+        }
         upsertStopwatch.Stop();
 
         var analyticsStopwatch = Stopwatch.StartNew();
@@ -123,9 +136,22 @@ public sealed class WatchHistoryService(
 
         var utcNow = DateTime.UtcNow;
         var watchedEpisode = WatchedEpisode.Create(userId, episodeId, utcNow);
-        var (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, cancellationToken);
-        if (created && socialActivityRecorder is not null)
-            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedEpisode, entity.Id, episodeId, "Episode", entity.WatchedAt, cancellationToken);
+        (WatchedEpisode entity, bool created) = (watchedEpisode, false);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, ct);
+                if (created && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedEpisode, entity.Id, episodeId, "Episode", entity.WatchedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, cancellationToken);
+            if (created && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedEpisode, entity.Id, episodeId, "Episode", entity.WatchedAt, cancellationToken);
+        }
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new WatchMutationResult(entity.WatchedAt, created);
