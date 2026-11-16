@@ -14,4 +14,5 @@ public sealed record SocialFeedPageResult(IReadOnlyList<SocialFeedItemResult> It
 public interface ISocialFeedService
 {
     Task<SocialFeedPageResult> GetFeedAsync(string? cursor, int pageSize, CancellationToken cancellationToken = default);
+    Task<SocialFeedPageResult> GetUserActivitiesAsync(Guid userId, string? cursor, int pageSize, CancellationToken cancellationToken = default);
 }
