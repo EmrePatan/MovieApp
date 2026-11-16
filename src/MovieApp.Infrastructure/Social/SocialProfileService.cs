@@ -75,19 +75,19 @@ public sealed class SocialProfileService(
         IReadOnlyList<(Guid Id, string UserName, string DisplayName)> users,
         Guid? viewerId, CancellationToken cancellationToken)
     {
-        var avatars = await avatarPresentationService.GetForUsersAsync(users.Select(user => user.Id).ToArray(), cancellationToken);
+        var userIds = users.Select(user => user.Id).ToArray();
+        var avatars = await avatarPresentationService.GetForUsersAsync(userIds, cancellationToken);
+        var statuses = viewerId.HasValue
+            ? await dbContext.UserFollows.AsNoTracking()
+                .Where(follow => follow.FollowerId == viewerId.Value && userIds.Contains(follow.FollowedUserId))
+                .ToDictionaryAsync(follow => follow.FollowedUserId, follow => follow.Status, cancellationToken)
+            : new Dictionary<Guid, UserFollowStatus>();
         var result = new List<SocialUserSummaryResult>(users.Count);
         foreach (var user in users)
         {
-            var status = "None";
-            if (viewerId.HasValue)
-            {
-                var followStatus = await dbContext.UserFollows.AsNoTracking()
-                    .Where(follow => follow.FollowerId == viewerId.Value && follow.FollowedUserId == user.Id)
-                    .Select(follow => (UserFollowStatus?)follow.Status)
-                    .FirstOrDefaultAsync(cancellationToken);
-                status = followStatus?.ToString() ?? "None";
-            }
+            var status = statuses.TryGetValue(user.Id, out var followStatus)
+                ? followStatus.ToString()
+                : "None";
             result.Add(new SocialUserSummaryResult(user.Id, user.UserName, user.DisplayName,
                 avatars.TryGetValue(user.Id, out var avatar) ? avatar.EffectiveAvatarUrl : null, status));
         }
