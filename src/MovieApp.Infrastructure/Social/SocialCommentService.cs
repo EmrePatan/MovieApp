@@ -17,7 +17,10 @@ public sealed class SocialCommentService(ApplicationDbContext dbContext, ICurren
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
         return await dbContext.SocialComments.AsNoTracking()
-            .Where(comment => comment.ActivityId == activityId && comment.ParentCommentId == parentCommentId)
+            .Where(comment => comment.ActivityId == activityId && comment.ParentCommentId == parentCommentId
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
+                    || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId)))
             .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
                 comment => comment.AuthorId, user => user.Id,
                 (comment, user) => new { Comment = comment, user.UserName, user.DisplayName })
@@ -85,7 +88,7 @@ public sealed class SocialCommentService(ApplicationDbContext dbContext, ICurren
     {
         var activity = await dbContext.SocialActivities.AsNoTracking()
             .Where(item => item.Id == activityId && !item.IsDeleted)
-            .Select(item => new { item.ActorId })
+            .Select(item => new { item.ActorId, item.ActivityType })
             .FirstOrDefaultAsync(cancellationToken);
         if (activity is null) throw new NotFoundException("Activity not found.");
         if (await IsBlockedAsync(viewerId, activity.ActorId, cancellationToken)) throw new NotFoundException("Activity not found.");
@@ -96,6 +99,21 @@ public sealed class SocialCommentService(ApplicationDbContext dbContext, ICurren
             !await dbContext.UserFollows.AnyAsync(item => item.FollowerId == viewerId &&
                 item.FollowedUserId == activity.ActorId && item.Status == UserFollowStatus.Accepted, cancellationToken))
             throw new NotFoundException("Activity not found.");
+        var settings = await dbContext.UserPrivacySettings.AsNoTracking()
+            .Where(item => item.UserId == activity.ActorId)
+            .Select(item => new { item.ShowWatched, item.ShowRatings, item.ShowFavorites, item.ShowReviews })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (activity.ActorId != viewerId && settings is not null)
+        {
+            var visible = activity.ActivityType switch
+            {
+                SocialActivityType.WatchedMovie or SocialActivityType.WatchedEpisode => settings.ShowWatched,
+                SocialActivityType.RatedMovie or SocialActivityType.RatedTvShow => settings.ShowRatings,
+                SocialActivityType.FavoritedMovie or SocialActivityType.FavoritedTvShow => settings.ShowFavorites,
+                _ => settings.ShowReviews
+            };
+            if (!visible) throw new NotFoundException("Activity not found.");
+        }
     }
 
     private Task<bool> IsBlockedAsync(Guid first, Guid second, CancellationToken cancellationToken) =>
