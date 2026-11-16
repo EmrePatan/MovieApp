@@ -21,11 +21,11 @@ public sealed class SocialPrivacyService(ApplicationDbContext dbContext, ICurren
         SocialPrivacyResult settings, CancellationToken cancellationToken = default)
     {
         var userId = RequireUserId();
-        var settings = await GetOrCreateAsync(userId, cancellationToken);
-        settings.Update(request.IsPrivate, request.ShowWatched, request.ShowRatings,
-            request.ShowFavorites, request.ShowReviews, DateTime.UtcNow);
+        var entity = await GetOrCreateAsync(userId, cancellationToken);
+        entity.Update(settings.IsPrivate, settings.ShowWatched, settings.ShowRatings,
+            settings.ShowFavorites, settings.ShowReviews, DateTime.UtcNow);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ToResult(settings);
+        return ToResult(entity);
     }
 
     private async Task<UserPrivacySettings> GetOrCreateAsync(Guid userId, CancellationToken cancellationToken)
