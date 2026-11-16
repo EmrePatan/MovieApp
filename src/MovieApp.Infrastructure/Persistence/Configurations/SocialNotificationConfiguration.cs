@@ -15,9 +15,9 @@ internal sealed class SocialNotificationConfiguration : IEntityTypeConfiguration
         builder.Property(notification => notification.CreatedAt).IsRequired();
         builder.HasOne<User>().WithMany().HasForeignKey(notification => notification.RecipientId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<User>().WithMany().HasForeignKey(notification => notification.ActorId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<SocialActivity>().WithMany().HasForeignKey(notification => notification.ActivityId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<SocialComment>().WithMany().HasForeignKey(notification => notification.CommentId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<UserFollow>().WithMany().HasForeignKey(notification => notification.FollowId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<SocialActivity>().WithMany().HasForeignKey(notification => notification.ActivityId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<SocialComment>().WithMany().HasForeignKey(notification => notification.CommentId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<UserFollow>().WithMany().HasForeignKey(notification => notification.FollowId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(notification => new { notification.RecipientId, notification.CreatedAt, notification.Id });
         builder.HasIndex(notification => notification.RecipientId).HasFilter("\"ReadAt\" IS NULL");
     }
