@@ -4,7 +4,7 @@ namespace MovieApp.Application.Abstractions.Social;
 
 public sealed record SocialCommentResult(
     Guid Id, Guid ActivityId, Guid UserId, string UserName, string DisplayName, string? AvatarUrl,
-    Guid? ParentCommentId, string Content, DateTime CreatedAt, DateTime UpdatedAt,
+    Guid? ParentCommentId, string Content, DateTime CreatedAt, DateTime? UpdatedAt,
     int LikesCount, int RepliesCount, bool IsLikedByMe);
 
 public sealed record SocialCommentPageResult(IReadOnlyList<SocialCommentResult> Items, int Page, int PageSize);
