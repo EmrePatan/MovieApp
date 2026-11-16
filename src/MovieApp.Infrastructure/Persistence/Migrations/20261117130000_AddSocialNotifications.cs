@@ -32,9 +32,9 @@ public partial class AddSocialNotifications : Migration
                 table.PrimaryKey("PK_social_notifications", x => x.Id);
                 table.ForeignKey("FK_social_notifications_users_RecipientId", x => x.RecipientId, "users", "Id", onDelete: ReferentialAction.Cascade);
                 table.ForeignKey("FK_social_notifications_users_ActorId", x => x.ActorId, "users", "Id", onDelete: ReferentialAction.Cascade);
-                table.ForeignKey("FK_social_notifications_social_activities_ActivityId", x => x.ActivityId, "social_activities", "Id", onDelete: ReferentialAction.Cascade);
-                table.ForeignKey("FK_social_notifications_social_comments_CommentId", x => x.CommentId, "social_comments", "Id", onDelete: ReferentialAction.Cascade);
-                table.ForeignKey("FK_social_notifications_user_follows_FollowId", x => x.FollowId, "user_follows", "Id", onDelete: ReferentialAction.Cascade);
+                table.ForeignKey("FK_social_notifications_social_activities_ActivityId", x => x.ActivityId, "social_activities", "Id", onDelete: ReferentialAction.SetNull);
+                table.ForeignKey("FK_social_notifications_social_comments_CommentId", x => x.CommentId, "social_comments", "Id", onDelete: ReferentialAction.SetNull);
+                table.ForeignKey("FK_social_notifications_user_follows_FollowId", x => x.FollowId, "user_follows", "Id", onDelete: ReferentialAction.SetNull);
             });
 
         migrationBuilder.CreateIndex("IX_social_notifications_RecipientId_CreatedAt_Id", "social_notifications",
