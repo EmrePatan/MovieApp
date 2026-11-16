@@ -75,7 +75,10 @@ public sealed class SocialNotificationService(
         var userId = GetUserId();
         var now = DateTime.UtcNow;
         return await dbContext.SocialNotifications
-            .Where(item => item.RecipientId == userId && item.ReadAt == null)
+            .Where(item => item.RecipientId == userId && item.ReadAt == null
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
+                    || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)))
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, now), cancellationToken);
     }
 
