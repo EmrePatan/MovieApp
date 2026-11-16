@@ -72,7 +72,7 @@ public sealed class SocialProfileService(
     }
 
     private async Task<IReadOnlyList<SocialUserSummaryResult>> MapSummariesAsync(
-        IReadOnlyList<(Guid Id, string UserName, string DisplayName)> users,
+        List<(Guid Id, string UserName, string DisplayName)> users,
         Guid? viewerId, CancellationToken cancellationToken)
     {
         var userIds = users.Select(user => user.Id).ToArray();
