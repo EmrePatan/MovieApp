@@ -1669,7 +1669,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.SocialComment", null)
                         .WithMany()
                         .HasForeignKey("ParentCommentId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
@@ -2150,12 +2150,12 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
                         .WithMany("CatalogReleaseEvents")
                         .HasForeignKey("MovieId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
                         .WithMany("CatalogReleaseEvents")
                         .HasForeignKey("TvShowId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Movie");
 
@@ -2247,7 +2247,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Genre", "Genre")
                         .WithMany("MovieGenres")
                         .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.SetNull)
                         .IsRequired();
 
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
@@ -2266,7 +2266,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Keyword", "Keyword")
                         .WithMany("MovieKeywords")
                         .HasForeignKey("KeywordId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.SetNull)
                         .IsRequired();
 
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
@@ -2291,7 +2291,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Person", "Person")
                         .WithMany("MoviePeople")
                         .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.SetNull)
                         .IsRequired();
 
                     b.Navigation("Movie");
@@ -2450,7 +2450,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Genre", "Genre")
                         .WithMany("TvShowGenres")
                         .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.SetNull)
                         .IsRequired();
 
                     b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
@@ -2469,7 +2469,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Keyword", "Keyword")
                         .WithMany("TvShowKeywords")
                         .HasForeignKey("KeywordId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.SetNull)
                         .IsRequired();
 
                     b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
@@ -2488,7 +2488,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Person", "Person")
                         .WithMany("TvShowPeople")
                         .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.SetNull)
                         .IsRequired();
 
                     b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
@@ -2518,12 +2518,12 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
                         .WithMany("ReleaseNotifications")
                         .HasForeignKey("MovieId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MovieApp.Domain.Entities.TvShow", "TvShow")
                         .WithMany("ReleaseNotifications")
                         .HasForeignKey("TvShowId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MovieApp.Domain.Entities.User", "User")
                         .WithMany("ReleaseNotifications")
