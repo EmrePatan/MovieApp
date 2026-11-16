@@ -1588,6 +1588,52 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("tv_show_people", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("FollowerId").HasColumnType("uuid");
+                    b.Property<Guid>("FollowedUserId").HasColumnType("uuid");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("RespondedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("FollowerId", "FollowedUserId").IsUnique();
+                    b.HasIndex("FollowerId", "Status", "CreatedAt");
+                    b.HasIndex("FollowedUserId", "Status", "CreatedAt");
+                    b.ToTable("user_follows", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_follows_distinct_users", "\"FollowerId\" <> \"FollowedUserId\"");
+                        });
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserPrivacySettings", b =>
+                {
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<bool>("IsPrivate").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
+                    b.Property<bool>("ShowWatched").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowRatings").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowFavorites").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowReviews").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("UserId");
+                    b.ToTable("user_privacy_settings", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserBlock", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("BlockerId").HasColumnType("uuid");
+                    b.Property<Guid>("BlockedUserId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("BlockerId", "BlockedUserId").IsUnique();
+                    b.HasIndex("BlockedUserId");
+                    b.ToTable("user_blocks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_blocks_distinct_users", "\"BlockerId\" <> \"BlockedUserId\"");
+                        });
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2372,6 +2418,45 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("TvShow");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("FollowerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("FollowedUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserPrivacySettings", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithOne()
+                        .HasForeignKey("MovieApp.Domain.Entities.UserPrivacySettings", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserBlock", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("BlockerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("BlockedUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotificationEvent", b =>
