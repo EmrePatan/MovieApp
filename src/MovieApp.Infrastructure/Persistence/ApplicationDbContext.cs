@@ -55,6 +55,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SocialActivity> SocialActivities => Set<SocialActivity>();
 
+    public DbSet<SocialActivityLike> SocialActivityLikes => Set<SocialActivityLike>();
+
+    public DbSet<SocialComment> SocialComments => Set<SocialComment>();
+
+    public DbSet<SocialCommentLike> SocialCommentLikes => Set<SocialCommentLike>();
+
+    public DbSet<SocialReport> SocialReports => Set<SocialReport>();
+
     public DbSet<SocialComment> SocialComments => Set<SocialComment>();
 
     public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
