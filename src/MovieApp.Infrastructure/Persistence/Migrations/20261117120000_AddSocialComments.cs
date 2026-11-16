@@ -34,10 +34,35 @@ public partial class AddSocialComments : Migration
                 table.ForeignKey("FK_social_comments_users_AuthorId", x => x.AuthorId, "users", "Id", onDelete: ReferentialAction.Cascade);
                 table.ForeignKey("FK_social_comments_social_comments_ParentCommentId", x => x.ParentCommentId, "social_comments", "Id", onDelete: ReferentialAction.Restrict);
             });
+        migrationBuilder.CreateTable(
+            name: "social_comment_likes",
+            columns: table => new
+            {
+                Id = table.Column<Guid>(type: "uuid", nullable: false),
+                CommentId = table.Column<Guid>(type: "uuid", nullable: false),
+                UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_social_comment_likes", x => x.Id);
+                table.ForeignKey("FK_social_comment_likes_social_comments_CommentId", x => x.CommentId,
+                    "social_comments", "Id", onDelete: ReferentialAction.Cascade);
+                table.ForeignKey("FK_social_comment_likes_users_UserId", x => x.UserId,
+                    "users", "Id", onDelete: ReferentialAction.Cascade);
+            });
+
         migrationBuilder.CreateIndex("IX_social_comments_ActivityId_CreatedAt_Id", "social_comments", new[] { "ActivityId", "CreatedAt", "Id" });
         migrationBuilder.CreateIndex("IX_social_comments_ParentCommentId", "social_comments", "ParentCommentId");
+        migrationBuilder.CreateIndex("IX_social_comment_likes_CommentId_UserId", "social_comment_likes",
+            new[] { "CommentId", "UserId" }, unique: true);
+        migrationBuilder.CreateIndex("IX_social_comment_likes_UserId", "social_comment_likes", "UserId");
         migrationBuilder.CreateIndex("IX_social_comments_AuthorId_CreatedAt", "social_comments", new[] { "AuthorId", "CreatedAt" });
     }
 
-    protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropTable(name: "social_comments");
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(name: "social_comment_likes");
+        migrationBuilder.DropTable(name: "social_comments");
+    }
 }
