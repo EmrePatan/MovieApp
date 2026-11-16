@@ -58,6 +58,7 @@ public sealed class SocialProfileService(
         Guid userId, int page, int pageSize, CancellationToken cancellationToken = default)
     {
         await GetProfileAsync(userId, cancellationToken);
+        await EnsureCanViewRelationshipListAsync(userId, cancellationToken);
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
         var users = await dbContext.UserFollows.AsNoTracking()
