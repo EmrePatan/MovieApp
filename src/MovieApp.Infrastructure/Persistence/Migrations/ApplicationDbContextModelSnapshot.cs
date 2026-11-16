@@ -1690,6 +1690,64 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("social_activities", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivityLike", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ActivityId", "UserId").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("social_activity_likes", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<Guid?>("ParentCommentId").HasColumnType("uuid");
+                    b.Property<string>("Content").IsRequired().HasMaxLength(2000).HasColumnType("character varying(2000)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ActivityId", "CreatedAt", "Id");
+                    b.HasIndex("ParentCommentId", "CreatedAt", "Id");
+                    b.HasIndex("UserId");
+                    b.ToTable("social_comments", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialCommentLike", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("CommentId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("CommentId", "UserId").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("social_comment_likes", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialReport", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("ReporterId").HasColumnType("uuid");
+                    b.Property<string>("TargetType").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
+                    b.Property<Guid>("TargetId").HasColumnType("uuid");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                    b.Property<string>("Details").HasMaxLength(1000).HasColumnType("character varying(1000)");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("ReviewedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ReporterId", "CreatedAt");
+                    b.HasIndex("TargetType", "TargetId", "CreatedAt");
+                    b.ToTable("social_reports", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2483,6 +2541,30 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ActorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivityLike", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("ParentCommentId").OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialCommentLike", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("CommentId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialReport", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("ReporterId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
