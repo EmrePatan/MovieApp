@@ -14,33 +14,33 @@ public sealed class SocialFollowsController(ISocialFollowService socialFollowSer
     public async Task<ActionResult<SocialFollowResult>> Follow(Guid userId, CancellationToken cancellationToken)
     {
         try { return Ok(await socialFollowService.FollowAsync(userId, cancellationToken)); }
-        catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
-        catch (NotFoundException exception) { return NotFound(Problem(exception.Message)); }
-        catch (ConflictException exception) { return Conflict(Problem(exception.Message)); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+        catch (NotFoundException exception) { return NotFound(CreateProblem(exception.Message)); }
+        catch (ConflictException exception) { return Conflict(CreateProblem(exception.Message)); }
     }
 
     [HttpDelete("follows/{userId:guid}")]
     public async Task<IActionResult> Unfollow(Guid userId, CancellationToken cancellationToken)
     {
         try { await socialFollowService.UnfollowAsync(userId, cancellationToken); return NoContent(); }
-        catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
     }
 
     [HttpPost("follow-requests/{followerUserId:guid}/accept")]
     public async Task<ActionResult<SocialFollowResult>> Accept(Guid followerUserId, CancellationToken cancellationToken)
     {
         try { return Ok(await socialFollowService.AcceptRequestAsync(followerUserId, cancellationToken)); }
-        catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
-        catch (NotFoundException exception) { return NotFound(Problem(exception.Message)); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+        catch (NotFoundException exception) { return NotFound(CreateProblem(exception.Message)); }
     }
 
     [HttpDelete("follow-requests/{followerUserId:guid}")]
     public async Task<IActionResult> Reject(Guid followerUserId, CancellationToken cancellationToken)
     {
         try { await socialFollowService.RejectRequestAsync(followerUserId, cancellationToken); return NoContent(); }
-        catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
-        catch (NotFoundException exception) { return NotFound(Problem(exception.Message)); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+        catch (NotFoundException exception) { return NotFound(CreateProblem(exception.Message)); }
     }
 
-    private static ProblemDetails Problem(string detail) => new() { Detail = detail };
+    private static ProblemDetails CreateProblem(string detail) => new() { Detail = detail };
 }
