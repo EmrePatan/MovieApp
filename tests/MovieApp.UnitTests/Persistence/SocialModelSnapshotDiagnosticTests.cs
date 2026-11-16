@@ -23,7 +23,8 @@ public sealed class SocialModelSnapshotDiagnosticTests(ITestOutputHelper output)
         Assert.NotNull(snapshot);
 
         var differ = context.GetService<IMigrationsModelDiffer>();
-        var operations = differ.GetDifferences(snapshot.GetRelationalModel(), context.Model.GetRelationalModel());
+        var initializedSnapshot = context.GetService<IModelRuntimeInitializer>().Initialize(snapshot, designTime: true);
+        var operations = differ.GetDifferences(initializedSnapshot.GetRelationalModel(), context.Model.GetRelationalModel());
         foreach (var operation in operations)
         {
             var values = operation.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
