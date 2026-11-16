@@ -1590,7 +1590,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("FollowerId").HasColumnType("uuid");
                     b.Property<Guid>("FollowedUserId").HasColumnType("uuid");
                     b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
@@ -1608,7 +1608,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserPrivacySettings", b =>
                 {
-                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<bool>("IsPrivate").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
                     b.Property<bool>("ShowWatched").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
                     b.Property<bool>("ShowRatings").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
@@ -1621,7 +1621,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserBlock", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("BlockerId").HasColumnType("uuid");
                     b.Property<Guid>("BlockedUserId").HasColumnType("uuid");
                     b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
@@ -1636,7 +1636,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("ActivityId").HasColumnType("uuid");
                     b.Property<Guid>("AuthorId").HasColumnType("uuid");
                     b.Property<Guid?>("ParentCommentId").HasColumnType("uuid");
@@ -1674,7 +1674,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("ActorId").HasColumnType("uuid");
                     b.Property<string>("ActivityType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
                     b.Property<Guid>("SourceEntityId").HasColumnType("uuid");
@@ -1692,7 +1692,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivityLike", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("ActivityId").HasColumnType("uuid");
                     b.Property<Guid>("UserId").HasColumnType("uuid");
                     b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
@@ -1704,7 +1704,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialCommentLike", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("CommentId").HasColumnType("uuid");
                     b.Property<Guid>("UserId").HasColumnType("uuid");
                     b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
@@ -1716,7 +1716,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialReport", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("ReporterId").HasColumnType("uuid");
                     b.Property<string>("TargetType").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
                     b.Property<Guid>("TargetId").HasColumnType("uuid");
@@ -1733,7 +1733,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialNotification", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("RecipientId").HasColumnType("uuid");
                     b.Property<Guid>("ActorId").HasColumnType("uuid");
                     b.Property<string>("NotificationType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
