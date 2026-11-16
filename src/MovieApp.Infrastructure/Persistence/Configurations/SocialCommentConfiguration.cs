@@ -17,7 +17,7 @@ internal sealed class SocialCommentConfiguration : IEntityTypeConfiguration<Soci
         builder.Property(comment => comment.IsDeleted).HasDefaultValue(false).IsRequired();
         builder.HasOne<SocialActivity>().WithMany().HasForeignKey(comment => comment.ActivityId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<User>().WithMany().HasForeignKey(comment => comment.AuthorId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<SocialComment>().WithMany().HasForeignKey(comment => comment.ParentCommentId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SocialComment>().WithMany().HasForeignKey(comment => comment.ParentCommentId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(comment => new { comment.ActivityId, comment.CreatedAt, comment.Id });
         builder.HasIndex(comment => comment.ParentCommentId);
         builder.HasIndex(comment => new { comment.AuthorId, comment.CreatedAt });
