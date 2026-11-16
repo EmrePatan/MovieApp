@@ -39,6 +39,7 @@ public sealed class SocialProfileService(
         Guid userId, int page, int pageSize, CancellationToken cancellationToken = default)
     {
         await GetProfileAsync(userId, cancellationToken);
+        await EnsureCanViewRelationshipListAsync(userId, cancellationToken);
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
         var users = await dbContext.UserFollows.AsNoTracking()
@@ -69,6 +70,21 @@ public sealed class SocialProfileService(
             .ToListAsync(cancellationToken);
         var viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id ? id : (Guid?)null;
         return await MapSummariesAsync(users.Select(user => (user.Id, user.UserName, user.DisplayName)).ToList(), viewerId, cancellationToken);
+    }
+
+    private async Task EnsureCanViewRelationshipListAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id ? id : (Guid?)null;
+        if (viewerId == userId) return;
+        var isPrivate = await dbContext.UserPrivacySettings.AsNoTracking()
+            .Where(settings => settings.UserId == userId)
+            .Select(settings => (bool?)settings.IsPrivate)
+            .FirstOrDefaultAsync(cancellationToken) ?? false;
+        if (!isPrivate) return;
+        var accepted = viewerId.HasValue && await dbContext.UserFollows.AsNoTracking().AnyAsync(
+            follow => follow.FollowerId == viewerId.Value && follow.FollowedUserId == userId
+                && follow.Status == UserFollowStatus.Accepted, cancellationToken);
+        if (!accepted) throw new NotFoundException("User not found.");
     }
 
     private async Task<IReadOnlyList<SocialUserSummaryResult>> MapSummariesAsync(
@@ -115,11 +131,6 @@ public sealed class SocialProfileService(
             .Select(settings => (bool?)settings.IsPrivate)
             .FirstOrDefaultAsync(cancellationToken) ?? false;
         var isSelf = viewerId == userId;
-        var acceptedFollow = viewerId.HasValue && await dbContext.UserFollows.AsNoTracking().AnyAsync(
-            follow => follow.FollowerId == viewerId.Value && follow.FollowedUserId == userId
-                && follow.Status == UserFollowStatus.Accepted, cancellationToken);
-        if (isPrivate && !isSelf && !acceptedFollow) throw new NotFoundException("User not found.");
-
         var followStatus = "None";
         if (viewerId.HasValue && !isSelf)
         {
