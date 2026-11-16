@@ -92,9 +92,21 @@ public sealed class WatchHistoryService(
     public async Task UnmarkMovieWatchedAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await watchedMovieRepository.RemoveAsync(userId, movieId, cancellationToken);
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedMovie, movieId, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await watchedMovieRepository.RemoveAsync(userId, movieId, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedMovie, movieId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await watchedMovieRepository.RemoveAsync(userId, movieId, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedMovie, movieId, cancellationToken);
+        }
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
@@ -160,9 +172,21 @@ public sealed class WatchHistoryService(
     public async Task UnmarkEpisodeWatchedAsync(Guid episodeId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await watchedEpisodeRepository.RemoveAsync(userId, episodeId, cancellationToken);
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedEpisode, episodeId, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await watchedEpisodeRepository.RemoveAsync(userId, episodeId, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedEpisode, episodeId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await watchedEpisodeRepository.RemoveAsync(userId, episodeId, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedEpisode, episodeId, cancellationToken);
+        }
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
