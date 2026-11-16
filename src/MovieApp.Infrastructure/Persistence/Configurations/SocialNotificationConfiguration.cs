@@ -18,8 +18,7 @@ internal sealed class SocialNotificationConfiguration : IEntityTypeConfiguration
         builder.HasOne<SocialActivity>().WithMany().HasForeignKey(notification => notification.ActivityId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<SocialComment>().WithMany().HasForeignKey(notification => notification.CommentId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<UserFollow>().WithMany().HasForeignKey(notification => notification.FollowId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasIndex(notification => new { notification.RecipientId, notification.CreatedAt, notification.Id })
-            .IsDescending(false, true, true);
+        builder.HasIndex(notification => new { notification.RecipientId, notification.CreatedAt, notification.Id });
         builder.HasIndex(notification => notification.RecipientId).HasFilter("\"ReadAt\" IS NULL");
     }
 }
