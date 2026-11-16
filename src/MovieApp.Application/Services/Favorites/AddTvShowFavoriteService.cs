@@ -2,11 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Favorites;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Favorites;
 
@@ -15,7 +17,8 @@ public sealed class AddTvShowFavoriteService(
     IFavoriteRepository favoriteRepository,
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
-    IServiceScopeFactory? analyticsScopeFactory = null) : IAddTvShowFavoriteService
+    IServiceScopeFactory? analyticsScopeFactory = null,
+    ISocialActivityRecorder? socialActivityRecorder = null) : IAddTvShowFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
@@ -36,6 +39,8 @@ public sealed class AddTvShowFavoriteService(
         var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
         if (added)
         {
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.FavoritedTvShow, favorite.Id, tvShowId, "TvShow", favorite.CreatedAt, cancellationToken);
             await BackgroundAnalyticsInvalidation.RunAsync(
                 analyticsCacheInvalidator,
                 analyticsScopeFactory,
