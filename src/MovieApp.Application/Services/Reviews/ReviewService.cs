@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
@@ -10,6 +11,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Reviews;
 
@@ -19,7 +21,8 @@ public sealed class ReviewService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
-    IUserAvatarPresentationService avatarPresentationService) : IReviewService
+    IUserAvatarPresentationService avatarPresentationService,
+    ISocialActivityRecorder? socialActivityRecorder = null) : IReviewService
 {
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
@@ -38,6 +41,8 @@ public sealed class ReviewService(
 
         var review = Review.CreateForMovie(userId, movieId, content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.AddAsync(review, cancellationToken);
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", review.CreatedAt, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndMovieAsync(userId, movieId, cancellationToken);
@@ -61,6 +66,8 @@ public sealed class ReviewService(
 
         var review = Review.CreateForTvShow(userId, tvShowId, content, authoringLocale, DateTime.UtcNow);
         await reviewRepository.AddAsync(review, cancellationToken);
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", review.CreatedAt, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndTvShowAsync(userId, tvShowId, cancellationToken);
