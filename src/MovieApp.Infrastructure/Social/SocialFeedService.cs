@@ -34,7 +34,16 @@ public sealed class SocialFeedService(
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == viewerId && block.BlockedUserId == actor.Id)
                     || (block.BlockerId == actor.Id && block.BlockedUserId == viewerId))
-                && (actor.Id == viewerId || IsActivityVisible(activity.ActivityType, actor.Id))
+                && (actor.Id == viewerId
+                    || !dbContext.UserPrivacySettings.Any(settings => settings.UserId == actor.Id)
+                    || ((activity.ActivityType == SocialActivityType.WatchedMovie || activity.ActivityType == SocialActivityType.WatchedEpisode)
+                        && dbContext.UserPrivacySettings.Where(settings => settings.UserId == actor.Id).Select(settings => settings.ShowWatched).FirstOrDefault())
+                    || ((activity.ActivityType == SocialActivityType.RatedMovie || activity.ActivityType == SocialActivityType.RatedTvShow)
+                        && dbContext.UserPrivacySettings.Where(settings => settings.UserId == actor.Id).Select(settings => settings.ShowRatings).FirstOrDefault())
+                    || ((activity.ActivityType == SocialActivityType.FavoritedMovie || activity.ActivityType == SocialActivityType.FavoritedTvShow)
+                        && dbContext.UserPrivacySettings.Where(settings => settings.UserId == actor.Id).Select(settings => settings.ShowFavorites).FirstOrDefault())
+                    || ((activity.ActivityType == SocialActivityType.ReviewedMovie || activity.ActivityType == SocialActivityType.ReviewedTvShow)
+                        && dbContext.UserPrivacySettings.Where(settings => settings.UserId == actor.Id).Select(settings => settings.ShowReviews).FirstOrDefault()))
             select new
             {
                 Activity = activity,
@@ -126,7 +135,7 @@ public sealed class SocialFeedService(
                 avatars.TryGetValue(row.ActorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
                 activity.ActivityType, activity.CreatedAt, activity.TargetContentId,
                 activity.TargetContentType, title, subtitle, poster,
-                ratings.GetValueOrDefault(activity.SourceEntityId),
+                ratings.TryGetValue(activity.SourceEntityId, out var ratingScore) ? ratingScore : null,
                 reviews.TryGetValue(activity.SourceEntityId, out var review) ? review : null));
         }
 
@@ -135,16 +144,6 @@ public sealed class SocialFeedService(
             : null;
         return new SocialFeedPageResult(items, nextCursor);
     }
-
-    private bool IsActivityVisible(SocialActivityType type, Guid actorId) =>
-        !dbContext.UserPrivacySettings.Any(settings => settings.UserId == actorId)
-        || (type is SocialActivityType.WatchedMovie or SocialActivityType.WatchedEpisode
-            ? dbContext.UserPrivacySettings.Where(settings => settings.UserId == actorId).Select(settings => settings.ShowWatched).FirstOrDefault()
-            : type is SocialActivityType.RatedMovie or SocialActivityType.RatedTvShow
-                ? dbContext.UserPrivacySettings.Where(settings => settings.UserId == actorId).Select(settings => settings.ShowRatings).FirstOrDefault()
-                : type is SocialActivityType.FavoritedMovie or SocialActivityType.FavoritedTvShow
-                    ? dbContext.UserPrivacySettings.Where(settings => settings.UserId == actorId).Select(settings => settings.ShowFavorites).FirstOrDefault()
-                    : dbContext.UserPrivacySettings.Where(settings => settings.UserId == actorId).Select(settings => settings.ShowReviews).FirstOrDefault());
 
     private static (DateTime CreatedAt, string Id)? DecodeCursor(string? cursor)
     {
