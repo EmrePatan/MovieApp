@@ -79,6 +79,8 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await watchedMovieRepository.RemoveAsync(userId, movieId, cancellationToken);
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedMovie, movieId, cancellationToken);
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
@@ -132,6 +134,8 @@ public sealed class WatchHistoryService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         await watchedEpisodeRepository.RemoveAsync(userId, episodeId, cancellationToken);
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedEpisode, episodeId, cancellationToken);
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
