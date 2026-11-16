@@ -51,6 +51,13 @@ public sealed class SocialFollowsController(ISocialFollowService socialFollowSer
     }
 
 
+    [HttpGet("blocks")]
+    public async Task<ActionResult<IReadOnlyList<SocialBlockedUserResult>>> GetBlockedUsers(CancellationToken cancellationToken)
+    {
+        try { return Ok(await socialFollowService.GetBlockedUsersAsync(cancellationToken)); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+    }
+
     [HttpPost("blocks/{userId:guid}")]
     public async Task<IActionResult> Block(Guid userId, CancellationToken cancellationToken)
     {
