@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
@@ -33,7 +34,8 @@ public sealed class WatchHistoryService(
     ITvShowCatalogSyncStateService catalogSyncStateService,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     ILogger<WatchHistoryService> logger,
-    IServiceScopeFactory? analyticsScopeFactory = null) : IWatchHistoryService
+    IServiceScopeFactory? analyticsScopeFactory = null,
+    ISocialActivityRecorder? socialActivityRecorder = null) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
@@ -51,6 +53,8 @@ public sealed class WatchHistoryService(
 
         var upsertStopwatch = Stopwatch.StartNew();
         var (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
+        if (created && socialActivityRecorder is not null)
+            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedMovie, entity.Id, movieId, "Movie", entity.WatchedAt, cancellationToken);
         upsertStopwatch.Stop();
 
         var analyticsStopwatch = Stopwatch.StartNew();
@@ -117,6 +121,8 @@ public sealed class WatchHistoryService(
         var utcNow = DateTime.UtcNow;
         var watchedEpisode = WatchedEpisode.Create(userId, episodeId, utcNow);
         var (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, cancellationToken);
+        if (created && socialActivityRecorder is not null)
+            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedEpisode, entity.Id, episodeId, "Episode", entity.WatchedAt, cancellationToken);
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new WatchMutationResult(entity.WatchedAt, created);
