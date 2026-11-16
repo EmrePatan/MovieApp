@@ -14,8 +14,16 @@ public sealed class SocialFeedService(
     ICurrentUser currentUser,
     IUserAvatarPresentationService avatarPresentationService) : ISocialFeedService
 {
-    public async Task<SocialFeedPageResult> GetFeedAsync(
-        string? cursor, int pageSize, CancellationToken cancellationToken = default)
+    public Task<SocialFeedPageResult> GetFeedAsync(
+        string? cursor, int pageSize, CancellationToken cancellationToken = default) =>
+        GetFeedCoreAsync(null, cursor, pageSize, cancellationToken);
+
+    public Task<SocialFeedPageResult> GetUserActivitiesAsync(
+        Guid userId, string? cursor, int pageSize, CancellationToken cancellationToken = default) =>
+        GetFeedCoreAsync(userId, cursor, pageSize, cancellationToken);
+
+    private async Task<SocialFeedPageResult> GetFeedCoreAsync(
+        Guid? actorId, string? cursor, int pageSize, CancellationToken cancellationToken)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not Guid viewerId || viewerId == Guid.Empty)
             throw new AuthenticationException("Authentication is required.");
@@ -27,6 +35,7 @@ public sealed class SocialFeedService(
             from activity in dbContext.SocialActivities.AsNoTracking()
             join actor in dbContext.Users.AsNoTracking() on activity.ActorId equals actor.Id
             where !activity.IsDeleted && actor.IsActive
+                && (!actorId.HasValue || actor.Id == actorId.Value)
                 && (actor.Id == viewerId
                     || !dbContext.UserPrivacySettings.Any(settings => settings.UserId == actor.Id && settings.IsPrivate)
                     || dbContext.UserFollows.Any(follow => follow.FollowerId == viewerId
