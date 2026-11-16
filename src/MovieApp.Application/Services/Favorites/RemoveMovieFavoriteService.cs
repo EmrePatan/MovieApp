@@ -14,14 +14,27 @@ public sealed class RemoveMovieFavoriteService(
     IFavoriteRepository favoriteRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     IServiceScopeFactory? analyticsScopeFactory = null,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IRemoveMovieFavoriteService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IRemoveMovieFavoriteService
 {
     public async Task RemoveAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await favoriteRepository.RemoveForMovieAsync(userId, movieId, cancellationToken);
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.FavoritedMovie, movieId, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await favoriteRepository.RemoveForMovieAsync(userId, movieId, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.FavoritedMovie, movieId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await favoriteRepository.RemoveForMovieAsync(userId, movieId, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.FavoritedMovie, movieId, cancellationToken);
+        }
         await BackgroundAnalyticsInvalidation.RunAsync(
             analyticsCacheInvalidator,
             analyticsScopeFactory,
