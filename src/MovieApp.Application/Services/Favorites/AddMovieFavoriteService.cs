@@ -37,11 +37,25 @@ public sealed class AddMovieFavoriteService(
 
         var favorite = Favorite.CreateForMovie(userId, movieId, DateTime.UtcNow);
 
-        var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
+        var added = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                added = await favoriteRepository.TryAddAsync(favorite, ct);
+                if (added && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.FavoritedMovie, favorite.Id, movieId, "Movie", favorite.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
+            if (added && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.FavoritedMovie, favorite.Id, movieId, "Movie", favorite.CreatedAt, cancellationToken);
+        }
+
         if (added)
         {
-            if (socialActivityRecorder is not null)
-                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.FavoritedMovie, favorite.Id, movieId, "Movie", favorite.CreatedAt, cancellationToken);
             await BackgroundAnalyticsInvalidation.RunAsync(
                 analyticsCacheInvalidator,
                 analyticsScopeFactory,
