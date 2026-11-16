@@ -52,8 +52,6 @@ public static class DependencyInjection
         services.AddScoped<ISocialActivityRecorder, SocialActivityRecorder>();
         services.AddScoped<ISocialFeedService, SocialFeedService>();
         services.AddScoped<ISocialInteractionService, SocialInteractionService>();
-        services.AddScoped<ISocialLikeService, SocialLikeService>();
-        services.AddScoped<ISocialCommentService, SocialCommentService>();
 
         services.AddOptions<PostgreSqlOptions>()
             .Bind(configuration.GetSection(PostgreSqlOptions.SectionName))
