@@ -14,14 +14,27 @@ public sealed class RemoveTvShowFavoriteService(
     IFavoriteRepository favoriteRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     IServiceScopeFactory? analyticsScopeFactory = null,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IRemoveTvShowFavoriteService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IRemoveTvShowFavoriteService
 {
     public async Task RemoveAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await favoriteRepository.RemoveForTvShowAsync(userId, tvShowId, cancellationToken);
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.FavoritedTvShow, tvShowId, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await favoriteRepository.RemoveForTvShowAsync(userId, tvShowId, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.FavoritedTvShow, tvShowId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await favoriteRepository.RemoveForTvShowAsync(userId, tvShowId, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.FavoritedTvShow, tvShowId, cancellationToken);
+        }
         await BackgroundAnalyticsInvalidation.RunAsync(
             analyticsCacheInvalidator,
             analyticsScopeFactory,
