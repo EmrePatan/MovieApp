@@ -63,6 +63,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SocialReport> SocialReports => Set<SocialReport>();
 
+    public DbSet<SocialNotification> SocialNotifications => Set<SocialNotification>();
+
 
     public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
 
