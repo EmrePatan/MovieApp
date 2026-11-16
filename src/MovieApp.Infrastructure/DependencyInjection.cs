@@ -48,6 +48,7 @@ public static class DependencyInjection
 
         services.AddScoped<ISocialFollowService, SocialFollowService>();
         services.AddScoped<ISocialProfileService, SocialProfileService>();
+        services.AddScoped<ISocialPrivacyService, SocialPrivacyService>();
 
         services.AddOptions<PostgreSqlOptions>()
             .Bind(configuration.GetSection(PostgreSqlOptions.SectionName))
