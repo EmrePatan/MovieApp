@@ -51,9 +51,18 @@ public sealed class SocialInteractionService(
     {
         var viewerId = GetViewerId();
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
-        if (parentCommentId.HasValue && !await dbContext.SocialComments.AsNoTracking().AnyAsync(
-            comment => comment.Id == parentCommentId.Value && comment.ActivityId == activityId, cancellationToken))
-            throw new NotFoundException("Comment not found.");
+        if (parentCommentId.HasValue)
+        {
+            var parent = await dbContext.SocialComments.AsNoTracking()
+                .Where(comment => comment.Id == parentCommentId.Value && comment.ActivityId == activityId)
+                .Select(comment => new { comment.AuthorId })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (parent is null) throw new NotFoundException("Comment not found.");
+            var parentBlocked = await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
+                (block.BlockerId == viewerId && block.BlockedUserId == parent.AuthorId)
+                || (block.BlockerId == parent.AuthorId && block.BlockedUserId == viewerId), cancellationToken);
+            if (parentBlocked) throw new NotFoundException("Comment not found.");
+        }
 
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
@@ -190,6 +199,7 @@ public sealed class SocialInteractionService(
         string targetType, Guid targetId, string reason, string? details, CancellationToken cancellationToken = default)
     {
         var viewerId = GetViewerId();
+        if (string.IsNullOrWhiteSpace(targetType)) throw new ValidationException("Report target type is required.");
         var normalizedType = targetType.Trim();
         switch (normalizedType)
         {
@@ -198,7 +208,7 @@ public sealed class SocialInteractionService(
                 break;
             case "Comment":
                 var commentActivityId = await dbContext.SocialComments.AsNoTracking()
-                    .Where(comment => comment.Id == targetId)
+                    .Where(comment => comment.Id == targetId && !comment.IsDeleted)
                     .Select(comment => (Guid?)comment.ActivityId).FirstOrDefaultAsync(cancellationToken);
                 if (!commentActivityId.HasValue) throw new NotFoundException("Comment not found.");
                 await EnsureActivityVisibleAsync(commentActivityId.Value, viewerId, cancellationToken);
