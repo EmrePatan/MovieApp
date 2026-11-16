@@ -1634,6 +1634,24 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("ActorId").HasColumnType("uuid");
+                    b.Property<string>("ActivityType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<Guid>("SourceEntityId").HasColumnType("uuid");
+                    b.Property<Guid>("TargetContentId").HasColumnType("uuid");
+                    b.Property<string>("TargetContentType").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("IsDeleted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
+                    b.HasKey("Id");
+                    b.HasIndex("ActorId", "ActivityType", "SourceEntityId").IsUnique();
+                    b.HasIndex("ActorId", "CreatedAt");
+                    b.HasIndex("CreatedAt", "Id");
+                    b.HasIndex("TargetContentType", "TargetContentId");
+                    b.ToTable("social_activities", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2418,6 +2436,15 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("TvShow");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
