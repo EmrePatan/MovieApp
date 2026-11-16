@@ -35,8 +35,12 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             .Select(settings => (bool?)settings.IsPrivate)
             .FirstOrDefaultAsync(cancellationToken) ?? false;
 
-        var follow = UserFollow.Create(followerId, targetUserId, isPrivate, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        var follow = UserFollow.Create(followerId, targetUserId, isPrivate, now);
         dbContext.UserFollows.Add(follow);
+        dbContext.SocialNotifications.Add(SocialNotification.Create(
+            targetUserId, followerId, isPrivate ? "FollowRequest" : "NewFollower",
+            null, null, follow.Id, now));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToResult(targetUserId, follow.Status);
     }
@@ -86,7 +90,10 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             throw new NotFoundException("Follow request not found.");
         }
 
-        follow.Accept(DateTime.UtcNow);
+        var acceptedAt = DateTime.UtcNow;
+        follow.Accept(acceptedAt);
+        dbContext.SocialNotifications.Add(SocialNotification.Create(
+            followerUserId, followedUserId, "FollowAccepted", null, null, follow.Id, acceptedAt));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToResult(followerUserId, follow.Status);
     }
