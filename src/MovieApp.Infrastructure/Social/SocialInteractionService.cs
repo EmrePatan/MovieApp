@@ -195,13 +195,13 @@ public sealed class SocialInteractionService(
                 && follow.Status == UserFollowStatus.Accepted, cancellationToken))
             throw new NotFoundException("Activity not found.");
 
-        var visible = privacy is null || activity.ActivityType switch
+        var visible = privacy is null || (activity.ActivityType switch
         {
             SocialActivityType.WatchedMovie or SocialActivityType.WatchedEpisode => privacy.ShowWatched,
             SocialActivityType.RatedMovie or SocialActivityType.RatedTvShow => privacy.ShowRatings,
             SocialActivityType.FavoritedMovie or SocialActivityType.FavoritedTvShow => privacy.ShowFavorites,
             _ => privacy.ShowReviews
-        };
+        });
         if (!visible) throw new NotFoundException("Activity not found.");
     }
 }
