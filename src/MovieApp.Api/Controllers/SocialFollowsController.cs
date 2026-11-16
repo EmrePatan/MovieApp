@@ -42,5 +42,22 @@ public sealed class SocialFollowsController(ISocialFollowService socialFollowSer
         catch (NotFoundException exception) { return NotFound(CreateProblem(exception.Message)); }
     }
 
+
+    [HttpPost("blocks/{userId:guid}")]
+    public async Task<IActionResult> Block(Guid userId, CancellationToken cancellationToken)
+    {
+        try { await socialFollowService.BlockAsync(userId, cancellationToken); return NoContent(); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+        catch (NotFoundException exception) { return NotFound(CreateProblem(exception.Message)); }
+        catch (ConflictException exception) { return Conflict(CreateProblem(exception.Message)); }
+    }
+
+    [HttpDelete("blocks/{userId:guid}")]
+    public async Task<IActionResult> Unblock(Guid userId, CancellationToken cancellationToken)
+    {
+        try { await socialFollowService.UnblockAsync(userId, cancellationToken); return NoContent(); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+    }
+
     private static ProblemDetails CreateProblem(string detail) => new() { Detail = detail };
 }
