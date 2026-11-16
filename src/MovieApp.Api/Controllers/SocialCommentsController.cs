@@ -41,7 +41,7 @@ public sealed class SocialCommentsController(ISocialCommentService comments) : C
         try { return Ok(await comments.EditAsync(commentId, request.Content, cancellationToken)); }
         catch (AuthenticationException exception) { return Unauthorized(new ProblemDetails { Detail = exception.Message }); }
         catch (NotFoundException exception) { return NotFound(new ProblemDetails { Detail = exception.Message }); }
-        catch (InvalidOperationException exception) { return Forbid(exception.Message); }
+        catch (InvalidOperationException exception) { return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails { Detail = exception.Message }); }
         catch (ArgumentException exception) { return BadRequest(new ProblemDetails { Detail = exception.Message }); }
     }
 
@@ -51,7 +51,7 @@ public sealed class SocialCommentsController(ISocialCommentService comments) : C
         try { await comments.DeleteAsync(commentId, cancellationToken); return NoContent(); }
         catch (AuthenticationException exception) { return Unauthorized(new ProblemDetails { Detail = exception.Message }); }
         catch (NotFoundException exception) { return NotFound(new ProblemDetails { Detail = exception.Message }); }
-        catch (InvalidOperationException exception) { return Forbid(exception.Message); }
+        catch (InvalidOperationException exception) { return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails { Detail = exception.Message }); }
     }
 }
 
