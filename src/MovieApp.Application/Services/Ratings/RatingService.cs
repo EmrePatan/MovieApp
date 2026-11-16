@@ -107,14 +107,27 @@ public sealed class RatingService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var deleted = await ratingRepository.DeleteForMovieAsync(userId, movieId, cancellationToken);
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await ratingRepository.DeleteForMovieAsync(userId, movieId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedMovie, movieId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await ratingRepository.DeleteForMovieAsync(userId, movieId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedMovie, movieId, cancellationToken);
+        }
+
         if (!deleted)
         {
             throw new NotFoundException("The requested rating was not found.");
         }
-
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedMovie, movieId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
@@ -122,14 +135,27 @@ public sealed class RatingService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var deleted = await ratingRepository.DeleteForTvShowAsync(userId, tvShowId, cancellationToken);
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await ratingRepository.DeleteForTvShowAsync(userId, tvShowId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedTvShow, tvShowId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await ratingRepository.DeleteForTvShowAsync(userId, tvShowId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedTvShow, tvShowId, cancellationToken);
+        }
+
         if (!deleted)
         {
             throw new NotFoundException("The requested rating was not found.");
         }
-
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedTvShow, tvShowId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
