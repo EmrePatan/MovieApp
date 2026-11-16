@@ -8,7 +8,7 @@ namespace MovieApp.Api.Controllers;
 
 [ApiController]
 [Route("api/social/profiles")]
-public sealed class SocialProfilesController(ISocialProfileService socialProfileService) : ControllerBase
+public sealed class SocialProfilesController(ISocialProfileService socialProfileService, ISocialFeedService socialFeedService) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("search")]
@@ -35,6 +35,18 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
     {
         try { return Ok(await socialProfileService.GetFollowingAsync(userId, page, pageSize, cancellationToken)); }
         catch (NotFoundException) { return NotFound(new ProblemDetails { Title = "User not found." }); }
+    }
+
+    [Authorize]
+    [HttpGet("{userId:guid}/activities")]
+    public async Task<ActionResult<SocialFeedPageResult>> Activities(
+        Guid userId, [FromQuery] string? cursor, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        try { return Ok(await socialFeedService.GetUserActivitiesAsync(userId, cursor, pageSize, cancellationToken)); }
+        catch (AuthenticationException exception) { return Unauthorized(new ProblemDetails { Detail = exception.Message }); }
+        catch (NotFoundException) { return NotFound(new ProblemDetails { Title = "User not found." }); }
+        catch (ValidationException exception) { return BadRequest(new ProblemDetails { Detail = exception.Message }); }
     }
 
     [AllowAnonymous]
