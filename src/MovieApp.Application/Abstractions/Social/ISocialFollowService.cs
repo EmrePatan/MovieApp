@@ -8,4 +8,6 @@ public interface ISocialFollowService
     Task UnfollowAsync(Guid targetUserId, CancellationToken cancellationToken = default);
     Task<SocialFollowResult> AcceptRequestAsync(Guid followerUserId, CancellationToken cancellationToken = default);
     Task RejectRequestAsync(Guid followerUserId, CancellationToken cancellationToken = default);
+    Task BlockAsync(Guid targetUserId, CancellationToken cancellationToken = default);
+    Task UnblockAsync(Guid targetUserId, CancellationToken cancellationToken = default);
 }
