@@ -1731,6 +1731,27 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("social_reports", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialNotification", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("RecipientId").HasColumnType("uuid");
+                    b.Property<Guid>("ActorId").HasColumnType("uuid");
+                    b.Property<string>("NotificationType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<Guid?>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid?>("CommentId").HasColumnType("uuid");
+                    b.Property<Guid?>("FollowId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("ReadAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ActorId");
+                    b.HasIndex("ActivityId");
+                    b.HasIndex("CommentId");
+                    b.HasIndex("FollowId");
+                    b.HasIndex("RecipientId").HasFilter("\"ReadAt\" IS NULL");
+                    b.HasIndex("RecipientId", "CreatedAt", "Id");
+                    b.ToTable("social_notifications", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2541,6 +2562,15 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialReport", b =>
                 {
                     b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("ReporterId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialNotification", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("RecipientId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("ActorId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.Cascade);
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("CommentId").OnDelete(DeleteBehavior.Cascade);
+                    b.HasOne("MovieApp.Domain.Entities.UserFollow", null).WithMany().HasForeignKey("FollowId").OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
