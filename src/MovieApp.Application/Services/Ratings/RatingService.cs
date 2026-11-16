@@ -84,6 +84,8 @@ public sealed class RatingService(
             throw new NotFoundException("The requested rating was not found.");
         }
 
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedMovie, movieId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
@@ -97,6 +99,8 @@ public sealed class RatingService(
             throw new NotFoundException("The requested rating was not found.");
         }
 
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.RatedTvShow, tvShowId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
