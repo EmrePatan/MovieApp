@@ -111,7 +111,7 @@ public sealed class SocialFeedService(
             .GroupBy(like => like.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
         var comments = await dbContext.SocialComments.AsNoTracking()
-            .Where(comment => activityIds.Contains(comment.ActivityId) && comment.DeletedAt == null)
+            .Where(comment => activityIds.Contains(comment.ActivityId) && !comment.IsDeleted)
             .GroupBy(comment => comment.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
         var likedIds = await dbContext.SocialActivityLikes.AsNoTracking()
