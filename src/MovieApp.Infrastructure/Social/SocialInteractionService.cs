@@ -72,7 +72,7 @@ public sealed class SocialInteractionService(
         var items = rows.Select(row => new SocialCommentResult(
             row.Id, row.ActivityId, row.AuthorId, row.UserName, row.DisplayName,
             avatars.TryGetValue(row.AuthorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
-            row.ParentCommentId, row.IsDeleted.HasValue ? "[deleted]" : row.Content,
+            row.ParentCommentId, row.IsDeleted ? "[deleted]" : row.Content,
             row.CreatedAt, row.UpdatedAt, likes.GetValueOrDefault(row.Id), replies.GetValueOrDefault(row.Id),
             likedIds.Contains(row.Id))).ToList();
         return new SocialCommentPageResult(items, safePage, safeSize);
