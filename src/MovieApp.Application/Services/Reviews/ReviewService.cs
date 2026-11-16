@@ -124,6 +124,8 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedMovie, movieId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
@@ -137,6 +139,8 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
+        if (socialActivityRecorder is not null)
+            await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedTvShow, tvShowId, cancellationToken);
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
