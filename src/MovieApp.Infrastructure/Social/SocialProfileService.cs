@@ -42,15 +42,18 @@ public sealed class SocialProfileService(
         await EnsureCanViewRelationshipListAsync(userId, cancellationToken);
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
+        var viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id ? id : (Guid?)null;
         var users = await dbContext.UserFollows.AsNoTracking()
             .Where(follow => follow.FollowedUserId == userId && follow.Status == UserFollowStatus.Accepted)
             .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
                 follow => follow.FollowerId, user => user.Id,
                 (follow, user) => new { user.Id, user.UserName, user.DisplayName })
+            .Where(user => !viewerId.HasValue || !dbContext.UserBlocks.Any(block =>
+                (block.BlockerId == viewerId.Value && block.BlockedUserId == user.Id)
+                || (block.BlockerId == user.Id && block.BlockedUserId == viewerId.Value)))
             .OrderBy(user => user.DisplayName).ThenBy(user => user.Id)
             .Skip((safePage - 1) * safeSize).Take(safeSize)
             .ToListAsync(cancellationToken);
-        var viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id ? id : (Guid?)null;
         return await MapSummariesAsync(users.Select(user => (user.Id, user.UserName, user.DisplayName)).ToList(), viewerId, cancellationToken);
     }
 
@@ -61,15 +64,18 @@ public sealed class SocialProfileService(
         await EnsureCanViewRelationshipListAsync(userId, cancellationToken);
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
+        var viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id ? id : (Guid?)null;
         var users = await dbContext.UserFollows.AsNoTracking()
             .Where(follow => follow.FollowerId == userId && follow.Status == UserFollowStatus.Accepted)
             .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
                 follow => follow.FollowedUserId, user => user.Id,
                 (follow, user) => new { user.Id, user.UserName, user.DisplayName })
+            .Where(user => !viewerId.HasValue || !dbContext.UserBlocks.Any(block =>
+                (block.BlockerId == viewerId.Value && block.BlockedUserId == user.Id)
+                || (block.BlockerId == user.Id && block.BlockedUserId == viewerId.Value)))
             .OrderBy(user => user.DisplayName).ThenBy(user => user.Id)
             .Skip((safePage - 1) * safeSize).Take(safeSize)
             .ToListAsync(cancellationToken);
-        var viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id ? id : (Guid?)null;
         return await MapSummariesAsync(users.Select(user => (user.Id, user.UserName, user.DisplayName)).ToList(), viewerId, cancellationToken);
     }
 
