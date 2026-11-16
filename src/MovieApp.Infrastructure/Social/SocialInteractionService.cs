@@ -49,6 +49,9 @@ public sealed class SocialInteractionService(
             from comment in dbContext.SocialComments.AsNoTracking()
             join user in dbContext.Users.AsNoTracking() on comment.AuthorId equals user.Id
             where comment.ActivityId == activityId && comment.ParentCommentId == parentCommentId && user.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
+                    || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId))
             orderby comment.CreatedAt, comment.Id
             select new
             {
@@ -83,9 +86,18 @@ public sealed class SocialInteractionService(
     {
         var viewerId = GetViewerId();
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
-        if (parentCommentId.HasValue && !await dbContext.SocialComments.AsNoTracking().AnyAsync(
-            comment => comment.Id == parentCommentId.Value && comment.ActivityId == activityId, cancellationToken))
-            throw new NotFoundException("Parent comment not found.");
+        if (parentCommentId.HasValue)
+        {
+            var parent = await dbContext.SocialComments.AsNoTracking()
+                .Where(comment => comment.Id == parentCommentId.Value && comment.ActivityId == activityId)
+                .Select(comment => new { comment.AuthorId, comment.IsDeleted })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (parent is null || parent.IsDeleted) throw new NotFoundException("Parent comment not found.");
+            if (await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
+                (block.BlockerId == viewerId && block.BlockedUserId == parent.AuthorId)
+                || (block.BlockerId == parent.AuthorId && block.BlockedUserId == viewerId), cancellationToken))
+                throw new NotFoundException("Parent comment not found.");
+        }
 
         var comment = SocialComment.Create(activityId, viewerId, parentCommentId, content, DateTime.UtcNow);
         dbContext.SocialComments.Add(comment);
@@ -118,6 +130,10 @@ public sealed class SocialInteractionService(
             .FirstOrDefaultAsync(cancellationToken);
         if (comment is null) throw new NotFoundException("Comment not found.");
         await EnsureActivityVisibleAsync(comment.ActivityId, viewerId, cancellationToken);
+        var commentAuthorBlocked = await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
+            (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
+            || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId), cancellationToken);
+        if (commentAuthorBlocked) throw new NotFoundException("Comment not found.");
 
         if (isLiked)
         {
@@ -161,7 +177,28 @@ public sealed class SocialInteractionService(
                 throw new ValidationException("Unsupported report target type.");
         }
 
-        dbContext.SocialReports.Add(SocialReport.Create(viewerId, normalizedType, targetId, reason, details, DateTime.UtcNow));
+        var targetAuthorId = normalizedType switch
+        {
+            "Activity" => await dbContext.SocialActivities.AsNoTracking()
+                .Where(item => item.Id == targetId).Select(item => (Guid?)item.ActorId).FirstOrDefaultAsync(cancellationToken),
+            "Comment" => await dbContext.SocialComments.AsNoTracking()
+                .Where(item => item.Id == targetId && !item.IsDeleted).Select(item => (Guid?)item.AuthorId).FirstOrDefaultAsync(cancellationToken),
+            "User" => targetId,
+            _ => null
+        };
+        if (targetAuthorId == viewerId) throw new ValidationException("You cannot report your own content.");
+
+        var now = DateTime.UtcNow;
+        var duplicate = await dbContext.SocialReports.AsNoTracking().AnyAsync(report =>
+            report.ReporterId == viewerId && report.TargetType == normalizedType && report.TargetId == targetId
+            && report.CreatedAt >= now.AddDays(-1), cancellationToken);
+        if (duplicate) throw new ValidationException("You have already reported this target recently.");
+
+        var dailyCount = await dbContext.SocialReports.AsNoTracking().CountAsync(report =>
+            report.ReporterId == viewerId && report.CreatedAt >= now.AddDays(-1), cancellationToken);
+        if (dailyCount >= 20) throw new ValidationException("Daily report limit reached.");
+
+        dbContext.SocialReports.Add(SocialReport.Create(viewerId, normalizedType, targetId, reason, details, now));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
