@@ -41,9 +41,21 @@ public sealed class ReviewService(
         }
 
         var review = Review.CreateForMovie(userId, movieId, content, authoringLocale, DateTime.UtcNow);
-        await reviewRepository.AddAsync(review, cancellationToken);
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", review.CreatedAt, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.AddAsync(review, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", review.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.AddAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", review.CreatedAt, cancellationToken);
+        }
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndMovieAsync(userId, movieId, cancellationToken);
@@ -66,9 +78,21 @@ public sealed class ReviewService(
         }
 
         var review = Review.CreateForTvShow(userId, tvShowId, content, authoringLocale, DateTime.UtcNow);
-        await reviewRepository.AddAsync(review, cancellationToken);
-        if (socialActivityRecorder is not null)
-            await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", review.CreatedAt, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.AddAsync(review, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", review.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.AddAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", review.CreatedAt, cancellationToken);
+        }
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndTvShowAsync(userId, tvShowId, cancellationToken);
