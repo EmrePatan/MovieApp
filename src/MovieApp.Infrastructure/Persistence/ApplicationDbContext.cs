@@ -53,6 +53,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
 
+    public DbSet<SocialActivity> SocialActivities => Set<SocialActivity>();
+
     public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
 
     public DbSet<Favorite> Favorites => Set<Favorite>();
