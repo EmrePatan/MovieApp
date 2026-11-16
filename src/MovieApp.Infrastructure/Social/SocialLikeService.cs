@@ -25,6 +25,7 @@ public sealed class SocialLikeService(ApplicationDbContext dbContext, ICurrentUs
     public async Task<SocialLikeResult> UnlikeActivityAsync(Guid activityId, CancellationToken cancellationToken = default)
     {
         var userId = GetUserId();
+        await EnsureCanViewActivityAsync(activityId, userId, cancellationToken);
         await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
             DELETE FROM social_activity_likes WHERE "ActivityId" = {activityId} AND "UserId" = {userId};
             """, cancellationToken);
@@ -46,6 +47,7 @@ public sealed class SocialLikeService(ApplicationDbContext dbContext, ICurrentUs
     public async Task<SocialLikeResult> UnlikeCommentAsync(Guid commentId, CancellationToken cancellationToken = default)
     {
         var userId = GetUserId();
+        await GetVisibleCommentActivityIdAsync(commentId, userId, cancellationToken);
         await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
             DELETE FROM social_comment_likes WHERE "CommentId" = {commentId} AND "UserId" = {userId};
             """, cancellationToken);
