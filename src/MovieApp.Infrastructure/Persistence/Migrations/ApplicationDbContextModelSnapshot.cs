@@ -1634,6 +1634,44 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<Guid>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid>("AuthorId").HasColumnType("uuid");
+                    b.Property<Guid?>("ParentCommentId").HasColumnType("uuid");
+                    b.Property<string>("Content").IsRequired().HasMaxLength(4000).HasColumnType("character varying(4000)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("IsDeleted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
+                    b.HasKey("Id");
+                    b.HasIndex("ActivityId", "CreatedAt", "Id");
+                    b.HasIndex("AuthorId", "CreatedAt");
+                    b.HasIndex("ParentCommentId");
+                    b.ToTable("social_comments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_social_comments_not_self_parent", "\"ParentCommentId\" IS NULL OR \"ParentCommentId\" <> \"Id\"");
+                        });
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null)
+                        .WithMany()
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
                 {
                     b.Property<Guid>("Id").HasColumnType("uuid");
