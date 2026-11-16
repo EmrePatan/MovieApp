@@ -18,7 +18,8 @@ public sealed class RatingService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
-    ISocialActivityRecorder? socialActivityRecorder = null) : IRatingService
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IRatingService
 {
     public async Task<RatingUpsertResult> UpsertMovieRatingAsync(
         Guid movieId,
