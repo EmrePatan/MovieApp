@@ -84,6 +84,37 @@ public sealed class SocialGraphEntityTests
     }
 
     [Fact]
+    public void SocialActivityStoresSourceAndTargetAndCanBeRetracted()
+    {
+        var actorId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+        var movieId = Guid.NewGuid();
+        var createdAt = DateTime.UtcNow;
+
+        var activity = SocialActivity.Create(
+            actorId, SocialActivityType.WatchedMovie, sourceId, movieId, "Movie", createdAt);
+
+        Assert.Equal(actorId, activity.ActorId);
+        Assert.Equal(sourceId, activity.SourceEntityId);
+        Assert.Equal(movieId, activity.TargetContentId);
+        Assert.Equal("Movie", activity.TargetContentType);
+        Assert.False(activity.IsDeleted);
+
+        activity.Retract();
+
+        Assert.True(activity.IsDeleted);
+    }
+
+    [Fact]
+    public void SocialActivityRequiresIdentifiersAndValidContentType()
+    {
+        Assert.Throws<ArgumentException>(() => SocialActivity.Create(
+            Guid.Empty, SocialActivityType.WatchedMovie, Guid.NewGuid(), Guid.NewGuid(), "Movie", DateTime.UtcNow));
+        Assert.Throws<ArgumentException>(() => SocialActivity.Create(
+            Guid.NewGuid(), SocialActivityType.WatchedMovie, Guid.NewGuid(), Guid.NewGuid(), "", DateTime.UtcNow));
+    }
+
+    [Fact]
     public void UserCannotBlockSelf()
     {
         var userId = Guid.NewGuid();
