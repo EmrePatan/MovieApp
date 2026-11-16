@@ -20,6 +20,7 @@ public sealed class SocialInteractionService(
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
         if (isLiked)
         {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO social_activity_likes ("Id", "ActivityId", "UserId", "CreatedAt")
                 VALUES ({Guid.NewGuid()}, {activityId}, {viewerId}, {DateTime.UtcNow})
@@ -37,6 +38,7 @@ public sealed class SocialInteractionService(
                     await dbContext.SaveChangesAsync(cancellationToken);
                 }
             }
+            await transaction.CommitAsync(cancellationToken);
         }
         else
         {
@@ -179,6 +181,7 @@ public sealed class SocialInteractionService(
 
         if (isLiked)
         {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO social_comment_likes ("Id", "CommentId", "UserId", "CreatedAt")
                 VALUES ({Guid.NewGuid()}, {commentId}, {viewerId}, {DateTime.UtcNow})
@@ -190,6 +193,7 @@ public sealed class SocialInteractionService(
                     comment.AuthorId, viewerId, "CommentLike", comment.ActivityId, commentId, null, DateTime.UtcNow));
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
+            await transaction.CommitAsync(cancellationToken);
         }
         else
         {
