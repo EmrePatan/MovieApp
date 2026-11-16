@@ -18,7 +18,7 @@ public sealed class SocialPrivacyService(ApplicationDbContext dbContext, ICurren
     }
 
     public async Task<SocialPrivacyResult> UpdateAsync(
-        SocialPrivacyResult request, CancellationToken cancellationToken = default)
+        SocialPrivacyResult settings, CancellationToken cancellationToken = default)
     {
         var userId = RequireUserId();
         var settings = await GetOrCreateAsync(userId, cancellationToken);
