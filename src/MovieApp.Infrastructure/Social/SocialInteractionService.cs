@@ -79,7 +79,11 @@ public sealed class SocialInteractionService(
                 comment.Id, comment.ActivityId, comment.AuthorId, user.UserName, user.DisplayName,
                 comment.ParentCommentId, comment.Content, comment.CreatedAt, comment.UpdatedAt, comment.IsDeleted
             })
-            .Skip((safePage - 1) * safeSize).Take(safeSize).ToListAsync(cancellationToken);
+            .Skip((safePage - 1) * safeSize).Take(safeSize + 1).ToListAsync(cancellationToken);
+
+        var hasMore = rows.Count > safeSize;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+        if (rows.Count == 0) return new SocialCommentPageResult([], safePage, safeSize, false);
 
         var ids = rows.Select(row => row.Id).ToArray();
         var avatars = await avatarPresentationService.GetForUsersAsync(rows.Select(row => row.AuthorId).Distinct().ToArray(), cancellationToken);
@@ -99,7 +103,7 @@ public sealed class SocialInteractionService(
             row.ParentCommentId, row.IsDeleted ? "[deleted]" : row.Content,
             row.CreatedAt, row.UpdatedAt, likes.GetValueOrDefault(row.Id), replies.GetValueOrDefault(row.Id),
             likedIds.Contains(row.Id))).ToList();
-        return new SocialCommentPageResult(items, safePage, safeSize);
+        return new SocialCommentPageResult(items, safePage, safeSize, hasMore);
     }
 
     public async Task<SocialCommentResult> CreateCommentAsync(
