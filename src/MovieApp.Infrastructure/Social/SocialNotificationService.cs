@@ -18,7 +18,10 @@ public sealed class SocialNotificationService(
         var userId = GetUserId();
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
-        var query = dbContext.SocialNotifications.AsNoTracking().Where(item => item.RecipientId == userId);
+        var query = dbContext.SocialNotifications.AsNoTracking().Where(item => item.RecipientId == userId
+            && !dbContext.UserBlocks.Any(block =>
+                (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
+                || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)));
         var unreadCount = await query.CountAsync(item => item.ReadAt == null, cancellationToken);
         var rows = await (
             from notification in query
@@ -50,7 +53,11 @@ public sealed class SocialNotificationService(
     {
         var userId = GetUserId();
         return await dbContext.SocialNotifications.AsNoTracking()
-            .CountAsync(item => item.RecipientId == userId && item.ReadAt == null, cancellationToken);
+            .Where(item => item.RecipientId == userId && item.ReadAt == null
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
+                    || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)))
+            .CountAsync(cancellationToken);
     }
 
     public async Task MarkReadAsync(Guid notificationId, CancellationToken cancellationToken = default)
