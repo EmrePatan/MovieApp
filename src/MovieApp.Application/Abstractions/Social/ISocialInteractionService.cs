@@ -7,7 +7,7 @@ public sealed record SocialCommentResult(
     Guid? ParentCommentId, string Content, DateTime CreatedAt, DateTime? UpdatedAt,
     int LikesCount, int RepliesCount, bool IsLikedByMe);
 
-public sealed record SocialCommentPageResult(IReadOnlyList<SocialCommentResult> Items, int Page, int PageSize);
+public sealed record SocialCommentPageResult(IReadOnlyList<SocialCommentResult> Items, int Page, int PageSize, bool HasMore);
 
 public interface ISocialInteractionService
 {
