@@ -24,7 +24,8 @@ public sealed class SocialModelSnapshotDiagnosticTests(ITestOutputHelper output)
 
         var differ = context.GetService<IMigrationsModelDiffer>();
         var initializedSnapshot = context.GetService<IModelRuntimeInitializer>().Initialize(snapshot, designTime: true);
-        var operations = differ.GetDifferences(initializedSnapshot.GetRelationalModel(), context.Model.GetRelationalModel());
+        var designTimeModel = context.GetService<IDesignTimeModel>().Model;
+        var operations = differ.GetDifferences(initializedSnapshot.GetRelationalModel(), designTimeModel.GetRelationalModel());
         foreach (var operation in operations)
         {
             var values = operation.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
