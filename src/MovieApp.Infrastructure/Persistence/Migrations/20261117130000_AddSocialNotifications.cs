@@ -38,7 +38,7 @@ public partial class AddSocialNotifications : Migration
             });
 
         migrationBuilder.CreateIndex("IX_social_notifications_RecipientId_CreatedAt_Id", "social_notifications",
-            new[] { "RecipientId", "CreatedAt", "Id" }).Annotation("Npgsql:IndexSortOrder", new[] { "Ascending", "Descending", "Descending" });
+            new[] { "RecipientId", "CreatedAt", "Id" });
         migrationBuilder.CreateIndex("IX_social_notifications_ActorId", "social_notifications", "ActorId");
         migrationBuilder.CreateIndex("IX_social_notifications_ActivityId", "social_notifications", "ActivityId");
         migrationBuilder.CreateIndex("IX_social_notifications_CommentId", "social_notifications", "CommentId");
