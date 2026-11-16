@@ -26,6 +26,14 @@ public sealed class SocialFollowsController(ISocialFollowService socialFollowSer
         catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
     }
 
+    [HttpGet("follow-requests")]
+    public async Task<ActionResult<IReadOnlyList<SocialFollowRequestResult>>> GetPendingRequests(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        try { return Ok(await socialFollowService.GetPendingRequestsAsync(page, pageSize, cancellationToken)); }
+        catch (AuthenticationException exception) { return Unauthorized(CreateProblem(exception.Message)); }
+    }
+
     [HttpPost("follow-requests/{followerUserId:guid}/accept")]
     public async Task<ActionResult<SocialFollowResult>> Accept(Guid followerUserId, CancellationToken cancellationToken)
     {
