@@ -21,51 +21,34 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             .AnyAsync(user => user.Id == targetUserId && user.IsActive, cancellationToken))
             throw new NotFoundException("User not found.");
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        await SocialPairLock.AcquireAsync(dbContext, followerId, targetUserId, cancellationToken);
-
-        if (await IsBlockedEitherWayAsync(followerId, targetUserId, cancellationToken))
-            throw new NotFoundException("User not found.");
-
-        var existing = await dbContext.UserFollows.FirstOrDefaultAsync(
-            follow => follow.FollowerId == followerId && follow.FollowedUserId == targetUserId,
-            cancellationToken);
-        if (existing is not null)
+        return await dbContext.Database.ExecuteInRetriableTransactionAsync(async ct =>
         {
-            await transaction.CommitAsync(cancellationToken);
-            return ToResult(targetUserId, existing.Status);
-        }
+            await SocialPairLock.AcquireAsync(dbContext, followerId, targetUserId, ct);
 
-        var isPrivate = await dbContext.UserPrivacySettings.AsNoTracking()
-            .Where(settings => settings.UserId == targetUserId)
-            .Select(settings => (bool?)settings.IsPrivate)
-            .FirstOrDefaultAsync(cancellationToken) ?? false;
+            if (await IsBlockedEitherWayAsync(followerId, targetUserId, ct))
+                throw new NotFoundException("User not found.");
 
-        var now = DateTime.UtcNow;
-        var follow = UserFollow.Create(followerId, targetUserId, isPrivate, now);
-        var notification = SocialNotification.Create(
-            targetUserId, followerId, isPrivate ? "FollowRequest" : "NewFollower",
-            null, null, follow.Id, now);
-        dbContext.UserFollows.Add(follow);
-        dbContext.SocialNotifications.Add(notification);
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            var existing = await dbContext.UserFollows.FirstOrDefaultAsync(
+                follow => follow.FollowerId == followerId && follow.FollowedUserId == targetUserId,
+                ct);
+            if (existing is not null)
+                return ToResult(targetUserId, existing.Status);
+
+            var isPrivate = await dbContext.UserPrivacySettings.AsNoTracking()
+                .Where(settings => settings.UserId == targetUserId)
+                .Select(settings => (bool?)settings.IsPrivate)
+                .FirstOrDefaultAsync(ct) ?? false;
+
+            var now = DateTime.UtcNow;
+            var follow = UserFollow.Create(followerId, targetUserId, isPrivate, now);
+            var notification = SocialNotification.Create(
+                targetUserId, followerId, isPrivate ? "FollowRequest" : "NewFollower",
+                null, null, follow.Id, now);
+            dbContext.UserFollows.Add(follow);
+            dbContext.SocialNotifications.Add(notification);
+            await dbContext.SaveChangesAsync(ct);
             return ToResult(targetUserId, follow.Status);
-        }
-        catch (DbUpdateException)
-        {
-            // A concurrent request may have inserted the unique follow row first.
-            await transaction.RollbackAsync(cancellationToken);
-            dbContext.Entry(follow).State = EntityState.Detached;
-            dbContext.Entry(notification).State = EntityState.Detached;
-            var concurrentFollow = await dbContext.UserFollows.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.FollowerId == followerId
-                    && item.FollowedUserId == targetUserId, cancellationToken);
-            if (concurrentFollow is null) throw;
-            return ToResult(targetUserId, concurrentFollow.Status);
-        }
+        }, cancellationToken);
     }
 
     public async Task UnfollowAsync(Guid targetUserId, CancellationToken cancellationToken = default)
@@ -100,30 +83,30 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
         Guid followerUserId, CancellationToken cancellationToken = default)
     {
         var followedUserId = GetCurrentUserId();
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        await SocialPairLock.AcquireAsync(dbContext, followerUserId, followedUserId, cancellationToken);
-
-        var follow = await dbContext.UserFollows.FirstOrDefaultAsync(
-            item => item.FollowerId == followerUserId && item.FollowedUserId == followedUserId,
-            cancellationToken);
-        if (follow is null || follow.Status != UserFollowStatus.Pending)
-            throw new NotFoundException("Follow request not found.");
-
-        if (await IsBlockedEitherWayAsync(followerUserId, followedUserId, cancellationToken))
+        return await dbContext.Database.ExecuteInRetriableTransactionAsync(async ct =>
         {
-            dbContext.UserFollows.Remove(follow);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            throw new NotFoundException("Follow request not found.");
-        }
+            await SocialPairLock.AcquireAsync(dbContext, followerUserId, followedUserId, ct);
 
-        var acceptedAt = DateTime.UtcNow;
-        follow.Accept(acceptedAt);
-        dbContext.SocialNotifications.Add(SocialNotification.Create(
-            followerUserId, followedUserId, "FollowAccepted", null, null, follow.Id, acceptedAt));
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return ToResult(followerUserId, follow.Status);
+            var follow = await dbContext.UserFollows.FirstOrDefaultAsync(
+                item => item.FollowerId == followerUserId && item.FollowedUserId == followedUserId,
+                ct);
+            if (follow is null || follow.Status != UserFollowStatus.Pending)
+                throw new NotFoundException("Follow request not found.");
+
+            if (await IsBlockedEitherWayAsync(followerUserId, followedUserId, ct))
+            {
+                dbContext.UserFollows.Remove(follow);
+                await dbContext.SaveChangesAsync(ct);
+                throw new NotFoundException("Follow request not found.");
+            }
+
+            var acceptedAt = DateTime.UtcNow;
+            follow.Accept(acceptedAt);
+            dbContext.SocialNotifications.Add(SocialNotification.Create(
+                followerUserId, followedUserId, "FollowAccepted", null, null, follow.Id, acceptedAt));
+            await dbContext.SaveChangesAsync(ct);
+            return ToResult(followerUserId, follow.Status);
+        }, cancellationToken);
     }
 
     public async Task RejectRequestAsync(Guid followerUserId, CancellationToken cancellationToken = default)
@@ -162,26 +145,23 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             .AnyAsync(user => user.Id == targetUserId && user.IsActive, cancellationToken);
         if (!targetExists) throw new NotFoundException("User not found.");
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        await SocialPairLock.AcquireAsync(dbContext, blockerId, targetUserId, cancellationToken);
-
-        var alreadyBlocked = await dbContext.UserBlocks.AnyAsync(
-            block => block.BlockerId == blockerId && block.BlockedUserId == targetUserId,
-            cancellationToken);
-        if (alreadyBlocked)
+        await dbContext.Database.ExecuteInRetriableTransactionAsync(async ct =>
         {
-            await transaction.CommitAsync(cancellationToken);
-            return;
-        }
+            await SocialPairLock.AcquireAsync(dbContext, blockerId, targetUserId, ct);
 
-        dbContext.UserBlocks.Add(UserBlock.Create(blockerId, targetUserId, DateTime.UtcNow));
-        var follows = await dbContext.UserFollows.Where(follow =>
-            (follow.FollowerId == blockerId && follow.FollowedUserId == targetUserId)
-            || (follow.FollowerId == targetUserId && follow.FollowedUserId == blockerId))
-            .ToListAsync(cancellationToken);
-        dbContext.UserFollows.RemoveRange(follows);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            var alreadyBlocked = await dbContext.UserBlocks.AnyAsync(
+                block => block.BlockerId == blockerId && block.BlockedUserId == targetUserId,
+                ct);
+            if (alreadyBlocked) return;
+
+            dbContext.UserBlocks.Add(UserBlock.Create(blockerId, targetUserId, DateTime.UtcNow));
+            var follows = await dbContext.UserFollows.Where(follow =>
+                (follow.FollowerId == blockerId && follow.FollowedUserId == targetUserId)
+                || (follow.FollowerId == targetUserId && follow.FollowedUserId == blockerId))
+                .ToListAsync(ct);
+            dbContext.UserFollows.RemoveRange(follows);
+            await dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
     }
 
     public async Task UnblockAsync(Guid targetUserId, CancellationToken cancellationToken = default)
