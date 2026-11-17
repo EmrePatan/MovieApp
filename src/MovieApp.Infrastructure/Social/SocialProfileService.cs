@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using MovieApp.Application.Abstractions.Identity;\nusing MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Identity;
