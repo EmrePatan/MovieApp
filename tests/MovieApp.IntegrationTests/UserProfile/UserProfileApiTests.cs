@@ -284,6 +284,31 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task ConcurrentSocialFollowRequestsAreIdempotent()
+    {
+        await fixture.ResetAsync();
+
+        var followerToken = await RegisterAndGetTokenAsync();
+        var targetToken = await RegisterAndGetTokenAsync();
+        var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
+        Assert.Equal(HttpStatusCode.OK, targetProfileResponse.StatusCode);
+        var targetProfile = await targetProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(targetProfile);
+
+        var requests = await Task.WhenAll(
+            SendAuthorizedPostAsync($"/api/social/follows/{targetProfile.Id}", followerToken),
+            SendAuthorizedPostAsync($"/api/social/follows/{targetProfile.Id}", followerToken));
+
+        Assert.All(requests, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+
+        await using var context = CreateContext();
+        Assert.Equal(1, await context.UserFollows.CountAsync(follow =>
+            follow.FollowedUserId == targetProfile.Id));
+        Assert.Equal(1, await context.SocialNotifications.CountAsync(notification =>
+            notification.RecipientId == targetProfile.Id && notification.NotificationType == "NewFollower"));
+    }
+
+    [Fact]
     public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
     {
         await fixture.ResetAsync();
