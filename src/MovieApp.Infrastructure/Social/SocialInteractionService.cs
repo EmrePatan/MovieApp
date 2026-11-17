@@ -279,10 +279,12 @@ public sealed class SocialInteractionService(
 
     private async Task EnsureActivityVisibleAsync(Guid activityId, Guid viewerId, CancellationToken cancellationToken)
     {
-        var activity = await dbContext.SocialActivities.AsNoTracking()
-            .Where(item => item.Id == activityId && !item.IsDeleted)
-            .Select(item => new { item.ActorId, item.ActivityType })
-            .FirstOrDefaultAsync(cancellationToken);
+        var activity = await (
+            from item in dbContext.SocialActivities.AsNoTracking()
+            join actor in dbContext.Users.AsNoTracking() on item.ActorId equals actor.Id
+            where item.Id == activityId && !item.IsDeleted && actor.IsActive
+            select new { item.ActorId, item.ActivityType }
+        ).FirstOrDefaultAsync(cancellationToken);
         if (activity is null) throw new NotFoundException("Activity not found.");
         if (activity.ActorId == viewerId) return;
 
