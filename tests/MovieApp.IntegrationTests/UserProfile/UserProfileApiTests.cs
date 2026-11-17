@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Contracts.Auth;
 using MovieApp.Domain.Users;
 using MovieApp.Infrastructure.Email;
@@ -280,6 +281,52 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(4.0m, statistics.Summary.AverageStarRating);
         Assert.Equal(12, statistics.Activity.Last12Months.Count);
         Assert.Single(statistics.Ratings.Distribution, item => item.Stars == 4);
+    }
+
+    [Fact]
+    public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var currentUserResponse = await SendAuthorizedGetAsync("/api/users/me", token);
+        Assert.Equal(HttpStatusCode.OK, currentUserResponse.StatusCode);
+        var currentUser = await currentUserResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(currentUser);
+
+        var movieId = await SeedMovieAsync();
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/ratings/movies/{movieId}", token, new CreateRatingRequest(8));
+        await SendAuthorizedPostAsync($"/api/reviews/movies/{movieId}", token, new CreateReviewRequest("Privacy test"));
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
+
+        var privacyResponse = await SendAuthorizedPutAsync(
+            "/api/social/privacy",
+            token,
+            new SocialPrivacyResult(IsPrivate: false, ShowWatched: false, ShowRatings: false,
+                ShowFavorites: false, ShowReviews: false));
+        Assert.Equal(HttpStatusCode.OK, privacyResponse.StatusCode);
+
+        var statisticsResponse = await _client.GetAsync($"/api/social/profiles/{currentUser.Id}/statistics");
+        Assert.Equal(HttpStatusCode.OK, statisticsResponse.StatusCode);
+        var statistics = await statisticsResponse.Content.ReadFromJsonAsync<SocialProfileStatisticsResponse>();
+        Assert.NotNull(statistics);
+        Assert.Equal(0, statistics.MoviesWatched);
+        Assert.Equal(0, statistics.EpisodesWatched);
+        Assert.Equal(0, statistics.RatingsCount);
+        Assert.Equal(0, statistics.ReviewsCount);
+        Assert.Equal(0, statistics.FavoritesCount);
+        Assert.Empty(statistics.Milestones);
+
+        var privatePrivacyResponse = await SendAuthorizedPutAsync(
+            "/api/social/privacy",
+            token,
+            new SocialPrivacyResult(IsPrivate: true, ShowWatched: true, ShowRatings: true,
+                ShowFavorites: true, ShowReviews: true));
+        Assert.Equal(HttpStatusCode.OK, privatePrivacyResponse.StatusCode);
+
+        var hiddenStatisticsResponse = await _client.GetAsync($"/api/social/profiles/{currentUser.Id}/statistics");
+        Assert.Equal(HttpStatusCode.NotFound, hiddenStatisticsResponse.StatusCode);
     }
 
     [Fact]
