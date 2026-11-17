@@ -19,6 +19,7 @@ public sealed class SocialNotificationService(
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
         var query = dbContext.SocialNotifications.AsNoTracking().Where(item => item.RecipientId == userId
+            && dbContext.Users.Any(actor => actor.Id == item.ActorId && actor.IsActive)
             && !dbContext.UserBlocks.Any(block =>
                 (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
                 || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)));
@@ -54,6 +55,7 @@ public sealed class SocialNotificationService(
         var userId = GetUserId();
         return await dbContext.SocialNotifications.AsNoTracking()
             .Where(item => item.RecipientId == userId && item.ReadAt == null
+                && dbContext.Users.Any(actor => actor.Id == item.ActorId && actor.IsActive)
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
                     || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)))
@@ -76,6 +78,7 @@ public sealed class SocialNotificationService(
         var now = DateTime.UtcNow;
         return await dbContext.SocialNotifications
             .Where(item => item.RecipientId == userId && item.ReadAt == null
+                && dbContext.Users.Any(actor => actor.Id == item.ActorId && actor.IsActive)
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
                     || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)))
