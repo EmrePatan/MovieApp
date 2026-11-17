@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Abstractions.Identity;\nusing MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Identity;
@@ -83,6 +83,49 @@ public sealed class SocialProfileService(
             .Skip((safePage - 1) * safeSize).Take(safeSize)
             .ToListAsync(cancellationToken);
         return await MapSummariesAsync(users.Select(user => (user.Id, user.UserName, user.DisplayName)).ToList(), viewerId, cancellationToken);
+    }
+
+    public async Task<SocialProfileStatisticsResult> GetStatisticsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var profile = await GetProfileAsync(userId, cancellationToken);
+        if (profile.IsPrivate && profile.FollowStatus is not ("Accepted" or "Self"))
+            throw new NotFoundException("User not found.");
+
+        var privacy = await dbContext.UserPrivacySettings.AsNoTracking()
+            .Where(settings => settings.UserId == userId)
+            .Select(settings => new
+            {
+                settings.ShowWatched,
+                settings.ShowRatings,
+                settings.ShowFavorites,
+                settings.ShowReviews
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var showWatched = privacy?.ShowWatched ?? true;
+        var showRatings = privacy?.ShowRatings ?? true;
+        var showFavorites = privacy?.ShowFavorites ?? true;
+        var showReviews = privacy?.ShowReviews ?? true;
+        var statistics = await userStatisticsRepository.GetStatisticsAsync(userId, cancellationToken: cancellationToken);
+
+        var milestones = statistics.Milestones
+            .Where(milestone =>
+                (showWatched && (milestone.Id.StartsWith("first-movie", StringComparison.Ordinal)
+                    || milestone.Id.StartsWith("movies-", StringComparison.Ordinal)
+                    || milestone.Id.StartsWith("episodes-", StringComparison.Ordinal)
+                    || milestone.Id == "first-show-completed"))
+                || (showRatings && milestone.Id.StartsWith("ratings-", StringComparison.Ordinal)))
+            .Select(milestone => new SocialProfileMilestoneResult(
+                milestone.Id, milestone.Title, milestone.Description, milestone.AchievedAt))
+            .ToList();
+
+        return new SocialProfileStatisticsResult(
+            showWatched ? statistics.Summary.MoviesWatched : 0,
+            showWatched ? statistics.Summary.EpisodesWatched : 0,
+            showRatings ? statistics.Summary.RatingsCount : 0,
+            showReviews ? statistics.Summary.ReviewsCount : 0,
+            showFavorites ? statistics.Summary.FavoritesCount : 0,
+            milestones);
     }
 
     private async Task EnsureCanViewRelationshipListAsync(Guid userId, CancellationToken cancellationToken)
