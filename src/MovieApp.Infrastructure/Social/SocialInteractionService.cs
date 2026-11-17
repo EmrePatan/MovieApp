@@ -55,10 +55,12 @@ public sealed class SocialInteractionService(
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
         if (parentCommentId.HasValue)
         {
-            var parent = await dbContext.SocialComments.AsNoTracking()
-                .Where(comment => comment.Id == parentCommentId.Value && comment.ActivityId == activityId)
-                .Select(comment => new { comment.AuthorId })
-                .FirstOrDefaultAsync(cancellationToken);
+            var parent = await (
+                from comment in dbContext.SocialComments.AsNoTracking()
+                join author in dbContext.Users.AsNoTracking() on comment.AuthorId equals author.Id
+                where comment.Id == parentCommentId.Value && comment.ActivityId == activityId && author.IsActive
+                select new { comment.AuthorId }
+            ).FirstOrDefaultAsync(cancellationToken);
             if (parent is null) throw new NotFoundException("Comment not found.");
             var parentBlocked = await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
                 (block.BlockerId == viewerId && block.BlockedUserId == parent.AuthorId)
@@ -130,10 +132,12 @@ public sealed class SocialInteractionService(
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
         if (parentCommentId.HasValue)
         {
-            var parent = await dbContext.SocialComments.AsNoTracking()
-                .Where(comment => comment.Id == parentCommentId.Value && comment.ActivityId == activityId)
-                .Select(comment => new { comment.AuthorId, comment.IsDeleted })
-                .FirstOrDefaultAsync(cancellationToken);
+            var parent = await (
+                from comment in dbContext.SocialComments.AsNoTracking()
+                join author in dbContext.Users.AsNoTracking() on comment.AuthorId equals author.Id
+                where comment.Id == parentCommentId.Value && comment.ActivityId == activityId && author.IsActive
+                select new { comment.AuthorId, comment.IsDeleted }
+            ).FirstOrDefaultAsync(cancellationToken);
             if (parent is null || parent.IsDeleted) throw new NotFoundException("Parent comment not found.");
             if (await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
                 (block.BlockerId == viewerId && block.BlockedUserId == parent.AuthorId)
@@ -183,10 +187,12 @@ public sealed class SocialInteractionService(
     public async Task SetCommentLikeAsync(Guid commentId, bool isLiked, CancellationToken cancellationToken = default)
     {
         var viewerId = GetViewerId();
-        var comment = await dbContext.SocialComments.AsNoTracking()
-            .Where(item => item.Id == commentId && !item.IsDeleted)
-            .Select(item => new { item.ActivityId, item.AuthorId })
-            .FirstOrDefaultAsync(cancellationToken);
+        var comment = await (
+            from item in dbContext.SocialComments.AsNoTracking()
+            join author in dbContext.Users.AsNoTracking() on item.AuthorId equals author.Id
+            where item.Id == commentId && !item.IsDeleted && author.IsActive
+            select new { item.ActivityId, item.AuthorId }
+        ).FirstOrDefaultAsync(cancellationToken);
         if (comment is null) throw new NotFoundException("Comment not found.");
         await EnsureActivityVisibleAsync(comment.ActivityId, viewerId, cancellationToken);
         var commentAuthorBlocked = await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
@@ -230,15 +236,21 @@ public sealed class SocialInteractionService(
                 await EnsureActivityVisibleAsync(targetId, viewerId, cancellationToken);
                 break;
             case "Comment":
-                var commentActivityId = await dbContext.SocialComments.AsNoTracking()
-                    .Where(comment => comment.Id == targetId && !comment.IsDeleted)
-                    .Select(comment => (Guid?)comment.ActivityId).FirstOrDefaultAsync(cancellationToken);
-                if (!commentActivityId.HasValue) throw new NotFoundException("Comment not found.");
-                await EnsureActivityVisibleAsync(commentActivityId.Value, viewerId, cancellationToken);
+                var reportableComment = await (
+                    from comment in dbContext.SocialComments.AsNoTracking()
+                    join author in dbContext.Users.AsNoTracking() on comment.AuthorId equals author.Id
+                    where comment.Id == targetId && !comment.IsDeleted && author.IsActive
+                    select new { comment.ActivityId, comment.AuthorId }
+                ).FirstOrDefaultAsync(cancellationToken);
+                if (reportableComment is null) throw new NotFoundException("Comment not found.");
+                if (await IsBlockedEitherWayAsync(viewerId, reportableComment.AuthorId, cancellationToken))
+                    throw new NotFoundException("Comment not found.");
+                await EnsureActivityVisibleAsync(reportableComment.ActivityId, viewerId, cancellationToken);
                 break;
             case "User":
                 if (targetId == viewerId) throw new ValidationException("You cannot report yourself.");
-                if (!await dbContext.Users.AsNoTracking().AnyAsync(user => user.Id == targetId && user.IsActive, cancellationToken))
+                if (!await dbContext.Users.AsNoTracking().AnyAsync(user => user.Id == targetId && user.IsActive, cancellationToken)
+                    || await IsBlockedEitherWayAsync(viewerId, targetId, cancellationToken))
                     throw new NotFoundException("User not found.");
                 break;
             default:
@@ -269,6 +281,11 @@ public sealed class SocialInteractionService(
         dbContext.SocialReports.Add(SocialReport.Create(viewerId, normalizedType, targetId, reason, details, now));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    private Task<bool> IsBlockedEitherWayAsync(Guid first, Guid second, CancellationToken cancellationToken) =>
+        dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
+            (block.BlockerId == first && block.BlockedUserId == second)
+            || (block.BlockerId == second && block.BlockedUserId == first), cancellationToken);
 
     private Guid GetViewerId()
     {
