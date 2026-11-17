@@ -27,7 +27,11 @@ public sealed class SocialActivityRecorder(ApplicationDbContext dbContext) : ISo
             VALUES
                 ({activity.Id}, {actorId}, {activityType.ToString()}, {sourceEntityId},
                  {targetContentId}, {targetContentType}, {createdAt}, FALSE)
-            ON CONFLICT ("ActorId", "ActivityType", "SourceEntityId") DO NOTHING;
+            ON CONFLICT ("ActorId", "ActivityType", "SourceEntityId") DO UPDATE
+            SET "TargetContentId" = EXCLUDED."TargetContentId",
+                "TargetContentType" = EXCLUDED."TargetContentType",
+                "CreatedAt" = EXCLUDED."CreatedAt",
+                "IsDeleted" = FALSE;
             """, cancellationToken);
     }
     public async Task RetractAsync(
