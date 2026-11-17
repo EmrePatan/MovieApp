@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Localization;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Services.Localization;
 using MovieApp.Contracts.Users;
 
 namespace MovieApp.Api.Controllers;
