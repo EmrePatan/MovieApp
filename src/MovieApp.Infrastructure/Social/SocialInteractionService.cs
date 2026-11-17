@@ -92,8 +92,16 @@ public sealed class SocialInteractionService(
         var likes = await dbContext.SocialCommentLikes.AsNoTracking().Where(like => ids.Contains(like.CommentId))
             .GroupBy(like => like.CommentId).Select(group => new { Id = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
-        var replies = await dbContext.SocialComments.AsNoTracking().Where(comment => comment.ParentCommentId != null && ids.Contains(comment.ParentCommentId.Value))
-            .GroupBy(comment => comment.ParentCommentId!.Value).Select(group => new { Id = group.Key, Count = group.Count() })
+        var replies = await (
+            from comment in dbContext.SocialComments.AsNoTracking()
+            join user in dbContext.Users.AsNoTracking() on comment.AuthorId equals user.Id
+            where comment.ParentCommentId != null && ids.Contains(comment.ParentCommentId.Value)
+                && !comment.IsDeleted && user.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
+                    || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId))
+            group comment by comment.ParentCommentId!.Value into grouped
+            select new { Id = grouped.Key, Count = grouped.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
         var likedIds = await dbContext.SocialCommentLikes.AsNoTracking()
             .Where(like => like.UserId == viewerId && ids.Contains(like.CommentId))
