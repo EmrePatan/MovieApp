@@ -462,6 +462,44 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task SocialProfileCountsExcludeBlockedRelationships()
+    {
+        await fixture.ResetAsync();
+
+        var profileToken = await RegisterAndGetTokenAsync();
+        var profileResponse = await SendAuthorizedGetAsync("/api/users/me", profileToken);
+        var profile = await profileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profile);
+
+        var followerToken = await RegisterAndGetTokenAsync();
+        var followerResponse = await SendAuthorizedGetAsync("/api/users/me", followerToken);
+        var follower = await followerResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(follower);
+
+        var followedToken = await RegisterAndGetTokenAsync();
+        var followedResponse = await SendAuthorizedGetAsync("/api/users/me", followedToken);
+        var followed = await followedResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(followed);
+
+        await using (var context = CreateContext())
+        {
+            var now = DateTime.UtcNow;
+            context.UserFollows.Add(MovieApp.Domain.Entities.UserFollow.Create(follower.Id, profile.Id, false, now));
+            context.UserFollows.Add(MovieApp.Domain.Entities.UserFollow.Create(profile.Id, followed.Id, false, now));
+            context.UserBlocks.Add(MovieApp.Domain.Entities.UserBlock.Create(profile.Id, follower.Id, now));
+            context.UserBlocks.Add(MovieApp.Domain.Entities.UserBlock.Create(followed.Id, profile.Id, now));
+            await context.SaveChangesAsync();
+        }
+
+        var socialProfileResponse = await SendAuthorizedGetAsync(
+            $"/api/social/profiles/{profile.Id}", profileToken);
+        Assert.Equal(HttpStatusCode.OK, socialProfileResponse.StatusCode);
+        var payload = await socialProfileResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, payload.GetProperty("followersCount").GetInt32());
+        Assert.Equal(0, payload.GetProperty("followingCount").GetInt32());
+    }
+
+    [Fact]
     public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
     {
         await fixture.ResetAsync();
