@@ -199,10 +199,18 @@ public sealed class SocialProfileService(
             followStatus = status?.ToString() ?? "None";
         }
 
-        var followersCount = await dbContext.UserFollows.AsNoTracking()
-            .CountAsync(follow => follow.FollowedUserId == userId && follow.Status == UserFollowStatus.Accepted, cancellationToken);
-        var followingCount = await dbContext.UserFollows.AsNoTracking()
-            .CountAsync(follow => follow.FollowerId == userId && follow.Status == UserFollowStatus.Accepted, cancellationToken);
+        var followersCount = await (
+            from follow in dbContext.UserFollows.AsNoTracking()
+            join follower in dbContext.Users.AsNoTracking() on follow.FollowerId equals follower.Id
+            where follow.FollowedUserId == userId && follow.Status == UserFollowStatus.Accepted && follower.IsActive
+            select follow.Id
+        ).CountAsync(cancellationToken);
+        var followingCount = await (
+            from follow in dbContext.UserFollows.AsNoTracking()
+            join followedUser in dbContext.Users.AsNoTracking() on follow.FollowedUserId equals followedUser.Id
+            where follow.FollowerId == userId && follow.Status == UserFollowStatus.Accepted && followedUser.IsActive
+            select follow.Id
+        ).CountAsync(cancellationToken);
         var avatar = await avatarPresentationService.GetForUserAsync(userId, cancellationToken);
 
         return new SocialProfileResult(user.Id, user.UserName, user.DisplayName, user.CreatedAt,
