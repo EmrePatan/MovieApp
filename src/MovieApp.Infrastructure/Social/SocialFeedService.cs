@@ -28,6 +28,10 @@ public sealed class SocialFeedService(
         if (!currentUser.IsAuthenticated || currentUser.UserId is not Guid viewerId || viewerId == Guid.Empty)
             throw new AuthenticationException("Authentication is required.");
 
+        if (actorId.HasValue && !await dbContext.Users.AsNoTracking()
+                .AnyAsync(user => user.Id == actorId.Value && user.IsActive, cancellationToken))
+            throw new NotFoundException("User not found.");
+
         var safePageSize = Math.Clamp(pageSize, 1, 50);
         (DateTime CreatedAt, string Id)? decodedCursor = DecodeCursor(cursor);
 
