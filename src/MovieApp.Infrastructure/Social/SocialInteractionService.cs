@@ -89,8 +89,15 @@ public sealed class SocialInteractionService(
 
         var ids = rows.Select(row => row.Id).ToArray();
         var avatars = await avatarPresentationService.GetForUsersAsync(rows.Select(row => row.AuthorId).Distinct().ToArray(), cancellationToken);
-        var likes = await dbContext.SocialCommentLikes.AsNoTracking().Where(like => ids.Contains(like.CommentId))
-            .GroupBy(like => like.CommentId).Select(group => new { Id = group.Key, Count = group.Count() })
+        var likes = await (
+            from like in dbContext.SocialCommentLikes.AsNoTracking()
+            join user in dbContext.Users.AsNoTracking() on like.UserId equals user.Id
+            where ids.Contains(like.CommentId) && user.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == viewerId && block.BlockedUserId == like.UserId)
+                    || (block.BlockerId == like.UserId && block.BlockedUserId == viewerId))
+            group like by like.CommentId into grouped
+            select new { Id = grouped.Key, Count = grouped.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
         var replies = await (
             from comment in dbContext.SocialComments.AsNoTracking()
