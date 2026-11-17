@@ -120,8 +120,15 @@ public sealed class SocialFeedService(
         var actorIds = rows.Select(row => row.ActorId).Distinct().ToArray();
         var activityIds = rows.Select(row => row.Activity.Id).ToArray();
         var avatars = await avatarPresentationService.GetForUsersAsync(actorIds, cancellationToken);
-        var likes = await dbContext.SocialActivityLikes.AsNoTracking().Where(like => activityIds.Contains(like.ActivityId))
-            .GroupBy(like => like.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
+        var likes = await (
+            from like in dbContext.SocialActivityLikes.AsNoTracking()
+            join user in dbContext.Users.AsNoTracking() on like.UserId equals user.Id
+            where activityIds.Contains(like.ActivityId) && user.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == viewerId && block.BlockedUserId == like.UserId)
+                    || (block.BlockerId == like.UserId && block.BlockedUserId == viewerId))
+            group like by like.ActivityId into grouped
+            select new { Id = grouped.Key, Count = grouped.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
         var comments = await (
             from comment in dbContext.SocialComments.AsNoTracking()
