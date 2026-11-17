@@ -500,6 +500,68 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task MarkingHiddenSocialNotificationsReadReturnsNotFound()
+    {
+        await fixture.ResetAsync();
+
+        var recipientToken = await RegisterAndGetTokenAsync();
+        var recipientResponse = await SendAuthorizedGetAsync("/api/users/me", recipientToken);
+        var recipient = await recipientResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(recipient);
+
+        var inactiveActorToken = await RegisterAndGetTokenAsync();
+        var inactiveActorResponse = await SendAuthorizedGetAsync("/api/users/me", inactiveActorToken);
+        var inactiveActor = await inactiveActorResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(inactiveActor);
+
+        var blockedActorToken = await RegisterAndGetTokenAsync();
+        var blockedActorResponse = await SendAuthorizedGetAsync("/api/users/me", blockedActorToken);
+        var blockedActor = await blockedActorResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(blockedActor);
+
+        Guid inactiveNotificationId;
+        Guid blockedNotificationId;
+        await using (var context = CreateContext())
+        {
+            var now = DateTime.UtcNow;
+            var inactiveNotification = MovieApp.Domain.Entities.SocialNotification.Create(
+                recipient.Id, inactiveActor.Id, "NewFollower", null, null, null, now);
+            var blockedNotification = MovieApp.Domain.Entities.SocialNotification.Create(
+                recipient.Id, blockedActor.Id, "NewFollower", null, null, null, now);
+            inactiveNotificationId = inactiveNotification.Id;
+            blockedNotificationId = blockedNotification.Id;
+            context.SocialNotifications.AddRange(inactiveNotification, blockedNotification);
+            context.UserBlocks.Add(MovieApp.Domain.Entities.UserBlock.Create(recipient.Id, blockedActor.Id, now));
+            var inactiveUser = await context.Users.SingleAsync(user => user.Id == inactiveActor.Id);
+            inactiveUser.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        foreach (var notificationId in new[] { inactiveNotificationId, blockedNotificationId })
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch, $"/api/social/notifications/{notificationId}/read");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", recipientToken);
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        await using (var context = CreateContext())
+        {
+            Assert.Null(await context.SocialNotifications
+                .Where(item => item.Id == inactiveNotificationId || item.Id == blockedNotificationId)
+                .Select(item => item.ReadAt)
+                .FirstOrDefaultAsync());
+            Assert.All(
+                await context.SocialNotifications
+                    .Where(item => item.Id == inactiveNotificationId || item.Id == blockedNotificationId)
+                    .Select(item => item.ReadAt)
+                    .ToListAsync(),
+                readAt => Assert.Null(readAt));
+        }
+    }
+
+    [Fact]
     public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
     {
         await fixture.ResetAsync();
