@@ -424,6 +424,10 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         await fixture.ResetAsync();
 
         var actorToken = await RegisterAndGetTokenAsync();
+        var actorProfileResponse = await SendAuthorizedGetAsync("/api/users/me", actorToken);
+        var actorProfile = await actorProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(actorProfile);
+
         var targetToken = await RegisterAndGetTokenAsync();
         var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
         Assert.Equal(HttpStatusCode.OK, targetProfileResponse.StatusCode);
@@ -439,9 +443,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
 
         await using var context = CreateContext();
         Assert.True(await context.UserBlocks.AnyAsync(block =>
-            block.BlockerId == (await context.Users.Where(user => user.UserName != null)
-                .OrderBy(user => user.CreatedAt).Select(user => user.Id).FirstAsync())
-            && block.BlockedUserId == targetProfile.Id));
+            block.BlockerId == actorProfile.Id && block.BlockedUserId == targetProfile.Id));
         Assert.False(await context.UserFollows.AnyAsync(follow =>
             follow.FollowedUserId == targetProfile.Id));
     }
