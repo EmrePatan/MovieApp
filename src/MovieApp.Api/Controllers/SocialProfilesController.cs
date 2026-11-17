@@ -51,6 +51,37 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
     }
 
     [AllowAnonymous]
+    [HttpGet("{userId:guid}/statistics")]
+    [ProducesResponseType(typeof(SocialProfileStatisticsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SocialProfileStatisticsResponse>> Statistics(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var statistics = await socialProfileService.GetStatisticsAsync(userId, cancellationToken);
+            var contentLocale = Request.ResolveContentLocale();
+            return Ok(new SocialProfileStatisticsResponse(
+                statistics.MoviesWatched,
+                statistics.EpisodesWatched,
+                statistics.RatingsCount,
+                statistics.ReviewsCount,
+                statistics.FavoritesCount,
+                statistics.Milestones
+                    .Select(milestone => new SocialProfileMilestoneResponse(
+                        milestone.Id,
+                        AchievementMilestoneLocalization.GetTitle(milestone.Id, contentLocale, milestone.Title),
+                        AchievementMilestoneLocalization.GetDescription(milestone.Id, contentLocale, milestone.Description),
+                        milestone.AchievedAt))
+                    .ToList()));
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+    }
+
+    [AllowAnonymous]
     [HttpGet("{userId:guid}")]
     [ProducesResponseType(typeof(PublicSocialProfileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
