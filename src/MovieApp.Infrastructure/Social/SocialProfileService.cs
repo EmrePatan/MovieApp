@@ -48,6 +48,9 @@ public sealed class SocialProfileService(
             .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
                 follow => follow.FollowerId, user => user.Id,
                 (follow, user) => new { user.Id, user.UserName, user.DisplayName })
+            .Where(user => !dbContext.UserBlocks.Any(block =>
+                (block.BlockerId == userId && block.BlockedUserId == user.Id)
+                || (block.BlockerId == user.Id && block.BlockedUserId == userId)))
             .Where(user => !viewerId.HasValue || !dbContext.UserBlocks.Any(block =>
                 (block.BlockerId == viewerId.Value && block.BlockedUserId == user.Id)
                 || (block.BlockerId == user.Id && block.BlockedUserId == viewerId.Value)))
@@ -70,6 +73,9 @@ public sealed class SocialProfileService(
             .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
                 follow => follow.FollowedUserId, user => user.Id,
                 (follow, user) => new { user.Id, user.UserName, user.DisplayName })
+            .Where(user => !dbContext.UserBlocks.Any(block =>
+                (block.BlockerId == userId && block.BlockedUserId == user.Id)
+                || (block.BlockerId == user.Id && block.BlockedUserId == userId)))
             .Where(user => !viewerId.HasValue || !dbContext.UserBlocks.Any(block =>
                 (block.BlockerId == viewerId.Value && block.BlockedUserId == user.Id)
                 || (block.BlockerId == user.Id && block.BlockedUserId == viewerId.Value)))
