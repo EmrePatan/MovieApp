@@ -12,7 +12,8 @@ namespace MovieApp.Infrastructure.Social;
 public sealed class SocialProfileService(
     ApplicationDbContext dbContext,
     ICurrentUser currentUser,
-    IUserAvatarPresentationService avatarPresentationService) : ISocialProfileService
+    IUserAvatarPresentationService avatarPresentationService,
+    IUserStatisticsRepository userStatisticsRepository) : ISocialProfileService
 {
 
     public async Task<IReadOnlyList<SocialUserSummaryResult>> SearchUsersAsync(
