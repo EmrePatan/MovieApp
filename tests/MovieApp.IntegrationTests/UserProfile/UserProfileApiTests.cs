@@ -309,6 +309,46 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task SocialInteractionsHideActivitiesOwnedByInactiveUsers()
+    {
+        await fixture.ResetAsync();
+
+        var actorToken = await RegisterAndGetTokenAsync();
+        var actorResponse = await SendAuthorizedGetAsync("/api/users/me", actorToken);
+        Assert.Equal(HttpStatusCode.OK, actorResponse.StatusCode);
+        var actor = await actorResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(actor);
+
+        var movieId = await SeedMovieAsync();
+        var activity = MovieApp.Domain.Entities.SocialActivity.Create(
+            actor.Id,
+            MovieApp.Domain.Enums.SocialActivityType.WatchedMovie,
+            Guid.NewGuid(),
+            movieId,
+            "Movie",
+            DateTime.UtcNow);
+
+        await using (var context = CreateContext())
+        {
+            context.SocialActivities.Add(activity);
+            var actorEntity = await context.Users.SingleAsync(user => user.Id == actor.Id);
+            actorEntity.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        var viewerToken = await RegisterAndGetTokenAsync();
+        var likeResponse = await SendAuthorizedPostAsync(
+            $"/api/social/activities/{activity.Id}/like",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, likeResponse.StatusCode);
+
+        var commentsResponse = await SendAuthorizedGetAsync(
+            $"/api/social/activities/{activity.Id}/comments",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, commentsResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
     {
         await fixture.ResetAsync();
