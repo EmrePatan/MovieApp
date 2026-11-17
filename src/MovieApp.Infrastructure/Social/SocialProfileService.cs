@@ -203,12 +203,18 @@ public sealed class SocialProfileService(
             from follow in dbContext.UserFollows.AsNoTracking()
             join follower in dbContext.Users.AsNoTracking() on follow.FollowerId equals follower.Id
             where follow.FollowedUserId == userId && follow.Status == UserFollowStatus.Accepted && follower.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == userId && block.BlockedUserId == follower.Id)
+                    || (block.BlockerId == follower.Id && block.BlockedUserId == userId))
             select follow.Id
         ).CountAsync(cancellationToken);
         var followingCount = await (
             from follow in dbContext.UserFollows.AsNoTracking()
             join followedUser in dbContext.Users.AsNoTracking() on follow.FollowedUserId equals followedUser.Id
             where follow.FollowerId == userId && follow.Status == UserFollowStatus.Accepted && followedUser.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == userId && block.BlockedUserId == followedUser.Id)
+                    || (block.BlockerId == followedUser.Id && block.BlockedUserId == userId))
             select follow.Id
         ).CountAsync(cancellationToken);
         var avatar = await avatarPresentationService.GetForUserAsync(userId, cancellationToken);
