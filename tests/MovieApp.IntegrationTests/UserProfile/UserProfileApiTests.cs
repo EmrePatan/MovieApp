@@ -349,6 +349,76 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task SocialInteractionsHideCommentsOwnedByInactiveUsers()
+    {
+        await fixture.ResetAsync();
+
+        var ownerToken = await RegisterAndGetTokenAsync();
+        var ownerResponse = await SendAuthorizedGetAsync("/api/users/me", ownerToken);
+        Assert.Equal(HttpStatusCode.OK, ownerResponse.StatusCode);
+        var owner = await ownerResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(owner);
+
+        var commenterToken = await RegisterAndGetTokenAsync();
+        var commenterResponse = await SendAuthorizedGetAsync("/api/users/me", commenterToken);
+        Assert.Equal(HttpStatusCode.OK, commenterResponse.StatusCode);
+        var commenter = await commenterResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(commenter);
+
+        var movieId = await SeedMovieAsync();
+        var activity = MovieApp.Domain.Entities.SocialActivity.Create(
+            owner.Id,
+            MovieApp.Domain.Enums.SocialActivityType.WatchedMovie,
+            Guid.NewGuid(),
+            movieId,
+            "Movie",
+            DateTime.UtcNow);
+        await using (var context = CreateContext())
+        {
+            context.SocialActivities.Add(activity);
+            await context.SaveChangesAsync();
+        }
+
+        var commentResponse = await SendAuthorizedPostAsync(
+            $"/api/social/activities/{activity.Id}/comments",
+            commenterToken,
+            new { Content = "A comment to hide", ParentCommentId = (Guid?)null });
+        Assert.Equal(HttpStatusCode.OK, commentResponse.StatusCode);
+        var commentPayload = await commentResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var commentId = commentPayload.GetProperty("id").GetGuid();
+
+        await using (var context = CreateContext())
+        {
+            var commenterEntity = await context.Users.SingleAsync(user => user.Id == commenter.Id);
+            commenterEntity.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        var viewerToken = await RegisterAndGetTokenAsync();
+        var repliesResponse = await SendAuthorizedGetAsync(
+            $"/api/social/activities/{activity.Id}/comments?parentCommentId={commentId}",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, repliesResponse.StatusCode);
+
+        var replyResponse = await SendAuthorizedPostAsync(
+            $"/api/social/activities/{activity.Id}/comments",
+            viewerToken,
+            new { Content = "Reply to hidden comment", ParentCommentId = (Guid?)commentId });
+        Assert.Equal(HttpStatusCode.NotFound, replyResponse.StatusCode);
+
+        var likeResponse = await SendAuthorizedPostAsync(
+            $"/api/social/comments/{commentId}/like",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, likeResponse.StatusCode);
+
+        var reportResponse = await SendAuthorizedPostAsync(
+            "/api/social/reports",
+            viewerToken,
+            new { TargetType = "Comment", TargetId = commentId, Reason = "Spam", Details = (string?)null });
+        Assert.Equal(HttpStatusCode.NotFound, reportResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
     {
         await fixture.ResetAsync();
