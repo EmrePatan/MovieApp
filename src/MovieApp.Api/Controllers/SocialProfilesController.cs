@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;\nusing MovieApp.Api.Localization;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Contracts.Users;
