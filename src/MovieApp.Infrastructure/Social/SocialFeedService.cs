@@ -123,9 +123,15 @@ public sealed class SocialFeedService(
         var likes = await dbContext.SocialActivityLikes.AsNoTracking().Where(like => activityIds.Contains(like.ActivityId))
             .GroupBy(like => like.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
-        var comments = await dbContext.SocialComments.AsNoTracking()
-            .Where(comment => activityIds.Contains(comment.ActivityId) && !comment.IsDeleted)
-            .GroupBy(comment => comment.ActivityId).Select(group => new { Id = group.Key, Count = group.Count() })
+        var comments = await (
+            from comment in dbContext.SocialComments.AsNoTracking()
+            join author in dbContext.Users.AsNoTracking() on comment.AuthorId equals author.Id
+            where activityIds.Contains(comment.ActivityId) && !comment.IsDeleted && author.IsActive
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
+                    || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId))
+            group comment by comment.ActivityId into grouped
+            select new { Id = grouped.Key, Count = grouped.Count() })
             .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
         var likedIds = await dbContext.SocialActivityLikes.AsNoTracking()
             .Where(like => like.UserId == viewerId && activityIds.Contains(like.ActivityId))
