@@ -66,7 +66,12 @@ public sealed class SocialNotificationService(
     {
         var userId = GetUserId();
         var notification = await dbContext.SocialNotifications.FirstOrDefaultAsync(
-            item => item.Id == notificationId && item.RecipientId == userId, cancellationToken)
+            item => item.Id == notificationId && item.RecipientId == userId
+                && dbContext.Users.Any(actor => actor.Id == item.ActorId && actor.IsActive)
+                && !dbContext.UserBlocks.Any(block =>
+                    (block.BlockerId == userId && block.BlockedUserId == item.ActorId)
+                    || (block.BlockerId == item.ActorId && block.BlockedUserId == userId)),
+            cancellationToken)
             ?? throw new NotFoundException("Notification not found.");
         notification.MarkRead(DateTime.UtcNow);
         await dbContext.SaveChangesAsync(cancellationToken);
