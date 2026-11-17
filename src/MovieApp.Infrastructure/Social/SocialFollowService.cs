@@ -37,12 +37,27 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
 
         var now = DateTime.UtcNow;
         var follow = UserFollow.Create(followerId, targetUserId, isPrivate, now);
-        dbContext.UserFollows.Add(follow);
-        dbContext.SocialNotifications.Add(SocialNotification.Create(
+        var notification = SocialNotification.Create(
             targetUserId, followerId, isPrivate ? "FollowRequest" : "NewFollower",
-            null, null, follow.Id, now));
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return ToResult(targetUserId, follow.Status);
+            null, null, follow.Id, now);
+        dbContext.UserFollows.Add(follow);
+        dbContext.SocialNotifications.Add(notification);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return ToResult(targetUserId, follow.Status);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent request may have inserted the unique follow row first.
+            dbContext.Entry(follow).State = EntityState.Detached;
+            dbContext.Entry(notification).State = EntityState.Detached;
+            var concurrentFollow = await dbContext.UserFollows.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.FollowerId == followerId
+                    && item.FollowedUserId == targetUserId, cancellationToken);
+            if (concurrentFollow is null) throw;
+            return ToResult(targetUserId, concurrentFollow.Status);
+        }
     }
 
     public async Task UnfollowAsync(Guid targetUserId, CancellationToken cancellationToken = default)
