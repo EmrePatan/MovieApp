@@ -419,6 +419,34 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task ConcurrentFollowAndBlockCannotLeaveFollowRelationship()
+    {
+        await fixture.ResetAsync();
+
+        var actorToken = await RegisterAndGetTokenAsync();
+        var targetToken = await RegisterAndGetTokenAsync();
+        var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
+        Assert.Equal(HttpStatusCode.OK, targetProfileResponse.StatusCode);
+        var targetProfile = await targetProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(targetProfile);
+
+        var results = await Task.WhenAll(
+            SendAuthorizedPostAsync($"/api/social/follows/{targetProfile.Id}", actorToken),
+            SendAuthorizedPostAsync($"/api/social/blocks/{targetProfile.Id}", actorToken));
+
+        Assert.Contains(results[0].StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.NotFound });
+        Assert.Equal(HttpStatusCode.NoContent, results[1].StatusCode);
+
+        await using var context = CreateContext();
+        Assert.True(await context.UserBlocks.AnyAsync(block =>
+            block.BlockerId == (await context.Users.Where(user => user.UserName != null)
+                .OrderBy(user => user.CreatedAt).Select(user => user.Id).FirstAsync())
+            && block.BlockedUserId == targetProfile.Id));
+        Assert.False(await context.UserFollows.AnyAsync(follow =>
+            follow.FollowedUserId == targetProfile.Id));
+    }
+
+    [Fact]
     public async Task SocialProfileCountsExcludeInactiveUsers()
     {
         await fixture.ResetAsync();
