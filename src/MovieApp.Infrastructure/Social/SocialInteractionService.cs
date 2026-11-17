@@ -133,10 +133,10 @@ public sealed class SocialInteractionService(
         if (parentCommentId.HasValue)
         {
             var parent = await (
-                from comment in dbContext.SocialComments.AsNoTracking()
-                join author in dbContext.Users.AsNoTracking() on comment.AuthorId equals author.Id
-                where comment.Id == parentCommentId.Value && comment.ActivityId == activityId && author.IsActive
-                select new { comment.AuthorId, comment.IsDeleted }
+                from parentCandidate in dbContext.SocialComments.AsNoTracking()
+                join author in dbContext.Users.AsNoTracking() on parentCandidate.AuthorId equals author.Id
+                where parentCandidate.Id == parentCommentId.Value && parentCandidate.ActivityId == activityId && author.IsActive
+                select new { parentCandidate.AuthorId, parentCandidate.IsDeleted }
             ).FirstOrDefaultAsync(cancellationToken);
             if (parent is null || parent.IsDeleted) throw new NotFoundException("Parent comment not found.");
             if (await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
