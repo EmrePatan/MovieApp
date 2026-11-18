@@ -19,6 +19,7 @@ public sealed class SocialInteractionsController(ISocialInteractionService inter
         try { await interactionService.SetActivityLikeAsync(activityId, true, cancellationToken); return NoContent(); }
         catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
         catch (NotFoundException exception) { return NotFound(Problem(exception.Message)); }
+        catch (ValidationException exception) { return BadRequest(Problem(exception.Message)); }
     }
 
     [HttpDelete("activities/{activityId:guid}/like")]
@@ -64,6 +65,7 @@ public sealed class SocialInteractionsController(ISocialInteractionService inter
         try { await interactionService.SetCommentLikeAsync(commentId, true, cancellationToken); return NoContent(); }
         catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
         catch (NotFoundException exception) { return NotFound(Problem(exception.Message)); }
+        catch (ValidationException exception) { return BadRequest(Problem(exception.Message)); }
     }
 
     [HttpDelete("comments/{commentId:guid}/like")]
