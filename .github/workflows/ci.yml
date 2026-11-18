@@ -44,7 +44,15 @@ jobs:
 
       - name: Run unit tests (Release)
         timeout-minutes: 20
-        run: dotnet test tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-build --no-restore --verbosity normal
+        run: dotnet test tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-build --no-restore --verbosity normal --blame-hang-timeout 5m --blame-hang-dump-type none --logger "trx;LogFileName=unit-tests.trx" --results-directory "${{ runner.temp }}/unit-test-results"
+
+      - name: Upload unit test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-diagnostics
+          path: ${{ runner.temp }}/unit-test-results
+          retention-days: 7
 
       - name: Publish API (Release)
         run: dotnet publish src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-build --no-restore -o "${{ runner.temp }}/movieapp-api-publish"
