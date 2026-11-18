@@ -20,25 +20,26 @@ public sealed class SocialInteractionService(
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
         if (isLiked)
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO social_activity_likes ("Id", "ActivityId", "UserId", "CreatedAt")
-                VALUES ({Guid.NewGuid()}, {activityId}, {viewerId}, {DateTime.UtcNow})
-                ON CONFLICT ("ActivityId", "UserId") DO NOTHING;
-                """, cancellationToken);
-            if (inserted > 0)
+            await dbContext.Database.ExecuteInRetriableTransactionAsync(async transactionToken =>
             {
-                var recipientId = await dbContext.SocialActivities.AsNoTracking()
-                    .Where(activity => activity.Id == activityId)
-                    .Select(activity => activity.ActorId).FirstAsync(cancellationToken);
-                if (recipientId != viewerId)
+                var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO social_activity_likes ("Id", "ActivityId", "UserId", "CreatedAt")
+                    VALUES ({Guid.NewGuid()}, {activityId}, {viewerId}, {DateTime.UtcNow})
+                    ON CONFLICT ("ActivityId", "UserId") DO NOTHING;
+                    """, transactionToken);
+                if (inserted > 0)
                 {
-                    dbContext.SocialNotifications.Add(SocialNotification.Create(
-                        recipientId, viewerId, "ActivityLike", activityId, null, null, DateTime.UtcNow));
-                    await dbContext.SaveChangesAsync(cancellationToken);
+                    var recipientId = await dbContext.SocialActivities.AsNoTracking()
+                        .Where(activity => activity.Id == activityId)
+                        .Select(activity => activity.ActorId).FirstAsync(transactionToken);
+                    if (recipientId != viewerId)
+                    {
+                        dbContext.SocialNotifications.Add(SocialNotification.Create(
+                            recipientId, viewerId, "ActivityLike", activityId, null, null, DateTime.UtcNow));
+                        await dbContext.SaveChangesAsync(transactionToken);
+                    }
                 }
-            }
-            await transaction.CommitAsync(cancellationToken);
+            }, cancellationToken);
         }
         else
         {
@@ -202,19 +203,20 @@ public sealed class SocialInteractionService(
 
         if (isLiked)
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO social_comment_likes ("Id", "CommentId", "UserId", "CreatedAt")
-                VALUES ({Guid.NewGuid()}, {commentId}, {viewerId}, {DateTime.UtcNow})
-                ON CONFLICT ("CommentId", "UserId") DO NOTHING;
-                """, cancellationToken);
-            if (inserted > 0 && comment.AuthorId != viewerId)
+            await dbContext.Database.ExecuteInRetriableTransactionAsync(async transactionToken =>
             {
-                dbContext.SocialNotifications.Add(SocialNotification.Create(
-                    comment.AuthorId, viewerId, "CommentLike", comment.ActivityId, commentId, null, DateTime.UtcNow));
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-            await transaction.CommitAsync(cancellationToken);
+                var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO social_comment_likes ("Id", "CommentId", "UserId", "CreatedAt")
+                    VALUES ({Guid.NewGuid()}, {commentId}, {viewerId}, {DateTime.UtcNow})
+                    ON CONFLICT ("CommentId", "UserId") DO NOTHING;
+                    """, transactionToken);
+                if (inserted > 0 && comment.AuthorId != viewerId)
+                {
+                    dbContext.SocialNotifications.Add(SocialNotification.Create(
+                        comment.AuthorId, viewerId, "CommentLike", comment.ActivityId, commentId, null, DateTime.UtcNow));
+                    await dbContext.SaveChangesAsync(transactionToken);
+                }
+            }, cancellationToken);
         }
         else
         {
