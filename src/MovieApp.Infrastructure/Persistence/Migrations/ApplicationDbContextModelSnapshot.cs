@@ -1588,6 +1588,170 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("tv_show_people", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("FollowerId").HasColumnType("uuid");
+                    b.Property<Guid>("FollowedUserId").HasColumnType("uuid");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("RespondedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("FollowerId", "FollowedUserId").IsUnique();
+                    b.HasIndex("FollowerId", "Status", "CreatedAt");
+                    b.HasIndex("FollowedUserId", "Status", "CreatedAt");
+                    b.ToTable("user_follows", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_follows_distinct_users", "\"FollowerId\" <> \"FollowedUserId\"");
+                        });
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserPrivacySettings", b =>
+                {
+                    b.Property<Guid>("UserId").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<bool>("IsPrivate").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
+                    b.Property<bool>("ShowWatched").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowRatings").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowFavorites").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<bool>("ShowReviews").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("UserId");
+                    b.ToTable("user_privacy_settings", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserBlock", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("BlockerId").HasColumnType("uuid");
+                    b.Property<Guid>("BlockedUserId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("BlockerId", "BlockedUserId").IsUnique();
+                    b.HasIndex("BlockedUserId");
+                    b.ToTable("user_blocks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_user_blocks_distinct_users", "\"BlockerId\" <> \"BlockedUserId\"");
+                        });
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid>("AuthorId").HasColumnType("uuid");
+                    b.Property<Guid?>("ParentCommentId").HasColumnType("uuid");
+                    b.Property<string>("Content").IsRequired().HasMaxLength(4000).HasColumnType("character varying(4000)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("IsDeleted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
+                    b.HasKey("Id");
+                    b.HasIndex("ActivityId", "CreatedAt", "Id");
+                    b.HasIndex("AuthorId", "CreatedAt");
+                    b.HasIndex("ParentCommentId");
+                    b.ToTable("social_comments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_social_comments_not_self_parent", "\"ParentCommentId\" IS NULL OR \"ParentCommentId\" <> \"Id\"");
+                        });
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null)
+                        .WithMany()
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("ActorId").HasColumnType("uuid");
+                    b.Property<string>("ActivityType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<Guid>("SourceEntityId").HasColumnType("uuid");
+                    b.Property<Guid>("TargetContentId").HasColumnType("uuid");
+                    b.Property<string>("TargetContentType").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("IsDeleted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
+                    b.HasKey("Id");
+                    b.HasIndex("ActorId", "ActivityType", "SourceEntityId").IsUnique();
+                    b.HasIndex("ActorId", "CreatedAt");
+                    b.HasIndex("CreatedAt", "Id");
+                    b.HasIndex("TargetContentType", "TargetContentId");
+                    b.ToTable("social_activities", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivityLike", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ActivityId", "UserId").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("social_activity_likes", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialCommentLike", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("CommentId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("CommentId", "UserId").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("social_comment_likes", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialReport", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("ReporterId").HasColumnType("uuid");
+                    b.Property<string>("TargetType").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
+                    b.Property<Guid>("TargetId").HasColumnType("uuid");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                    b.Property<string>("Details").HasMaxLength(1000).HasColumnType("character varying(1000)");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("ReviewedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ReporterId", "CreatedAt");
+                    b.HasIndex("TargetType", "TargetId", "CreatedAt");
+                    b.ToTable("social_reports", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialNotification", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("RecipientId").HasColumnType("uuid");
+                    b.Property<Guid>("ActorId").HasColumnType("uuid");
+                    b.Property<string>("NotificationType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<Guid?>("ActivityId").HasColumnType("uuid");
+                    b.Property<Guid?>("CommentId").HasColumnType("uuid");
+                    b.Property<Guid?>("FollowId").HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("ReadAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ActorId");
+                    b.HasIndex("ActivityId");
+                    b.HasIndex("CommentId");
+                    b.HasIndex("FollowId");
+                    b.HasIndex("RecipientId").HasFilter("\"ReadAt\" IS NULL");
+                    b.HasIndex("RecipientId", "CreatedAt", "Id");
+                    b.ToTable("social_notifications", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2372,6 +2536,80 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Navigation("TvShow");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivity", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialActivityLike", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialCommentLike", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("CommentId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialReport", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("ReporterId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.SocialNotification", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("RecipientId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.User", null).WithMany().HasForeignKey("ActorId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("MovieApp.Domain.Entities.SocialActivity", null).WithMany().HasForeignKey("ActivityId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MovieApp.Domain.Entities.SocialComment", null).WithMany().HasForeignKey("CommentId").OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("MovieApp.Domain.Entities.UserFollow", null).WithMany().HasForeignKey("FollowId").OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserFollow", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("FollowerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("FollowedUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserPrivacySettings", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithOne()
+                        .HasForeignKey("MovieApp.Domain.Entities.UserPrivacySettings", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserBlock", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("BlockerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("BlockedUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotificationEvent", b =>

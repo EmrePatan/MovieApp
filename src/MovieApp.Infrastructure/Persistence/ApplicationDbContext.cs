@@ -47,6 +47,25 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<User> Users => Set<User>();
 
+    public DbSet<UserFollow> UserFollows => Set<UserFollow>();
+
+    public DbSet<UserPrivacySettings> UserPrivacySettings => Set<UserPrivacySettings>();
+
+    public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
+
+    public DbSet<SocialActivity> SocialActivities => Set<SocialActivity>();
+
+    public DbSet<SocialActivityLike> SocialActivityLikes => Set<SocialActivityLike>();
+
+    public DbSet<SocialComment> SocialComments => Set<SocialComment>();
+
+    public DbSet<SocialCommentLike> SocialCommentLikes => Set<SocialCommentLike>();
+
+    public DbSet<SocialReport> SocialReports => Set<SocialReport>();
+
+    public DbSet<SocialNotification> SocialNotifications => Set<SocialNotification>();
+
+
     public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
 
     public DbSet<Favorite> Favorites => Set<Favorite>();

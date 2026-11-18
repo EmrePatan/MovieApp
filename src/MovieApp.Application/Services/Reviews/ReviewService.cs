@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Mapping;
@@ -10,6 +11,7 @@ using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Validation;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Reviews;
 
@@ -19,7 +21,9 @@ public sealed class ReviewService(
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
-    IUserAvatarPresentationService avatarPresentationService) : IReviewService
+    IUserAvatarPresentationService avatarPresentationService,
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IReviewService
 {
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
@@ -37,7 +41,21 @@ public sealed class ReviewService(
         }
 
         var review = Review.CreateForMovie(userId, movieId, content, authoringLocale, DateTime.UtcNow);
-        await reviewRepository.AddAsync(review, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.AddAsync(review, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", review.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.AddAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", review.CreatedAt, cancellationToken);
+        }
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndMovieAsync(userId, movieId, cancellationToken);
@@ -60,7 +78,21 @@ public sealed class ReviewService(
         }
 
         var review = Review.CreateForTvShow(userId, tvShowId, content, authoringLocale, DateTime.UtcNow);
-        await reviewRepository.AddAsync(review, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.AddAsync(review, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", review.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.AddAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", review.CreatedAt, cancellationToken);
+        }
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
 
         var createdReview = await reviewRepository.GetByUserAndTvShowAsync(userId, tvShowId, cancellationToken);
@@ -111,12 +143,27 @@ public sealed class ReviewService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var deleted = await reviewRepository.DeleteForMovieAsync(userId, movieId, cancellationToken);
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await reviewRepository.DeleteForMovieAsync(userId, movieId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedMovie, movieId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await reviewRepository.DeleteForMovieAsync(userId, movieId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedMovie, movieId, cancellationToken);
+        }
+
         if (!deleted)
         {
             throw new NotFoundException("The requested review was not found.");
         }
-
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
@@ -124,12 +171,27 @@ public sealed class ReviewService(
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
-        var deleted = await reviewRepository.DeleteForTvShowAsync(userId, tvShowId, cancellationToken);
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await reviewRepository.DeleteForTvShowAsync(userId, tvShowId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedTvShow, tvShowId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await reviewRepository.DeleteForTvShowAsync(userId, tvShowId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedTvShow, tvShowId, cancellationToken);
+        }
+
         if (!deleted)
         {
             throw new NotFoundException("The requested review was not found.");
         }
-
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
