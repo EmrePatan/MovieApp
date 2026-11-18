@@ -20,6 +20,12 @@ public sealed class SocialInteractionService(
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
         if (isLiked)
         {
+            var activityOwnerId = await dbContext.SocialActivities.AsNoTracking()
+                .Where(activity => activity.Id == activityId)
+                .Select(activity => activity.ActorId)
+                .FirstAsync(cancellationToken);
+            if (activityOwnerId == viewerId)
+                throw new ValidationException("You cannot like your own activity.");
             await dbContext.Database.ExecuteInRetriableTransactionAsync(async transactionToken =>
             {
                 var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
@@ -200,6 +206,8 @@ public sealed class SocialInteractionService(
             (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
             || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId), cancellationToken);
         if (commentAuthorBlocked) throw new NotFoundException("Comment not found.");
+        if (isLiked && comment.AuthorId == viewerId)
+            throw new ValidationException("You cannot like your own comment.");
 
         if (isLiked)
         {
