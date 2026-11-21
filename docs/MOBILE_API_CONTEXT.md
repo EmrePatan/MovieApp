@@ -337,7 +337,12 @@ Returns the current user's profile.
   "email": "user@example.com",
   "userName": "user",
   "displayName": "Emre",
-  "createdAt": "2026-09-11T14:30:00Z"
+  "createdAt": "2026-09-11T14:30:00Z",
+  "bio": "Short bio",
+  "socialLinks": {
+    "instagram": "emre",
+    "website": "https://example.com/"
+  }
 }
 ```
 
@@ -347,21 +352,38 @@ Returns the current user's profile.
 
 ### `PUT /api/users/me/profile`
 
-Updates display name only.
+Updates display name, optional bio, and optional social links.
 
 **Request body** (`UpdateProfileRequest`):
 
 ```json
 {
-  "displayName": "New Name"
+  "displayName": "New Name",
+  "bio": "Short bio",
+  "socialLinks": {
+    "x": "handle",
+    "instagram": "handle",
+    "snapchat": "handle",
+    "tiktok": "handle",
+    "youtube": "handle",
+    "twitch": "handle",
+    "threads": "handle",
+    "website": "https://example.com"
+  }
 }
 ```
 
-**Validation:** `displayName` required, max 100 characters.
+**Validation:**
+- `displayName` required, max 100 characters
+- `bio` optional, max 300 characters (null/empty clears)
+- `socialLinks` optional; when present, replaces the whole set (null/empty handle clears that platform)
+- social handles max 64; website max 200 and must be http(s)
 
-**Response `200 OK`:** `UserProfileResponse`
+**Response `200 OK`:** `UserProfileResponse` (includes `bio` + `socialLinks`)
 
 **Status codes:** `200`, `400`, `401`, `404`
+
+Public social profile `GET /api/social/profiles/{userId}` also returns `bio` + `socialLinks`.
 
 ---
 
@@ -2010,7 +2032,7 @@ Kebab-case strings: `recommended-for-you`, `because-you-watched`, `similar-to-fa
 | POST | `/api/auth/reset-password` | No | Reset password with token |
 | GET | `/api/auth/me` | JWT | Get current user |
 | GET | `/api/users/me` | JWT | Get current profile |
-| PUT | `/api/users/me/profile` | JWT | Update display name |
+| PUT | `/api/users/me/profile` | JWT | Update display name, bio, social links |
 | PUT | `/api/users/me/email` | JWT | Change email |
 | PUT | `/api/users/me/password` | JWT | Change password |
 | GET | `/api/users/me/statistics` | JWT | Get user statistics |

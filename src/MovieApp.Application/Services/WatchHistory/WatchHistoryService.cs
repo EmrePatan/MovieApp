@@ -519,7 +519,9 @@ public sealed class WatchHistoryService(
 
         await getSeasonService.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
 
-        var episodeIds = await episodeRepository.GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+        var episodeIds = watched
+            ? await episodeRepository.GetAiredEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken)
+            : await episodeRepository.GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
         if (episodeIds.Count == 0)
         {
             return new BulkUpdateEpisodeWatchStateResult(0, null);

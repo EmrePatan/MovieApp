@@ -2,22 +2,22 @@ using Microsoft.Extensions.Logging.Abstractions;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Library;
-using MovieApp.Domain.Enums;
-using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Library;
+using MovieApp.Application.Models.Localization;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Services.Library;
 using MovieApp.Application.Services.Localization;
-using MovieApp.UnitTests.Localization;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.UnitTests.Library;
 
 public sealed class LibraryLocalizedPosterTests
 {
     private static readonly Guid UserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid ShowId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     [Fact]
-    public async Task GetLibraryAsyncUsesSingleBatchPosterLookupForLocalizedLocale()
+    public async Task GetLibraryAsyncUsesSingleBatchMetadataLookupForLocalizedLocale()
     {
         var repository = new StubLibraryRepository
         {
@@ -41,26 +41,24 @@ public sealed class LibraryLocalizedPosterTests
             TotalCount = 24
         };
 
-        var posterRepository = new CountingContentLocalizedPosterRepository();
+        var metadataRepository = new CountingSummaryLocalizationMetadataReadRepository();
         var service = new LibraryService(
             repository,
             new AuthenticatedCurrentUser(UserId),
-            posterRepository,
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
+            metadataRepository,
             NullLogger<LibraryService>.Instance);
 
         await service.GetLibraryAsync(
             new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 24),
             ContentLocaleResolver.TurkishTurkey);
 
-        Assert.Equal(1, posterRepository.GetPosterPathsCallCount);
+        Assert.Equal(1, metadataRepository.LoadCallCount);
     }
 
     [Fact]
-    public async Task GetLibraryAsyncDoesNotQueryLocalizedPostersForEnglishLocale()
+    public async Task GetLibraryAsyncDoesNotQueryLocalizedMetadataForEnglishLocale()
     {
-        var posterRepository = new CountingContentLocalizedPosterRepository();
+        var metadataRepository = new CountingSummaryLocalizationMetadataReadRepository();
         var service = new LibraryService(
             new StubLibraryRepository
             {
@@ -85,31 +83,28 @@ public sealed class LibraryLocalizedPosterTests
                 TotalCount = 1
             },
             new AuthenticatedCurrentUser(UserId),
-            posterRepository,
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
+            metadataRepository,
             NullLogger<LibraryService>.Instance);
 
         await service.GetLibraryAsync(
             new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 24),
             ContentLocaleResolver.EnglishUnitedStates);
 
-        Assert.Equal(0, posterRepository.GetPosterPathsCallCount);
+        Assert.Equal(0, metadataRepository.LoadCallCount);
     }
 
     [Fact]
-    public async Task GetLibraryAsyncDoesNotInvokeImageProvider()
+    public async Task GetLibraryAsyncAppliesLocalizedDisplayTitlesForTurkishLocale()
     {
-        var imageProvider = new TrackingImageProvider();
-        _ = imageProvider;
-
-        var posterRepository = new InMemoryContentLocalizedPosterRepository();
-        await posterRepository.UpsertAsync(
-            CatalogContentType.Tv,
-            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-            SupportedArtworkLanguageKeys.Turkish,
-            "/tr-poster.jpg",
-            DateTime.UtcNow);
+        var metadataRepository = new CountingSummaryLocalizationMetadataReadRepository(
+            tvContexts: new Dictionary<Guid, ContentProductionContext>
+            {
+                [ShowId] = new ContentProductionContext("tr", "TR"),
+            },
+            localizedPosters: new Dictionary<ContentLocalizedPosterKey, string>
+            {
+                [new ContentLocalizedPosterKey(CatalogContentType.Tv, ShowId)] = "/tr-poster.jpg",
+            });
 
         var service = new LibraryService(
             new StubLibraryRepository
@@ -117,10 +112,10 @@ public sealed class LibraryLocalizedPosterTests
                 Items =
                 [
                     new LibraryItemResult(
-                        Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                        ShowId,
                         "tv",
-                        "Alev Alev",
-                        null,
+                        "Ethos",
+                        "Bir Başkadır",
                         "/canonical-en.jpg",
                         null,
                         2020,
@@ -135,75 +130,53 @@ public sealed class LibraryLocalizedPosterTests
                 TotalCount = 1
             },
             new AuthenticatedCurrentUser(UserId),
-            posterRepository,
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(
-                new Dictionary<Guid, string?>
-                {
-                    [Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")] = "tr",
-                }),
+            metadataRepository,
             NullLogger<LibraryService>.Instance);
+
+        var result = await service.GetLibraryAsync(
+            new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 24),
+            ContentLocaleResolver.TurkishTurkey);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("Bir Başkadır", item.Title);
+        Assert.Equal("Ethos", item.OriginalTitle);
+        Assert.Equal("/tr-poster.jpg", item.PosterUrl);
     }
 
-    private sealed class CountingContentLocalizedPosterRepository : IContentLocalizedPosterRepository
+    private sealed class CountingSummaryLocalizationMetadataReadRepository(
+        IReadOnlyDictionary<Guid, ContentProductionContext>? tvContexts = null,
+        IReadOnlyDictionary<ContentLocalizedPosterKey, string>? localizedPosters = null)
+        : ISummaryLocalizationMetadataReadRepository
     {
-        public int GetPosterPathsCallCount { get; private set; }
+        public int LoadCallCount { get; private set; }
 
-        public Task<IReadOnlyDictionary<ContentLocalizedPosterKey, string>> GetPosterPathsAsync(
-            IReadOnlyList<ContentLocalizedPosterKey> keys,
-            string languageKey,
+        public Task<SummaryLocalizationMetadataBatch> LoadAsync(
+            IReadOnlyList<Guid> movieIds,
+            IReadOnlyList<Guid> tvIds,
+            IReadOnlyList<ContentLocalizedPosterKey> posterKeys,
+            string contentLocale,
             CancellationToken cancellationToken = default)
         {
-            GetPosterPathsCallCount++;
-            return Task.FromResult<IReadOnlyDictionary<ContentLocalizedPosterKey, string>>(
-                new Dictionary<ContentLocalizedPosterKey, string>());
-        }
+            LoadCallCount++;
+            var tvs = new Dictionary<Guid, ContentProductionContext>();
+            if (tvContexts is not null)
+            {
+                foreach (var id in tvIds)
+                {
+                    if (tvContexts.TryGetValue(id, out var context))
+                    {
+                        tvs[id] = context;
+                    }
+                }
+            }
 
-        public Task UpsertAsync(
-            CatalogContentType contentType,
-            Guid contentId,
-            string languageKey,
-            string posterPath,
-            DateTime updatedAtUtc,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task DeleteAsync(
-            CatalogContentType contentType,
-            Guid contentId,
-            string languageKey,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-    }
-
-    private sealed class TrackingImageProvider : IImageProvider
-    {
-        public int Calls { get; private set; }
-
-        public Task<Application.Models.Images.ProviderImagesResult?> GetMovieImagesAsync(
-            int tmdbId,
-            string? language,
-            CancellationToken cancellationToken = default)
-        {
-            Calls++;
-            return Task.FromResult<Application.Models.Images.ProviderImagesResult?>(null);
-        }
-
-        public Task<Application.Models.Images.ProviderImagesResult?> GetTvShowImagesAsync(
-            int tmdbId,
-            string? language,
-            CancellationToken cancellationToken = default)
-        {
-            Calls++;
-            return Task.FromResult<Application.Models.Images.ProviderImagesResult?>(null);
-        }
-
-        public Task<Application.Models.Images.ProviderImagesResult?> GetPersonImagesAsync(
-            int tmdbPersonId,
-            CancellationToken cancellationToken = default)
-        {
-            Calls++;
-            return Task.FromResult<Application.Models.Images.ProviderImagesResult?>(null);
+            return Task.FromResult(
+                new SummaryLocalizationMetadataBatch(
+                    new Dictionary<Guid, ContentProductionContext>(),
+                    tvs,
+                    new Dictionary<CatalogContentKey, string>(),
+                    new Dictionary<CatalogContentKey, string>(),
+                    localizedPosters ?? new Dictionary<ContentLocalizedPosterKey, string>()));
         }
     }
 

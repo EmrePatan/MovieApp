@@ -10,4 +10,7 @@ public sealed record UserReviewListItemResponse(
     string Content,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int? UserRating);
+    int? UserRating,
+    Guid? TvShowId = null,
+    int? SeasonNumber = null,
+    int? EpisodeNumber = null);

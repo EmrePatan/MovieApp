@@ -13,6 +13,7 @@ internal sealed class SocialCommentConfiguration : IEntityTypeConfiguration<Soci
         builder.HasKey(comment => comment.Id);
         builder.Property(comment => comment.Id).ValueGeneratedNever();
         builder.Property(comment => comment.Content).HasMaxLength(4000).IsRequired();
+        builder.Property(comment => comment.AuthoringLocale).HasMaxLength(10);
         builder.Property(comment => comment.CreatedAt).IsRequired();
         builder.Property(comment => comment.IsDeleted).HasDefaultValue(false).IsRequired();
         builder.HasOne<SocialActivity>().WithMany().HasForeignKey(comment => comment.ActivityId).OnDelete(DeleteBehavior.Cascade);

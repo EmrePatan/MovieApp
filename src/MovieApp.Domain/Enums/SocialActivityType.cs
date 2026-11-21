@@ -9,5 +9,7 @@ public enum SocialActivityType
     ReviewedMovie = 5,
     ReviewedTvShow = 6,
     FavoritedMovie = 7,
-    FavoritedTvShow = 8
+    FavoritedTvShow = 8,
+    RatedEpisode = 9,
+    ReviewedEpisode = 10
 }

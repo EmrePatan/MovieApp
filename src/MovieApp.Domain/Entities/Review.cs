@@ -12,6 +12,8 @@ public sealed class Review
 
     public Guid? TvShowId { get; set; }
 
+    public Guid? EpisodeId { get; set; }
+
     public string Content { get; set; } = string.Empty;
 
     public string? AuthoringLocale { get; set; }
@@ -25,6 +27,8 @@ public sealed class Review
     public Movie? Movie { get; set; }
 
     public TvShow? TvShow { get; set; }
+
+    public Episode? Episode { get; set; }
 
     public static Review CreateForMovie(
         Guid userId,
@@ -49,6 +53,7 @@ public sealed class Review
             UserId = userId,
             MovieId = movieId,
             TvShowId = null,
+            EpisodeId = null,
             Content = ReviewContentRules.Normalize(content),
             AuthoringLocale = authoringLocale,
             CreatedAt = utcNow,
@@ -79,6 +84,38 @@ public sealed class Review
             UserId = userId,
             MovieId = null,
             TvShowId = tvShowId,
+            EpisodeId = null,
+            Content = ReviewContentRules.Normalize(content),
+            AuthoringLocale = authoringLocale,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        };
+    }
+
+    public static Review CreateForEpisode(
+        Guid userId,
+        Guid episodeId,
+        string content,
+        string? authoringLocale,
+        DateTime utcNow)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
+        if (episodeId == Guid.Empty)
+        {
+            throw new ArgumentException("Episode id is required.", nameof(episodeId));
+        }
+
+        return new Review
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            MovieId = null,
+            TvShowId = null,
+            EpisodeId = episodeId,
             Content = ReviewContentRules.Normalize(content),
             AuthoringLocale = authoringLocale,
             CreatedAt = utcNow,
@@ -95,14 +132,31 @@ public sealed class Review
 
     public void ValidateInvariants()
     {
-        if (MovieId is null && TvShowId is null)
+        var referenceCount = 0;
+        if (MovieId is not null)
         {
-            throw new InvalidOperationException("A review must reference a movie or a TV show.");
+            referenceCount++;
         }
 
-        if (MovieId is not null && TvShowId is not null)
+        if (TvShowId is not null)
         {
-            throw new InvalidOperationException("A review cannot reference both a movie and a TV show.");
+            referenceCount++;
+        }
+
+        if (EpisodeId is not null)
+        {
+            referenceCount++;
+        }
+
+        if (referenceCount == 0)
+        {
+            throw new InvalidOperationException("A review must reference a movie, a TV show, or an episode.");
+        }
+
+        if (referenceCount != 1)
+        {
+            throw new InvalidOperationException(
+                "A review must reference exactly one of a movie, a TV show, or an episode.");
         }
 
         if (string.IsNullOrWhiteSpace(Content))

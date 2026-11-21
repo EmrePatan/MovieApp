@@ -62,6 +62,47 @@ public sealed class UserProfileServiceTests
     }
 
     [Fact]
+    public async Task UpdateProfileAsyncPersistsBioAndSocialLinks()
+    {
+        var user = CreateUser();
+        var repository = new FakeUserRepository(user);
+        var service = CreateService(user, repository);
+
+        var result = await service.UpdateProfileAsync(
+            "Emre",
+            "  Hello bio  ",
+            new ProfileSocialLinksResult(Instagram: " @emre ", Website: "example.com"));
+
+        Assert.Equal("Hello bio", result.Bio);
+        Assert.Equal("emre", result.SocialLinks?.Instagram);
+        Assert.Equal("https://example.com/", result.SocialLinks?.Website);
+        Assert.Equal("Hello bio", user.Bio);
+        Assert.Equal("emre", user.SocialInstagram);
+        Assert.Equal(1, repository.UpdateCount);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsyncClearsSocialLinksWhenEmpty()
+    {
+        var user = CreateUser();
+        user.SocialInstagram = "old";
+        user.Bio = "keep-or-clear";
+        var repository = new FakeUserRepository(user);
+        var service = CreateService(user, repository);
+
+        var result = await service.UpdateProfileAsync(
+            "Emre",
+            null,
+            new ProfileSocialLinksResult());
+
+        Assert.Null(result.Bio);
+        Assert.Null(result.SocialLinks);
+        Assert.Null(user.Bio);
+        Assert.Null(user.SocialInstagram);
+    }
+
+
+    [Fact]
     public async Task ChangePasswordAsyncUpdatesHashAndReturnsNewToken()
     {
         var user = CreateUser();
@@ -354,6 +395,11 @@ public sealed class UserProfileServiceTests
     {
         public Task<ProcessedUserAvatarImage> ProcessUploadAsync(Stream uploadStream, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<ProcessedUserAvatarImage> ProcessCoverUploadAsync(
+            Stream uploadStream,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class ThrowingAvatarBlobStorage : IUserAvatarBlobStorage
@@ -386,12 +432,12 @@ public sealed class UserProfileServiceTests
 
     private static UserStatisticsResult CreateEmptyStatistics() =>
         ProfileStatisticsBuilder.Build(
-            new ProfileStatisticsRawData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [], [], [], null, null),
+            new ProfileStatisticsRawData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [], [], [], null, null),
             DateTime.UtcNow);
 
     private static UserStatisticsResult CreateSampleStatistics() =>
         ProfileStatisticsBuilder.Build(
-            new ProfileStatisticsRawData(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 1, [], [], [], [], null, null),
+            new ProfileStatisticsRawData(1, 2, 3, 4, 5, 6, 0, 7, 8, 0, 9, 10, 2, 1, [], [], [], [], null, null),
             DateTime.UtcNow);
 
     private sealed class FakeCurrentUser(Guid userId) : ICurrentUser

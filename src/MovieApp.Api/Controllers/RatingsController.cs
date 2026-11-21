@@ -259,6 +259,130 @@ public sealed class RatingsController(IRatingService ratingService) : Controller
         }
     }
 
+    [Authorize]
+    [HttpPost("episodes/{episodeId:guid}")]
+    [ProducesResponseType(typeof(RatingResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(RatingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RatingResponse>> UpsertEpisodeRating(
+        Guid episodeId,
+        [FromBody] CreateRatingRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await ratingService.UpsertEpisodeRatingAsync(episodeId, request.Score, cancellationToken);
+            var response = RatingContractMapper.ToResponse(result.Rating);
+
+            return result.Created
+                ? Created(string.Empty, response)
+                : Ok(response);
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid rating request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Episode not found.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpDelete("episodes/{episodeId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteEpisodeRating(Guid episodeId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ratingService.DeleteEpisodeRatingAsync(episodeId, cancellationToken);
+            return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Rating not found.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpGet("episodes/{episodeId:guid}/me")]
+    [ProducesResponseType(typeof(RatingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RatingResponse>> GetCurrentUserEpisodeRating(
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await ratingService.GetCurrentUserEpisodeRatingAsync(episodeId, cancellationToken);
+            return Ok(RatingContractMapper.ToResponse(result));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Rating not found.",
+                exception.Message));
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("episodes/{episodeId:guid}")]
+    [ProducesResponseType(typeof(RatingSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RatingSummaryResponse>> GetEpisodeRatingSummary(
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await ratingService.GetEpisodeRatingSummaryAsync(episodeId, cancellationToken);
+            return Ok(RatingContractMapper.ToSummaryResponse(result));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Episode not found.",
+                exception.Message));
+        }
+    }
+
     private static ProblemDetails CreateProblemDetails(int statusCode, string title, string detail) =>
         new()
         {

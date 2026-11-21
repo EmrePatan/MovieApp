@@ -39,6 +39,16 @@ public sealed class SocialNotificationService(
                 notification.CreatedAt, notification.ReadAt
             })
             .Skip((safePage - 1) * safeSize).Take(safeSize).ToListAsync(cancellationToken);
+        var commentIds = rows
+            .Where(row => row.CommentId.HasValue)
+            .Select(row => row.CommentId!.Value)
+            .Distinct()
+            .ToArray();
+        var parentByCommentId = commentIds.Length == 0
+            ? new Dictionary<Guid, Guid?>()
+            : await dbContext.SocialComments.AsNoTracking()
+                .Where(comment => commentIds.Contains(comment.Id))
+                .ToDictionaryAsync(comment => comment.Id, comment => comment.ParentCommentId, cancellationToken);
         var avatars = rows.Count == 0
             ? new Dictionary<Guid, UserAvatarPresentation>()
             : await avatarPresentationService.GetForUsersAsync(
@@ -46,7 +56,10 @@ public sealed class SocialNotificationService(
         var items = rows.Select(row => new SocialNotificationItem(
             row.Id, row.NotificationType, row.ActorId, row.UserName, row.DisplayName,
             avatars.TryGetValue(row.ActorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
-            row.ActivityId, row.CommentId, row.FollowId, row.CreatedAt, row.ReadAt.HasValue)).ToList();
+            row.ActivityId, row.CommentId, row.FollowId, row.CreatedAt, row.ReadAt.HasValue,
+            row.CommentId is Guid commentId && parentByCommentId.TryGetValue(commentId, out var parentId)
+                ? parentId
+                : null)).ToList();
         return new SocialNotificationPage(items, safePage, safeSize, unreadCount);
     }
 

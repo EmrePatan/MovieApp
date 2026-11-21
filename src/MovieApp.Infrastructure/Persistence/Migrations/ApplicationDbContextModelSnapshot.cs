@@ -1121,6 +1121,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("EpisodeId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("MovieId")
                         .HasColumnType("uuid");
 
@@ -1140,11 +1143,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAt");
 
+                    b.HasIndex("EpisodeId");
+
                     b.HasIndex("MovieId");
 
                     b.HasIndex("TvShowId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "EpisodeId")
+                        .IsUnique()
+                        .HasFilter("\"EpisodeId\" IS NOT NULL");
 
                     b.HasIndex("UserId", "MovieId")
                         .IsUnique()
@@ -1156,7 +1165,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ratings", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ratings_catalog_reference", "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_ratings_catalog_reference", "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ratings_score_range", "\"Score\" >= 1 AND \"Score\" <= 10");
                         });
@@ -1211,6 +1220,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("EpisodeId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("MovieId")
                         .HasColumnType("uuid");
 
@@ -1227,11 +1239,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAt");
 
+                    b.HasIndex("EpisodeId");
+
                     b.HasIndex("MovieId");
 
                     b.HasIndex("TvShowId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "EpisodeId")
+                        .IsUnique()
+                        .HasFilter("\"EpisodeId\" IS NOT NULL");
 
                     b.HasIndex("UserId", "MovieId")
                         .IsUnique()
@@ -1243,7 +1261,7 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.ToTable("reviews", null, t =>
                         {
-                            t.HasCheckConstraint("CK_reviews_catalog_reference", "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_reviews_catalog_reference", "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NOT NULL)");
                         });
                 });
 
@@ -1634,11 +1652,48 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.DirectConversation", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime?>("LastMessageAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("LastMessageAt");
+                    b.ToTable("direct_conversations", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.DirectConversationParticipant", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("ConversationId").HasColumnType("uuid");
+                    b.Property<Guid>("UserId").HasColumnType("uuid");
+                    b.Property<DateTime?>("LastReadAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ConversationId", "UserId").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("direct_conversation_participants", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.DirectMessage", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
+                    b.Property<Guid>("ConversationId").HasColumnType("uuid");
+                    b.Property<Guid>("SenderId").HasColumnType("uuid");
+                    b.Property<string>("Body").IsRequired().HasMaxLength(2000).HasColumnType("character varying(2000)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("ConversationId", "CreatedAt", "Id");
+                    b.HasIndex("SenderId");
+                    b.ToTable("direct_messages", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.SocialComment", b =>
                 {
                     b.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
                     b.Property<Guid>("ActivityId").HasColumnType("uuid");
                     b.Property<Guid>("AuthorId").HasColumnType("uuid");
+                    b.Property<string>("AuthoringLocale").HasMaxLength(10).HasColumnType("character varying(10)");
                     b.Property<Guid?>("ParentCommentId").HasColumnType("uuid");
                     b.Property<string>("Content").IsRequired().HasMaxLength(4000).HasColumnType("character varying(4000)");
                     b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
@@ -1757,10 +1812,18 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Bio")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CustomAvatarStorageKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("CustomProfileCoverStorageKey")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
@@ -1796,8 +1859,44 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<string>("ProfileCoverPosterPath")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<Guid>("SecurityStamp")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("SocialInstagram")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SocialSnapchat")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SocialThreads")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SocialTiktok")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SocialTwitch")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SocialWebsite")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SocialX")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SocialYoutube")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2353,6 +2452,11 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.Rating", b =>
                 {
+                    b.HasOne("MovieApp.Domain.Entities.Episode", "Episode")
+                        .WithMany("Ratings")
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
                         .WithMany("Ratings")
                         .HasForeignKey("MovieId")
@@ -2368,6 +2472,8 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Episode");
 
                     b.Navigation("Movie");
 
@@ -2389,6 +2495,11 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.Review", b =>
                 {
+                    b.HasOne("MovieApp.Domain.Entities.Episode", "Episode")
+                        .WithMany("Reviews")
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MovieApp.Domain.Entities.Movie", "Movie")
                         .WithMany("Reviews")
                         .HasForeignKey("MovieId")
@@ -2404,6 +2515,8 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Episode");
 
                     b.Navigation("Movie");
 
@@ -2612,6 +2725,36 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.DirectConversationParticipant", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.DirectMessage", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MovieApp.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotificationEvent", b =>
                 {
                     b.HasOne("MovieApp.Domain.Entities.CatalogReleaseEvent", "ReleaseEvent")
@@ -2740,6 +2883,10 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MovieApp.Domain.Entities.Episode", b =>
                 {
+                    b.Navigation("Ratings");
+
+                    b.Navigation("Reviews");
+
                     b.Navigation("WatchedEpisodes");
                 });
 

@@ -28,7 +28,9 @@ using MovieApp.Infrastructure.Providers.AzureTranslator;
 using MovieApp.Infrastructure.Performance;
 using MovieApp.Infrastructure.RateLimiting;
 using MovieApp.Infrastructure.Storage;
+using MovieApp.Application.Abstractions.Messages;
 using MovieApp.Application.Abstractions.Social;
+using MovieApp.Infrastructure.Messages;
 using MovieApp.Infrastructure.Social;
 using StackExchange.Redis;
 
@@ -52,8 +54,10 @@ public static class DependencyInjection
         services.AddScoped<ISocialActivityRecorder, SocialActivityRecorder>();
         services.AddScoped<ISocialFeedService, SocialFeedService>();
         services.AddScoped<ISocialInteractionService, SocialInteractionService>();
+        services.AddScoped<ISocialCommentTranslationService, SocialCommentTranslationService>();
         services.AddScoped<ISocialNotificationService, SocialNotificationService>();
-        services.AddScoped<ISocialNotificationService, SocialNotificationService>();
+        services.AddScoped<IDirectMessageService, DirectMessageService>();
+        services.AddScoped<ISocialReviewEngagementLookup, SocialReviewEngagementLookup>();
 
         services.AddOptions<PostgreSqlOptions>()
             .Bind(configuration.GetSection(PostgreSqlOptions.SectionName))

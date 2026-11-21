@@ -13,7 +13,7 @@ internal sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
         {
             tableBuilder.HasCheckConstraint(
                 "CK_reviews_catalog_reference",
-                "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL)");
+                "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NOT NULL)");
         });
 
         builder.HasKey(review => review.Id);
@@ -52,11 +52,18 @@ internal sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .HasForeignKey(review => review.TvShowId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne(review => review.Episode)
+            .WithMany(episode => episode.Reviews)
+            .HasForeignKey(review => review.EpisodeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(review => review.UserId);
 
         builder.HasIndex(review => review.MovieId);
 
         builder.HasIndex(review => review.TvShowId);
+
+        builder.HasIndex(review => review.EpisodeId);
 
         builder.HasIndex(review => review.CreatedAt);
 
@@ -67,5 +74,9 @@ internal sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
         builder.HasIndex(review => new { review.UserId, review.TvShowId })
             .IsUnique()
             .HasFilter("\"TvShowId\" IS NOT NULL");
+
+        builder.HasIndex(review => new { review.UserId, review.EpisodeId })
+            .IsUnique()
+            .HasFilter("\"EpisodeId\" IS NOT NULL");
     }
 }

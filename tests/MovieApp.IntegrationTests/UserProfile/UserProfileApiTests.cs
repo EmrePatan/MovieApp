@@ -69,6 +69,34 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task UpdateProfilePersistsBioAndSocialLinks()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var response = await SendAuthorizedPutAsync(
+            "/api/users/me/profile",
+            token,
+            new UpdateProfileRequest(
+                "Emre",
+                "Hello from Cave",
+                new ProfileSocialLinksDto(Instagram: "@emre", Website: "example.com")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var profile = await response.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profile);
+        Assert.Equal("Hello from Cave", profile.Bio);
+        Assert.Equal("emre", profile.SocialLinks?.Instagram);
+        Assert.Equal("https://example.com/", profile.SocialLinks?.Website);
+
+        var me = await SendAuthorizedGetAsync("/api/users/me", token);
+        var meProfile = await me.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.Equal("Hello from Cave", meProfile?.Bio);
+        Assert.Equal("emre", meProfile?.SocialLinks?.Instagram);
+    }
+
+    [Fact]
     public async Task UpdateProfileRejectsEmptyDisplayName()
     {
         await fixture.ResetAsync();

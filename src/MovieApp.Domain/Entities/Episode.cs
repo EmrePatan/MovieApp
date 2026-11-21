@@ -35,4 +35,8 @@ public sealed class Episode
     public DateTime UpdatedAt { get; set; }
 
     public ICollection<WatchedEpisode> WatchedEpisodes { get; set; } = [];
+
+    public ICollection<Rating> Ratings { get; set; } = [];
+
+    public ICollection<Review> Reviews { get; set; } = [];
 }

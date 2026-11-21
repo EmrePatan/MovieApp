@@ -208,16 +208,25 @@ public sealed class ReviewTranslationServiceTests
         public Task<Review?> GetByUserAndTvShowAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<Review?> GetByUserAndEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<Review?> GetTrackedByUserAndMovieAsync(Guid userId, Guid movieId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<Review?> GetTrackedByUserAndTvShowAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<Review?> GetTrackedByUserAndEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<bool> ExistsForMovieAsync(Guid userId, Guid movieId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<bool> ExistsForTvShowAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> ExistsForEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<Review> AddAsync(Review review, CancellationToken cancellationToken = default) =>
@@ -230,6 +239,9 @@ public sealed class ReviewTranslationServiceTests
             throw new NotSupportedException();
 
         public Task<bool> DeleteForTvShowAsync(Guid userId, Guid tvShowId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> DeleteForEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForMovieAsync(
@@ -250,6 +262,15 @@ public sealed class ReviewTranslationServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForEpisodeAsync(
+            Guid episodeId,
+            int page,
+            int pageSize,
+            ReviewListSort sort,
+            int? ratingStars = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
             Guid movieId,
             CancellationToken cancellationToken = default) =>
@@ -257,6 +278,11 @@ public sealed class ReviewTranslationServiceTests
 
         public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
             Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForEpisodeAsync(
+            Guid episodeId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

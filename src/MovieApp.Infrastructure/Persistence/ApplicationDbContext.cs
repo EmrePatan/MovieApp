@@ -65,6 +65,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SocialNotification> SocialNotifications => Set<SocialNotification>();
 
+    public DbSet<DirectConversation> DirectConversations => Set<DirectConversation>();
+
+    public DbSet<DirectConversationParticipant> DirectConversationParticipants => Set<DirectConversationParticipant>();
+
+    public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
+
 
     public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
 

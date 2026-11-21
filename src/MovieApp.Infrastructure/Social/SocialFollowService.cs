@@ -72,12 +72,14 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
         var followedUserId = GetCurrentUserId();
         var safePage = Math.Max(1, page);
         var safeSize = Math.Clamp(pageSize, 1, 50);
-        return await dbContext.UserFollows.AsNoTracking()
-            .Where(follow => follow.FollowedUserId == followedUserId && follow.Status == UserFollowStatus.Pending)
-            .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
-                follow => follow.FollowerId, user => user.Id,
-                (follow, user) => new SocialFollowRequestResult(user.Id, user.UserName, user.DisplayName, follow.CreatedAt))
-            .OrderByDescending(request => request.RequestedAt).ThenByDescending(request => request.UserId)
+        return await (
+            from follow in dbContext.UserFollows.AsNoTracking()
+            join user in dbContext.Users.AsNoTracking() on follow.FollowerId equals user.Id
+            where follow.FollowedUserId == followedUserId
+                && follow.Status == UserFollowStatus.Pending
+                && user.IsActive
+            orderby follow.CreatedAt descending, user.Id descending
+            select new SocialFollowRequestResult(user.Id, user.UserName, user.DisplayName, follow.CreatedAt))
             .Skip((safePage - 1) * safeSize).Take(safeSize)
             .ToListAsync(cancellationToken);
     }

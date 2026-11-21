@@ -89,7 +89,31 @@ public sealed class ReviewTests
         var review = Review.CreateForTvShow(Guid.NewGuid(), Guid.NewGuid(), "Great show", "en-US", DateTime.UtcNow);
 
         Assert.Null(review.MovieId);
+        Assert.Null(review.EpisodeId);
         Assert.NotNull(review.TvShowId);
         review.ValidateInvariants();
+    }
+
+    [Fact]
+    public void CreateForEpisodeCreatesValidReview()
+    {
+        var episodeId = Guid.NewGuid();
+        var review = Review.CreateForEpisode(Guid.NewGuid(), episodeId, "  Great episode  ", "tr-TR", DateTime.UtcNow);
+
+        Assert.Null(review.MovieId);
+        Assert.Null(review.TvShowId);
+        Assert.Equal(episodeId, review.EpisodeId);
+        Assert.Equal("Great episode", review.Content);
+        Assert.Equal("tr-TR", review.AuthoringLocale);
+        review.ValidateInvariants();
+    }
+
+    [Fact]
+    public void ValidateInvariantsRejectsTvShowAndEpisode()
+    {
+        var review = Review.CreateForEpisode(Guid.NewGuid(), Guid.NewGuid(), "Valid", "en-US", DateTime.UtcNow);
+        review.TvShowId = Guid.NewGuid();
+
+        Assert.Throws<InvalidOperationException>(() => review.ValidateInvariants());
     }
 }

@@ -80,7 +80,8 @@ public sealed class SocialInteractionService(
         var rows = await (
             from comment in dbContext.SocialComments.AsNoTracking()
             join user in dbContext.Users.AsNoTracking() on comment.AuthorId equals user.Id
-            where comment.ActivityId == activityId && comment.ParentCommentId == parentCommentId && user.IsActive
+            where comment.ActivityId == activityId && comment.ParentCommentId == parentCommentId
+                && !comment.IsDeleted && user.IsActive
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
                     || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId))
@@ -88,7 +89,8 @@ public sealed class SocialInteractionService(
             select new
             {
                 comment.Id, comment.ActivityId, comment.AuthorId, user.UserName, user.DisplayName,
-                comment.ParentCommentId, comment.Content, comment.CreatedAt, comment.UpdatedAt, comment.IsDeleted
+                comment.ParentCommentId, comment.Content, comment.AuthoringLocale, comment.CreatedAt,
+                comment.UpdatedAt, comment.IsDeleted
             })
             .Skip((safePage - 1) * safeSize).Take(safeSize + 1).ToListAsync(cancellationToken);
 
@@ -126,14 +128,18 @@ public sealed class SocialInteractionService(
         var items = rows.Select(row => new SocialCommentResult(
             row.Id, row.ActivityId, row.AuthorId, row.UserName, row.DisplayName,
             avatars.TryGetValue(row.AuthorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
-            row.ParentCommentId, row.IsDeleted ? "[deleted]" : row.Content,
+            row.ParentCommentId, row.IsDeleted ? string.Empty : row.Content,
             row.CreatedAt, row.UpdatedAt, likes.GetValueOrDefault(row.Id), replies.GetValueOrDefault(row.Id),
-            likedIds.Contains(row.Id))).ToList();
+            likedIds.Contains(row.Id), row.AuthoringLocale)).ToList();
         return new SocialCommentPageResult(items, safePage, safeSize, hasMore);
     }
 
     public async Task<SocialCommentResult> CreateCommentAsync(
-        Guid activityId, Guid? parentCommentId, string content, CancellationToken cancellationToken = default)
+        Guid activityId,
+        Guid? parentCommentId,
+        string content,
+        string authoringLocale,
+        CancellationToken cancellationToken = default)
     {
         var viewerId = GetViewerId();
         await EnsureActivityVisibleAsync(activityId, viewerId, cancellationToken);
@@ -143,9 +149,17 @@ public sealed class SocialInteractionService(
                 from parentCandidate in dbContext.SocialComments.AsNoTracking()
                 join author in dbContext.Users.AsNoTracking() on parentCandidate.AuthorId equals author.Id
                 where parentCandidate.Id == parentCommentId.Value && parentCandidate.ActivityId == activityId && author.IsActive
-                select new { parentCandidate.AuthorId, parentCandidate.IsDeleted }
+                select new
+                {
+                    parentCandidate.AuthorId,
+                    parentCandidate.IsDeleted,
+                    parentCandidate.ParentCommentId,
+                }
             ).FirstOrDefaultAsync(cancellationToken);
             if (parent is null || parent.IsDeleted) throw new NotFoundException("Parent comment not found.");
+            // One reply level only: parent must itself be a root comment.
+            if (parent.ParentCommentId.HasValue)
+                throw new ValidationException("Replies can only be posted under a root comment.");
             if (await dbContext.UserBlocks.AsNoTracking().AnyAsync(block =>
                 (block.BlockerId == viewerId && block.BlockedUserId == parent.AuthorId)
                 || (block.BlockerId == parent.AuthorId && block.BlockedUserId == viewerId), cancellationToken))
@@ -153,7 +167,7 @@ public sealed class SocialInteractionService(
         }
 
         var createdAt = DateTime.UtcNow;
-        var comment = SocialComment.Create(activityId, viewerId, parentCommentId, content, createdAt);
+        var comment = SocialComment.Create(activityId, viewerId, parentCommentId, content, authoringLocale, createdAt);
         dbContext.SocialComments.Add(comment);
         var activityOwnerId = await dbContext.SocialActivities.AsNoTracking()
             .Where(activity => activity.Id == activityId)
@@ -177,8 +191,21 @@ public sealed class SocialInteractionService(
             .Select(item => new { item.UserName, item.DisplayName })
             .FirstAsync(cancellationToken);
         var avatar = await avatarPresentationService.GetForUserAsync(viewerId, cancellationToken);
-        return new SocialCommentResult(comment.Id, activityId, viewerId, user.UserName, user.DisplayName,
-            avatar.EffectiveAvatarUrl, parentCommentId, comment.Content, comment.CreatedAt, comment.UpdatedAt, 0, 0, false);
+        return new SocialCommentResult(
+            comment.Id,
+            activityId,
+            viewerId,
+            user.UserName,
+            user.DisplayName,
+            avatar.EffectiveAvatarUrl,
+            parentCommentId,
+            comment.Content,
+            comment.CreatedAt,
+            comment.UpdatedAt,
+            0,
+            0,
+            false,
+            comment.AuthoringLocale);
     }
 
     public async Task DeleteCommentAsync(Guid commentId, CancellationToken cancellationToken = default)
@@ -332,7 +359,7 @@ public sealed class SocialInteractionService(
         var visible = privacy is null || (activity.ActivityType switch
         {
             SocialActivityType.WatchedMovie or SocialActivityType.WatchedEpisode => privacy.ShowWatched,
-            SocialActivityType.RatedMovie or SocialActivityType.RatedTvShow => privacy.ShowRatings,
+            SocialActivityType.RatedMovie or SocialActivityType.RatedTvShow or SocialActivityType.RatedEpisode => privacy.ShowRatings,
             SocialActivityType.FavoritedMovie or SocialActivityType.FavoritedTvShow => privacy.ShowFavorites,
             _ => privacy.ShowReviews
         });

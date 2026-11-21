@@ -36,6 +36,19 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 cancellationToken);
     }
 
+    public async Task<Review?> GetByUserAndEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Reviews
+            .AsNoTracking()
+            .Include(review => review.User)
+            .FirstOrDefaultAsync(
+                review => review.UserId == userId && review.EpisodeId == episodeId,
+                cancellationToken);
+    }
+
     public async Task<Review?> GetTrackedByUserAndMovieAsync(
         Guid userId,
         Guid movieId,
@@ -57,6 +70,18 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             .Include(review => review.User)
             .FirstOrDefaultAsync(
                 review => review.UserId == userId && review.TvShowId == tvShowId,
+                cancellationToken);
+    }
+
+    public async Task<Review?> GetTrackedByUserAndEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Reviews
+            .Include(review => review.User)
+            .FirstOrDefaultAsync(
+                review => review.UserId == userId && review.EpisodeId == episodeId,
                 cancellationToken);
     }
 
@@ -84,6 +109,18 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 cancellationToken);
     }
 
+    public async Task<bool> ExistsForEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Reviews
+            .AsNoTracking()
+            .AnyAsync(
+                review => review.UserId == userId && review.EpisodeId == episodeId,
+                cancellationToken);
+    }
+
     public async Task<Review> AddAsync(Review review, CancellationToken cancellationToken = default)
     {
         review.ValidateInvariants();
@@ -100,7 +137,9 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             throw new ConflictException(
                 review.MovieId is not null
                     ? "A review for this movie already exists."
-                    : "A review for this TV show already exists.");
+                    : review.TvShowId is not null
+                        ? "A review for this TV show already exists."
+                        : "A review for this episode already exists.");
         }
     }
 
@@ -139,6 +178,26 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         var review = await dbContext.Reviews
             .FirstOrDefaultAsync(
                 item => item.UserId == userId && item.TvShowId == tvShowId,
+                cancellationToken);
+
+        if (review is null)
+        {
+            return false;
+        }
+
+        dbContext.Reviews.Remove(review);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> DeleteForEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        var review = await dbContext.Reviews
+            .FirstOrDefaultAsync(
+                item => item.UserId == userId && item.EpisodeId == episodeId,
                 cancellationToken);
 
         if (review is null)
@@ -194,6 +253,33 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         var ratingsQuery = dbContext.Ratings
             .AsNoTracking()
             .Where(item => item.TvShowId == tvShowId);
+
+        return await GetPublicReviewsAsync(
+            reviewsQuery,
+            ratingsQuery,
+            page,
+            pageSize,
+            sort,
+            ratingStars,
+            cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForEpisodeAsync(
+        Guid episodeId,
+        int page,
+        int pageSize,
+        ReviewListSort sort,
+        int? ratingStars = null,
+        CancellationToken cancellationToken = default)
+    {
+        var reviewsQuery = dbContext.Reviews
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Where(item => item.EpisodeId == episodeId);
+
+        var ratingsQuery = dbContext.Ratings
+            .AsNoTracking()
+            .Where(item => item.EpisodeId == episodeId);
 
         return await GetPublicReviewsAsync(
             reviewsQuery,
@@ -270,6 +356,14 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             dbContext.Ratings.AsNoTracking().Where(rating => rating.TvShowId == tvShowId),
             cancellationToken);
 
+    public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForEpisodeAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken = default) =>
+        GetReviewScoreDistributionAsync(
+            dbContext.Reviews.AsNoTracking().Where(review => review.EpisodeId == episodeId),
+            dbContext.Ratings.AsNoTracking().Where(rating => rating.EpisodeId == episodeId),
+            cancellationToken);
+
     private static async Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionAsync(
         IQueryable<Review> reviewsQuery,
         IQueryable<Rating> ratingsQuery,
@@ -327,8 +421,11 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         }
         else if (contentType == SearchContentType.Tv)
         {
-            reviewsQuery = reviewsQuery.Where(review => review.TvShowId != null);
+            // Show-level + episode reviews both belong under the TV filter.
+            reviewsQuery = reviewsQuery.Where(review =>
+                review.TvShowId != null || review.EpisodeId != null);
         }
+        // All: movies, shows, and episodes — no EpisodeId exclusion.
 
         var totalCount = await reviewsQuery.CountAsync(cancellationToken);
 
@@ -342,12 +439,30 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 review.UserId,
                 review.MovieId,
                 review.TvShowId,
+                review.EpisodeId,
                 review.Content,
                 review.CreatedAt,
                 review.UpdatedAt,
-                review.Movie != null ? review.Movie.Title : review.TvShow!.Title,
-                review.Movie != null ? review.Movie.PosterPath : review.TvShow!.PosterPath,
-                review.Movie != null ? review.Movie.ReleaseDate : review.TvShow!.FirstAirDate))
+                review.Movie != null
+                    ? review.Movie.Title
+                    : review.TvShow != null
+                        ? review.TvShow.Title
+                        : review.Episode!.Season.TvShow.Title,
+                review.Movie != null
+                    ? review.Movie.PosterPath
+                    : review.TvShow != null
+                        ? review.TvShow.PosterPath
+                        : review.Episode!.Season.TvShow.PosterPath ?? review.Episode.StillPath,
+                review.Movie != null
+                    ? review.Movie.ReleaseDate
+                    : review.TvShow != null
+                        ? review.TvShow.FirstAirDate
+                        : review.Episode!.AirDate,
+                review.Episode != null ? review.Episode.Season.TvShowId : null,
+                review.Episode != null ? review.Episode.Season.SeasonNumber : null,
+                review.Episode != null ? review.Episode.EpisodeNumber : null,
+                review.Episode != null ? review.Episode.Name : null,
+                review.Episode != null ? review.Episode.StillPath : null))
             .ToListAsync(cancellationToken);
 
         if (rows.Count == 0)
@@ -363,14 +478,19 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
             .Where(review => review.TvShowId != null)
             .Select(review => review.TvShowId!.Value)
             .ToList();
+        var episodeIds = rows
+            .Where(review => review.EpisodeId != null)
+            .Select(review => review.EpisodeId!.Value)
+            .ToList();
 
         var ratings = await dbContext.Ratings
             .AsNoTracking()
             .Where(rating =>
                 rating.UserId == userId &&
                 ((rating.MovieId != null && movieIds.Contains(rating.MovieId.Value)) ||
-                 (rating.TvShowId != null && tvShowIds.Contains(rating.TvShowId.Value))))
-            .Select(rating => new { rating.MovieId, rating.TvShowId, rating.Score })
+                 (rating.TvShowId != null && tvShowIds.Contains(rating.TvShowId.Value)) ||
+                 (rating.EpisodeId != null && episodeIds.Contains(rating.EpisodeId.Value))))
+            .Select(rating => new { rating.MovieId, rating.TvShowId, rating.EpisodeId, rating.Score })
             .ToListAsync(cancellationToken);
 
         var items = rows
@@ -385,6 +505,10 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 {
                     userRating = ratings.FirstOrDefault(rating => rating.TvShowId == tvShowId)?.Score;
                 }
+                else if (row.EpisodeId is Guid episodeId)
+                {
+                    userRating = ratings.FirstOrDefault(rating => rating.EpisodeId == episodeId)?.Score;
+                }
 
                 return new UserReviewCatalogListItem(row.ToReview(), userRating);
             })
@@ -398,12 +522,18 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
         Guid UserId,
         Guid? MovieId,
         Guid? TvShowId,
+        Guid? EpisodeId,
         string Content,
         DateTime CreatedAt,
         DateTime UpdatedAt,
         string Title,
         string? PosterPath,
-        DateOnly? ReleaseDate)
+        DateOnly? ReleaseDate,
+        Guid? EpisodeTvShowId,
+        int? SeasonNumber,
+        int? EpisodeNumber,
+        string? EpisodeName,
+        string? EpisodeStillPath)
     {
         public Review ToReview()
         {
@@ -413,6 +543,7 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                 UserId = UserId,
                 MovieId = MovieId,
                 TvShowId = TvShowId,
+                EpisodeId = EpisodeId,
                 Content = Content,
                 CreatedAt = CreatedAt,
                 UpdatedAt = UpdatedAt
@@ -436,6 +567,32 @@ public sealed class ReviewRepository(ApplicationDbContext dbContext) : IReviewRe
                     Title = Title,
                     PosterPath = PosterPath,
                     FirstAirDate = ReleaseDate
+                };
+            }
+            else if (EpisodeId is Guid episodeId)
+            {
+                var season = new Season
+                {
+                    SeasonNumber = SeasonNumber ?? 0,
+                    TvShowId = EpisodeTvShowId ?? Guid.Empty,
+                    TvShow = EpisodeTvShowId is Guid showId
+                        ? new TvShow
+                        {
+                            Id = showId,
+                            Title = Title,
+                            PosterPath = PosterPath
+                        }
+                        : null!
+                };
+
+                review.Episode = new Episode
+                {
+                    Id = episodeId,
+                    Name = EpisodeName,
+                    EpisodeNumber = EpisodeNumber ?? 0,
+                    AirDate = ReleaseDate,
+                    StillPath = EpisodeStillPath,
+                    Season = season
                 };
             }
 

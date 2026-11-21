@@ -67,9 +67,7 @@ public sealed class LibraryServiceTests
         new(
             repository,
             new AuthenticatedCurrentUser(UserId),
-            new EmptyContentLocalizedPosterRepository(),
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
+            new EmptySummaryLocalizationMetadataReadRepository(),
             NullLogger<LibraryService>.Instance);
 
     private static LibraryItemResult CreateItem(Guid id, string type, string status) =>

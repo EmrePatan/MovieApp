@@ -12,4 +12,6 @@ public sealed record UserProfileResponse(
     string? CustomAvatarUrl = null,
     string? ProviderAvatarUrl = null,
     string? EffectiveAvatarUrl = null,
-    string AvatarKind = "initials");
+    string AvatarKind = "initials",
+    string? Bio = null,
+    ProfileSocialLinksDto? SocialLinks = null);

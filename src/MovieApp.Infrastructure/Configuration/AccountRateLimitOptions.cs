@@ -19,5 +19,9 @@ public sealed class AccountRateLimitOptions
     public int AvatarMutationPermitLimit { get; set; } = 10;
 
     public int AvatarMutationWindowMinutes { get; set; } = 15;
+
+    public int SocialWritePermitLimit { get; set; } = 30;
+
+    public int SocialWriteWindowMinutes { get; set; } = 1;
 }
 

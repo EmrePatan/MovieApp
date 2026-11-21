@@ -20,6 +20,8 @@ public static class AccountRateLimitPolicies
     public const string DeleteAccount = "account-delete";
 
     public const string AvatarMutation = "account-avatar-mutation";
+
+    public const string SocialWrite = "social-write";
 }
 
 public static class ReviewTranslationRateLimitPolicies

@@ -31,6 +31,17 @@ public sealed class RatingRepository(ApplicationDbContext dbContext) : IRatingRe
                 cancellationToken);
     }
 
+    public async Task<Rating?> GetByUserAndEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Ratings
+            .FirstOrDefaultAsync(
+                rating => rating.UserId == userId && rating.EpisodeId == episodeId,
+                cancellationToken);
+    }
+
     public async Task<(Rating Rating, bool Created)> AddAsync(
         Rating rating,
         CancellationToken cancellationToken = default)
@@ -77,6 +88,13 @@ public sealed class RatingRepository(ApplicationDbContext dbContext) : IRatingRe
                 cancellationToken);
         }
 
+        if (rating.EpisodeId is Guid episodeId)
+        {
+            return await dbContext.Ratings.FirstOrDefaultAsync(
+                item => item.UserId == rating.UserId && item.EpisodeId == episodeId,
+                cancellationToken);
+        }
+
         return null;
     }
 
@@ -119,6 +137,22 @@ public sealed class RatingRepository(ApplicationDbContext dbContext) : IRatingRe
         return true;
     }
 
+    public async Task<bool> DeleteForEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        var rating = await GetByUserAndEpisodeAsync(userId, episodeId, cancellationToken);
+        if (rating is null)
+        {
+            return false;
+        }
+
+        dbContext.Ratings.Remove(rating);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public Task<RatingSummaryResult> GetSummaryForMovieAsync(
         Guid movieId,
         CancellationToken cancellationToken = default) =>
@@ -128,6 +162,11 @@ public sealed class RatingRepository(ApplicationDbContext dbContext) : IRatingRe
         Guid tvShowId,
         CancellationToken cancellationToken = default) =>
         GetSummaryAsync(dbContext.Ratings.AsNoTracking().Where(rating => rating.TvShowId == tvShowId), cancellationToken);
+
+    public Task<RatingSummaryResult> GetSummaryForEpisodeAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken = default) =>
+        GetSummaryAsync(dbContext.Ratings.AsNoTracking().Where(rating => rating.EpisodeId == episodeId), cancellationToken);
 
     private static async Task<RatingSummaryResult> GetSummaryAsync(
         IQueryable<Rating> query,

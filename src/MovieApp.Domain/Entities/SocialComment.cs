@@ -7,11 +7,18 @@ public sealed class SocialComment
     public Guid AuthorId { get; set; }
     public Guid? ParentCommentId { get; set; }
     public string Content { get; set; } = string.Empty;
+    public string? AuthoringLocale { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 
-    public static SocialComment Create(Guid activityId, Guid authorId, Guid? parentCommentId, string content, DateTime utcNow)
+    public static SocialComment Create(
+        Guid activityId,
+        Guid authorId,
+        Guid? parentCommentId,
+        string content,
+        string? authoringLocale,
+        DateTime utcNow)
     {
         if (activityId == Guid.Empty) throw new ArgumentException("Activity id is required.", nameof(activityId));
         if (authorId == Guid.Empty) throw new ArgumentException("Author id is required.", nameof(authorId));
@@ -22,11 +29,14 @@ public sealed class SocialComment
         return new SocialComment
         {
             Id = Guid.NewGuid(), ActivityId = activityId, AuthorId = authorId,
-            ParentCommentId = parentCommentId, Content = normalized, CreatedAt = utcNow
+            ParentCommentId = parentCommentId,
+            Content = normalized,
+            AuthoringLocale = authoringLocale,
+            CreatedAt = utcNow,
         };
     }
 
-    public void Edit(Guid editorId, string content, DateTime utcNow)
+    public void Edit(Guid editorId, string content, string? authoringLocale, DateTime utcNow)
     {
         if (editorId != AuthorId) throw new InvalidOperationException("Only the comment author can edit it.");
         if (IsDeleted) throw new InvalidOperationException("Deleted comments cannot be edited.");
@@ -34,6 +44,7 @@ public sealed class SocialComment
         var normalized = content.Trim();
         if (normalized.Length > 4000) throw new ArgumentOutOfRangeException(nameof(content));
         Content = normalized;
+        AuthoringLocale = authoringLocale;
         UpdatedAt = utcNow;
     }
 

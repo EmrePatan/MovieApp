@@ -87,6 +87,14 @@ internal static class ProductionRateLimitPolicyRegistration
                 accountOptions.AvatarMutationWindowMinutes,
                 AccountPartitionKeyFactory.Create));
 
+        rateLimiterOptions.AddPolicy(AccountRateLimitPolicies.SocialWrite, httpContext =>
+            DistributedRateLimitPolicyFactory.CreatePolicy(
+                httpContext,
+                AccountRateLimitPolicies.SocialWrite,
+                accountOptions.SocialWritePermitLimit,
+                accountOptions.SocialWriteWindowMinutes,
+                AccountPartitionKeyFactory.Create));
+
         rateLimiterOptions.AddPolicy(TvShowFollowRateLimitPolicies.Mutation, httpContext =>
             DistributedRateLimitPolicyFactory.CreatePolicy(
                 httpContext,

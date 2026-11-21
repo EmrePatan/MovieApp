@@ -37,7 +37,40 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(ConfigurationConstants.NameMaxLength);
 
+        builder.Property(user => user.Bio)
+            .HasMaxLength(300);
+
+        builder.Property(user => user.SocialX)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialInstagram)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialSnapchat)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialTiktok)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialYoutube)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialTwitch)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialThreads)
+            .HasMaxLength(64);
+
+        builder.Property(user => user.SocialWebsite)
+            .HasMaxLength(200);
+
         builder.Property(user => user.CustomAvatarStorageKey)
+            .HasMaxLength(512);
+
+        builder.Property(user => user.ProfileCoverPosterPath)
+            .HasMaxLength(512);
+
+        builder.Property(user => user.CustomProfileCoverStorageKey)
             .HasMaxLength(512);
 
         builder.Property(user => user.IsActive)

@@ -79,7 +79,7 @@ public sealed class ReleaseDetectionScannerTests
     }
 
     [Fact]
-    public void PartialEpisodeMetadata_DoesNotSuppressEpisodeNotification()
+    public void PartialEpisodeMetadata_SameDayAsPremiere_SuppressesEpisodeNotification()
     {
         var seasons = new[]
         {
@@ -95,7 +95,36 @@ public sealed class ReleaseDetectionScannerTests
 
         var events = Detect(seasons, Today);
 
-        Assert.Contains(events, eventItem => eventItem.EventType == CatalogReleaseEventType.NewEpisode);
+        Assert.DoesNotContain(events, eventItem => eventItem.EventType == CatalogReleaseEventType.NewEpisode);
+        var premiereEvent = Assert.Single(events);
+        Assert.Equal(CatalogReleaseEventType.NewSeasonPremiere, premiereEvent.EventType);
+    }
+
+    [Fact]
+    public void WeeklyEpisodeAfterPremiereDay_CreatesEpisodeNotification()
+    {
+        var premiereDay = Past;
+        var nextWeek = new DateOnly(2026, 9, 8);
+        var seasons = new[]
+        {
+            CreateSeason(
+                1,
+                episodeCount: 8,
+                episodes:
+                [
+                    CreateEpisode(1, premiereDay)[0],
+                    CreateEpisode(2, nextWeek)[0]
+                ])
+        };
+
+        var events = Detect(seasons, Today);
+
+        Assert.Contains(events, eventItem =>
+            eventItem.EventType == CatalogReleaseEventType.NewEpisode &&
+            eventItem.EpisodeNumber == 2);
+        Assert.DoesNotContain(events, eventItem =>
+            eventItem.EventType == CatalogReleaseEventType.NewEpisode &&
+            eventItem.EpisodeNumber == 1);
         Assert.Contains(events, eventItem => eventItem.EventType == CatalogReleaseEventType.NewSeasonPremiere);
     }
 

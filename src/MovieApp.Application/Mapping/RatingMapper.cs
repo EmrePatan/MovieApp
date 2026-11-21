@@ -11,6 +11,7 @@ public static class RatingMapper
             rating.Id,
             rating.MovieId,
             rating.TvShowId,
+            rating.EpisodeId,
             rating.Score,
             rating.CreatedAt,
             rating.UpdatedAt);

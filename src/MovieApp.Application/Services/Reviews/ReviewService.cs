@@ -20,10 +20,13 @@ public sealed class ReviewService(
     IReviewRepository reviewRepository,
     IMovieRepository movieRepository,
     ITvShowRepository tvShowRepository,
+    IEpisodeRepository episodeRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     IUserAvatarPresentationService avatarPresentationService,
+    ISocialProfileService socialProfileService,
     ISocialActivityRecorder? socialActivityRecorder = null,
-    IApplicationDbContext? applicationDbContext = null) : IReviewService
+    IApplicationDbContext? applicationDbContext = null,
+    ISocialReviewEngagementLookup? socialReviewEngagementLookup = null) : IReviewService
 {
     public async Task<ReviewResult> CreateMovieReviewAsync(
         Guid movieId,
@@ -99,6 +102,43 @@ public sealed class ReviewService(
         return await MapReviewResultAsync(createdReview!, cancellationToken);
     }
 
+    public async Task<ReviewResult> CreateEpisodeReviewAsync(
+        Guid episodeId,
+        string content,
+        string authoringLocale,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        ValidateContent(content);
+        await EnsureEpisodeExistsAsync(episodeId, cancellationToken);
+
+        if (await reviewRepository.ExistsForEpisodeAsync(userId, episodeId, cancellationToken))
+        {
+            throw new ConflictException("A review for this episode already exists.");
+        }
+
+        var review = Review.CreateForEpisode(userId, episodeId, content, authoringLocale, DateTime.UtcNow);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.AddAsync(review, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedEpisode, review.Id, episodeId, "Episode", review.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.AddAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.ReviewedEpisode, review.Id, episodeId, "Episode", review.CreatedAt, cancellationToken);
+        }
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+
+        var createdReview = await reviewRepository.GetByUserAndEpisodeAsync(userId, episodeId, cancellationToken);
+        return await MapReviewResultAsync(createdReview!, cancellationToken);
+    }
+
     public async Task<ReviewResult> UpdateMovieReviewAsync(
         Guid movieId,
         string content,
@@ -114,8 +154,24 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        review.UpdateContent(content, authoringLocale, DateTime.UtcNow);
-        await reviewRepository.UpdateAsync(review, cancellationToken);
+        var utcNow = DateTime.UtcNow;
+        review.UpdateContent(content, authoringLocale, utcNow);
+        if (applicationDbContext is not null && socialActivityRecorder is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.UpdateAsync(review, ct);
+                await socialActivityRecorder.RecordAsync(
+                    userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", utcNow, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.UpdateAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(
+                    userId, SocialActivityType.ReviewedMovie, review.Id, movieId, "Movie", utcNow, cancellationToken);
+        }
         return await MapReviewResultAsync(review, cancellationToken);
     }
 
@@ -134,8 +190,60 @@ public sealed class ReviewService(
             throw new NotFoundException("The requested review was not found.");
         }
 
-        review.UpdateContent(content, authoringLocale, DateTime.UtcNow);
-        await reviewRepository.UpdateAsync(review, cancellationToken);
+        var utcNow = DateTime.UtcNow;
+        review.UpdateContent(content, authoringLocale, utcNow);
+        if (applicationDbContext is not null && socialActivityRecorder is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.UpdateAsync(review, ct);
+                await socialActivityRecorder.RecordAsync(
+                    userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", utcNow, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.UpdateAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(
+                    userId, SocialActivityType.ReviewedTvShow, review.Id, tvShowId, "TvShow", utcNow, cancellationToken);
+        }
+        return await MapReviewResultAsync(review, cancellationToken);
+    }
+
+    public async Task<ReviewResult> UpdateEpisodeReviewAsync(
+        Guid episodeId,
+        string content,
+        string authoringLocale,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        ValidateContent(content);
+
+        var review = await reviewRepository.GetTrackedByUserAndEpisodeAsync(userId, episodeId, cancellationToken);
+        if (review is null)
+        {
+            throw new NotFoundException("The requested review was not found.");
+        }
+
+        var utcNow = DateTime.UtcNow;
+        review.UpdateContent(content, authoringLocale, utcNow);
+        if (applicationDbContext is not null && socialActivityRecorder is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await reviewRepository.UpdateAsync(review, ct);
+                await socialActivityRecorder.RecordAsync(
+                    userId, SocialActivityType.ReviewedEpisode, review.Id, episodeId, "Episode", utcNow, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await reviewRepository.UpdateAsync(review, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(
+                    userId, SocialActivityType.ReviewedEpisode, review.Id, episodeId, "Episode", utcNow, cancellationToken);
+        }
         return await MapReviewResultAsync(review, cancellationToken);
     }
 
@@ -195,6 +303,34 @@ public sealed class ReviewService(
         await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
     }
 
+    public async Task DeleteEpisodeReviewAsync(Guid episodeId, CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+
+        var deleted = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                deleted = await reviewRepository.DeleteForEpisodeAsync(userId, episodeId, ct);
+                if (deleted && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedEpisode, episodeId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            deleted = await reviewRepository.DeleteForEpisodeAsync(userId, episodeId, cancellationToken);
+            if (deleted && socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.ReviewedEpisode, episodeId, cancellationToken);
+        }
+
+        if (!deleted)
+        {
+            throw new NotFoundException("The requested review was not found.");
+        }
+        await analyticsCacheInvalidator.InvalidateForUserAsync(userId, cancellationToken);
+    }
+
     public async Task<ReviewResult> GetCurrentUserMovieReviewAsync(
         Guid movieId,
         CancellationToken cancellationToken = default)
@@ -217,6 +353,21 @@ public sealed class ReviewService(
         var userId = CurrentUserGuard.RequireUserId(currentUser);
 
         var review = await reviewRepository.GetByUserAndTvShowAsync(userId, tvShowId, cancellationToken);
+        if (review is null)
+        {
+            throw new NotFoundException("The requested review was not found.");
+        }
+
+        return await MapReviewResultAsync(review, cancellationToken);
+    }
+
+    public async Task<ReviewResult> GetCurrentUserEpisodeReviewAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+
+        var review = await reviewRepository.GetByUserAndEpisodeAsync(userId, episodeId, cancellationToken);
         if (review is null)
         {
             throw new NotFoundException("The requested review was not found.");
@@ -260,6 +411,36 @@ public sealed class ReviewService(
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
+        return await GetUserReviewsCoreAsync(userId, page, pageSize, contentType, cancellationToken);
+    }
+
+    public async Task<UserReviewListPageResult> GetUserReviewsAsync(
+        Guid targetUserId,
+        int page,
+        int pageSize,
+        SearchContentType contentType,
+        CancellationToken cancellationToken = default)
+    {
+        if (targetUserId == Guid.Empty)
+        {
+            throw new NotFoundException("User not found.");
+        }
+
+        if (!await socialProfileService.CanViewReviewsAsync(targetUserId, cancellationToken))
+        {
+            throw new NotFoundException("User not found.");
+        }
+
+        return await GetUserReviewsCoreAsync(targetUserId, page, pageSize, contentType, cancellationToken);
+    }
+
+    private async Task<UserReviewListPageResult> GetUserReviewsCoreAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        SearchContentType contentType,
+        CancellationToken cancellationToken)
+    {
         ValidatePagination(page, pageSize);
 
         if (contentType is SearchContentType.Person)
@@ -306,10 +487,60 @@ public sealed class ReviewService(
             reviewScoreDistribution);
     }
 
+    public async Task<ReviewListPageResult> GetEpisodeReviewsAsync(
+        Guid episodeId,
+        int page,
+        int pageSize,
+        ReviewListSort sort,
+        int? ratingStars = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePagination(page, pageSize);
+        ValidateRatingStars(ratingStars);
+        await EnsureEpisodeExistsAsync(episodeId, cancellationToken);
+
+        var (reviews, totalCount) = await reviewRepository.GetPublicReviewsForEpisodeAsync(
+            episodeId,
+            page,
+            pageSize,
+            sort,
+            ratingStars,
+            cancellationToken);
+        var reviewScoreDistribution = await reviewRepository.GetReviewScoreDistributionForEpisodeAsync(
+            episodeId,
+            cancellationToken);
+
+        return new ReviewListPageResult(
+            await ToPaginatedResultAsync(reviews, page, pageSize, totalCount, cancellationToken),
+            reviewScoreDistribution);
+    }
+
     private async Task<ReviewResult> MapReviewResultAsync(Review review, CancellationToken cancellationToken)
     {
         var avatar = await avatarPresentationService.GetForUserAsync(review.UserId, cancellationToken);
-        return ReviewMapper.ToResult(review, userRating: null, avatar.EffectiveAvatarUrl);
+        var engagement = await LoadEngagementAsync([review.Id], cancellationToken);
+        engagement.TryGetValue(review.Id, out var stats);
+        return ReviewMapper.ToResult(
+            review,
+            userRating: null,
+            avatar.EffectiveAvatarUrl,
+            stats?.ActivityId,
+            stats?.LikesCount ?? 0,
+            stats?.CommentsCount ?? 0,
+            stats?.IsLikedByMe ?? false);
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, SocialReviewEngagement>> LoadEngagementAsync(
+        IReadOnlyList<Guid> reviewIds,
+        CancellationToken cancellationToken)
+    {
+        if (socialReviewEngagementLookup is null || reviewIds.Count == 0)
+            return new Dictionary<Guid, SocialReviewEngagement>();
+
+        Guid? viewerId = currentUser.IsAuthenticated && currentUser.UserId is Guid id && id != Guid.Empty
+            ? id
+            : null;
+        return await socialReviewEngagementLookup.GetForReviewIdsAsync(reviewIds, viewerId, cancellationToken);
     }
 
     private static void ValidateRatingStars(int? ratingStars)
@@ -355,6 +586,14 @@ public sealed class ReviewService(
         }
     }
 
+    private async Task EnsureEpisodeExistsAsync(Guid episodeId, CancellationToken cancellationToken)
+    {
+        if (!await episodeRepository.ExistsAsync(episodeId, cancellationToken))
+        {
+            throw new NotFoundException("The requested episode was not found.");
+        }
+    }
+
     private async Task<PaginatedResult<ReviewResult>> ToPaginatedResultAsync(
         IReadOnlyList<PublicReviewListItem> reviews,
         int page,
@@ -368,13 +607,23 @@ public sealed class ReviewService(
             .Distinct()
             .ToList();
         var avatars = await avatarPresentationService.GetForUsersAsync(userIds, cancellationToken);
+        var reviewIds = reviews.Select(item => item.Review.Id).ToList();
+        var engagement = await LoadEngagementAsync(reviewIds, cancellationToken);
         var items = reviews
             .Select(item =>
             {
                 var effectiveAvatarUrl = avatars.TryGetValue(item.Review.UserId, out var avatar)
                     ? avatar.EffectiveAvatarUrl
                     : null;
-                return ReviewMapper.ToResult(item.Review, item.UserRating, effectiveAvatarUrl);
+                engagement.TryGetValue(item.Review.Id, out var stats);
+                return ReviewMapper.ToResult(
+                    item.Review,
+                    item.UserRating,
+                    effectiveAvatarUrl,
+                    stats?.ActivityId,
+                    stats?.LikesCount ?? 0,
+                    stats?.CommentsCount ?? 0,
+                    stats?.IsLikedByMe ?? false);
             })
             .ToList();
         return new PaginatedResult<ReviewResult>(items, page, pageSize, totalCount, totalPages);

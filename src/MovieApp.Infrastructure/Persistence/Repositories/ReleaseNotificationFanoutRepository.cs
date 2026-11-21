@@ -73,13 +73,13 @@ public sealed class ReleaseNotificationFanoutRepository(
 
         return shows.ToDictionary(
             tvShow => tvShow.Id,
-            tvShow => ContentProductionHeuristics.IsTurkishProduction(
-                          tvShow.OriginalLanguage,
-                          tvShow.PrimaryOriginCountryCode,
-                          tvShow.OriginalTitle) &&
-                      !string.IsNullOrWhiteSpace(tvShow.OriginalTitle)
-                ? tvShow.OriginalTitle.Trim()
-                : tvShow.Title);
+            tvShow => LocalizedDisplayTitleSelector.ChoosePrimary(
+                tvShow.Title,
+                tvShow.OriginalTitle,
+                tvShow.OriginalLanguage,
+                localizedTitle: null,
+                ContentLocaleResolver.TurkishTurkey,
+                tvShow.PrimaryOriginCountryCode));
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> GetMovieTitlesByIdsAsync(
@@ -106,13 +106,13 @@ public sealed class ReleaseNotificationFanoutRepository(
 
         return movies.ToDictionary(
             movie => movie.Id,
-            movie => ContentProductionHeuristics.IsTurkishProduction(
-                         movie.OriginalLanguage,
-                         movie.PrimaryOriginCountryCode,
-                         movie.OriginalTitle) &&
-                     !string.IsNullOrWhiteSpace(movie.OriginalTitle)
-                ? movie.OriginalTitle.Trim()
-                : movie.Title);
+            movie => LocalizedDisplayTitleSelector.ChoosePrimary(
+                movie.Title,
+                movie.OriginalTitle,
+                movie.OriginalLanguage,
+                localizedTitle: null,
+                ContentLocaleResolver.TurkishTurkey,
+                movie.PrimaryOriginCountryCode));
     }
 
     public async Task<IReadOnlyList<UserReleaseNotification>> GetNotificationsByBucketsAsync(

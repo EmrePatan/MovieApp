@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Localization;
+using MovieApp.Api.Mapping;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Contracts.Users;
 
 namespace MovieApp.Api.Controllers;
+
+public sealed record SetSocialProfileCoverPosterRequest(string? PosterPath);
 
 [ApiController]
 [Route("api/social/profiles")]
@@ -45,7 +48,15 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
         Guid userId, [FromQuery] string? cursor, [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        try { return Ok(await socialFeedService.GetUserActivitiesAsync(userId, cursor, pageSize, cancellationToken)); }
+        try
+        {
+            return Ok(await socialFeedService.GetUserActivitiesAsync(
+                userId,
+                cursor,
+                pageSize,
+                Request.ResolveContentLocale(),
+                cancellationToken));
+        }
         catch (AuthenticationException exception) { return Unauthorized(new ProblemDetails { Detail = exception.Message }); }
         catch (NotFoundException) { return NotFound(new ProblemDetails { Title = "User not found." }); }
         catch (ValidationException exception) { return BadRequest(new ProblemDetails { Detail = exception.Message }); }
@@ -74,6 +85,29 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
                         AchievementMilestoneLocalization.GetTitle(milestone.Id, contentLocale, milestone.Title),
                         AchievementMilestoneLocalization.GetDescription(milestone.Id, contentLocale, milestone.Description),
                         milestone.AchievedAt))
+                    .ToList(),
+                statistics.MovieRuntimeMinutes,
+                statistics.EpisodeRuntimeMinutes,
+                statistics.FavoriteMovies
+                    .Select(MapShelfItem)
+                    .ToList(),
+                statistics.FavoriteShows
+                    .Select(MapShelfItem)
+                    .ToList(),
+                statistics.LibraryTitles
+                    .Select(MapShelfItem)
+                    .ToList(),
+                statistics.WatchingTitles
+                    .Select(MapShelfItem)
+                    .ToList(),
+                statistics.WatchedTitles
+                    .Select(MapShelfItem)
+                    .ToList(),
+                statistics.LikedTitles
+                    .Select(MapShelfItem)
+                    .ToList(),
+                statistics.WatchlistTitles
+                    .Select(MapShelfItem)
                     .ToList()));
         }
         catch (NotFoundException)
@@ -91,13 +125,52 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
         try
         {
             var profile = await socialProfileService.GetProfileAsync(userId, cancellationToken);
-            return Ok(new PublicSocialProfileResponse(profile.Id, profile.UserName, profile.DisplayName,
-                profile.CreatedAt, profile.AvatarUrl, profile.IsPrivate, profile.FollowStatus,
-                profile.FollowersCount, profile.FollowingCount));
+            return Ok(new PublicSocialProfileResponse(
+                profile.Id,
+                profile.UserName,
+                profile.DisplayName,
+                profile.CreatedAt,
+                profile.AvatarUrl,
+                profile.IsPrivate,
+                profile.FollowStatus,
+                profile.FollowersCount,
+                profile.FollowingCount,
+                profile.CoverPosterPath,
+                profile.CoverImageUrl,
+                profile.Bio,
+                UserProfileContractMapper.ToSocialLinksDto(profile.SocialLinks)));
         }
         catch (NotFoundException)
         {
             return NotFound(new ProblemDetails { Title = "User not found." });
         }
     }
+
+    [Authorize]
+    [HttpPatch("me/cover-poster")]
+    public async Task<IActionResult> SetCoverPoster(
+        [FromBody] SetSocialProfileCoverPosterRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await socialProfileService.SetProfileCoverPosterAsync(request.PosterPath, cancellationToken);
+            return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(new ProblemDetails { Detail = exception.Message });
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Detail = exception.Message });
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+    }
+
+    private static SocialProfileShelfItemResponse MapShelfItem(SocialProfileShelfItemResult item) =>
+        new(item.Id, item.Title, item.PosterPath, item.ContentType, item.ProgressPercentage);
 }

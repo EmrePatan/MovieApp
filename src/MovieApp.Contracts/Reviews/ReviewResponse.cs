@@ -7,4 +7,8 @@ public sealed record ReviewResponse(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     int? UserRating = null,
-    string? AuthoringLocale = null);
+    string? AuthoringLocale = null,
+    Guid? SocialActivityId = null,
+    int LikesCount = 0,
+    int CommentsCount = 0,
+    bool IsLikedByMe = false);

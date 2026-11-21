@@ -12,6 +12,8 @@ namespace MovieApp.Infrastructure.Identity;
 public sealed class UserAvatarImageProcessor : IUserAvatarImageProcessor
 {
     public const int OutputSizePixels = 512;
+    public const int CoverWidthPixels = 1200;
+    public const int CoverHeightPixels = 400;
 
     /// <summary>Maximum width or height allowed on the decoded source image.</summary>
     public const int MaxSourceDimensionPixels = 4096;
@@ -93,6 +95,82 @@ public sealed class UserAvatarImageProcessor : IUserAvatarImageProcessor
         catch (ImageFormatException)
         {
             throw new ValidationException("Avatar must be a JPEG, PNG, or WebP image.");
+        }
+    }
+
+    public async Task<ProcessedUserAvatarImage> ProcessCoverUploadAsync(
+        Stream uploadStream,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var buffer = await CopyToMemoryStreamAsync(uploadStream, cancellationToken);
+            if (buffer.Length == 0)
+            {
+                throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
+            }
+
+            buffer.Position = 0;
+            var imageInfo = await Image.IdentifyAsync(IdentifyOptions, buffer, cancellationToken);
+            if (imageInfo is null)
+            {
+                throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
+            }
+
+            EnsureSupportedFormat(imageInfo.Metadata.DecodedImageFormat);
+            EnsureSourceDimensionsWithinLimits(imageInfo.Width, imageInfo.Height);
+
+            buffer.Position = 0;
+            using var image = await Image.LoadAsync(CreateLoadOptions(), buffer, cancellationToken);
+
+            image.Mutate(context =>
+            {
+                context.AutoOrient();
+                var targetAspect = (double)CoverWidthPixels / CoverHeightPixels;
+                var sourceAspect = (double)image.Width / image.Height;
+                int cropWidth;
+                int cropHeight;
+                if (sourceAspect > targetAspect)
+                {
+                    cropHeight = image.Height;
+                    cropWidth = (int)Math.Round(image.Height * targetAspect);
+                }
+                else
+                {
+                    cropWidth = image.Width;
+                    cropHeight = (int)Math.Round(image.Width / targetAspect);
+                }
+
+                var x = (image.Width - cropWidth) / 2;
+                var y = (image.Height - cropHeight) / 2;
+                context.Crop(new Rectangle(x, y, cropWidth, cropHeight));
+                context.Resize(CoverWidthPixels, CoverHeightPixels);
+            });
+
+            await using var output = new MemoryStream();
+            var encoder = new WebpEncoder
+            {
+                Quality = TargetWebpQuality,
+                Method = WebpEncodingMethod.Default,
+            };
+            await image.SaveAsWebpAsync(output, encoder, cancellationToken);
+            return new ProcessedUserAvatarImage(output.ToArray());
+        }
+        catch (ValidationException)
+        {
+            throw;
+        }
+        catch (UnknownImageFormatException)
+        {
+            throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
+        }
+        catch (InvalidImageContentException)
+        {
+            throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
+        }
+        catch (ImageFormatException)
+        {
+            throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
         }
     }
 
