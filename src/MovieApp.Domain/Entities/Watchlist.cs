@@ -12,6 +12,13 @@ public sealed class Watchlist
 
     public string NormalizedName { get; set; } = string.Empty;
 
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Longest list description accepted. Shown on the list page and on public share pages.
+    /// </summary>
+    public const int MaxDescriptionLength = 280;
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -20,7 +27,28 @@ public sealed class Watchlist
 
     public ICollection<WatchlistItem> Items { get; set; } = [];
 
-    public static Watchlist Create(Guid userId, string name, DateTime utcNow)
+    /// <summary>
+    /// Trims the description and maps blank input to null. Throws when it exceeds <see cref="MaxDescriptionLength"/>.
+    /// </summary>
+    public static string? NormalizeDescription(string? description)
+    {
+        var trimmed = description?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        if (trimmed.Length > MaxDescriptionLength)
+        {
+            throw new ArgumentException(
+                $"Watchlist description must not exceed {MaxDescriptionLength} characters.",
+                nameof(description));
+        }
+
+        return trimmed;
+    }
+
+    public static Watchlist Create(Guid userId, string name, DateTime utcNow, string? description = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -38,6 +66,7 @@ public sealed class Watchlist
             UserId = userId,
             Name = trimmedName,
             NormalizedName = WatchlistNameNormalizer.Normalize(trimmedName),
+            Description = NormalizeDescription(description),
             CreatedAt = utcNow,
             UpdatedAt = utcNow
         };
@@ -57,6 +86,12 @@ public sealed class Watchlist
 
         Name = trimmedName;
         NormalizedName = WatchlistNameNormalizer.Normalize(trimmedName);
+        Touch(utcNow);
+    }
+
+    public void SetDescription(string? description, DateTime utcNow)
+    {
+        Description = NormalizeDescription(description);
         Touch(utcNow);
     }
 

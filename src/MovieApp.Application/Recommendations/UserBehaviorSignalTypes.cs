@@ -13,4 +13,9 @@ public static class UserBehaviorSignalTypes
     public const string Search = "search";
 
     public const string TvFollow = "tv-follow";
+
+    /// <summary>
+    /// Explicit "not interested" action from a recommendation surface. Carries a negative taste weight.
+    /// </summary>
+    public const string Dismissed = "dismissed";
 }

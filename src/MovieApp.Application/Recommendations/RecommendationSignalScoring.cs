@@ -35,8 +35,15 @@ public static class RecommendationSignalScoring
             UserBehaviorSignalTypes.TvFollow => (decimal)options.TvFollowSignalWeight,
             UserBehaviorSignalTypes.Watched => (decimal)options.WatchedSignalWeight,
             UserBehaviorSignalTypes.Search => (decimal)options.SearchSignalWeight,
+            UserBehaviorSignalTypes.Dismissed => GetDismissSignalWeight(options),
             _ => 0m
         };
+    }
+
+    public static decimal GetDismissSignalWeight(RecommendationOptions options)
+    {
+        var dismissWeight = (decimal)options.DismissSignalWeight;
+        return dismissWeight > 0m ? -dismissWeight : dismissWeight;
     }
 
     public static decimal GetRatingSignalWeight(int ratingScore, RecommendationOptions options)
@@ -77,6 +84,7 @@ public static class RecommendationSignalScoring
     public static int GetSignalPriority(string signalType) =>
         signalType switch
         {
+            UserBehaviorSignalTypes.Dismissed => 7,
             UserBehaviorSignalTypes.Favorite => 6,
             UserBehaviorSignalTypes.Rating => 5,
             UserBehaviorSignalTypes.Watchlist => 4,
@@ -87,11 +95,17 @@ public static class RecommendationSignalScoring
         };
 
     /// <summary>
-    /// Collapse rank for one title. A rating below the mild threshold outranks favorite, watchlist, and watched
-    /// so the low score defines taste polarity. The title stays excluded from candidates either way.
+    /// Collapse rank for one title. An explicit dismissal outranks everything so the latest "not interested"
+    /// decision defines that title's signal. A rating below the mild threshold outranks favorite, watchlist, and
+    /// watched so the low score defines taste polarity. The title stays excluded from candidates either way.
     /// </summary>
     public static int GetCollapseRank(string signalType, int? ratingScore, int mildRatingMinScore)
     {
+        if (signalType == UserBehaviorSignalTypes.Dismissed)
+        {
+            return 200;
+        }
+
         if (signalType == UserBehaviorSignalTypes.Rating &&
             ratingScore is int score &&
             score < mildRatingMinScore)

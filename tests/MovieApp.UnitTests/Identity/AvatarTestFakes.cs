@@ -39,4 +39,13 @@ internal sealed class TrackingUserAvatarService : IUserAvatarService
 
         return Task.CompletedTask;
     }
+
+    public Task UploadProfileCoverAsync(
+        Stream uploadStream,
+        long? declaredContentLength,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task RemoveProfileCoverAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

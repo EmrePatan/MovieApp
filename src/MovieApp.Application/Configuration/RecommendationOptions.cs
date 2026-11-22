@@ -89,6 +89,12 @@ public sealed class RecommendationOptions
     /// </summary>
     public double LowRatingSignalWeight { get; set; } = -0.6;
 
+    /// <summary>
+    /// Taste push for an explicit "not interested" action. Negative values push genres and keywords down.
+    /// A positive configuration is treated as a negative magnitude.
+    /// </summary>
+    public double DismissSignalWeight { get; set; } = -0.8;
+
     public double WatchedSignalWeight { get; set; } = 0.4;
 
     public double WatchlistSignalWeight { get; set; } = 0.7;

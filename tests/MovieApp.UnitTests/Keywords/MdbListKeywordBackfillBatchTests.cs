@@ -122,7 +122,7 @@ public sealed class MdbListKeywordBackfillBatchTests
             new MdbListKeywordBackfillRepository(CreateContext()),
             transport,
             new SuccessIngestionScopeFactory(),
-            Options.Create(new MdbListKeywordBackfillOptions { BatchSize = 500, MaxConcurrency = 4 }),
+            Options.Create(new MdbListKeywordBackfillOptions { BatchSize = 500, MaxConcurrency = 4, DelayBetweenItemsMs = 0 }),
             NullLogger<MdbListKeywordBackfillService>.Instance);
 
     private static MdbListKeywordBackfillService CreatePersistingService(

@@ -19,6 +19,11 @@ internal static class ReleaseDetectionScanner
         foreach (var season in seasons.Where(season => season.SeasonNumber >= 1))
         {
             var simultaneousFullSeasonRelease = IsSimultaneousFullSeasonRelease(season);
+            var premiereDate = ResolveSeasonPremiereDate(season);
+            var premiereDedupeKey = CatalogReleaseEventDedupeKey.ForSeasonPremiere(tvShowId, season.SeasonNumber);
+            var premiereExistsOrWillExist =
+                existingDedupeKeys.Contains(premiereDedupeKey) ||
+                (premiereDate.HasValue && premiereDate.Value <= boundary);
 
             foreach (var episode in season.Episodes.Where(episode => episode.EpisodeNumber >= 1))
             {
@@ -26,7 +31,19 @@ internal static class ReleaseDetectionScanner
                 {
                     continue;
                 }
+
                 if (!episode.AirDate.HasValue || episode.AirDate.Value > boundary)
+                {
+                    continue;
+                }
+
+                // Multi-episode seasons: same-day as season premiere → only "yayında" / season
+                // notify (binge drops + premiere day). Later weekly episodes keep NewEpisode.
+                if (ShouldSuppressEpisodeEventOnPremiereDay(
+                        season,
+                        episode.AirDate.Value,
+                        premiereDate,
+                        premiereExistsOrWillExist))
                 {
                     continue;
                 }
@@ -50,13 +67,11 @@ internal static class ReleaseDetectionScanner
                     detectedAtUtc));
             }
 
-            var premiereDate = ResolveSeasonPremiereDate(season);
             if (!premiereDate.HasValue || premiereDate.Value > boundary)
             {
                 continue;
             }
 
-            var premiereDedupeKey = CatalogReleaseEventDedupeKey.ForSeasonPremiere(tvShowId, season.SeasonNumber);
             if (existingDedupeKeys.Contains(premiereDedupeKey))
             {
                 continue;
@@ -95,6 +110,25 @@ internal static class ReleaseDetectionScanner
             .Distinct()
             .Take(2)
             .Count() == 1;
+    }
+
+    private static bool ShouldSuppressEpisodeEventOnPremiereDay(
+        Season season,
+        DateOnly episodeAirDate,
+        DateOnly? premiereDate,
+        bool premiereExistsOrWillExist)
+    {
+        if (!premiereExistsOrWillExist || !premiereDate.HasValue)
+        {
+            return false;
+        }
+
+        if (season.EpisodeCount is not > 1)
+        {
+            return false;
+        }
+
+        return episodeAirDate == premiereDate.Value;
     }
 
     internal static DateOnly? ResolveSeasonPremiereDate(Season season)

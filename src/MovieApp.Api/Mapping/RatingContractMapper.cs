@@ -10,6 +10,7 @@ public static class RatingContractMapper
             result.Id,
             result.MovieId,
             result.TvShowId,
+            result.EpisodeId,
             result.Score,
             result.CreatedAt,
             result.UpdatedAt);

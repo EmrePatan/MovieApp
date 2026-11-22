@@ -30,9 +30,7 @@ public sealed class LibraryWatchingCursorTests
         var service = new LibraryService(
             repository,
             new AuthenticatedCurrentUser(UserId),
-            new EmptyContentLocalizedPosterRepository(),
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
+            new EmptySummaryLocalizationMetadataReadRepository(),
             NullLogger<LibraryService>.Instance);
 
         var criteria = new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 1);
@@ -64,9 +62,7 @@ public sealed class LibraryWatchingCursorTests
         var service = new LibraryService(
             repository,
             new AuthenticatedCurrentUser(UserId),
-            new EmptyContentLocalizedPosterRepository(),
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
+            new EmptySummaryLocalizationMetadataReadRepository(),
             NullLogger<LibraryService>.Instance);
 
         var criteria = new LibraryCriteria(LibraryCategory.Watching, SearchContentType.Tv, 1, 1);

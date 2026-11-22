@@ -5,13 +5,18 @@ namespace MovieApp.Application.Mapping;
 
 public static class WatchlistMapper
 {
-    public static WatchlistSummaryResult ToSummaryResult(Watchlist watchlist, int itemCount) =>
+    public static WatchlistSummaryResult ToSummaryResult(
+        Watchlist watchlist,
+        int itemCount,
+        IReadOnlyList<string>? coverPosterPaths = null) =>
         new(
             watchlist.Id,
             watchlist.Name,
             watchlist.CreatedAt,
             watchlist.UpdatedAt,
-            itemCount);
+            itemCount,
+            coverPosterPaths ?? [],
+            watchlist.Description);
 
     public static WatchlistItemMovieResult ToItemMovieResult(WatchlistItem item) =>
         new(
@@ -51,7 +56,8 @@ public static class WatchlistMapper
             watchlist.CreatedAt,
             watchlist.UpdatedAt,
             movies,
-            tvShows);
+            tvShows,
+            watchlist.Description);
     }
 
     public static WatchlistItemsResult ToItemsResult(

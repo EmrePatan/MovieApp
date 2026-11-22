@@ -158,6 +158,12 @@ public sealed class UpdateWatchlistServiceTests
         public Task<int> GetItemCountAsync(Guid watchlistId, CancellationToken cancellationToken = default) =>
             Task.FromResult(3);
 
+    public Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetCoverPosterPathsByWatchlistIdsAsync(
+        IReadOnlyCollection<Guid> watchlistIds,
+        int perListLimit,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<string>>>(new Dictionary<Guid, IReadOnlyList<string>>());
+
         public Task<IReadOnlyDictionary<Guid, int>> GetItemCountsByWatchlistIdsAsync(
             IReadOnlyCollection<Guid> watchlistIds,
             CancellationToken cancellationToken = default) =>

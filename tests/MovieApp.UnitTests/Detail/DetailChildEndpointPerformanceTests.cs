@@ -405,6 +405,12 @@ public sealed class DetailChildEndpointPerformanceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyList<Guid>> GetAiredEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>

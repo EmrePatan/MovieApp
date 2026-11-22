@@ -98,6 +98,58 @@ public sealed class UsersController(
         }
     }
 
+    [HttpPost("me/profile-cover")]
+    [EnableRateLimiting(AccountRateLimitPolicies.AvatarMutation)]
+    [RequestSizeLimit(UserAvatarService.MaxUploadBytes)]
+  public async Task<IActionResult> UploadProfileCover(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid cover request.",
+                "Cover image file is required."));
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            await userAvatarService.UploadProfileCoverAsync(stream, file.Length, cancellationToken);
+            return NoContent();
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(StatusCodes.Status400BadRequest, "Invalid cover request.", exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(StatusCodes.Status401Unauthorized, "Authentication required.", exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(StatusCodes.Status404NotFound, "User not found.", exception.Message));
+        }
+    }
+
+    [HttpDelete("me/profile-cover")]
+    [EnableRateLimiting(AccountRateLimitPolicies.AvatarMutation)]
+    public async Task<IActionResult> RemoveProfileCover(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await userAvatarService.RemoveProfileCoverAsync(cancellationToken);
+            return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(StatusCodes.Status401Unauthorized, "Authentication required.", exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(StatusCodes.Status404NotFound, "User not found.", exception.Message));
+        }
+    }
+
     [HttpDelete("me/avatar")]
     [EnableRateLimiting(AccountRateLimitPolicies.AvatarMutation)]
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
@@ -135,7 +187,11 @@ public sealed class UsersController(
     {
         try
         {
-            var profile = await userProfileService.UpdateDisplayNameAsync(request.DisplayName, cancellationToken);
+            var profile = await userProfileService.UpdateProfileAsync(
+                request.DisplayName,
+                request.Bio,
+                UserProfileContractMapper.ToSocialLinksResult(request.SocialLinks),
+                cancellationToken);
             return Ok(UserProfileContractMapper.ToUserProfileResponse(profile));
         }
         catch (ValidationException exception)

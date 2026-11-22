@@ -17,7 +17,7 @@ internal sealed class RatingConfiguration : IEntityTypeConfiguration<Rating>
 
             tableBuilder.HasCheckConstraint(
                 "CK_ratings_catalog_reference",
-                "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL)");
+                "(\"MovieId\" IS NOT NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NOT NULL AND \"EpisodeId\" IS NULL) OR (\"MovieId\" IS NULL AND \"TvShowId\" IS NULL AND \"EpisodeId\" IS NOT NULL)");
         });
 
         builder.HasKey(rating => rating.Id);
@@ -52,11 +52,18 @@ internal sealed class RatingConfiguration : IEntityTypeConfiguration<Rating>
             .HasForeignKey(rating => rating.TvShowId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne(rating => rating.Episode)
+            .WithMany(episode => episode.Ratings)
+            .HasForeignKey(rating => rating.EpisodeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(rating => rating.UserId);
 
         builder.HasIndex(rating => rating.MovieId);
 
         builder.HasIndex(rating => rating.TvShowId);
+
+        builder.HasIndex(rating => rating.EpisodeId);
 
         builder.HasIndex(rating => rating.CreatedAt);
 
@@ -67,5 +74,9 @@ internal sealed class RatingConfiguration : IEntityTypeConfiguration<Rating>
         builder.HasIndex(rating => new { rating.UserId, rating.TvShowId })
             .IsUnique()
             .HasFilter("\"TvShowId\" IS NOT NULL");
+
+        builder.HasIndex(rating => new { rating.UserId, rating.EpisodeId })
+            .IsUnique()
+            .HasFilter("\"EpisodeId\" IS NOT NULL");
     }
 }

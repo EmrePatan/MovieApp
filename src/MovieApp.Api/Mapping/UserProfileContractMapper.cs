@@ -19,7 +19,9 @@ public static class UserProfileContractMapper
             result.CustomAvatarUrl,
             result.ProviderAvatarUrl,
             result.EffectiveAvatarUrl,
-            ToAvatarKindContract(result.AvatarKind));
+            ToAvatarKindContract(result.AvatarKind),
+            result.Bio,
+            ToSocialLinksDto(result.SocialLinks));
 
     public static UserProfileResponse ToUserProfileResponse(CurrentUserResult result) =>
         new(
@@ -38,6 +40,32 @@ public static class UserProfileContractMapper
                 string.IsNullOrWhiteSpace(result.EffectiveAvatarUrl)
                     ? UserAvatarKind.Initials
                     : UserAvatarKind.Custom));
+
+    public static ProfileSocialLinksDto? ToSocialLinksDto(ProfileSocialLinksResult? links) =>
+        links is null
+            ? null
+            : new ProfileSocialLinksDto(
+                links.X,
+                links.Instagram,
+                links.Snapchat,
+                links.Tiktok,
+                links.Youtube,
+                links.Twitch,
+                links.Threads,
+                links.Website);
+
+    public static ProfileSocialLinksResult? ToSocialLinksResult(ProfileSocialLinksDto? links) =>
+        links is null
+            ? null
+            : new ProfileSocialLinksResult(
+                links.X,
+                links.Instagram,
+                links.Snapchat,
+                links.Tiktok,
+                links.Youtube,
+                links.Twitch,
+                links.Threads,
+                links.Website);
 
     private static string ToAvatarKindContract(UserAvatarKind kind) =>
         kind switch

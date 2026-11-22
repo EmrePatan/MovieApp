@@ -21,9 +21,7 @@ namespace MovieApp.Application.Services.Library;
 public sealed class LibraryService(
     ILibraryRepository libraryRepository,
     ICurrentUser currentUser,
-    IContentLocalizedPosterRepository contentLocalizedPosterRepository,
-    IMovieRepository movieRepository,
-    ITvShowRepository tvShowRepository,
+    ISummaryLocalizationMetadataReadRepository summaryLocalizationMetadataReadRepository,
     ILogger<LibraryService> logger,
     ICacheService? cacheService = null,
     LibrarySearchLoadCoordinator? searchLoadCoordinator = null) : ILibraryService
@@ -127,7 +125,7 @@ public sealed class LibraryService(
             hasNextPage);
 
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)criteria.PageSize);
-        var localizedPageItems = await ApplyLocalizedPostersAsync(pageItems, contentLocale, cancellationToken);
+        var localizedPageItems = await ApplyLocalizedDisplayAsync(pageItems, contentLocale, cancellationToken);
 
         return new PaginatedResult<LibraryItemResult>(
             localizedPageItems,
@@ -269,7 +267,7 @@ public sealed class LibraryService(
         return (category, result.Items);
     }
 
-    private async Task<IReadOnlyList<LibraryItemResult>> ApplyLocalizedPostersAsync(
+    private async Task<IReadOnlyList<LibraryItemResult>> ApplyLocalizedDisplayAsync(
         List<LibraryItemResult> items,
         string contentLocale,
         CancellationToken cancellationToken)
@@ -290,16 +288,17 @@ public sealed class LibraryService(
         var movieIds = items
             .Where(item => string.Equals(item.Type, "movie", StringComparison.OrdinalIgnoreCase))
             .Select(item => item.Id)
+            .Distinct()
             .ToList();
         var tvIds = items
             .Where(item => string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase))
             .Select(item => item.Id)
+            .Distinct()
             .ToList();
-        var movieProductionContexts = await movieRepository.GetProductionContextsByIdsAsync(movieIds, cancellationToken);
-        var tvProductionContexts = await tvShowRepository.GetProductionContextsByIdsAsync(tvIds, cancellationToken);
 
-        var localizedPosters = await LocalizedPosterDisplayOverlay.LoadPosterPathsAsync(
-            contentLocalizedPosterRepository,
+        var metadata = await summaryLocalizationMetadataReadRepository.LoadAsync(
+            movieIds,
+            tvIds,
             keys,
             contentLocale,
             cancellationToken);
@@ -312,15 +311,33 @@ public sealed class LibraryService(
                         ? CatalogContentType.Tv
                         : CatalogContentType.Movie,
                     item.Id);
-                var productionContext = string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase)
-                    ? tvProductionContexts.GetValueOrDefault(item.Id)
-                    : movieProductionContexts.GetValueOrDefault(item.Id);
+                var isTv = string.Equals(item.Type, "tv", StringComparison.OrdinalIgnoreCase);
+                var productionContext = isTv
+                    ? metadata.TvProductionContexts.GetValueOrDefault(item.Id)
+                    : metadata.MovieProductionContexts.GetValueOrDefault(item.Id);
+                metadata.LocalizedMovieTitles.TryGetValue(
+                    new CatalogContentKey(item.Id, "movie"),
+                    out var localizedMovieTitle);
+                metadata.LocalizedTvTitles.TryGetValue(
+                    new CatalogContentKey(item.Id, "tv"),
+                    out var localizedTvTitle);
+                var localizedTitle = isTv ? localizedTvTitle : localizedMovieTitle;
+                var titles = LocalizedDisplayTitleSelector.ChooseDisplayTitles(
+                    item.Title,
+                    item.OriginalTitle,
+                    productionContext.OriginalLanguage,
+                    localizedTitle,
+                    contentLocale,
+                    productionContext.PrimaryOriginCountryCode);
+
                 return item with
                 {
+                    Title = titles.Title,
+                    OriginalTitle = titles.OriginalTitle,
                     PosterUrl = LocalizedPosterDisplayOverlay.ChooseDisplayPosterUrl(
                         item.PosterUrl,
                         key,
-                        localizedPosters,
+                        metadata.LocalizedPosters,
                         contentLocale,
                         productionContext)
                 };

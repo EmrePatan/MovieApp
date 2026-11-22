@@ -72,6 +72,10 @@ internal sealed class UserRecommendationContextLoader(
             + interactions.CatalogFollowsMs
             + interactions.SearchHistoryMs;
 
+        // Explicit "not interested" actions: excluded from candidates and pushed down as a negative taste signal.
+        // They are not meaningful interactions, so a dismissal alone does not unlock personalization.
+        var dismissalRows = await LoadDismissalRowsAsync(userId, cancellationToken);
+
         var meaningfulInteractionCount = CountMeaningfulInteractions(
             interactions.RatingRows,
             interactions.FavoriteRows,
@@ -121,6 +125,13 @@ internal sealed class UserRecommendationContextLoader(
             interactions.WatchlistRows,
             interactions.CatalogFollowRows);
 
+        excludedMovieIds.UnionWith(dismissalRows
+            .Where(row => row.MovieId.HasValue)
+            .Select(row => row.MovieId!.Value));
+        excludedTvShowIds.UnionWith(dismissalRows
+            .Where(row => row.TvShowId.HasValue)
+            .Select(row => row.TvShowId!.Value));
+
         // Started shows are surfaced by Continue Watching; recommending them again mirrors watched movies.
         excludedTvShowIds.UnionWith(interactions.WatchedEpisodeRows.Select(row => row.TvShowId));
 
@@ -136,6 +147,7 @@ internal sealed class UserRecommendationContextLoader(
         var seeds = new List<UserRecommendationContextModels.SignalSeed>();
         seeds.AddRange(CreateRatingSeeds(interactions.RatingRows));
         seeds.AddRange(CreateFavoriteSeeds(interactions.FavoriteRows));
+        seeds.AddRange(CreateDismissalSeeds(dismissalRows));
         seeds.AddRange(CreateWatchedMovieSeeds(interactions.WatchedMovieRows));
         seeds.AddRange(CreateWatchedTvShowSeeds(interactions.WatchedEpisodeRows, tvShowTitleLookup));
         seeds.AddRange(CreateWatchlistSeeds(interactions.WatchlistRows));
@@ -524,6 +536,49 @@ internal sealed class UserRecommendationContextLoader(
                     favorite.TvShowTitle!,
                     null,
                     favorite.SignalAtUtc);
+            }
+        }
+    }
+
+    private async Task<List<UserRecommendationContextModels.TimestampedContentRow>> LoadDismissalRowsAsync(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        await dbContext.RecommendationDismissals
+            .AsNoTracking()
+            .Where(dismissal => dismissal.UserId == userId)
+            .Select(dismissal => new UserRecommendationContextModels.TimestampedContentRow(
+                dismissal.MovieId,
+                dismissal.TvShowId,
+                dismissal.CreatedAt,
+                dismissal.Movie!.Title,
+                dismissal.TvShow!.Title))
+            .ToListAsync(cancellationToken);
+
+    private static IEnumerable<UserRecommendationContextModels.SignalSeed> CreateDismissalSeeds(
+        IReadOnlyList<UserRecommendationContextModels.TimestampedContentRow> dismissalRows)
+    {
+        foreach (var dismissal in dismissalRows)
+        {
+            if (dismissal.MovieId.HasValue)
+            {
+                yield return new UserRecommendationContextModels.SignalSeed(
+                    dismissal.MovieId.Value,
+                    "movie",
+                    UserBehaviorSignalTypes.Dismissed,
+                    dismissal.MovieTitle!,
+                    null,
+                    dismissal.SignalAtUtc);
+            }
+
+            if (dismissal.TvShowId.HasValue)
+            {
+                yield return new UserRecommendationContextModels.SignalSeed(
+                    dismissal.TvShowId.Value,
+                    "tv",
+                    UserBehaviorSignalTypes.Dismissed,
+                    dismissal.TvShowTitle!,
+                    null,
+                    dismissal.SignalAtUtc);
             }
         }
     }

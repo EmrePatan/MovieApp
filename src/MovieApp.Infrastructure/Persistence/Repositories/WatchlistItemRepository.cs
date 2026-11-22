@@ -167,6 +167,40 @@ public sealed class WatchlistItemRepository(ApplicationDbContext dbContext) : IW
             .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetCoverPosterPathsByWatchlistIdsAsync(
+        IReadOnlyCollection<Guid> watchlistIds,
+        int perListLimit,
+        CancellationToken cancellationToken = default)
+    {
+        var covers = new Dictionary<Guid, IReadOnlyList<string>>();
+        if (watchlistIds.Count == 0 || perListLimit <= 0)
+        {
+            return covers;
+        }
+
+        // One bounded query per list: a list only ever loads its newest few posters, never its full contents.
+        foreach (var watchlistId in watchlistIds.Distinct())
+        {
+            var posterPaths = await dbContext.WatchlistItems
+                .AsNoTracking()
+                .Where(item => item.WatchlistId == watchlistId &&
+                    ((item.Movie != null && item.Movie.PosterPath != null) ||
+                     (item.TvShow != null && item.TvShow.PosterPath != null)))
+                .OrderByDescending(item => item.CreatedAt)
+                .Take(perListLimit)
+                .Select(item => item.Movie != null ? item.Movie.PosterPath : item.TvShow!.PosterPath)
+                .ToListAsync(cancellationToken);
+
+            var paths = posterPaths.OfType<string>().ToList();
+            if (paths.Count > 0)
+            {
+                covers[watchlistId] = paths;
+            }
+        }
+
+        return covers;
+    }
+
     public async Task<IReadOnlyList<Guid>> GetWatchlistIdsContainingMovieAsync(
         Guid userId,
         Guid movieId,

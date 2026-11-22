@@ -240,6 +240,24 @@ public sealed class EpisodeRepository(ApplicationDbContext dbContext) : IEpisode
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetAiredEpisodeIdsForSeasonAsync(
+        Guid tvShowId,
+        int seasonNumber,
+        CancellationToken cancellationToken = default)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        return await dbContext.Episodes
+            .AsNoTracking()
+            .Where(episode =>
+                episode.Season.TvShowId == tvShowId &&
+                episode.Season.SeasonNumber == seasonNumber &&
+                episode.AirDate != null &&
+                episode.AirDate <= today)
+            .OrderBy(episode => episode.EpisodeNumber)
+            .Select(episode => episode.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
         Guid tvShowId,
         CancellationToken cancellationToken = default)

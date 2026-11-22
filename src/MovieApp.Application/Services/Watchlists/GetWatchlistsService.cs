@@ -20,10 +20,16 @@ public sealed class GetWatchlistsService(
             watchlists.Select(watchlist => watchlist.Id).ToArray(),
             cancellationToken);
 
+        var coverPosterPaths = await watchlistItemRepository.GetCoverPosterPathsByWatchlistIdsAsync(
+            watchlists.Select(watchlist => watchlist.Id).ToArray(),
+            WatchlistCoverPosters.MaxPosters,
+            cancellationToken);
+
         return watchlists
             .Select(watchlist => WatchlistMapper.ToSummaryResult(
                 watchlist,
-                itemCounts.GetValueOrDefault(watchlist.Id)))
+                itemCounts.GetValueOrDefault(watchlist.Id),
+                coverPosterPaths.GetValueOrDefault(watchlist.Id)))
             .ToList();
     }
 }

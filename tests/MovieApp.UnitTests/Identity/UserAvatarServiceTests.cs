@@ -229,6 +229,11 @@ public sealed class UserAvatarServiceTests
 
             return Task.FromResult(new ProcessedUserAvatarImage([1, 2, 3]));
         }
+
+        public Task<ProcessedUserAvatarImage> ProcessCoverUploadAsync(
+            Stream uploadStream,
+            CancellationToken cancellationToken = default) =>
+            ProcessUploadAsync(uploadStream, cancellationToken);
     }
 
     private sealed class TestCurrentUser(Guid userId) : ICurrentUser

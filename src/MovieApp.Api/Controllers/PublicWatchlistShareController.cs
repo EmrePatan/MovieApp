@@ -32,6 +32,7 @@ public sealed class PublicWatchlistShareController(IWatchlistShareService watchl
                 item.Title,
                 item.Year,
                 item.PosterPath,
-                item.VoteAverage)).ToList()));
+                item.VoteAverage)).ToList(),
+            result.Description));
     }
 }

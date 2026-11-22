@@ -1,6 +1,7 @@
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Abstractions.TvShows;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
@@ -33,7 +34,9 @@ public sealed class WatchHistoryService(
     ITvShowCatalogSyncStateService catalogSyncStateService,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
     ILogger<WatchHistoryService> logger,
-    IServiceScopeFactory? analyticsScopeFactory = null) : IWatchHistoryService
+    IServiceScopeFactory? analyticsScopeFactory = null,
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IWatchHistoryService
 {
     public async Task<WatchMutationResult> MarkMovieWatchedAsync(
         Guid movieId,
@@ -50,7 +53,22 @@ public sealed class WatchHistoryService(
         var watchedMovie = WatchedMovie.Create(userId, movieId, utcNow);
 
         var upsertStopwatch = Stopwatch.StartNew();
-        var (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
+        (WatchedMovie entity, bool created) = (watchedMovie, false);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, ct);
+                if (created && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedMovie, entity.Id, movieId, "Movie", entity.WatchedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            (entity, created) = await watchedMovieRepository.UpsertAsync(watchedMovie, cancellationToken);
+            if (created && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedMovie, entity.Id, movieId, "Movie", entity.WatchedAt, cancellationToken);
+        }
         upsertStopwatch.Stop();
 
         var analyticsStopwatch = Stopwatch.StartNew();
@@ -74,7 +92,21 @@ public sealed class WatchHistoryService(
     public async Task UnmarkMovieWatchedAsync(Guid movieId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await watchedMovieRepository.RemoveAsync(userId, movieId, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await watchedMovieRepository.RemoveAsync(userId, movieId, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedMovie, movieId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await watchedMovieRepository.RemoveAsync(userId, movieId, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedMovie, movieId, cancellationToken);
+        }
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
@@ -116,7 +148,22 @@ public sealed class WatchHistoryService(
 
         var utcNow = DateTime.UtcNow;
         var watchedEpisode = WatchedEpisode.Create(userId, episodeId, utcNow);
-        var (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, cancellationToken);
+        (WatchedEpisode entity, bool created) = (watchedEpisode, false);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, ct);
+                if (created && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedEpisode, entity.Id, episodeId, "Episode", entity.WatchedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            (entity, created) = await watchedEpisodeRepository.UpsertAsync(watchedEpisode, cancellationToken);
+            if (created && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.WatchedEpisode, entity.Id, episodeId, "Episode", entity.WatchedAt, cancellationToken);
+        }
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
 
         return new WatchMutationResult(entity.WatchedAt, created);
@@ -125,7 +172,21 @@ public sealed class WatchHistoryService(
     public async Task UnmarkEpisodeWatchedAsync(Guid episodeId, CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
-        await watchedEpisodeRepository.RemoveAsync(userId, episodeId, cancellationToken);
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                await watchedEpisodeRepository.RemoveAsync(userId, episodeId, ct);
+                if (socialActivityRecorder is not null)
+                    await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedEpisode, episodeId, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            await watchedEpisodeRepository.RemoveAsync(userId, episodeId, cancellationToken);
+            if (socialActivityRecorder is not null)
+                await socialActivityRecorder.RetractAsync(userId, SocialActivityType.WatchedEpisode, episodeId, cancellationToken);
+        }
         await InvalidateProfileStatisticsAsync(userId, cancellationToken);
     }
 
@@ -458,7 +519,9 @@ public sealed class WatchHistoryService(
 
         await getSeasonService.GetSeasonAsync(tvShowId, seasonNumber, cancellationToken);
 
-        var episodeIds = await episodeRepository.GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+        var episodeIds = watched
+            ? await episodeRepository.GetAiredEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken)
+            : await episodeRepository.GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
         if (episodeIds.Count == 0)
         {
             return new BulkUpdateEpisodeWatchStateResult(0, null);

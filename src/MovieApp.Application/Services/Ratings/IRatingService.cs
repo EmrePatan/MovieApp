@@ -14,9 +14,16 @@ public interface IRatingService
         int score,
         CancellationToken cancellationToken = default);
 
+    Task<RatingUpsertResult> UpsertEpisodeRatingAsync(
+        Guid episodeId,
+        int score,
+        CancellationToken cancellationToken = default);
+
     Task DeleteMovieRatingAsync(Guid movieId, CancellationToken cancellationToken = default);
 
     Task DeleteTvShowRatingAsync(Guid tvShowId, CancellationToken cancellationToken = default);
+
+    Task DeleteEpisodeRatingAsync(Guid episodeId, CancellationToken cancellationToken = default);
 
     Task<RatingResult> GetCurrentUserMovieRatingAsync(
         Guid movieId,
@@ -26,11 +33,19 @@ public interface IRatingService
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
+    Task<RatingResult> GetCurrentUserEpisodeRatingAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken = default);
+
     Task<RatingSummaryResult> GetMovieRatingSummaryAsync(
         Guid movieId,
         CancellationToken cancellationToken = default);
 
     Task<RatingSummaryResult> GetTvShowRatingSummaryAsync(
         Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
+    Task<RatingSummaryResult> GetEpisodeRatingSummaryAsync(
+        Guid episodeId,
         CancellationToken cancellationToken = default);
 }

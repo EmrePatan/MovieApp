@@ -10,6 +10,12 @@ public interface IUserProfileService
         string displayName,
         CancellationToken cancellationToken = default);
 
+    Task<UserProfileResult> UpdateProfileAsync(
+        string displayName,
+        string? bio,
+        ProfileSocialLinksResult? socialLinks,
+        CancellationToken cancellationToken = default);
+
     Task<AuthenticationResult> ChangePasswordAsync(
         string currentPassword,
         string newPassword,

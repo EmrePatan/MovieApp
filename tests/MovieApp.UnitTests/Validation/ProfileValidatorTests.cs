@@ -1,3 +1,4 @@
+using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Validation;
 
 namespace MovieApp.UnitTests.Validation;
@@ -50,5 +51,31 @@ public sealed class ProfileValidatorTests
         var result = ProfileValidator.ValidateCurrentPassword(" ");
 
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void ValidateBioRejectsTooLongValue()
+    {
+        var result = ProfileValidator.ValidateBio(new string('a', ProfileValidator.BioMaxLength + 1));
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void ValidateSocialLinksRejectsInvalidWebsite()
+    {
+        var result = ProfileValidator.ValidateSocialLinks(
+            new ProfileSocialLinksResult(Website: "not a url :::"));
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void ValidateSocialLinksAcceptsHandlesAndWebsite()
+    {
+        var result = ProfileValidator.ValidateSocialLinks(
+            new ProfileSocialLinksResult(Instagram: "@emre", Website: "https://cave.app"));
+
+        Assert.True(result.IsValid);
     }
 }

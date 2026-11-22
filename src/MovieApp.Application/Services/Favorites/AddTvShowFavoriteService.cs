@@ -2,11 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Caching;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Identity;
 using MovieApp.Application.Models.Favorites;
 using MovieApp.Domain.Entities;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Application.Services.Favorites;
 
@@ -15,7 +17,9 @@ public sealed class AddTvShowFavoriteService(
     IFavoriteRepository favoriteRepository,
     ITvShowRepository tvShowRepository,
     IUserAnalyticsCacheInvalidator analyticsCacheInvalidator,
-    IServiceScopeFactory? analyticsScopeFactory = null) : IAddTvShowFavoriteService
+    IServiceScopeFactory? analyticsScopeFactory = null,
+    ISocialActivityRecorder? socialActivityRecorder = null,
+    IApplicationDbContext? applicationDbContext = null) : IAddTvShowFavoriteService
 {
     public async Task<FavoriteMutationResult> AddAsync(Guid tvShowId, CancellationToken cancellationToken = default)
     {
@@ -33,7 +37,23 @@ public sealed class AddTvShowFavoriteService(
 
         var favorite = Favorite.CreateForTvShow(userId, tvShowId, DateTime.UtcNow);
 
-        var added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
+        var added = false;
+        if (applicationDbContext is not null)
+        {
+            await applicationDbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                added = await favoriteRepository.TryAddAsync(favorite, ct);
+                if (added && socialActivityRecorder is not null)
+                    await socialActivityRecorder.RecordAsync(userId, SocialActivityType.FavoritedTvShow, favorite.Id, tvShowId, "TvShow", favorite.CreatedAt, ct);
+            }, cancellationToken);
+        }
+        else
+        {
+            added = await favoriteRepository.TryAddAsync(favorite, cancellationToken);
+            if (added && socialActivityRecorder is not null)
+                await socialActivityRecorder.RecordAsync(userId, SocialActivityType.FavoritedTvShow, favorite.Id, tvShowId, "TvShow", favorite.CreatedAt, cancellationToken);
+        }
+
         if (added)
         {
             await BackgroundAnalyticsInvalidation.RunAsync(

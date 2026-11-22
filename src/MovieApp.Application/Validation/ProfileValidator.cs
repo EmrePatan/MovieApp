@@ -1,10 +1,17 @@
 using System.Net.Mail;
+using MovieApp.Application.Models.Identity;
 
 namespace MovieApp.Application.Validation;
 
 public static class ProfileValidator
 {
     public const int DisplayNameMaxLength = 100;
+
+    public const int BioMaxLength = 300;
+
+    public const int SocialHandleMaxLength = 64;
+
+    public const int WebsiteMaxLength = 200;
 
     public const int EmailMaxLength = 320;
 
@@ -22,6 +29,75 @@ public static class ProfileValidator
         }
 
         return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateBio(string? bio)
+    {
+        if (string.IsNullOrWhiteSpace(bio))
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        if (bio.Trim().Length > BioMaxLength)
+        {
+            return SearchQueryValidationResult.Failure(
+                $"Bio must not exceed {BioMaxLength} characters.");
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    public static SearchQueryValidationResult ValidateSocialLinks(ProfileSocialLinksResult? socialLinks)
+    {
+        if (socialLinks is null)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        foreach (var (name, value, maxLength, isWebsite) in new (string Name, string? Value, int Max, bool IsWebsite)[]
+                 {
+                     ("X", socialLinks.X, SocialHandleMaxLength, false),
+                     ("Instagram", socialLinks.Instagram, SocialHandleMaxLength, false),
+                     ("Snapchat", socialLinks.Snapchat, SocialHandleMaxLength, false),
+                     ("TikTok", socialLinks.Tiktok, SocialHandleMaxLength, false),
+                     ("YouTube", socialLinks.Youtube, SocialHandleMaxLength, false),
+                     ("Twitch", socialLinks.Twitch, SocialHandleMaxLength, false),
+                     ("Threads", socialLinks.Threads, SocialHandleMaxLength, false),
+                     ("Website", socialLinks.Website, WebsiteMaxLength, true),
+                 })
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var trimmed = value.Trim();
+            if (trimmed.Length > maxLength)
+            {
+                return SearchQueryValidationResult.Failure(
+                    $"{name} must not exceed {maxLength} characters.");
+            }
+
+            if (isWebsite && !IsValidHttpUrl(trimmed))
+            {
+                return SearchQueryValidationResult.Failure("Website must be a valid http(s) URL.");
+            }
+        }
+
+        return SearchQueryValidationResult.Success();
+    }
+
+    private static bool IsValidHttpUrl(string value)
+    {
+        var candidate = value;
+        if (!candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            candidate = "https://" + candidate;
+        }
+
+        return Uri.TryCreate(candidate, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
     public static SearchQueryValidationResult ValidateEmail(string? email)

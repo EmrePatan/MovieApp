@@ -4,6 +4,7 @@ public sealed record RatingResponse(
     Guid Id,
     Guid? MovieId,
     Guid? TvShowId,
+    Guid? EpisodeId,
     int Score,
     DateTime CreatedAt,
     DateTime UpdatedAt);

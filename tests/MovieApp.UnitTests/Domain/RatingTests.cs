@@ -59,8 +59,31 @@ public sealed class RatingTests
         var rating = Rating.CreateForTvShow(Guid.NewGuid(), Guid.NewGuid(), 7, DateTime.UtcNow);
 
         Assert.Null(rating.MovieId);
+        Assert.Null(rating.EpisodeId);
         Assert.NotNull(rating.TvShowId);
         rating.ValidateInvariants();
+    }
+
+    [Fact]
+    public void CreateForEpisodeCreatesValidRating()
+    {
+        var episodeId = Guid.NewGuid();
+        var rating = Rating.CreateForEpisode(Guid.NewGuid(), episodeId, 8, DateTime.UtcNow);
+
+        Assert.Null(rating.MovieId);
+        Assert.Null(rating.TvShowId);
+        Assert.Equal(episodeId, rating.EpisodeId);
+        Assert.Equal(8, rating.Score);
+        rating.ValidateInvariants();
+    }
+
+    [Fact]
+    public void ValidateInvariantsRejectsMovieAndEpisode()
+    {
+        var rating = Rating.CreateForMovie(Guid.NewGuid(), Guid.NewGuid(), 8, DateTime.UtcNow);
+        rating.EpisodeId = Guid.NewGuid();
+
+        Assert.Throws<InvalidOperationException>(() => rating.ValidateInvariants());
     }
 
     [Fact]

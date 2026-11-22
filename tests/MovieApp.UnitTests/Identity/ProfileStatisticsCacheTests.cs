@@ -163,7 +163,7 @@ public sealed class ProfileStatisticsCacheTests
             CallCount++;
             return Task.FromResult(
                 ProfileStatisticsBuilder.Build(
-                    new ProfileStatisticsRawData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [], [], [], null, null),
+                    new ProfileStatisticsRawData(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [], [], [], null, null),
                     DateTime.UtcNow));
         }
     }

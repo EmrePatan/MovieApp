@@ -1,10 +1,12 @@
 using MovieApp.Application.Abstractions.Identity;
 using MovieApp.Application.Abstractions.Persistence;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
@@ -153,17 +155,44 @@ public sealed class ReviewServiceTests
         Assert.Equal(2, RatingStarMapping.ToStarBucket(4));
     }
 
+    [Fact]
+    public async Task CreateEpisodeReviewAsyncCreatesReview()
+    {
+        var episodeId = Guid.NewGuid();
+        var repository = new FakeReviewRepository();
+        var service = CreateService(repository, movie: null, episode: CreateEpisode(episodeId));
+
+        var result = await service.CreateEpisodeReviewAsync(episodeId, "Great episode", "en-US");
+
+        Assert.Equal("Great episode", result.Content);
+        Assert.Equal("en-US", result.AuthoringLocale);
+        Assert.Equal(1, repository.AddCount);
+    }
+
     private static ReviewService CreateService(
         FakeReviewRepository repository,
         Movie? movie,
-        IUserAvatarPresentationService? avatarPresentationService = null) =>
+        IUserAvatarPresentationService? avatarPresentationService = null,
+        Episode? episode = null) =>
         new(
             new FakeCurrentUser(UserId),
             repository,
             new FakeMovieRepository(movie),
             new FakeTvShowRepository(null),
+            new FakeEpisodeRepository(episode),
             new FakeUserAnalyticsCacheInvalidator(),
-            avatarPresentationService ?? new MovieApp.UnitTests.Identity.FakeUserAvatarPresentationService());
+            avatarPresentationService ?? new MovieApp.UnitTests.Identity.FakeUserAvatarPresentationService(),
+            new FakeSocialProfileService());
+
+    private static Episode CreateEpisode(Guid episodeId) =>
+        new()
+        {
+            Id = episodeId,
+            SeasonId = Guid.NewGuid(),
+            EpisodeNumber = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
     private static Movie CreateMovie() =>
         new()
@@ -251,6 +280,19 @@ public sealed class ReviewServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Review?>(null);
 
+        public Task<Review?> GetByUserAndEpisodeAsync(
+            Guid userId,
+            Guid episodeId,
+            CancellationToken cancellationToken = default)
+        {
+            if (_createdReview is not null && _createdReview.EpisodeId == episodeId)
+            {
+                return Task.FromResult<Review?>(_createdReview);
+            }
+
+            return Task.FromResult<Review?>(null);
+        }
+
         public Task<Review?> GetTrackedByUserAndMovieAsync(
             Guid userId,
             Guid movieId,
@@ -263,6 +305,12 @@ public sealed class ReviewServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Review?>(null);
 
+        public Task<Review?> GetTrackedByUserAndEpisodeAsync(
+            Guid userId,
+            Guid episodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Review?>(null);
+
         public Task<bool> ExistsForMovieAsync(
             Guid userId,
             Guid movieId,
@@ -272,6 +320,12 @@ public sealed class ReviewServiceTests
         public Task<bool> ExistsForTvShowAsync(
             Guid userId,
             Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> ExistsForEpisodeAsync(
+            Guid userId,
+            Guid episodeId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
@@ -301,6 +355,12 @@ public sealed class ReviewServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
+        public Task<bool> DeleteForEpisodeAsync(
+            Guid userId,
+            Guid episodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForMovieAsync(
             Guid movieId,
             int page,
@@ -322,6 +382,15 @@ public sealed class ReviewServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
 
+        public Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForEpisodeAsync(
+            Guid episodeId,
+            int page,
+            int pageSize,
+            ReviewListSort sort,
+            int? ratingStars = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<(IReadOnlyList<PublicReviewListItem>, int)>(([], 0));
+
         public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
             Guid movieId,
             CancellationToken cancellationToken = default) =>
@@ -329,6 +398,11 @@ public sealed class ReviewServiceTests
 
         public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
             Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(RatingMapper.CreateEmptyDistribution());
+
+        public Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForEpisodeAsync(
+            Guid episodeId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(RatingMapper.CreateEmptyDistribution());
 
@@ -370,6 +444,128 @@ public sealed class ReviewServiceTests
 
         public Task<TvShow> UpsertFromProviderAsync(
             Application.Models.Providers.TvShowProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class FakeEpisodeRepository(Episode? episode) : IEpisodeRepository
+    {
+        public Task<Episode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(episode is not null && episode.Id == id ? episode : null);
+
+        public Task<int> CountByTvShowIdAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<int> CountByTvShowIdAndSeasonNumberAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<IReadOnlyList<Application.Models.WatchHistory.SeasonEpisodeCountResult>> GetEpisodeCountsBySeasonAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Application.Models.WatchHistory.SeasonEpisodeCountResult>>([]);
+
+        public Task<Episode?> GetFirstUnwatchedForTvShowAsync(
+            Guid tvShowId,
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Episode?>(null);
+
+        public Task<Episode?> GetFirstUnwatchedForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Episode?>(null);
+
+        public Task<Episode?> GetBySeasonIdAndEpisodeNumberAsync(
+            Guid seasonId,
+            int episodeNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Episode?>(null);
+
+        public Task<Episode> UpsertFromProviderAsync(
+            Guid seasonId,
+            Application.Models.Providers.EpisodeProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsBelongingToTvShowAsync(
+            Guid tvShowId,
+            IReadOnlyList<Guid> episodeIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowUpToEpisodeAsync(
+            Guid tvShowId,
+            Guid targetEpisodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetAiredEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+    }
+
+    private sealed class FakeSocialProfileService : ISocialProfileService
+    {
+        public Task<SocialProfileResult> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SocialProfileResult(
+                userId, "user", "User", DateTime.UtcNow, null, false, "Self", 0, 0, null, null));
+
+        public Task<SocialProfileStatisticsResult> GetStatisticsAsync(
+            Guid userId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SocialUserSummaryResult>> SearchUsersAsync(
+            string query, int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SocialUserSummaryResult>> GetFollowersAsync(
+            Guid userId, int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SocialUserSummaryResult>> GetFollowingAsync(
+            Guid userId, int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task SetProfileCoverPosterAsync(string? posterPath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<bool> CanViewReviewsAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+
+        public Task<IReadOnlyList<WatchlistSummaryResult>> GetWatchlistsAsync(
+            Guid userId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<WatchlistItemsResult> GetWatchlistItemsAsync(
+            Guid userId,
+            Guid watchlistId,
+            SearchContentType mediaType,
+            WatchlistItemsSort sort,
+            int page,
+            int pageSize,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

@@ -54,6 +54,63 @@ public sealed class UserProfileService(
         return UserMapper.ToUserProfileResult(user, linkedProviders, avatar);
     }
 
+    public async Task<UserProfileResult> UpdateProfileAsync(
+        string displayName,
+        string? bio,
+        ProfileSocialLinksResult? socialLinks,
+        CancellationToken cancellationToken = default)
+    {
+        var displayNameValidation = ProfileValidator.ValidateDisplayName(displayName);
+        if (!displayNameValidation.IsValid)
+        {
+            throw new ValidationException(displayNameValidation.ErrorMessage!);
+        }
+
+        var bioValidation = ProfileValidator.ValidateBio(bio);
+        if (!bioValidation.IsValid)
+        {
+            throw new ValidationException(bioValidation.ErrorMessage!);
+        }
+
+        var normalizedLinks = ProfileSocialLinksNormalizer.Normalize(socialLinks);
+        var linksValidation = ProfileValidator.ValidateSocialLinks(normalizedLinks);
+        if (!linksValidation.IsValid)
+        {
+            throw new ValidationException(linksValidation.ErrorMessage!);
+        }
+
+        var user = await GetCurrentUserForUpdateAsync(cancellationToken);
+
+        if (socialLinks is null)
+        {
+            // Legacy clients that omit socialLinks: only display name changes.
+            user.UpdateDisplayName(displayName, DateTime.UtcNow);
+        }
+        else
+        {
+            // Full replace — null bio/handle clears that field.
+            user.UpdateProfile(
+                displayName,
+                bio,
+                normalizedLinks?.X,
+                normalizedLinks?.Instagram,
+                normalizedLinks?.Snapchat,
+                normalizedLinks?.Tiktok,
+                normalizedLinks?.Youtube,
+                normalizedLinks?.Twitch,
+                normalizedLinks?.Threads,
+                normalizedLinks?.Website,
+                DateTime.UtcNow);
+        }
+
+        await userRepository.UpdateAsync(user, cancellationToken);
+        var linkedProviders = await externalLoginRepository.GetProvidersForUserAsync(user.Id, cancellationToken);
+        var avatar = await avatarPresentationService.GetForUserAsync(user.Id, cancellationToken);
+
+        return UserMapper.ToUserProfileResult(user, linkedProviders, avatar);
+    }
+
+
     public async Task<AuthenticationResult> ChangePasswordAsync(
         string currentPassword,
         string newPassword,

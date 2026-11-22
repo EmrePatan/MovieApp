@@ -374,6 +374,61 @@ public sealed class ReviewsController(
         }
     }
 
+    [Authorize]
+    [HttpGet("users/{userId:guid}")]
+    [ProducesResponseType(typeof(UserReviewListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<UserReviewListResponse>> GetUserReviews(
+        Guid userId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? type,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var mediaTypeValidation = LibraryValidator.ValidateMediaType(type);
+            if (!mediaTypeValidation.IsValid)
+            {
+                throw new ValidationException(mediaTypeValidation.ErrorMessage!);
+            }
+
+            _ = AdvancedSearchValidator.TryParseType(type, out var contentType);
+
+            var result = await reviewService.GetUserReviewsAsync(
+                userId,
+                page ?? SearchPaginationDefaults.DefaultPage,
+                pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                contentType,
+                cancellationToken);
+
+            return Ok(ReviewContractMapper.ToUserReviewListResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid review list request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "User not found.",
+                exception.Message));
+        }
+    }
+
     [AllowAnonymous]
     [HttpGet("movies/{movieId:guid}")]
     [ProducesResponseType(typeof(ReviewListResponse), StatusCodes.Status200OK)]
@@ -480,6 +535,215 @@ public sealed class ReviewsController(
             return NotFound(CreateProblemDetails(
                 StatusCodes.Status404NotFound,
                 "TV show not found.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpPost("episodes/{episodeId:guid}")]
+    [ProducesResponseType(typeof(ReviewResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReviewResponse>> CreateEpisodeReview(
+        Guid episodeId,
+        [FromBody] CreateReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var authoringLocale = ResolveAuthoringLocale(request.AuthoringLocale);
+            var result = await reviewService.CreateEpisodeReviewAsync(
+                episodeId,
+                request.Content,
+                authoringLocale,
+                cancellationToken);
+            return Created(string.Empty, ReviewContractMapper.ToResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid review request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Episode not found.",
+                exception.Message));
+        }
+        catch (ConflictException exception)
+        {
+            return Conflict(CreateProblemDetails(
+                StatusCodes.Status409Conflict,
+                "Review conflict.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpPut("episodes/{episodeId:guid}")]
+    [ProducesResponseType(typeof(ReviewResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReviewResponse>> UpdateEpisodeReview(
+        Guid episodeId,
+        [FromBody] UpdateReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var authoringLocale = ResolveAuthoringLocale(request.AuthoringLocale);
+            var result = await reviewService.UpdateEpisodeReviewAsync(
+                episodeId,
+                request.Content,
+                authoringLocale,
+                cancellationToken);
+            return Ok(ReviewContractMapper.ToResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid review request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Review not found.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpDelete("episodes/{episodeId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteEpisodeReview(Guid episodeId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await reviewService.DeleteEpisodeReviewAsync(episodeId, cancellationToken);
+            return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Review not found.",
+                exception.Message));
+        }
+    }
+
+    [Authorize]
+    [HttpGet("episodes/{episodeId:guid}/me")]
+    [ProducesResponseType(typeof(ReviewResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReviewResponse>> GetCurrentUserEpisodeReview(
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await reviewService.GetCurrentUserEpisodeReviewAsync(episodeId, cancellationToken);
+            return Ok(ReviewContractMapper.ToResponse(result));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Review not found.",
+                exception.Message));
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("episodes/{episodeId:guid}")]
+    [ProducesResponseType(typeof(ReviewListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReviewListResponse>> GetEpisodeReviews(
+        Guid episodeId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? sort,
+        [FromQuery] int? ratingStars,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sortValidation = ReviewListValidator.ValidateSort(sort);
+            if (!sortValidation.IsValid)
+            {
+                throw new ValidationException(sortValidation.ErrorMessage!);
+            }
+
+            var ratingStarsValidation = ReviewListValidator.ValidateRatingStars(ratingStars);
+            if (!ratingStarsValidation.IsValid)
+            {
+                throw new ValidationException(ratingStarsValidation.ErrorMessage!);
+            }
+
+            _ = ReviewListValidator.TryParseSort(sort, out var parsedSort);
+
+            var result = await reviewService.GetEpisodeReviewsAsync(
+                episodeId,
+                page ?? SearchPaginationDefaults.DefaultPage,
+                pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                parsedSort,
+                ratingStars,
+                cancellationToken);
+
+            return Ok(ReviewContractMapper.ToListResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid review list request.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Episode not found.",
                 exception.Message));
         }
     }

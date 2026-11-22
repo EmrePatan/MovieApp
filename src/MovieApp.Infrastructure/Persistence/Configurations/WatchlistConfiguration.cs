@@ -27,6 +27,9 @@ internal sealed class WatchlistConfiguration : IEntityTypeConfiguration<Watchlis
             .IsRequired()
             .HasMaxLength(WatchlistNameNormalizer.MaxLength);
 
+        builder.Property(watchlist => watchlist.Description)
+            .HasMaxLength(Watchlist.MaxDescriptionLength);
+
         builder.Property(watchlist => watchlist.CreatedAt)
             .IsRequired();
 

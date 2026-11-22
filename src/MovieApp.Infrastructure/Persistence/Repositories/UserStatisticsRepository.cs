@@ -15,8 +15,10 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
         int WatchlistItemCount,
         int RatedMovieCount,
         int RatedTvShowCount,
+        int RatedEpisodeCount,
         int ReviewedMovieCount,
         int ReviewedTvShowCount,
+        int ReviewedEpisodeCount,
         int WatchedMovieCount,
         int WatchedEpisodeCount);
 
@@ -74,8 +76,10 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
             counts.WatchlistItemCount,
             counts.RatedMovieCount,
             counts.RatedTvShowCount,
+            counts.RatedEpisodeCount,
             counts.ReviewedMovieCount,
             counts.ReviewedTvShowCount,
+            counts.ReviewedEpisodeCount,
             counts.WatchedMovieCount,
             counts.WatchedEpisodeCount,
             showsStarted,
@@ -104,8 +108,10 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
                 dbContext.WatchlistItems.Count(item => item.Watchlist.UserId == userId),
                 dbContext.Ratings.Count(rating => rating.UserId == userId && rating.MovieId != null),
                 dbContext.Ratings.Count(rating => rating.UserId == userId && rating.TvShowId != null),
+                dbContext.Ratings.Count(rating => rating.UserId == userId && rating.EpisodeId != null),
                 dbContext.Reviews.Count(review => review.UserId == userId && review.MovieId != null),
                 dbContext.Reviews.Count(review => review.UserId == userId && review.TvShowId != null),
+                dbContext.Reviews.Count(review => review.UserId == userId && review.EpisodeId != null),
                 dbContext.WatchedMovies.Count(watchedMovie => watchedMovie.UserId == userId),
                 dbContext.WatchedEpisodes.Count(watchedEpisode => watchedEpisode.UserId == userId)))
             .FirstAsync(cancellationToken);

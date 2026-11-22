@@ -92,6 +92,64 @@ public sealed class UserAvatarService(
         return await MapProfileAsync(user, cancellationToken);
     }
 
+    public async Task UploadProfileCoverAsync(
+        Stream uploadStream,
+        long? declaredContentLength,
+        CancellationToken cancellationToken = default)
+    {
+        if (declaredContentLength is > MaxUploadBytes)
+        {
+            throw new ValidationException("Cover image must be 5 MB or smaller.");
+        }
+
+        await using var boundedStream = new BoundedReadStream(uploadStream, MaxUploadBytes);
+        var processed = await imageProcessor.ProcessCoverUploadAsync(boundedStream, cancellationToken);
+
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        var user = await userRepository.GetByIdForUpdateAsync(userId, cancellationToken);
+        if (user is null || !user.IsActive)
+        {
+            throw new NotFoundException("The authenticated user was not found.");
+        }
+
+        var previousKey = user.CustomProfileCoverStorageKey;
+        var newKey = $"profile-covers/{userId}/{Guid.NewGuid():N}.webp";
+
+        try
+        {
+            await blobStorage.PutAsync(newKey, processed.WebpContent, "image/webp", cancellationToken);
+            user.SetCustomProfileCoverStorageKey(newKey, DateTime.UtcNow);
+            await userRepository.UpdateAsync(user, cancellationToken);
+        }
+        catch (Exception)
+        {
+            await BestEffortDeleteCustomAvatarAsync(newKey, cancellationToken);
+            throw;
+        }
+
+        if (!string.IsNullOrWhiteSpace(previousKey) &&
+            !string.Equals(previousKey, newKey, StringComparison.Ordinal))
+        {
+            await BestEffortDeleteCustomAvatarAsync(previousKey, cancellationToken);
+        }
+    }
+
+    public async Task RemoveProfileCoverAsync(CancellationToken cancellationToken = default)
+    {
+        var userId = CurrentUserGuard.RequireUserId(currentUser);
+        var user = await userRepository.GetByIdForUpdateAsync(userId, cancellationToken);
+        if (user is null || !user.IsActive)
+        {
+            throw new NotFoundException("The authenticated user was not found.");
+        }
+
+        var previousKey = user.CustomProfileCoverStorageKey;
+        user.ClearCustomProfileCoverStorageKey(DateTime.UtcNow);
+        user.SetProfileCoverPosterPath(null, DateTime.UtcNow);
+        await userRepository.UpdateAsync(user, cancellationToken);
+        await BestEffortDeleteCustomAvatarAsync(previousKey, cancellationToken);
+    }
+
     public async Task BestEffortDeleteCustomAvatarAsync(
         string? storageKey,
         CancellationToken cancellationToken = default)

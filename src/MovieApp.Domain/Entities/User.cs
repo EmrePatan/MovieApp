@@ -18,7 +18,29 @@ public sealed class User
 
     public string DisplayName { get; set; } = string.Empty;
 
+    public string? Bio { get; set; }
+
+    public string? SocialX { get; set; }
+
+    public string? SocialInstagram { get; set; }
+
+    public string? SocialSnapchat { get; set; }
+
+    public string? SocialTiktok { get; set; }
+
+    public string? SocialYoutube { get; set; }
+
+    public string? SocialTwitch { get; set; }
+
+    public string? SocialThreads { get; set; }
+
+    public string? SocialWebsite { get; set; }
+
     public string? CustomAvatarStorageKey { get; set; }
+
+    public string? ProfileCoverPosterPath { get; set; }
+
+    public string? CustomProfileCoverStorageKey { get; set; }
 
     public bool IsActive { get; set; } = true;
 
@@ -144,6 +166,41 @@ public sealed class User
         UpdatedAt = utcNow;
     }
 
+    public void SetProfileCoverPosterPath(string? posterPath, DateTime utcNow)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("Inactive users cannot update their profile cover.");
+        }
+
+        ProfileCoverPosterPath = string.IsNullOrWhiteSpace(posterPath) ? null : posterPath.Trim();
+        UpdatedAt = utcNow;
+    }
+
+    public void SetCustomProfileCoverStorageKey(string storageKey, DateTime utcNow)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("Inactive users cannot update their profile cover.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(storageKey);
+        CustomProfileCoverStorageKey = storageKey.Trim();
+        ProfileCoverPosterPath = null;
+        UpdatedAt = utcNow;
+    }
+
+    public void ClearCustomProfileCoverStorageKey(DateTime utcNow)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("Inactive users cannot update their profile cover.");
+        }
+
+        CustomProfileCoverStorageKey = null;
+        UpdatedAt = utcNow;
+    }
+
     public void UpdateDisplayName(string displayName, DateTime utcNow)
     {
         if (!IsActive)
@@ -164,6 +221,48 @@ public sealed class User
 
         DisplayName = trimmedDisplayName;
         UpdatedAt = utcNow;
+    }
+
+    public void UpdateProfile(
+        string displayName,
+        string? bio,
+        string? socialX,
+        string? socialInstagram,
+        string? socialSnapchat,
+        string? socialTiktok,
+        string? socialYoutube,
+        string? socialTwitch,
+        string? socialThreads,
+        string? socialWebsite,
+        DateTime utcNow)
+    {
+        UpdateDisplayName(displayName, utcNow);
+        Bio = NormalizeOptionalText(bio, 300);
+        SocialX = NormalizeOptionalText(socialX, 64);
+        SocialInstagram = NormalizeOptionalText(socialInstagram, 64);
+        SocialSnapchat = NormalizeOptionalText(socialSnapchat, 64);
+        SocialTiktok = NormalizeOptionalText(socialTiktok, 64);
+        SocialYoutube = NormalizeOptionalText(socialYoutube, 64);
+        SocialTwitch = NormalizeOptionalText(socialTwitch, 64);
+        SocialThreads = NormalizeOptionalText(socialThreads, 64);
+        SocialWebsite = NormalizeOptionalText(socialWebsite, 200);
+        UpdatedAt = utcNow;
+    }
+
+    private static string? NormalizeOptionalText(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length > maxLength)
+        {
+            throw new ArgumentException($"Value must not exceed {maxLength} characters.");
+        }
+
+        return trimmed;
     }
 
     public void ChangeEmail(string email, string normalizedEmail, DateTime utcNow)

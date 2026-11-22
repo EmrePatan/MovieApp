@@ -31,7 +31,17 @@ public static class UserMapper
             avatar?.CustomAvatarUrl,
             avatar?.ProviderAvatarUrl,
             avatar?.EffectiveAvatarUrl,
-            avatar?.AvatarKind ?? UserAvatarKind.Initials);
+            avatar?.AvatarKind ?? UserAvatarKind.Initials,
+            user.Bio,
+            ProfileSocialLinksResult.FromUser(
+                user.SocialX,
+                user.SocialInstagram,
+                user.SocialSnapchat,
+                user.SocialTiktok,
+                user.SocialYoutube,
+                user.SocialTwitch,
+                user.SocialThreads,
+                user.SocialWebsite));
 
     public static TokenUserContext ToTokenUserContext(User user) =>
         new(user.Id, user.Email, user.SecurityStamp);

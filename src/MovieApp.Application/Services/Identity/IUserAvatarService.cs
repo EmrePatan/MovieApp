@@ -11,5 +11,12 @@ public interface IUserAvatarService
 
     Task<UserProfileResult> RemoveCustomAvatarAsync(CancellationToken cancellationToken = default);
 
+    Task UploadProfileCoverAsync(
+        Stream uploadStream,
+        long? declaredContentLength,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveProfileCoverAsync(CancellationToken cancellationToken = default);
+
     Task BestEffortDeleteCustomAvatarAsync(string? storageKey, CancellationToken cancellationToken = default);
 }

@@ -153,7 +153,11 @@ public sealed class WatchlistShareService(
 
         var displayName = WatchlistShareDisplayName.ResolvePublicDisplayName(share.User);
         var watchlistName = share.Watchlist?.Name;
-        return new PublicWatchlistShareResult(displayName, watchlistName, mapped);
+        return new PublicWatchlistShareResult(
+            displayName,
+            watchlistName,
+            mapped,
+            share.Watchlist?.Description);
     }
 
     private static PublicWatchlistShareItemResult? MapPublicItem(WatchlistItem item)

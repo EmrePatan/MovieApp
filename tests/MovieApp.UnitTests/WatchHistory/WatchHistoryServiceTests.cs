@@ -891,6 +891,12 @@ public sealed class WatchHistoryServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Guid>>(episode is null ? [] : [episode.Id]);
 
+        public Task<IReadOnlyList<Guid>> GetAiredEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            GetEpisodeIdsForSeasonAsync(tvShowId, seasonNumber, cancellationToken);
+
         public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>

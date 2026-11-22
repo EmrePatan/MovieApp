@@ -169,9 +169,7 @@ public sealed class LibrarySearchCountModeTests
         new(
             repository,
             new AuthenticatedCurrentUser(UserId),
-            new EmptyContentLocalizedPosterRepository(),
-            new EmptyOriginalLanguageMovieRepository(),
-            new StubTvOriginalLanguageRepository(new Dictionary<Guid, string?>()),
+            new EmptySummaryLocalizationMetadataReadRepository(),
             NullLogger<LibraryService>.Instance,
             cacheService,
             searchLoadCoordinator);

@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Abstractions.Social;
 using MovieApp.Contracts.Auth;
 using MovieApp.Domain.Users;
 using MovieApp.Infrastructure.Email;
@@ -65,6 +66,34 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         var profile = await response.Content.ReadFromJsonAsync<UserProfileResponse>();
         Assert.NotNull(profile);
         Assert.Equal("New Display Name", profile.DisplayName);
+    }
+
+    [Fact]
+    public async Task UpdateProfilePersistsBioAndSocialLinks()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var response = await SendAuthorizedPutAsync(
+            "/api/users/me/profile",
+            token,
+            new UpdateProfileRequest(
+                "Emre",
+                "Hello from Cave",
+                new ProfileSocialLinksDto(Instagram: "@emre", Website: "example.com")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var profile = await response.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profile);
+        Assert.Equal("Hello from Cave", profile.Bio);
+        Assert.Equal("emre", profile.SocialLinks?.Instagram);
+        Assert.Equal("https://example.com/", profile.SocialLinks?.Website);
+
+        var me = await SendAuthorizedGetAsync("/api/users/me", token);
+        var meProfile = await me.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.Equal("Hello from Cave", meProfile?.Bio);
+        Assert.Equal("emre", meProfile?.SocialLinks?.Instagram);
     }
 
     [Fact]
@@ -280,6 +309,383 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
         Assert.Equal(4.0m, statistics.Summary.AverageStarRating);
         Assert.Equal(12, statistics.Activity.Last12Months.Count);
         Assert.Single(statistics.Ratings.Distribution, item => item.Stars == 4);
+    }
+
+    [Fact]
+    public async Task ConcurrentSocialFollowRequestsAreIdempotent()
+    {
+        await fixture.ResetAsync();
+
+        var followerToken = await RegisterAndGetTokenAsync();
+        var targetToken = await RegisterAndGetTokenAsync();
+        var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
+        Assert.Equal(HttpStatusCode.OK, targetProfileResponse.StatusCode);
+        var targetProfile = await targetProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(targetProfile);
+
+        var requests = await Task.WhenAll(
+            SendAuthorizedPostAsync($"/api/social/follows/{targetProfile.Id}", followerToken),
+            SendAuthorizedPostAsync($"/api/social/follows/{targetProfile.Id}", followerToken));
+
+        Assert.All(requests, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+
+        await using var context = CreateContext();
+        Assert.Equal(1, await context.UserFollows.CountAsync(follow =>
+            follow.FollowedUserId == targetProfile.Id));
+        Assert.Equal(1, await context.SocialNotifications.CountAsync(notification =>
+            notification.RecipientId == targetProfile.Id && notification.NotificationType == "NewFollower"));
+    }
+
+    [Fact]
+    public async Task SocialInteractionsHideActivitiesOwnedByInactiveUsers()
+    {
+        await fixture.ResetAsync();
+
+        var actorToken = await RegisterAndGetTokenAsync();
+        var actorResponse = await SendAuthorizedGetAsync("/api/users/me", actorToken);
+        Assert.Equal(HttpStatusCode.OK, actorResponse.StatusCode);
+        var actor = await actorResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(actor);
+
+        var movieId = await SeedMovieAsync();
+        var activity = MovieApp.Domain.Entities.SocialActivity.Create(
+            actor.Id,
+            MovieApp.Domain.Enums.SocialActivityType.WatchedMovie,
+            Guid.NewGuid(),
+            movieId,
+            "Movie",
+            DateTime.UtcNow);
+
+        await using (var context = CreateContext())
+        {
+            context.SocialActivities.Add(activity);
+            var actorEntity = await context.Users.SingleAsync(user => user.Id == actor.Id);
+            actorEntity.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        var viewerToken = await RegisterAndGetTokenAsync();
+        var likeResponse = await SendAuthorizedPostAsync(
+            $"/api/social/activities/{activity.Id}/like",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, likeResponse.StatusCode);
+
+        var commentsResponse = await SendAuthorizedGetAsync(
+            $"/api/social/activities/{activity.Id}/comments",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, commentsResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task SocialInteractionsHideCommentsOwnedByInactiveUsers()
+    {
+        await fixture.ResetAsync();
+
+        var ownerToken = await RegisterAndGetTokenAsync();
+        var ownerResponse = await SendAuthorizedGetAsync("/api/users/me", ownerToken);
+        Assert.Equal(HttpStatusCode.OK, ownerResponse.StatusCode);
+        var owner = await ownerResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(owner);
+
+        var commenterToken = await RegisterAndGetTokenAsync();
+        var commenterResponse = await SendAuthorizedGetAsync("/api/users/me", commenterToken);
+        Assert.Equal(HttpStatusCode.OK, commenterResponse.StatusCode);
+        var commenter = await commenterResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(commenter);
+
+        var movieId = await SeedMovieAsync();
+        var activity = MovieApp.Domain.Entities.SocialActivity.Create(
+            owner.Id,
+            MovieApp.Domain.Enums.SocialActivityType.WatchedMovie,
+            Guid.NewGuid(),
+            movieId,
+            "Movie",
+            DateTime.UtcNow);
+        await using (var context = CreateContext())
+        {
+            context.SocialActivities.Add(activity);
+            await context.SaveChangesAsync();
+        }
+
+        var commentResponse = await SendAuthorizedPostAsync(
+            $"/api/social/activities/{activity.Id}/comments",
+            commenterToken,
+            new { Content = "A comment to hide", ParentCommentId = (Guid?)null });
+        Assert.Equal(HttpStatusCode.OK, commentResponse.StatusCode);
+        var commentPayload = await commentResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var commentId = commentPayload.GetProperty("id").GetGuid();
+
+        await using (var context = CreateContext())
+        {
+            var commenterEntity = await context.Users.SingleAsync(user => user.Id == commenter.Id);
+            commenterEntity.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        var viewerToken = await RegisterAndGetTokenAsync();
+        var repliesResponse = await SendAuthorizedGetAsync(
+            $"/api/social/activities/{activity.Id}/comments?parentCommentId={commentId}",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, repliesResponse.StatusCode);
+
+        var replyResponse = await SendAuthorizedPostAsync(
+            $"/api/social/activities/{activity.Id}/comments",
+            viewerToken,
+            new { Content = "Reply to hidden comment", ParentCommentId = (Guid?)commentId });
+        Assert.Equal(HttpStatusCode.NotFound, replyResponse.StatusCode);
+
+        var likeResponse = await SendAuthorizedPostAsync(
+            $"/api/social/comments/{commentId}/like",
+            viewerToken);
+        Assert.Equal(HttpStatusCode.NotFound, likeResponse.StatusCode);
+
+        var reportResponse = await SendAuthorizedPostAsync(
+            "/api/social/reports",
+            viewerToken,
+            new { TargetType = "Comment", TargetId = commentId, Reason = "Spam", Details = (string?)null });
+        Assert.Equal(HttpStatusCode.NotFound, reportResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentFollowAndBlockCannotLeaveFollowRelationship()
+    {
+        await fixture.ResetAsync();
+
+        var actorToken = await RegisterAndGetTokenAsync();
+        var actorProfileResponse = await SendAuthorizedGetAsync("/api/users/me", actorToken);
+        var actorProfile = await actorProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(actorProfile);
+
+        var targetToken = await RegisterAndGetTokenAsync();
+        var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
+        Assert.Equal(HttpStatusCode.OK, targetProfileResponse.StatusCode);
+        var targetProfile = await targetProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(targetProfile);
+
+        var results = await Task.WhenAll(
+            SendAuthorizedPostAsync($"/api/social/follows/{targetProfile.Id}", actorToken),
+            SendAuthorizedPostAsync($"/api/social/blocks/{targetProfile.Id}", actorToken));
+
+        Assert.Contains(results[0].StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.NotFound });
+        Assert.Equal(HttpStatusCode.NoContent, results[1].StatusCode);
+
+        await using var context = CreateContext();
+        Assert.True(await context.UserBlocks.AnyAsync(block =>
+            block.BlockerId == actorProfile.Id && block.BlockedUserId == targetProfile.Id));
+        Assert.False(await context.UserFollows.AnyAsync(follow =>
+            follow.FollowedUserId == targetProfile.Id));
+    }
+
+    [Fact]
+    public async Task GetBlockedUsersReturnsUsersBlockedByCaller()
+    {
+        await fixture.ResetAsync();
+
+        var blockerToken = await RegisterAndGetTokenAsync();
+        var targetToken = await RegisterAndGetTokenAsync();
+        var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
+        var targetProfile = await targetProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(targetProfile);
+
+        var blockResponse = await SendAuthorizedPostAsync($"/api/social/blocks/{targetProfile.Id}", blockerToken);
+        Assert.Equal(HttpStatusCode.NoContent, blockResponse.StatusCode);
+
+        var listResponse = await SendAuthorizedGetAsync("/api/social/blocks", blockerToken);
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var blocked = await listResponse.Content.ReadFromJsonAsync<List<BlockedUserItem>>();
+        Assert.NotNull(blocked);
+        Assert.Contains(blocked, item => item.UserId == targetProfile.Id);
+    }
+
+    private sealed record BlockedUserItem(Guid UserId, string UserName, string DisplayName, DateTime BlockedAt);
+
+    [Fact]
+    public async Task SocialProfileCountsExcludeInactiveUsers()
+    {
+        await fixture.ResetAsync();
+
+        var profileToken = await RegisterAndGetTokenAsync();
+        var profileResponse = await SendAuthorizedGetAsync("/api/users/me", profileToken);
+        Assert.Equal(HttpStatusCode.OK, profileResponse.StatusCode);
+        var profile = await profileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profile);
+
+        var followerToken = await RegisterAndGetTokenAsync();
+        var followerResponse = await SendAuthorizedGetAsync("/api/users/me", followerToken);
+        Assert.Equal(HttpStatusCode.OK, followerResponse.StatusCode);
+        var follower = await followerResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(follower);
+
+        var followedToken = await RegisterAndGetTokenAsync();
+        var followedResponse = await SendAuthorizedGetAsync("/api/users/me", followedToken);
+        Assert.Equal(HttpStatusCode.OK, followedResponse.StatusCode);
+        var followed = await followedResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(followed);
+
+        await using (var context = CreateContext())
+        {
+            var now = DateTime.UtcNow;
+            context.UserFollows.Add(MovieApp.Domain.Entities.UserFollow.Create(follower.Id, profile.Id, false, now));
+            context.UserFollows.Add(MovieApp.Domain.Entities.UserFollow.Create(profile.Id, followed.Id, false, now));
+            var inactiveFollower = await context.Users.SingleAsync(user => user.Id == follower.Id);
+            var inactiveFollowed = await context.Users.SingleAsync(user => user.Id == followed.Id);
+            inactiveFollower.IsActive = false;
+            inactiveFollowed.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        var socialProfileResponse = await SendAuthorizedGetAsync(
+            $"/api/social/profiles/{profile.Id}", profileToken);
+        Assert.Equal(HttpStatusCode.OK, socialProfileResponse.StatusCode);
+        var payload = await socialProfileResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, payload.GetProperty("followersCount").GetInt32());
+        Assert.Equal(0, payload.GetProperty("followingCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task SocialProfileCountsExcludeBlockedRelationships()
+    {
+        await fixture.ResetAsync();
+
+        var profileToken = await RegisterAndGetTokenAsync();
+        var profileResponse = await SendAuthorizedGetAsync("/api/users/me", profileToken);
+        var profile = await profileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(profile);
+
+        var followerToken = await RegisterAndGetTokenAsync();
+        var followerResponse = await SendAuthorizedGetAsync("/api/users/me", followerToken);
+        var follower = await followerResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(follower);
+
+        var followedToken = await RegisterAndGetTokenAsync();
+        var followedResponse = await SendAuthorizedGetAsync("/api/users/me", followedToken);
+        var followed = await followedResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(followed);
+
+        await using (var context = CreateContext())
+        {
+            var now = DateTime.UtcNow;
+            context.UserFollows.Add(MovieApp.Domain.Entities.UserFollow.Create(follower.Id, profile.Id, false, now));
+            context.UserFollows.Add(MovieApp.Domain.Entities.UserFollow.Create(profile.Id, followed.Id, false, now));
+            context.UserBlocks.Add(MovieApp.Domain.Entities.UserBlock.Create(profile.Id, follower.Id, now));
+            context.UserBlocks.Add(MovieApp.Domain.Entities.UserBlock.Create(followed.Id, profile.Id, now));
+            await context.SaveChangesAsync();
+        }
+
+        var socialProfileResponse = await SendAuthorizedGetAsync(
+            $"/api/social/profiles/{profile.Id}", profileToken);
+        Assert.Equal(HttpStatusCode.OK, socialProfileResponse.StatusCode);
+        var payload = await socialProfileResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, payload.GetProperty("followersCount").GetInt32());
+        Assert.Equal(0, payload.GetProperty("followingCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task MarkingHiddenSocialNotificationsReadReturnsNotFound()
+    {
+        await fixture.ResetAsync();
+
+        var recipientToken = await RegisterAndGetTokenAsync();
+        var recipientResponse = await SendAuthorizedGetAsync("/api/users/me", recipientToken);
+        var recipient = await recipientResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(recipient);
+
+        var inactiveActorToken = await RegisterAndGetTokenAsync();
+        var inactiveActorResponse = await SendAuthorizedGetAsync("/api/users/me", inactiveActorToken);
+        var inactiveActor = await inactiveActorResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(inactiveActor);
+
+        var blockedActorToken = await RegisterAndGetTokenAsync();
+        var blockedActorResponse = await SendAuthorizedGetAsync("/api/users/me", blockedActorToken);
+        var blockedActor = await blockedActorResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(blockedActor);
+
+        Guid inactiveNotificationId;
+        Guid blockedNotificationId;
+        await using (var context = CreateContext())
+        {
+            var now = DateTime.UtcNow;
+            var inactiveNotification = MovieApp.Domain.Entities.SocialNotification.Create(
+                recipient.Id, inactiveActor.Id, "NewFollower", null, null, null, now);
+            var blockedNotification = MovieApp.Domain.Entities.SocialNotification.Create(
+                recipient.Id, blockedActor.Id, "NewFollower", null, null, null, now);
+            inactiveNotificationId = inactiveNotification.Id;
+            blockedNotificationId = blockedNotification.Id;
+            context.SocialNotifications.AddRange(inactiveNotification, blockedNotification);
+            context.UserBlocks.Add(MovieApp.Domain.Entities.UserBlock.Create(recipient.Id, blockedActor.Id, now));
+            var inactiveUser = await context.Users.SingleAsync(user => user.Id == inactiveActor.Id);
+            inactiveUser.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+
+        foreach (var notificationId in new[] { inactiveNotificationId, blockedNotificationId })
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch, $"/api/social/notifications/{notificationId}/read");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", recipientToken);
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        await using (var context = CreateContext())
+        {
+            Assert.Null(await context.SocialNotifications
+                .Where(item => item.Id == inactiveNotificationId || item.Id == blockedNotificationId)
+                .Select(item => item.ReadAt)
+                .FirstOrDefaultAsync());
+            Assert.All(
+                await context.SocialNotifications
+                    .Where(item => item.Id == inactiveNotificationId || item.Id == blockedNotificationId)
+                    .Select(item => item.ReadAt)
+                    .ToListAsync(),
+                readAt => Assert.Null(readAt));
+        }
+    }
+
+    [Fact]
+    public async Task SocialProfileStatisticsRespectCategoryPrivacyAndPrivateProfileVisibility()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var currentUserResponse = await SendAuthorizedGetAsync("/api/users/me", token);
+        Assert.Equal(HttpStatusCode.OK, currentUserResponse.StatusCode);
+        var currentUser = await currentUserResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(currentUser);
+
+        var movieId = await SeedMovieAsync();
+        await SendAuthorizedPostAsync($"/api/favorites/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/ratings/movies/{movieId}", token, new CreateRatingRequest(8));
+        await SendAuthorizedPostAsync($"/api/reviews/movies/{movieId}", token, new CreateReviewRequest("Privacy test"));
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
+
+        var privacyResponse = await SendAuthorizedPutAsync(
+            "/api/social/privacy",
+            token,
+            new SocialPrivacyResult(IsPrivate: false, ShowWatched: false, ShowRatings: false,
+                ShowFavorites: false, ShowReviews: false));
+        Assert.Equal(HttpStatusCode.OK, privacyResponse.StatusCode);
+
+        var statisticsResponse = await _client.GetAsync($"/api/social/profiles/{currentUser.Id}/statistics");
+        Assert.Equal(HttpStatusCode.OK, statisticsResponse.StatusCode);
+        var statistics = await statisticsResponse.Content.ReadFromJsonAsync<SocialProfileStatisticsResponse>();
+        Assert.NotNull(statistics);
+        Assert.Equal(0, statistics.MoviesWatched);
+        Assert.Equal(0, statistics.EpisodesWatched);
+        Assert.Equal(0, statistics.RatingsCount);
+        Assert.Equal(0, statistics.ReviewsCount);
+        Assert.Equal(0, statistics.FavoritesCount);
+        Assert.Empty(statistics.Milestones);
+
+        var privatePrivacyResponse = await SendAuthorizedPutAsync(
+            "/api/social/privacy",
+            token,
+            new SocialPrivacyResult(IsPrivate: true, ShowWatched: true, ShowRatings: true,
+                ShowFavorites: true, ShowReviews: true));
+        Assert.Equal(HttpStatusCode.OK, privatePrivacyResponse.StatusCode);
+
+        var hiddenStatisticsResponse = await _client.GetAsync($"/api/social/profiles/{currentUser.Id}/statistics");
+        Assert.Equal(HttpStatusCode.NotFound, hiddenStatisticsResponse.StatusCode);
     }
 
     [Fact]

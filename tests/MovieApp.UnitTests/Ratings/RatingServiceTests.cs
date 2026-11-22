@@ -94,16 +94,58 @@ public sealed class RatingServiceTests
         Assert.All(result.ScoreDistribution.Values, count => Assert.Equal(0, count));
     }
 
+    [Fact]
+    public async Task UpsertEpisodeRatingAsyncCreatesNewRating()
+    {
+        var episodeId = Guid.NewGuid();
+        var repository = new FakeRatingRepository();
+        var service = CreateService(
+            repository,
+            movie: null,
+            tvShow: null,
+            episode: CreateEpisode(episodeId));
+
+        var result = await service.UpsertEpisodeRatingAsync(episodeId, 8);
+
+        Assert.True(result.Created);
+        Assert.Equal(8, result.Rating.Score);
+        Assert.Equal(episodeId, result.Rating.EpisodeId);
+        Assert.Null(result.Rating.MovieId);
+        Assert.Null(result.Rating.TvShowId);
+        Assert.Equal(1, repository.AddCount);
+    }
+
+    [Fact]
+    public async Task UpsertEpisodeRatingAsyncThrowsWhenEpisodeMissing()
+    {
+        var service = CreateService(new FakeRatingRepository(), movie: null, tvShow: null, episode: null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.UpsertEpisodeRatingAsync(Guid.NewGuid(), 8));
+    }
+
     private static RatingService CreateService(
         FakeRatingRepository ratingRepository,
         Movie? movie,
-        TvShow? tvShow) =>
+        TvShow? tvShow,
+        Episode? episode = null) =>
         new(
             new FakeCurrentUser(UserId),
             ratingRepository,
             new FakeMovieRepository(movie),
             new FakeTvShowRepository(tvShow),
+            new FakeEpisodeRepository(episode),
             new FakeUserAnalyticsCacheInvalidator());
+
+    private static Episode CreateEpisode(Guid episodeId) =>
+        new()
+        {
+            Id = episodeId,
+            SeasonId = Guid.NewGuid(),
+            EpisodeNumber = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
     private static Movie CreateMovie() =>
         new()
@@ -139,6 +181,12 @@ public sealed class RatingServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Rating?>(null);
 
+        public Task<Rating?> GetByUserAndEpisodeAsync(
+            Guid userId,
+            Guid episodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Rating?>(null);
+
         public Task<(Rating Rating, bool Created)> AddAsync(
             Rating rating,
             CancellationToken cancellationToken = default)
@@ -165,6 +213,12 @@ public sealed class RatingServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
+        public Task<bool> DeleteForEpisodeAsync(
+            Guid userId,
+            Guid episodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public Task<RatingSummaryResult> GetSummaryForMovieAsync(
             Guid movieId,
             CancellationToken cancellationToken = default) =>
@@ -174,6 +228,90 @@ public sealed class RatingServiceTests
             Guid tvShowId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new RatingSummaryResult(0m, 0, RatingMapper.CreateEmptyDistribution()));
+
+        public Task<RatingSummaryResult> GetSummaryForEpisodeAsync(
+            Guid episodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RatingSummaryResult(0m, 0, RatingMapper.CreateEmptyDistribution()));
+    }
+
+    private sealed class FakeEpisodeRepository(Episode? episode) : IEpisodeRepository
+    {
+        public Task<Episode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(episode is not null && episode.Id == id ? episode : null);
+
+        public Task<int> CountByTvShowIdAsync(Guid tvShowId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<int> CountByTvShowIdAndSeasonNumberAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<IReadOnlyList<Application.Models.WatchHistory.SeasonEpisodeCountResult>> GetEpisodeCountsBySeasonAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Application.Models.WatchHistory.SeasonEpisodeCountResult>>([]);
+
+        public Task<Episode?> GetFirstUnwatchedForTvShowAsync(
+            Guid tvShowId,
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Episode?>(null);
+
+        public Task<Episode?> GetFirstUnwatchedForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Episode?>(null);
+
+        public Task<Episode?> GetBySeasonIdAndEpisodeNumberAsync(
+            Guid seasonId,
+            int episodeNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Episode?>(null);
+
+        public Task<Episode> UpsertFromProviderAsync(
+            Guid seasonId,
+            Application.Models.Providers.EpisodeProviderDetails details,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsBelongingToTvShowAsync(
+            Guid tvShowId,
+            IReadOnlyList<Guid> episodeIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowUpToEpisodeAsync(
+            Guid tvShowId,
+            Guid targetEpisodeId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetAiredEpisodeIdsForSeasonAsync(
+            Guid tvShowId,
+            int seasonNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForTvShowAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IReadOnlyList<Guid>> GetEpisodeIdsForRegularSeasonsAsync(
+            Guid tvShowId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
     }
 
     private sealed class FakeMovieRepository(Movie? movie) : IMovieRepository

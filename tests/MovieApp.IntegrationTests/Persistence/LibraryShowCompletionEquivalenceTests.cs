@@ -187,9 +187,7 @@ public sealed class LibraryShowCompletionEquivalenceTests
         new(
             new LibraryRepository(context),
             new FixedCurrentUser(userId),
-            new ContentLocalizedPosterRepository(context),
-            CatalogRepositoryTestFactory.CreateMovieRepository(context),
-            CatalogRepositoryTestFactory.CreateTvShowRepository(context),
+            new SummaryLocalizationMetadataReadRepository(context, new ContentLocalizedPosterRepository(context)),
             NullLogger<LibraryService>.Instance);
 
     private static async Task<Guid> SeedUserAsync(ApplicationDbContext context, string userName)

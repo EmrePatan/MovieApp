@@ -16,6 +16,11 @@ public interface IReviewRepository
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
+    Task<Review?> GetByUserAndEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default);
+
     Task<Review?> GetTrackedByUserAndMovieAsync(
         Guid userId,
         Guid movieId,
@@ -26,6 +31,11 @@ public interface IReviewRepository
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
+    Task<Review?> GetTrackedByUserAndEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ExistsForMovieAsync(
         Guid userId,
         Guid movieId,
@@ -34,6 +44,11 @@ public interface IReviewRepository
     Task<bool> ExistsForTvShowAsync(
         Guid userId,
         Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsForEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
         CancellationToken cancellationToken = default);
 
     Task<Review> AddAsync(Review review, CancellationToken cancellationToken = default);
@@ -48,6 +63,11 @@ public interface IReviewRepository
     Task<bool> DeleteForTvShowAsync(
         Guid userId,
         Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteForEpisodeAsync(
+        Guid userId,
+        Guid episodeId,
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForMovieAsync(
@@ -66,12 +86,24 @@ public interface IReviewRepository
         int? ratingStars = null,
         CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<PublicReviewListItem> Reviews, int TotalCount)> GetPublicReviewsForEpisodeAsync(
+        Guid episodeId,
+        int page,
+        int pageSize,
+        ReviewListSort sort,
+        int? ratingStars = null,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForMovieAsync(
         Guid movieId,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForTvShowAsync(
         Guid tvShowId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<int, int>> GetReviewScoreDistributionForEpisodeAsync(
+        Guid episodeId,
         CancellationToken cancellationToken = default);
 
     Task<ReviewTranslationSource?> GetTranslationSourceByIdAsync(

@@ -47,8 +47,8 @@ public static class ProfileStatisticsBuilder
 
     private static UserStatisticsSummaryResult BuildSummary(ProfileStatisticsRawData raw)
     {
-        var ratingsCount = raw.RatedMovieCount + raw.RatedTvShowCount;
-        var reviewsCount = raw.ReviewedMovieCount + raw.ReviewedTvShowCount;
+        var ratingsCount = raw.RatedMovieCount + raw.RatedTvShowCount + raw.RatedEpisodeCount;
+        var reviewsCount = raw.ReviewedMovieCount + raw.ReviewedTvShowCount + raw.ReviewedEpisodeCount;
         var favoritesCount = raw.FavoriteMovieCount + raw.FavoriteTvShowCount;
         var average = CalculateAverageStarRating(raw.RatingScoreCounts);
 
@@ -220,7 +220,7 @@ public static class ProfileStatisticsBuilder
             }
         }
 
-        var ratingsCount = raw.RatedMovieCount + raw.RatedTvShowCount;
+        var ratingsCount = raw.RatedMovieCount + raw.RatedTvShowCount + raw.RatedEpisodeCount;
         foreach (var milestone in RatingMilestones)
         {
             if (ratingsCount >= milestone.Threshold)

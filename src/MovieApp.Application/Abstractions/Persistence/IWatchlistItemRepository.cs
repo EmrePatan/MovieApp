@@ -46,6 +46,15 @@ public interface IWatchlistItemRepository
         IReadOnlyCollection<Guid> watchlistIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Poster paths of the most recently added items per list, newest first, skipping titles without a poster.
+    /// Lists without posters are absent from the result.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetCoverPosterPathsByWatchlistIdsAsync(
+        IReadOnlyCollection<Guid> watchlistIds,
+        int perListLimit,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Guid>> GetWatchlistIdsContainingMovieAsync(
         Guid userId,
         Guid movieId,

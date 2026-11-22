@@ -16,7 +16,11 @@ public static class ReviewContractMapper
             result.CreatedAt,
             result.UpdatedAt,
             result.UserRating,
-            result.AuthoringLocale);
+            result.AuthoringLocale,
+            result.SocialActivityId,
+            result.LikesCount,
+            result.CommentsCount,
+            result.IsLikedByMe);
 
     public static ReviewTranslationResponse ToTranslationResponse(ReviewTranslationResult result) =>
         new(
@@ -48,7 +52,10 @@ public static class ReviewContractMapper
             result.Content,
             result.CreatedAt,
             result.UpdatedAt,
-            result.UserRating);
+            result.UserRating,
+            result.TvShowId,
+            result.SeasonNumber,
+            result.EpisodeNumber);
 
     public static UserReviewListResponse ToUserReviewListResponse(UserReviewListPageResult result) =>
         new(
