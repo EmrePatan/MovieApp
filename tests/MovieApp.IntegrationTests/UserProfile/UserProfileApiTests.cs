@@ -477,6 +477,29 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task GetBlockedUsersReturnsUsersBlockedByCaller()
+    {
+        await fixture.ResetAsync();
+
+        var blockerToken = await RegisterAndGetTokenAsync();
+        var targetToken = await RegisterAndGetTokenAsync();
+        var targetProfileResponse = await SendAuthorizedGetAsync("/api/users/me", targetToken);
+        var targetProfile = await targetProfileResponse.Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(targetProfile);
+
+        var blockResponse = await SendAuthorizedPostAsync($"/api/social/blocks/{targetProfile.Id}", blockerToken);
+        Assert.Equal(HttpStatusCode.NoContent, blockResponse.StatusCode);
+
+        var listResponse = await SendAuthorizedGetAsync("/api/social/blocks", blockerToken);
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var blocked = await listResponse.Content.ReadFromJsonAsync<List<BlockedUserItem>>();
+        Assert.NotNull(blocked);
+        Assert.Contains(blocked, item => item.UserId == targetProfile.Id);
+    }
+
+    private sealed record BlockedUserItem(Guid UserId, string UserName, string DisplayName, DateTime BlockedAt);
+
+    [Fact]
     public async Task SocialProfileCountsExcludeInactiveUsers()
     {
         await fixture.ResetAsync();

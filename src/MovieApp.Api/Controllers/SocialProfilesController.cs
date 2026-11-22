@@ -4,8 +4,11 @@ using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
+using MovieApp.Application.Models.Common;
 using MovieApp.Application.Services.Localization;
+using MovieApp.Application.Validation;
 using MovieApp.Contracts.Users;
+using MovieApp.Contracts.Watchlists;
 
 namespace MovieApp.Api.Controllers;
 
@@ -143,6 +146,76 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
         catch (NotFoundException)
         {
             return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{userId:guid}/watchlists")]
+    [ProducesResponseType(typeof(IReadOnlyList<WatchlistSummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<WatchlistSummaryResponse>>> GetWatchlists(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var results = await socialProfileService.GetWatchlistsAsync(userId, cancellationToken);
+            return Ok(results.Select(WatchlistContractMapper.ToSummaryResponse).ToList());
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{userId:guid}/watchlists/{watchlistId:guid}/items")]
+    [ProducesResponseType(typeof(WatchlistItemsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WatchlistItemsResponse>> GetWatchlistItems(
+        Guid userId,
+        Guid watchlistId,
+        [FromQuery] string? mediaType,
+        [FromQuery] string? sort,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        var mediaTypeValidation = WatchlistItemsValidator.ValidateMediaType(mediaType);
+        if (!mediaTypeValidation.IsValid)
+        {
+            return BadRequest(new ProblemDetails { Detail = mediaTypeValidation.ErrorMessage });
+        }
+
+        var sortValidation = WatchlistItemsValidator.ValidateSort(sort);
+        if (!sortValidation.IsValid)
+        {
+            return BadRequest(new ProblemDetails { Detail = sortValidation.ErrorMessage });
+        }
+
+        _ = AdvancedSearchValidator.TryParseType(mediaType, out var parsedMediaType);
+        _ = WatchlistItemsValidator.TryParseSort(sort, out var parsedSort);
+
+        try
+        {
+            var result = await socialProfileService.GetWatchlistItemsAsync(
+                userId,
+                watchlistId,
+                parsedMediaType,
+                parsedSort,
+                page ?? SearchPaginationDefaults.DefaultPage,
+                pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                cancellationToken);
+
+            return Ok(WatchlistContractMapper.ToItemsResponse(result));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Detail = exception.Message });
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new ProblemDetails { Title = "Watchlist not found." });
         }
     }
 

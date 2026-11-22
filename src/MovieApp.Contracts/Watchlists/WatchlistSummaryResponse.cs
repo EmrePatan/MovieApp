@@ -5,4 +5,6 @@ public sealed record WatchlistSummaryResponse(
     string Name,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int ItemCount);
+    int ItemCount,
+    IReadOnlyList<string> CoverPosterPaths,
+    string? Description = null);

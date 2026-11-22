@@ -159,6 +159,11 @@ public sealed class PublicWebSiteRenderer(IOptions<CatalogShareOptions> catalogS
             builder.Append("<p class=\"muted\">").Append(Encode(model.ItemCountLabel)).Append("</p>");
         }
 
+        if (!string.IsNullOrWhiteSpace(model.ListDescription))
+        {
+            builder.Append("<p>").Append(Encode(model.ListDescription)).Append("</p>");
+        }
+
         builder.Append("</section>");
         if (model.IsUnavailable)
         {

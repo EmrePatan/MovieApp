@@ -61,7 +61,8 @@ public sealed class PublicWatchlistSharePageService(
             heading,
             itemCountLabel,
             cards,
-            IsUnavailable: false);
+            IsUnavailable: false,
+            ListDescription: publicData.Description);
     }
 
     private static PublicWatchlistSharePageModel Unavailable(

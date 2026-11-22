@@ -26,13 +26,19 @@ public sealed class CreateWatchlistService(
             throw new ValidationException(validationResult.ErrorMessage!);
         }
 
+        var descriptionValidation = WatchlistDescriptionValidator.Validate(request.Description);
+        if (!descriptionValidation.IsValid)
+        {
+            throw new ValidationException(descriptionValidation.ErrorMessage!);
+        }
+
         var normalizedName = WatchlistNameNormalizer.Normalize(request.Name);
         if (await watchlistRepository.ExistsByNormalizedNameAsync(userId, normalizedName, cancellationToken: cancellationToken))
         {
             throw new ConflictException("A watchlist with this name already exists.");
         }
 
-        var watchlist = Watchlist.Create(userId, request.Name, DateTime.UtcNow);
+        var watchlist = Watchlist.Create(userId, request.Name, DateTime.UtcNow, request.Description);
         await watchlistRepository.AddAsync(watchlist, cancellationToken);
 
         return WatchlistMapper.ToSummaryResult(watchlist, 0);

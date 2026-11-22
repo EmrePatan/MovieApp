@@ -7,8 +7,11 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Library;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Identity;
+using MovieApp.Application.Validation;
 using MovieApp.Domain.Enums;
 using MovieApp.Infrastructure.Persistence;
 
@@ -21,7 +24,9 @@ public sealed class SocialProfileService(
     IUserStatisticsRepository userStatisticsRepository,
     IUserAvatarService userAvatarService,
     ILibraryRepository libraryRepository,
-    IOptions<AvatarStorageOptions> avatarStorageOptions) : ISocialProfileService
+    IOptions<AvatarStorageOptions> avatarStorageOptions,
+    IWatchlistRepository watchlistRepository,
+    IWatchlistItemRepository watchlistItemRepository) : ISocialProfileService
 {
     private const int PublicLibraryShelfPageSize = 48;
 
@@ -383,6 +388,90 @@ public sealed class SocialProfileService(
             .FirstOrDefaultAsync(cancellationToken)
             ?? true;
         return showReviews;
+    }
+
+    public async Task<IReadOnlyList<WatchlistSummaryResult>> GetWatchlistsAsync(
+        Guid userId, CancellationToken cancellationToken = default)
+    {
+        if (!await CanViewWatchlistsAsync(userId, cancellationToken))
+        {
+            return [];
+        }
+
+        var watchlists = await watchlistRepository.GetUserWatchlistsAsync(userId, cancellationToken);
+        var watchlistIds = watchlists.Select(watchlist => watchlist.Id).ToArray();
+        var itemCounts = await watchlistItemRepository.GetItemCountsByWatchlistIdsAsync(watchlistIds, cancellationToken);
+        var coverPosterPaths = await watchlistItemRepository.GetCoverPosterPathsByWatchlistIdsAsync(
+            watchlistIds,
+            WatchlistCoverPosters.MaxPosters,
+            cancellationToken);
+
+        return watchlists
+            .Select(watchlist => WatchlistMapper.ToSummaryResult(
+                watchlist,
+                itemCounts.GetValueOrDefault(watchlist.Id),
+                coverPosterPaths.GetValueOrDefault(watchlist.Id)))
+            .ToList();
+    }
+
+    public async Task<WatchlistItemsResult> GetWatchlistItemsAsync(
+        Guid userId,
+        Guid watchlistId,
+        SearchContentType mediaType,
+        WatchlistItemsSort sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var validationResult = SearchPaginationValidator.Validate(page, pageSize);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ErrorMessage!);
+        }
+
+        if (!await CanViewWatchlistsAsync(userId, cancellationToken))
+        {
+            throw new NotFoundException("The requested watchlist was not found.");
+        }
+
+        if (await watchlistRepository.GetByIdForUserAsync(userId, watchlistId, cancellationToken) is null)
+        {
+            throw new NotFoundException("The requested watchlist was not found.");
+        }
+
+        var (items, totalCount) = await watchlistItemRepository.GetItemsAsync(
+            watchlistId,
+            mediaType,
+            sort,
+            page,
+            pageSize,
+            cancellationToken);
+
+        return WatchlistMapper.ToItemsResult(items, page, pageSize, totalCount);
+    }
+
+    /// <summary>
+    /// Watchlists follow the profile library rules: the owner always sees them, others need
+    /// access to a public-or-followed profile and ShowWatched enabled.
+    /// </summary>
+    private async Task<bool> CanViewWatchlistsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var profile = await GetProfileAsync(userId, cancellationToken);
+        if (profile.FollowStatus == "Self")
+        {
+            return true;
+        }
+
+        if (profile.IsPrivate && profile.FollowStatus is not "Accepted")
+        {
+            return false;
+        }
+
+        return await dbContext.UserPrivacySettings.AsNoTracking()
+            .Where(settings => settings.UserId == userId)
+            .Select(settings => (bool?)settings.ShowWatched)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? true;
     }
 
     private async Task EnsureCanViewRelationshipListAsync(Guid userId, CancellationToken cancellationToken)

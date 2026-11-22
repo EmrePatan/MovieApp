@@ -27,6 +27,12 @@ public sealed class UpdateWatchlistService(
             throw new ValidationException(validationResult.ErrorMessage!);
         }
 
+        var descriptionValidation = WatchlistDescriptionValidator.Validate(request.Description);
+        if (!descriptionValidation.IsValid)
+        {
+            throw new ValidationException(descriptionValidation.ErrorMessage!);
+        }
+
         var watchlist = await watchlistRepository.GetTrackedByIdForUserAsync(
             userId,
             watchlistId,
@@ -48,14 +54,23 @@ public sealed class UpdateWatchlistService(
         }
 
         watchlist.Rename(request.Name, DateTime.UtcNow);
+        if (request.Description is not null)
+        {
+            watchlist.SetDescription(request.Description, DateTime.UtcNow);
+        }
         await watchlistRepository.SaveChangesAsync(cancellationToken);
 
         var itemCounts = await watchlistItemRepository.GetItemCountsByWatchlistIdsAsync(
             [watchlistId],
             cancellationToken);
+        var coverPosters = await watchlistItemRepository.GetCoverPosterPathsByWatchlistIdsAsync(
+            [watchlistId],
+            WatchlistCoverPosters.MaxPosters,
+            cancellationToken);
 
         return WatchlistMapper.ToSummaryResult(
             watchlist,
-            itemCounts.GetValueOrDefault(watchlistId));
+            itemCounts.GetValueOrDefault(watchlistId),
+            coverPosters.GetValueOrDefault(watchlistId));
     }
 }

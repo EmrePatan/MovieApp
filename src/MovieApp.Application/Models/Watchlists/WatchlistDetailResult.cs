@@ -6,4 +6,5 @@ public sealed record WatchlistDetailResult(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<WatchlistItemMovieResult> Movies,
-    IReadOnlyList<WatchlistItemTvShowResult> TvShows);
+    IReadOnlyList<WatchlistItemTvShowResult> TvShows,
+    string? Description = null);

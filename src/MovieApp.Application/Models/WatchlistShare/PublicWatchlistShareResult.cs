@@ -11,4 +11,5 @@ public sealed record PublicWatchlistShareItemResult(
 public sealed record PublicWatchlistShareResult(
     string? OwnerDisplayName,
     string? WatchlistName,
-    IReadOnlyList<PublicWatchlistShareItemResult> Items);
+    IReadOnlyList<PublicWatchlistShareItemResult> Items,
+    string? Description = null);

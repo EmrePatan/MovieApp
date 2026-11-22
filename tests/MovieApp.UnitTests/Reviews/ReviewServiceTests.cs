@@ -6,6 +6,7 @@ using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Models.Reviews;
 using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Watchlists;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Services.Reviews;
 using MovieApp.Domain.Entities;
@@ -553,5 +554,19 @@ public sealed class ReviewServiceTests
 
         public Task<bool> CanViewReviewsAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
+
+        public Task<IReadOnlyList<WatchlistSummaryResult>> GetWatchlistsAsync(
+            Guid userId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<WatchlistItemsResult> GetWatchlistItemsAsync(
+            Guid userId,
+            Guid watchlistId,
+            SearchContentType mediaType,
+            WatchlistItemsSort sort,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

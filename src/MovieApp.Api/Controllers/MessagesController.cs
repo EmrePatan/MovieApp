@@ -65,6 +65,18 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
         catch (ValidationException exception) { return BadRequest(Problem(exception.Message)); }
     }
 
+    [HttpDelete("conversations/{conversationId:guid}")]
+    public async Task<IActionResult> HideConversation(Guid conversationId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await messages.HideConversationAsync(conversationId, cancellationToken);
+            return NoContent();
+        }
+        catch (AuthenticationException exception) { return Unauthorized(Problem(exception.Message)); }
+        catch (NotFoundException exception) { return NotFound(Problem(exception.Message)); }
+    }
+
     [HttpGet("unread-count")]
     public async Task<ActionResult<int>> GetUnreadCount(CancellationToken cancellationToken)
     {

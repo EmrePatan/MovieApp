@@ -76,6 +76,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<Favorite> Favorites => Set<Favorite>();
 
+    public DbSet<RecommendationDismissal> RecommendationDismissals => Set<RecommendationDismissal>();
+
     public DbSet<Watchlist> Watchlists => Set<Watchlist>();
 
     public DbSet<WatchlistItem> WatchlistItems => Set<WatchlistItem>();

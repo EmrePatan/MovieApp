@@ -1,4 +1,6 @@
 using MovieApp.Application.Models.Identity;
+using MovieApp.Application.Models.Search;
+using MovieApp.Application.Models.Watchlists;
 
 namespace MovieApp.Application.Abstractions.Social;
 
@@ -55,4 +57,23 @@ public interface ISocialProfileService
     /// (profile visibility + ShowReviews privacy).
     /// </summary>
     Task<bool> CanViewReviewsAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Watchlists owned by the target user, visible under the same rules as the profile
+    /// library (profile visibility + ShowWatched). Returns an empty list when hidden.
+    /// </summary>
+    Task<IReadOnlyList<WatchlistSummaryResult>> GetWatchlistsAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One page of items from a watchlist owned by the target user. Throws NotFoundException
+    /// when the list does not exist or is hidden from the viewer.
+    /// </summary>
+    Task<WatchlistItemsResult> GetWatchlistItemsAsync(
+        Guid userId,
+        Guid watchlistId,
+        SearchContentType mediaType,
+        WatchlistItemsSort sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 }

@@ -13,8 +13,55 @@ namespace MovieApp.Api.Controllers;
 
 [ApiController]
 [Route("api/recommendations")]
-public sealed class RecommendationsController(IRecommendationService recommendationService) : ControllerBase
+public sealed class RecommendationsController(
+    IRecommendationService recommendationService,
+    IRecommendationDismissalService recommendationDismissalService) : ControllerBase
 {
+    [Authorize]
+    [HttpPost("dismissals")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DismissRecommendation(
+        [FromBody] RecommendationDismissRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            switch (request.ContentType?.Trim().ToLowerInvariant())
+            {
+                case "movie":
+                    await recommendationDismissalService.DismissMovieAsync(request.ContentId, cancellationToken);
+                    break;
+                case "tv":
+                    await recommendationDismissalService.DismissTvShowAsync(request.ContentId, cancellationToken);
+                    break;
+                default:
+                    return BadRequest(CreateProblemDetails(
+                        StatusCodes.Status400BadRequest,
+                        "Invalid recommendation dismissal.",
+                        "ContentType must be 'movie' or 'tv'."));
+            }
+
+            return NoContent();
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+        catch (NotFoundException exception)
+        {
+            return NotFound(CreateProblemDetails(
+                StatusCodes.Status404NotFound,
+                "Title not found.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("movies/{movieId:guid}/similar")]
     [ProducesResponseType(typeof(RecommendationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

@@ -320,6 +320,7 @@ public static class DependencyInjection
         services.AddScoped<IInsightsRepository, InsightsRepository>();
 
         services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+        services.AddScoped<IRecommendationDismissalRepository, RecommendationDismissalRepository>();
 
         services.AddScoped<ICatalogFollowRepository, CatalogFollowRepository>();
 

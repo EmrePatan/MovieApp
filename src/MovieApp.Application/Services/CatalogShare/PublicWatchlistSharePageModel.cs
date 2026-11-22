@@ -7,4 +7,5 @@ public sealed record PublicWatchlistSharePageModel(
     string Heading,
     string ItemCountLabel,
     IReadOnlyList<PublicWebCatalogCard> Items,
-    bool IsUnavailable);
+    bool IsUnavailable,
+    string? ListDescription = null);

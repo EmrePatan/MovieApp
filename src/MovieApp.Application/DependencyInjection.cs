@@ -116,6 +116,7 @@ public static class DependencyInjection
         services.AddScoped<IVerifyEmailService, VerifyEmailService>();
         services.AddScoped<IResendVerificationService, ResendVerificationService>();
 
+        services.AddScoped<IRecommendationDismissalService, RecommendationDismissalService>();
         services.AddScoped<IAddMovieFavoriteService, AddMovieFavoriteService>();
         services.AddScoped<IRemoveMovieFavoriteService, RemoveMovieFavoriteService>();
         services.AddScoped<IAddTvShowFavoriteService, AddTvShowFavoriteService>();

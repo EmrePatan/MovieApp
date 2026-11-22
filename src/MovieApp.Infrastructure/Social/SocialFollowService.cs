@@ -141,8 +141,10 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             .Where(block => block.BlockerId == blockerId)
             .Join(dbContext.Users.AsNoTracking().Where(user => user.IsActive),
                 block => block.BlockedUserId, user => user.Id,
-                (block, user) => new SocialBlockedUserResult(user.Id, user.UserName, user.DisplayName, block.CreatedAt))
+                (block, user) => new { user.Id, user.UserName, user.DisplayName, BlockedAt = block.CreatedAt })
+            // Sort on the column itself: EF cannot translate ordering by a constructed result record.
             .OrderByDescending(item => item.BlockedAt)
+            .Select(item => new SocialBlockedUserResult(item.Id, item.UserName, item.DisplayName, item.BlockedAt))
             .ToListAsync(cancellationToken);
     }
 

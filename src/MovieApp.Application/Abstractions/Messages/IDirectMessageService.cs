@@ -51,4 +51,10 @@ public interface IDirectMessageService
     Task<DirectMessageItem> SendAsync(Guid conversationId, string? body, CancellationToken cancellationToken = default);
 
     Task<int> GetUnreadCountAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes the conversation from the caller's inbox only. The peer keeps the full history, and
+    /// the caller sees only messages sent after this call once the peer messages again.
+    /// </summary>
+    Task HideConversationAsync(Guid conversationId, CancellationToken cancellationToken = default);
 }

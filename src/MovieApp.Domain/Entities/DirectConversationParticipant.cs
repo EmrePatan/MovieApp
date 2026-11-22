@@ -10,6 +10,12 @@ public sealed class DirectConversationParticipant
 
     public DateTime? LastReadAt { get; set; }
 
+    /// <summary>
+    /// When this participant removed the conversation from their own inbox. Messages at or before
+    /// this instant are hidden for this participant only; the peer's view is unaffected.
+    /// </summary>
+    public DateTime? HistoryClearedAt { get; set; }
+
     public static DirectConversationParticipant Create(Guid conversationId, Guid userId)
     {
         if (conversationId == Guid.Empty)
@@ -28,6 +34,14 @@ public sealed class DirectConversationParticipant
             ConversationId = conversationId,
             UserId = userId
         };
+    }
+
+    public void ClearHistory(DateTime utcNow)
+    {
+        if (HistoryClearedAt is null || HistoryClearedAt < utcNow)
+        {
+            HistoryClearedAt = utcNow;
+        }
     }
 
     public void MarkRead(DateTime readThrough)

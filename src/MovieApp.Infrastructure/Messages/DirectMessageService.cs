@@ -125,13 +125,19 @@ public sealed class DirectMessageService(
         var safeSize = Math.Clamp(pageSize, 1, 50);
         var access = await RequireVisibleConversationAsync(userId, conversationId, cancellationToken);
 
-        var total = await dbContext.DirectMessages.AsNoTracking()
-            .CountAsync(message => message.ConversationId == conversationId, cancellationToken);
+        var clearedAt = await GetHistoryClearedAtAsync(userId, conversationId, cancellationToken);
+        var visibleMessages = dbContext.DirectMessages.AsNoTracking()
+            .Where(message => message.ConversationId == conversationId);
+        if (clearedAt is { } cutoff)
+        {
+            visibleMessages = visibleMessages.Where(message => message.CreatedAt > cutoff);
+        }
+
+        var total = await visibleMessages.CountAsync(cancellationToken);
         var window = DirectMessagePageWindow.Resolve(total, safePage, safeSize);
         var items = window.Take == 0
             ? []
-            : await dbContext.DirectMessages.AsNoTracking()
-                .Where(message => message.ConversationId == conversationId)
+            : await visibleMessages
                 .OrderBy(message => message.CreatedAt)
                 .ThenBy(message => message.Id)
                 .Skip(window.Skip)
@@ -142,6 +148,19 @@ public sealed class DirectMessageService(
 
         await MarkReadAsync(userId, access.PeerId, conversationId, cancellationToken);
         return new DirectMessagePage(items, safePage, safeSize, window.HasMore);
+    }
+
+    public async Task HideConversationAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserId();
+        await RequireVisibleConversationAsync(userId, conversationId, cancellationToken);
+
+        var participant = await dbContext.DirectConversationParticipants
+            .FirstOrDefaultAsync(item => item.ConversationId == conversationId && item.UserId == userId, cancellationToken)
+            ?? throw new NotFoundException("Conversation not found.");
+
+        participant.ClearHistory(DateTime.UtcNow);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<DirectMessageItem> SendAsync(
@@ -202,11 +221,19 @@ public sealed class DirectMessageService(
                 && peer.IsActive
                 && message.SenderId != userId
                 && (participant.LastReadAt == null || message.CreatedAt > participant.LastReadAt)
+                && (participant.HistoryClearedAt == null || message.CreatedAt > participant.HistoryClearedAt)
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == userId && block.BlockedUserId == peer.Id)
                     || (block.BlockerId == peer.Id && block.BlockedUserId == userId))
             select message.Id).CountAsync(cancellationToken);
     }
+
+    private async Task<DateTime?> GetHistoryClearedAtAsync(
+        Guid userId, Guid conversationId, CancellationToken cancellationToken) =>
+        await dbContext.DirectConversationParticipants.AsNoTracking()
+            .Where(item => item.ConversationId == conversationId && item.UserId == userId)
+            .Select(item => item.HistoryClearedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 
     private async Task MarkReadAsync(
         Guid userId, Guid peerId, Guid conversationId, CancellationToken cancellationToken)
@@ -337,6 +364,7 @@ public sealed class DirectMessageService(
                 where participant.UserId == userId
                     && peerParticipant.UserId != userId
                     && peer.IsActive
+                    && (participant.HistoryClearedAt == null || conversation.LastMessageAt > participant.HistoryClearedAt)
                     && !dbContext.UserBlocks.Any(block =>
                         (block.BlockerId == userId && block.BlockedUserId == peer.Id)
                         || (block.BlockerId == peer.Id && block.BlockedUserId == userId))
@@ -362,6 +390,7 @@ public sealed class DirectMessageService(
             where participant.UserId == userId
                 && peerParticipant.UserId != userId
                 && peer.IsActive
+                && (participant.HistoryClearedAt == null || conversation.LastMessageAt > participant.HistoryClearedAt)
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == userId && block.BlockedUserId == peer.Id)
                     || (block.BlockerId == peer.Id && block.BlockedUserId == userId))
@@ -456,7 +485,8 @@ public sealed class DirectMessageService(
             .Where(message => dbContext.DirectConversationParticipants.Any(participant =>
                 participant.ConversationId == message.ConversationId
                 && participant.UserId == userId
-                && (participant.LastReadAt == null || message.CreatedAt > participant.LastReadAt)))
+                && (participant.LastReadAt == null || message.CreatedAt > participant.LastReadAt)
+                && (participant.HistoryClearedAt == null || message.CreatedAt > participant.HistoryClearedAt)))
             .GroupBy(message => message.ConversationId)
             .Select(group => new { ConversationId = group.Key, Count = group.Count() })
             .ToListAsync(cancellationToken);

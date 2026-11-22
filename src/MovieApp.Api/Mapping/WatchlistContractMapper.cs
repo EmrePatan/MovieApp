@@ -7,11 +7,11 @@ public static class WatchlistContractMapper
 {
     public static Application.Models.Watchlists.CreateWatchlistRequest ToCreateWatchlistRequest(
         Contracts.Watchlists.CreateWatchlistRequest request) =>
-        new(request.Name);
+        new(request.Name, request.Description);
 
     public static Application.Models.Watchlists.UpdateWatchlistRequest ToUpdateWatchlistRequest(
         Contracts.Watchlists.UpdateWatchlistRequest request) =>
-        new(request.Name);
+        new(request.Name, request.Description);
 
     public static WatchlistSummaryResponse ToSummaryResponse(WatchlistSummaryResult result) =>
         new(
@@ -19,7 +19,9 @@ public static class WatchlistContractMapper
             result.Name,
             result.CreatedAt,
             result.UpdatedAt,
-            result.ItemCount);
+            result.ItemCount,
+            result.CoverPosterPaths,
+            result.Description);
 
     public static WatchlistDetailResponse ToDetailResponse(WatchlistDetailResult result) =>
         new(
@@ -28,7 +30,8 @@ public static class WatchlistContractMapper
             result.CreatedAt,
             result.UpdatedAt,
             result.Movies.Select(ToMovieItemResponse).ToList(),
-            result.TvShows.Select(ToTvShowItemResponse).ToList());
+            result.TvShows.Select(ToTvShowItemResponse).ToList(),
+            result.Description);
 
     public static WatchlistItemsResponse ToItemsResponse(WatchlistItemsResult result) =>
         new(
