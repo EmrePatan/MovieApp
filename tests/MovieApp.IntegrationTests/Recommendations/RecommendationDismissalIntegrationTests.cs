@@ -9,7 +9,9 @@ namespace MovieApp.IntegrationTests.Recommendations;
 [Collection("CatalogPersistence")]
 public sealed class RecommendationDismissalIntegrationTests
 {
-    private static int _nextTmdbId = 9_000_000;
+    // Keep this class in a distinct range from SimilarCandidateIdBatchLoaderIntegrationTests;
+    // both share the CatalogPersistence database for the lifetime of the collection.
+    private static int _nextTmdbId = 9_100_000;
 
     [Fact]
     public async Task DismissedMovieIsExcludedAndBecomesDismissedSignal()
