@@ -89,12 +89,12 @@ public sealed partial class SocialCommentTranslationService(
         }
         catch (ReviewTranslationQuotaExceededException)
         {
-            logger.LogWarning("Social comment translation quota exceeded for {CommentId}", commentId);
+            SocialCommentTranslationLogMessages.LogQuotaExceeded(logger, commentId);
             throw new ReviewTranslationUnavailableException();
         }
         catch (ReviewTranslationProviderException)
         {
-            logger.LogWarning("Social comment translation provider unavailable for {CommentId}", commentId);
+            SocialCommentTranslationLogMessages.LogProviderUnavailable(logger, commentId);
             throw new ReviewTranslationUnavailableException();
         }
 

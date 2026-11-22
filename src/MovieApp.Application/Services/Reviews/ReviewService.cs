@@ -531,7 +531,7 @@ public sealed class ReviewService(
     }
 
     private async Task<IReadOnlyDictionary<Guid, SocialReviewEngagement>> LoadEngagementAsync(
-        IReadOnlyList<Guid> reviewIds,
+        List<Guid> reviewIds,
         CancellationToken cancellationToken)
     {
         if (socialReviewEngagementLookup is null || reviewIds.Count == 0)

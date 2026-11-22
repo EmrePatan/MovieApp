@@ -338,14 +338,12 @@ public sealed class DirectMessageService(
 
             if (results.Any(result => !result.IsSuccess))
             {
-                logger.LogWarning(
-                    "Direct message push was rejected for conversation {ConversationId}.",
-                    sent.ConversationId);
+                DirectMessageLogMessages.LogPushRejected(logger, sent.ConversationId);
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception, "Direct message push failed for conversation {ConversationId}.", sent.ConversationId);
+            DirectMessageLogMessages.LogPushFailed(logger, exception, sent.ConversationId);
         }
     }
 

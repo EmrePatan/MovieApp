@@ -516,8 +516,8 @@ public sealed class SocialFeedService(
     }
 
     private async Task<Dictionary<(Guid UserId, string TargetContentType, Guid TargetContentId), int>> LoadUserCatalogRatingsAsync(
-        IReadOnlyList<(Guid UserId, string TargetContentType, Guid TargetContentId)> lookups,
-        IReadOnlyDictionary<Guid, Guid> episodeShowIds,
+        List<(Guid UserId, string TargetContentType, Guid TargetContentId)> lookups,
+        Dictionary<Guid, Guid> episodeShowIds,
         CancellationToken cancellationToken)
     {
         if (lookups.Count == 0) return [];
@@ -590,11 +590,11 @@ public sealed class SocialFeedService(
     }
 
     private static int? ResolveUserCatalogRating(
-        IReadOnlyDictionary<(Guid UserId, string TargetContentType, Guid TargetContentId), int> catalogRatings,
+        Dictionary<(Guid UserId, string TargetContentType, Guid TargetContentId), int> catalogRatings,
         Guid userId,
         string targetContentType,
         Guid targetContentId,
-        IReadOnlyDictionary<Guid, Guid> episodeShowIds)
+        Dictionary<Guid, Guid> episodeShowIds)
     {
         if (catalogRatings.TryGetValue((userId, targetContentType, targetContentId), out var direct))
             return direct;
