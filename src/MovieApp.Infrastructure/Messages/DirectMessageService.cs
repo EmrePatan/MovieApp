@@ -272,6 +272,15 @@ public sealed class DirectMessageService(
 
         try
         {
+            var peerOptedOut = await dbContext.UserNotificationPreferences.AsNoTracking()
+                .AnyAsync(
+                    preference => preference.UserId == sent.PeerId && !preference.MessagePushEnabled,
+                    cancellationToken);
+            if (peerOptedOut)
+            {
+                return;
+            }
+
             var sender = await dbContext.Users.AsNoTracking()
                 .Where(user => user.Id == sent.SenderId)
                 .Select(user => new { user.DisplayName, user.UserName })
@@ -523,11 +532,43 @@ public sealed class DirectMessageService(
         return normalized;
     }
 
-    private static string Preview(string body)
+    private static readonly System.Text.RegularExpressions.Regex TitleShareToken = new(
+        @"\[title\]([^\]]*)\[/title\]",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(100));
+
+    /// <summary>
+    /// Push/inbox preview. A shared movie/show card is stored as "[title]type|id|title|poster|year[/title]"
+    /// inside the body; show it as "🎬 Title" instead of the raw tag.
+    /// </summary>
+    internal static string Preview(string body)
     {
-        var compact = string.Join(' ', body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var text = body;
+        var match = TitleShareToken.Match(body);
+        if (match.Success)
+        {
+            var parts = match.Groups[1].Value.Split('|');
+            var title = parts.Length > 2 ? SafeUnescape(parts[2]) : string.Empty;
+            var note = TitleShareToken.Replace(body, string.Empty).Trim();
+            var label = string.IsNullOrWhiteSpace(title) ? "🎬" : $"🎬 {title}";
+            text = string.IsNullOrEmpty(note) ? label : $"{label} · {note}";
+        }
+
+        var compact = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         const int max = 140;
         return compact.Length <= max ? compact : string.Concat(compact.AsSpan(0, max).TrimEnd(), "…");
+    }
+
+    private static string SafeUnescape(string value)
+    {
+        try
+        {
+            return Uri.UnescapeDataString(value);
+        }
+        catch (UriFormatException)
+        {
+            return value;
+        }
     }
 
     private Guid GetUserId()

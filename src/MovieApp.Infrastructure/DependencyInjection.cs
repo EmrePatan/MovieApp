@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialCommentTranslationService, SocialCommentTranslationService>();
         services.AddScoped<ISocialNotificationService, SocialNotificationService>();
         services.AddScoped<IDirectMessageService, DirectMessageService>();
+        services.AddScoped<MovieApp.Application.Abstractions.Notifications.INotificationPreferencesService, MovieApp.Infrastructure.Notifications.NotificationPreferencesService>();
         services.AddScoped<ISocialReviewEngagementLookup, SocialReviewEngagementLookup>();
 
         services.AddOptions<PostgreSqlOptions>()

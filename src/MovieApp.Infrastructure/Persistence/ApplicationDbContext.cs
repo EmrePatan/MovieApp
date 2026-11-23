@@ -115,6 +115,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<TmdbTvChangesSyncCheckpoint> TmdbTvChangesSyncCheckpoints => Set<TmdbTvChangesSyncCheckpoint>();
 
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+    public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
 
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries => Set<PushNotificationDelivery>();
 
