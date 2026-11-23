@@ -136,10 +136,23 @@ public sealed class SocialProfilesController(
             // The level is a summary of watched/rated activity, so it follows the same
             // visibility rule as the profile's other activity.
             int? achievementPoints = null;
+            IReadOnlyList<PublicRecentAchievementResponse>? recentAchievements = null;
             if (await socialProfileService.CanViewReviewsAsync(userId, cancellationToken))
             {
                 var insights = await insightsV3Service.GetInsightsV3ForUserAsync(userId, "UTC", null, cancellationToken);
                 achievementPoints = AchievementPoints.Sum(insights.Achievements);
+                recentAchievements = insights.Achievements
+                    .Where(item => item.Achieved && item.AchievedAt.HasValue)
+                    .OrderByDescending(item => item.AchievedAt)
+                    .ThenByDescending(item => item.Tier)
+                    .Take(5)
+                    .Select(item => new PublicRecentAchievementResponse(
+                        item.Id,
+                        item.Category,
+                        item.Tier,
+                        item.TargetValue,
+                        item.AchievedAt!.Value))
+                    .ToList();
             }
 
             return Ok(new PublicSocialProfileResponse(
@@ -157,7 +170,8 @@ public sealed class SocialProfilesController(
                 profile.Bio,
                 UserProfileContractMapper.ToSocialLinksDto(profile.SocialLinks),
                 profile.FollowsViewer,
-                achievementPoints));
+                achievementPoints,
+                recentAchievements));
         }
         catch (NotFoundException)
         {
