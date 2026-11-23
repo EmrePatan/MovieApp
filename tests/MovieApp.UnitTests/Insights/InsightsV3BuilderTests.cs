@@ -29,6 +29,24 @@ public sealed class InsightsV3BuilderTests
     }
 
     [Fact]
+    public void YourYearCarriesPerDayCountsForTheHeatmap()
+    {
+        var raw = CreateRawData(
+            yearActivity: new InsightsV3YearActivityAggregate(
+                [new InsightsV3MonthCount(1, 3, 0)],
+                new Dictionary<DayOfWeek, int>(),
+                2,
+                0,
+                [new InsightsV3DayCount(1, 2), new InsightsV3DayCount(40, 1)]));
+
+        var yourYear = InsightsV3YourYearBuilder.Build(raw, 2026);
+
+        Assert.Equal(2, yourYear.Days?.Count);
+        Assert.Equal(40, yourYear.Days?[1].DayOfYear);
+        Assert.Equal(2, yourYear.Days?[0].Total);
+    }
+
+    [Fact]
     public void FavoriteWeekdayUsesWeekdayTotalsAndActivityThreshold()
     {
         var dominant = new Dictionary<DayOfWeek, int>

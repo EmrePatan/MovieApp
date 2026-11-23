@@ -48,7 +48,10 @@ public static class InsightsContractMapper
                         result.YourYear.PeakMonth.Movies,
                         result.YourYear.PeakMonth.Episodes,
                         result.YourYear.PeakMonth.Total),
-                result.YourYear.FavoriteWeekday),
+                result.YourYear.FavoriteWeekday,
+                (result.YourYear.Days ?? [])
+                    .Select(day => new InsightsV3DayActivityResponse(day.DayOfYear, day.Total))
+                    .ToList()),
             new InsightsV3TasteSectionResponse(
                 result.YourTaste.Genres.Select(ToInsightsTasteGenreResponse).ToList(),
                 result.YourTaste.RisingGenre is null

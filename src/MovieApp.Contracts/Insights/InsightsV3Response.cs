@@ -37,7 +37,11 @@ public sealed record InsightsV3YourYearResponse(
     IReadOnlyList<InsightsV3MonthlyActivityResponse> Months,
     int ActiveDays,
     InsightsV3MonthHighlightResponse? PeakMonth,
-    DayOfWeek? FavoriteWeekday);
+    DayOfWeek? FavoriteWeekday,
+    IReadOnlyList<InsightsV3DayActivityResponse>? Days = null);
+
+/// <summary>Watches logged on one day of the selected year (1-based day of year).</summary>
+public sealed record InsightsV3DayActivityResponse(int DayOfYear, int Total);
 
 public sealed record InsightsV3RisingGenreResponse(
     Guid GenreId,
