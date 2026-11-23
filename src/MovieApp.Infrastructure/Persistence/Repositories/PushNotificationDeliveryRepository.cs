@@ -32,7 +32,9 @@ public sealed class PushNotificationDeliveryRepository(ApplicationDbContext dbCo
         var userIds = notifications.Select(notification => notification.UserId).Distinct().ToList();
         var activeDevices = await dbContext.PushDevices
             .AsNoTracking()
-            .Where(device => userIds.Contains(device.UserId) && device.IsActive)
+            .Where(device => userIds.Contains(device.UserId) && device.IsActive
+                && !dbContext.UserNotificationPreferences.Any(preference =>
+                    preference.UserId == device.UserId && !preference.ReleasePushEnabled))
             .Select(device => new { device.Id, device.UserId })
             .ToListAsync(cancellationToken);
 

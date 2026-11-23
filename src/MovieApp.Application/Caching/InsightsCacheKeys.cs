@@ -4,7 +4,7 @@ public static class InsightsCacheKeys
 {
     public const string Prefix = "insights:";
 
-    public const string Version = "v1";
+    public const string Version = "v2";
 
     public static string Generation(Guid userId) =>
         $"{Prefix}gen:{userId:N}:{Version}";

@@ -21,13 +21,23 @@ public sealed class InsightsV3Service(
     InsightsV3LoadCoordinator loadCoordinator,
     ILogger<InsightsV3Service> logger) : IInsightsV3Service
 {
-    public async Task<InsightsV3Result> GetInsightsV3Async(
+    public Task<InsightsV3Result> GetInsightsV3Async(
+        string timeZoneId,
+        int? year,
+        CancellationToken cancellationToken = default) =>
+        GetInsightsV3ForUserAsync(
+            CurrentUserGuard.RequireUserId(currentUser),
+            timeZoneId,
+            year,
+            cancellationToken);
+
+    public async Task<InsightsV3Result> GetInsightsV3ForUserAsync(
+        Guid userId,
         string timeZoneId,
         int? year,
         CancellationToken cancellationToken = default)
     {
         var totalStopwatch = Stopwatch.StartNew();
-        var userId = CurrentUserGuard.RequireUserId(currentUser);
         var timeZone = InsightsTimeZoneGuard.RequireValidTimeZone(timeZoneId);
         var utcNow = DateTime.UtcNow;
         var resolvedYear = InsightsV3TimeRangeHelper.ResolveYear(year, timeZone, utcNow);

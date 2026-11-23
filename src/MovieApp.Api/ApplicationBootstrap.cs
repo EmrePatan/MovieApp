@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MovieApp.Api.BackgroundJobs;
+using MovieApp.Api.DevMedia;
 using MovieApp.Api.EmailAssets;
 using MovieApp.Api.Cors;
 using MovieApp.Api.Errors;
@@ -87,6 +88,7 @@ public static class ApplicationBootstrap
         app.UseProductionTransportSecurity();
         app.UseConfiguredCors();
         app.UseEmailAssetStaticFiles(app.Environment);
+        app.UseDevMediaStaticFiles(app.Environment);
         app.UseMiddleware<WatchHistoryMutationHttpTimingMiddleware>();
         app.UseMiddleware<HomeColdPerfMiddleware>();
         app.UseAuthentication();

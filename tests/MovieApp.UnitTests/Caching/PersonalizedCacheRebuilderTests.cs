@@ -90,5 +90,12 @@ public sealed class PersonalizedCacheRebuilderTests
             Calls.Add((timeZoneId, year));
             return Task.FromException<InsightsV3Result>(new InvalidOperationException("recorded"));
         }
+
+        public Task<InsightsV3Result> GetInsightsV3ForUserAsync(
+            Guid userId,
+            string timeZoneId,
+            int? year,
+            CancellationToken cancellationToken = default) =>
+            GetInsightsV3Async(timeZoneId, year, cancellationToken);
     }
 }

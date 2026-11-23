@@ -8,4 +8,11 @@ public interface IInsightsV3Service
         string timeZoneId,
         int? year,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Same snapshot for another user; callers must already have checked profile visibility.</summary>
+    Task<InsightsV3Result> GetInsightsV3ForUserAsync(
+        Guid userId,
+        string timeZoneId,
+        int? year,
+        CancellationToken cancellationToken = default);
 }

@@ -1989,6 +1989,29 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("user_external_logins", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserNotificationPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("MessagePushEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("ReleasePushEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("user_notification_preferences", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.UserReleaseNotification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2683,6 +2706,17 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("MovieApp.Domain.Entities.User", "User")
                         .WithMany("ExternalLogins")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.UserNotificationPreference", b =>
+                {
+                    b.HasOne("MovieApp.Domain.Entities.User", "User")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

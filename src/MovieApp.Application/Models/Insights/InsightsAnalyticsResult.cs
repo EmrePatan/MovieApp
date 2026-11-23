@@ -51,4 +51,5 @@ public sealed record InsightsMilestoneResult(
     int CurrentValue,
     int TargetValue,
     bool Achieved,
-    DateTime? AchievedAt);
+    DateTime? AchievedAt,
+    int Tier = 1);

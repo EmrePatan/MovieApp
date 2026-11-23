@@ -127,6 +127,17 @@ internal static class InsightsV3AggregateQueries
                 GROUP BY EXTRACT(DOW FROM local_date)
                 UNION ALL
                 SELECT
+                    'day'::text AS "Section",
+                    EXTRACT(DOY FROM local_date)::integer AS "Key",
+                    0 AS "Movies",
+                    0 AS "Episodes",
+                    COUNT(*)::integer AS "Total",
+                    0 AS "ActiveDays",
+                    0 AS "YearMinutes"
+                FROM in_year
+                GROUP BY EXTRACT(DOY FROM local_date)
+                UNION ALL
+                SELECT
                     'totals'::text AS "Section",
                     0 AS "Key",
                     0 AS "Movies",
@@ -151,12 +162,19 @@ internal static class InsightsV3AggregateQueries
             }
         }
 
+        var dayCounts = rows
+            .Where(row => row.Section == "day")
+            .Select(row => new InsightsV3DayCount(row.Key, row.Total))
+            .OrderBy(day => day.DayOfYear)
+            .ToList();
+
         var totals = rows.FirstOrDefault(row => row.Section == "totals");
         return new InsightsV3YearActivityAggregate(
             months,
             weekdayTotals,
             totals?.ActiveDays ?? 0,
-            totals?.YearMinutes ?? 0);
+            totals?.YearMinutes ?? 0,
+            dayCounts);
     }
 
     internal static async Task<GenreContributionSets> GetGenreContributionsAsync(

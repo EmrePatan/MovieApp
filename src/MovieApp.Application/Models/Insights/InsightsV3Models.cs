@@ -18,7 +18,11 @@ public sealed record InsightsV3YourYearResult(
     IReadOnlyList<InsightsV3MonthlyActivityResult> Months,
     int ActiveDays,
     InsightsV3MonthHighlightResult? PeakMonth,
-    DayOfWeek? FavoriteWeekday);
+    DayOfWeek? FavoriteWeekday,
+    IReadOnlyList<InsightsV3DayCount>? Days = null);
+
+/// <summary>Watches logged on one day of the year (1-based day of year).</summary>
+public sealed record InsightsV3DayCount(int DayOfYear, int Total);
 
 public sealed record InsightsV3WatchingMixResult(
     int MovieTitleCount,
@@ -143,7 +147,8 @@ public sealed record InsightsV3YearActivityAggregate(
     IReadOnlyList<InsightsV3MonthCount> Months,
     IReadOnlyDictionary<DayOfWeek, int> WeekdayTotals,
     int ActiveDays,
-    int YearMinutes);
+    int YearMinutes,
+    IReadOnlyList<InsightsV3DayCount>? DayCounts = null);
 
 public sealed record InsightsV3RawData(
     DateTime MemberSinceUtc,

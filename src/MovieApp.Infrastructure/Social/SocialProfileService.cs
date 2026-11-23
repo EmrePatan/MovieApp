@@ -551,6 +551,7 @@ public sealed class SocialProfileService(
             .FirstOrDefaultAsync(cancellationToken) ?? false;
         var isSelf = viewerId == userId;
         var followStatus = "None";
+        var followsViewer = false;
         if (viewerId.HasValue && !isSelf)
         {
             var status = await dbContext.UserFollows.AsNoTracking()
@@ -558,6 +559,10 @@ public sealed class SocialProfileService(
                 .Select(follow => (UserFollowStatus?)follow.Status)
                 .FirstOrDefaultAsync(cancellationToken);
             followStatus = status?.ToString() ?? "None";
+            followsViewer = await dbContext.UserFollows.AsNoTracking().AnyAsync(
+                follow => follow.FollowerId == userId
+                    && follow.FollowedUserId == viewerId.Value
+                    && follow.Status == UserFollowStatus.Accepted, cancellationToken);
         }
 
         var followersCount = await (
@@ -604,7 +609,8 @@ public sealed class SocialProfileService(
                 user.SocialYoutube,
                 user.SocialTwitch,
                 user.SocialThreads,
-                user.SocialWebsite));
+                user.SocialWebsite),
+            followsViewer);
     }
 
     public async Task SetProfileCoverPosterAsync(string? posterPath, CancellationToken cancellationToken = default)

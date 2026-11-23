@@ -108,6 +108,37 @@ public sealed class InsightsMilestonesBuilderTests
         Assert.Null(milestone.AchievedAt);
     }
 
+    [Fact]
+    public void BuildCreatesTieredFamiliesWithSharedProgress()
+    {
+        var raw = CreateRaw(moviesWatched: 60);
+
+        var milestones = InsightsMilestonesBuilder.Build(raw);
+        var movies = milestones.Where(item => item.Category == "movies").OrderBy(item => item.Tier).ToList();
+
+        Assert.Equal([1, 2, 3, 4, 5], movies.Select(item => item.Tier));
+        Assert.Equal([1, 10, 50, 100, 250], movies.Select(item => item.TargetValue));
+        Assert.All(movies, item => Assert.Equal(60, item.CurrentValue));
+        Assert.Equal([true, true, true, false, false], movies.Select(item => item.Achieved));
+    }
+
+    [Fact]
+    public void BuildKeepsLegacyIdsForTheOriginalMilestones()
+    {
+        var ids = InsightsMilestonesBuilder.Build(CreateRaw()).Select(item => item.Id).ToHashSet();
+
+        foreach (var legacy in new[]
+                 {
+                     "first-movie", "movies-10", "movies-50", "episodes-100", "episodes-500", "ratings-10",
+                     "ratings-25", "ratings-50", "first-show-completed", "shows-completed-3", "genres-5",
+                 })
+        {
+            Assert.Contains(legacy, ids);
+        }
+
+        Assert.Equal(ids.Count, InsightsMilestonesBuilder.Build(CreateRaw()).Count);
+    }
+
     private static InsightsAnalyticsRawData CreateRaw(
         int moviesWatched = 0,
         DateTime? firstMovieAt = null,

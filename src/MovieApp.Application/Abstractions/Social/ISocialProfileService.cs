@@ -17,7 +17,8 @@ public sealed record SocialProfileResult(
     string? CoverPosterPath,
     string? CoverImageUrl,
     string? Bio = null,
-    ProfileSocialLinksResult? SocialLinks = null);
+    ProfileSocialLinksResult? SocialLinks = null,
+    bool FollowsViewer = false);
 
 public sealed record SocialUserSummaryResult(Guid Id, string UserName, string DisplayName, string? AvatarUrl, string FollowStatus);
 
