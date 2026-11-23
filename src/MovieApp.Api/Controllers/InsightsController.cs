@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MovieApp.Api.Localization;
 using MovieApp.Api.Mapping;
 using MovieApp.Application.Abstractions.Identity;
+using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Services.Insights;
@@ -16,8 +17,11 @@ namespace MovieApp.Api.Controllers;
 public sealed class InsightsController(
     IInsightsV3Service insightsV3Service,
     ICurrentUser currentUser,
-    ISocialProfileService socialProfileService) : ControllerBase
+    ISocialProfileService socialProfileService,
+    IUserKeywordAffinityRepository keywordAffinity) : ControllerBase
 {
+    private const int KeywordVectorSize = 300;
+
     [HttpGet("v3")]
     [ProducesResponseType(typeof(InsightsV3Response), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -97,7 +101,21 @@ public sealed class InsightsController(
             var theirs = InsightsContractMapper.ToInsightsV3Response(
                 await insightsV3Service.GetInsightsV3ForUserAsync(userId, timeZone, null, cancellationToken),
                 locale);
-            return Ok(InsightsCompareMapper.Build(mine, theirs));
+            var affinity = KeywordAffinityCalculator.Compute(
+                await keywordAffinity.GetWatchedKeywordCountsAsync(myId, KeywordVectorSize, cancellationToken),
+                await keywordAffinity.GetWatchedKeywordCountsAsync(userId, KeywordVectorSize, cancellationToken));
+            var sharedKeywords = new List<InsightsCompareKeywordResponse>();
+            if (affinity is not null)
+            {
+                var names = await keywordAffinity.GetKeywordNamesAsync(
+                    affinity.SharedKeywordIds, locale, cancellationToken);
+                sharedKeywords = affinity.SharedKeywordIds
+                    .Where(names.ContainsKey)
+                    .Select(id => new InsightsCompareKeywordResponse(id, names[id]))
+                    .ToList();
+            }
+
+            return Ok(InsightsCompareMapper.Build(mine, theirs, affinity?.MatchPercent, sharedKeywords));
         }
         catch (AuthenticationException exception)
         {

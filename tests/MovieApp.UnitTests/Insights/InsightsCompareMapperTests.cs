@@ -33,6 +33,19 @@ public sealed class InsightsCompareMapperTests
         Assert.Equal(100, InsightsCompareMapper.Build(a, a).MatchPercent);
     }
 
+    [Fact]
+    public void KeywordSimilarityIsBlendedAtThirtyPercent()
+    {
+        var mine = CreateResponse([(Drama, "Drama", 60m), (Comedy, "Comedy", 40m)], 0);
+        var theirs = CreateResponse([(Drama, "Drama", 30m), (Horror, "Horror", 70m)], 0);
+
+        var result = InsightsCompareMapper.Build(mine, theirs, 100, [new(Guid.NewGuid(), "Dystopia")]);
+
+        Assert.Equal(51, result.MatchPercent); // 30 * 0.7 + 100 * 0.3
+        Assert.Equal(100, result.KeywordMatchPercent);
+        Assert.Single(result.SharedKeywords!);
+    }
+
     private static InsightsV3Response CreateResponse(
         IEnumerable<(Guid Id, string Name, decimal Share)> genres,
         int totalMinutes)

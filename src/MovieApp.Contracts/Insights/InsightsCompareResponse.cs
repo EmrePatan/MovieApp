@@ -7,6 +7,9 @@ public sealed record InsightsCompareGenreResponse(
     decimal MyShare,
     decimal TheirShare);
 
+/// <summary>A keyword (theme) that both users' watched titles share.</summary>
+public sealed record InsightsCompareKeywordResponse(Guid KeywordId, string Name);
+
 /// <summary>Taste overlap between the signed-in user and another visible profile.</summary>
 public sealed record InsightsCompareResponse(
     int MatchPercent,
@@ -14,4 +17,6 @@ public sealed record InsightsCompareResponse(
     IReadOnlyList<string> MyTopGenres,
     IReadOnlyList<string> TheirTopGenres,
     int MyWatchMinutes,
-    int TheirWatchMinutes);
+    int TheirWatchMinutes,
+    int? KeywordMatchPercent = null,
+    IReadOnlyList<InsightsCompareKeywordResponse>? SharedKeywords = null);

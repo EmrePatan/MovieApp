@@ -109,7 +109,8 @@ public static class InsightsContractMapper
             milestone.CurrentValue,
             milestone.TargetValue,
             milestone.Achieved,
-            milestone.AchievedAt);
+            milestone.AchievedAt,
+            milestone.Tier);
 
     private static InsightsV3GenreRatingResponse? ToInsightsV3GenreRatingResponse(
         InsightsV3GenreRatingResult? genre) =>

@@ -7,4 +7,5 @@ public sealed record InsightsMilestoneResponse(
     int CurrentValue,
     int TargetValue,
     bool Achieved,
-    DateTime? AchievedAt);
+    DateTime? AchievedAt,
+    int Tier = 1);

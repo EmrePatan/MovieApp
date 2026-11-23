@@ -5,6 +5,7 @@ using MovieApp.Api.Mapping;
 using MovieApp.Application.Abstractions.Social;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Models.Common;
+using MovieApp.Application.Services.Insights;
 using MovieApp.Application.Services.Localization;
 using MovieApp.Application.Validation;
 using MovieApp.Contracts.Users;
@@ -16,7 +17,10 @@ public sealed record SetSocialProfileCoverPosterRequest(string? PosterPath);
 
 [ApiController]
 [Route("api/social/profiles")]
-public sealed class SocialProfilesController(ISocialProfileService socialProfileService, ISocialFeedService socialFeedService) : ControllerBase
+public sealed class SocialProfilesController(
+    ISocialProfileService socialProfileService,
+    ISocialFeedService socialFeedService,
+    IInsightsV3Service insightsV3Service) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("search")]
@@ -128,6 +132,16 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
         try
         {
             var profile = await socialProfileService.GetProfileAsync(userId, cancellationToken);
+
+            // The level is a summary of watched/rated activity, so it follows the same
+            // visibility rule as the profile's other activity.
+            int? achievementPoints = null;
+            if (await socialProfileService.CanViewReviewsAsync(userId, cancellationToken))
+            {
+                var insights = await insightsV3Service.GetInsightsV3ForUserAsync(userId, "UTC", null, cancellationToken);
+                achievementPoints = AchievementPoints.Sum(insights.Achievements);
+            }
+
             return Ok(new PublicSocialProfileResponse(
                 profile.Id,
                 profile.UserName,
@@ -141,7 +155,9 @@ public sealed class SocialProfilesController(ISocialProfileService socialProfile
                 profile.CoverPosterPath,
                 profile.CoverImageUrl,
                 profile.Bio,
-                UserProfileContractMapper.ToSocialLinksDto(profile.SocialLinks)));
+                UserProfileContractMapper.ToSocialLinksDto(profile.SocialLinks),
+                profile.FollowsViewer,
+                achievementPoints));
         }
         catch (NotFoundException)
         {

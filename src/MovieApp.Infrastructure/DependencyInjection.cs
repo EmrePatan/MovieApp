@@ -376,6 +376,7 @@ public static class DependencyInjection
 
         services.AddScoped<IGenreReadRepository, GenreReadRepository>();
         services.AddScoped<ICatalogTitleKeywordReadRepository, CatalogTitleKeywordReadRepository>();
+        services.AddScoped<IUserKeywordAffinityRepository, UserKeywordAffinityRepository>();
 
         services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 

@@ -184,20 +184,7 @@ public sealed class DirectMessageService(
             conversation.Touch(now);
             dbContext.DirectMessages.Add(message);
 
-            var unreadNoticeUpdated = await dbContext.SocialNotifications
-                .Where(notification => notification.RecipientId == access.PeerId
-                    && notification.ActorId == userId
-                    && notification.NotificationType == NotificationType
-                    && notification.ReadAt == null)
-                .ExecuteUpdateAsync(
-                    setters => setters.SetProperty(notification => notification.CreatedAt, now),
-                    ct);
-            if (unreadNoticeUpdated == 0)
-            {
-                dbContext.SocialNotifications.Add(SocialNotification.Create(
-                    access.PeerId, userId, NotificationType, null, null, null, now));
-            }
-
+            // No in-app social notification: the inbox carries its own unread badges, and push still fires.
             await dbContext.SaveChangesAsync(ct);
             return new SentDirectMessage(message.Id, conversationId, userId, message.Body, message.CreatedAt, access.PeerId);
         }, cancellationToken);

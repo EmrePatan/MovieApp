@@ -17,7 +17,7 @@ public static class InsightsV3Builder
         var yourRatings = InsightsV3RatingsBuilder.Build(raw);
         var yourEra = InsightsV3EraBuilder.Build(raw);
         var yourRecords = InsightsV3RecordsBuilder.Build(raw, timeZone);
-        var achievements = InsightsMilestonesBuilder.Build(raw.MilestoneRaw);
+        var achievements = InsightsMilestonesBuilder.Build(raw, utcNow);
 
         return new InsightsV3Result(
             new InsightsV3MetaResult(raw.MemberSinceUtc, utcNow, timeZone.Id, year),

@@ -7,11 +7,18 @@ public static class InsightsCompareMapper
     private const int MaxSharedGenres = 4;
     private const int MaxTopGenres = 3;
 
+    private const decimal GenreWeight = 0.7m;
+
     /// <summary>
-    /// Match is the overlap of the two genre-share distributions (sum of the smaller share per
-    /// genre, 0-100), so identical tastes score 100 and disjoint tastes score 0.
+    /// Genre overlap is the sum of the smaller share per genre (0-100): identical tastes score 100,
+    /// disjoint tastes 0. When both sides have enough keyword data, 30% of the score comes from
+    /// keyword/theme similarity instead.
     /// </summary>
-    public static InsightsCompareResponse Build(InsightsV3Response mine, InsightsV3Response theirs)
+    public static InsightsCompareResponse Build(
+        InsightsV3Response mine,
+        InsightsV3Response theirs,
+        int? keywordMatchPercent = null,
+        IReadOnlyList<InsightsCompareKeywordResponse>? sharedKeywords = null)
     {
         var myShares = mine.YourTaste.Genres.ToDictionary(genre => genre.GenreId);
         var theirShares = theirs.YourTaste.Genres.ToDictionary(genre => genre.GenreId);
@@ -31,12 +38,22 @@ public static class InsightsCompareMapper
                 theirShares[pair.Key].SharePercent))
             .ToList();
 
+        var genrePercent = Math.Clamp(Math.Round(overlap, MidpointRounding.AwayFromZero), 0, 100);
+        var matchPercent = keywordMatchPercent is { } keyword
+            ? Math.Clamp(
+                Math.Round(genrePercent * GenreWeight + keyword * (1 - GenreWeight), MidpointRounding.AwayFromZero),
+                0,
+                100)
+            : genrePercent;
+
         return new InsightsCompareResponse(
-            (int)Math.Clamp(Math.Round(overlap, MidpointRounding.AwayFromZero), 0, 100),
+            (int)matchPercent,
             shared,
             mine.MovieDna.TopGenres.Take(MaxTopGenres).Select(genre => genre.Name).ToList(),
             theirs.MovieDna.TopGenres.Take(MaxTopGenres).Select(genre => genre.Name).ToList(),
             mine.TimeInStories.TotalMinutes,
-            theirs.TimeInStories.TotalMinutes);
+            theirs.TimeInStories.TotalMinutes,
+            keywordMatchPercent,
+            sharedKeywords ?? []);
     }
 }

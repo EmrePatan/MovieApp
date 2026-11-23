@@ -13,4 +13,6 @@ public sealed record PublicSocialProfileResponse(
     string? CoverPosterPath,
     string? CoverImageUrl,
     string? Bio = null,
-    ProfileSocialLinksDto? SocialLinks = null);
+    ProfileSocialLinksDto? SocialLinks = null,
+    bool FollowsViewer = false,
+    int? AchievementPoints = null);
