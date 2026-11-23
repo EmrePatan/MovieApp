@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Storage;
@@ -25,6 +26,12 @@ public static class UserAvatarStorageServiceCollectionExtensions
             if (options.IsConfigured)
             {
                 return new S3CompatibleUserAvatarBlobStorage(sp.GetRequiredService<IOptions<AvatarStorageOptions>>());
+            }
+
+            // Development without S3: persist to disk so uploaded avatars/covers can actually be served.
+            if (sp.GetRequiredService<IHostEnvironment>().IsDevelopment())
+            {
+                return new LocalDiskUserAvatarBlobStorage(LocalDiskUserAvatarBlobStorage.DefaultRootPath);
             }
 
             return new InMemoryUserAvatarBlobStorage();
