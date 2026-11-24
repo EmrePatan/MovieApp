@@ -41,7 +41,7 @@ public static class DiscoverCatalogSortPolicy
         sort == DiscoverBrowseSort.RatingDesc;
 
     public static bool RequiresRatingVoteFloor(AdvancedDiscoverSort sort) =>
-        sort == AdvancedDiscoverSort.RatingDesc;
+        sort is AdvancedDiscoverSort.RatingDesc or AdvancedDiscoverSort.RatingAsc;
 
     public static int? ResolveBrowseMinVoteCount(
         DiscoverBrowseMode mode,

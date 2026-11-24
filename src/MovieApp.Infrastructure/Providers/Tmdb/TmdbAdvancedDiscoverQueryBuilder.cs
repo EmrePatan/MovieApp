@@ -282,6 +282,10 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             AdvancedDiscoverSort.RatingDesc => "vote_average.desc",
             AdvancedDiscoverSort.Newest => "primary_release_date.desc",
             AdvancedDiscoverSort.Oldest => "primary_release_date.asc",
+            AdvancedDiscoverSort.PopularityAsc => "popularity.asc",
+            AdvancedDiscoverSort.RatingAsc => "vote_average.asc",
+            AdvancedDiscoverSort.TitleAsc => "original_title.asc",
+            AdvancedDiscoverSort.TitleDesc => "original_title.desc",
             _ => "popularity.desc"
         };
 
@@ -291,6 +295,10 @@ internal static class TmdbAdvancedDiscoverQueryBuilder
             AdvancedDiscoverSort.RatingDesc => "vote_average.desc",
             AdvancedDiscoverSort.Newest => "first_air_date.desc",
             AdvancedDiscoverSort.Oldest => "first_air_date.asc",
+            AdvancedDiscoverSort.PopularityAsc => "popularity.asc",
+            AdvancedDiscoverSort.RatingAsc => "vote_average.asc",
+            AdvancedDiscoverSort.TitleAsc => "original_name.asc",
+            AdvancedDiscoverSort.TitleDesc => "original_name.desc",
             _ => "popularity.desc"
         };
 }

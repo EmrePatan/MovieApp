@@ -289,8 +289,9 @@ internal static class TmdbDiscoverQueryBuilder
             DiscoverBrowseSort.RatingAsc => "vote_average.asc",
             DiscoverBrowseSort.ReleaseDesc => "first_air_date.desc",
             DiscoverBrowseSort.ReleaseAsc => "first_air_date.asc",
-            DiscoverBrowseSort.TitleAsc => "original_title.asc",
-            DiscoverBrowseSort.TitleDesc => "original_title.desc",
+            // TMDB's TV discover has no original_title; it silently ignores it and falls back to popularity.
+            DiscoverBrowseSort.TitleAsc => "original_name.asc",
+            DiscoverBrowseSort.TitleDesc => "original_name.desc",
             _ => "popularity.desc"
         };
     }

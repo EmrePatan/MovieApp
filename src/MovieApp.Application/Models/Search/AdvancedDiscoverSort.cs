@@ -5,5 +5,9 @@ public enum AdvancedDiscoverSort
     PopularityDesc,
     RatingDesc,
     Newest,
-    Oldest
+    Oldest,
+    PopularityAsc,
+    RatingAsc,
+    TitleAsc,
+    TitleDesc
 }

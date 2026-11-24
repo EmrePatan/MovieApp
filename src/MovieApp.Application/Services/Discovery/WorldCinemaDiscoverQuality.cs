@@ -19,7 +19,7 @@ public static class WorldCinemaDiscoverQuality
     public static int ResolveMinimumVoteCount(SearchContentType mediaType, AdvancedDiscoverSort sort) =>
         sort switch
         {
-            AdvancedDiscoverSort.RatingDesc => mediaType switch
+            AdvancedDiscoverSort.RatingDesc or AdvancedDiscoverSort.RatingAsc => mediaType switch
             {
                 SearchContentType.Tv => RatingMinimumVoteCountTv,
                 _ => RatingMinimumVoteCountMovie

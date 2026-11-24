@@ -276,6 +276,18 @@ public static class AdvancedDiscoverValidator
             case "oldest":
                 discoverSort = AdvancedDiscoverSort.Oldest;
                 return true;
+            case "popularity_asc":
+                discoverSort = AdvancedDiscoverSort.PopularityAsc;
+                return true;
+            case "rating_asc":
+                discoverSort = AdvancedDiscoverSort.RatingAsc;
+                return true;
+            case "title_asc":
+                discoverSort = AdvancedDiscoverSort.TitleAsc;
+                return true;
+            case "title_desc":
+                discoverSort = AdvancedDiscoverSort.TitleDesc;
+                return true;
             default:
                 return false;
         }
