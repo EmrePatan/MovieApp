@@ -97,6 +97,45 @@ public sealed class PostgreSqlConnectionStringFactoryTests
         Assert.Equal(1, CountSettingOccurrences(normalized, "GSS Encryption Mode"));
     }
 
+    [Fact]
+    public void NormalizeKeepsWarmConnectionsWhenMinimumPoolSizeIsNotConfigured()
+    {
+        const string connectionString =
+            "Host=prod-db.example.com;Port=5432;Database=movieapp;Username=movieapp;Password=" + TestPassword;
+
+        var builder = new NpgsqlConnectionStringBuilder(PostgreSqlConnectionStringFactory.Normalize(connectionString));
+
+        Assert.Equal(PostgreSqlConnectionStringFactory.DefaultMinPoolSize, builder.MinPoolSize);
+    }
+
+    [Theory]
+    [InlineData("Minimum Pool Size=1", 1)]
+    [InlineData("MinPoolSize=0", 0)]
+    [InlineData("Minimum Pool Size=9;Maximum Pool Size=20", 9)]
+    public void NormalizePreservesExplicitMinimumPoolSize(string setting, int expected)
+    {
+        var connectionString =
+            "Host=prod-db.example.com;Port=5432;Database=movieapp;Username=movieapp;Password=" + TestPassword
+            + ";" + setting;
+
+        var builder = new NpgsqlConnectionStringBuilder(PostgreSqlConnectionStringFactory.Normalize(connectionString));
+
+        Assert.Equal(expected, builder.MinPoolSize);
+    }
+
+    [Fact]
+    public void NormalizeNeverRaisesMinimumPoolSizeAboveMaximumPoolSize()
+    {
+        const string connectionString =
+            "Host=prod-db.example.com;Port=5432;Database=movieapp;Username=movieapp;Password=" + TestPassword
+            + ";Maximum Pool Size=2";
+
+        var builder = new NpgsqlConnectionStringBuilder(PostgreSqlConnectionStringFactory.Normalize(connectionString));
+
+        Assert.Equal(2, builder.MinPoolSize);
+        Assert.Equal(2, builder.MaxPoolSize);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
