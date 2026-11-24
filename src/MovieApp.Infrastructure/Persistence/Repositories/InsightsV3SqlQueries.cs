@@ -432,6 +432,13 @@ internal static class InsightsV3SqlQueries
     {
         var row = await dbContext.Database
             .SqlQuery<V3OldestTitleSqlRow>($"""
+                WITH watched_tv_shows AS MATERIALIZED (
+                    SELECT DISTINCT s."TvShowId"
+                    FROM watched_episodes AS we
+                    INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
+                    INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
+                    WHERE we."UserId" = {userId}
+                )
                 SELECT
                     candidate."ContentType",
                     candidate."ContentId",
@@ -459,18 +466,16 @@ internal static class InsightsV3SqlQueries
                     (
                         SELECT
                             'tv' AS "ContentType",
-                            s."TvShowId" AS "ContentId",
+                            t."Id" AS "ContentId",
                             t."Title" AS "Title",
                             EXTRACT(YEAR FROM t."FirstAirDate")::integer AS "Year",
                             t."PosterPath" AS "PosterPath",
                             t."FirstAirDate" AS "SortDate",
                             1 AS content_rank
-                        FROM watched_episodes AS we
-                        INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
-                        INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
-                        INNER JOIN tv_shows AS t ON t."Id" = s."TvShowId"
-                        WHERE we."UserId" = {userId} AND t."FirstAirDate" IS NOT NULL
-                        ORDER BY t."FirstAirDate" ASC
+                        FROM watched_tv_shows AS w
+                        INNER JOIN tv_shows AS t ON t."Id" = w."TvShowId"
+                        WHERE t."FirstAirDate" IS NOT NULL
+                        ORDER BY t."FirstAirDate" ASC, t."Id" ASC
                         LIMIT 1
                     )
                 ) AS candidate
