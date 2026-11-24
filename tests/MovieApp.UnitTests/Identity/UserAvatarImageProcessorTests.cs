@@ -18,6 +18,21 @@ public sealed class UserAvatarImageProcessorTests
         await Assert.ThrowsAsync<ValidationException>(() => _processor.ProcessUploadAsync(stream));
     }
 
+    [Theory]
+    [InlineData(new byte[] { 0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 })] // TIFF little-endian
+    [InlineData(new byte[] { 0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00 })] // TIFF big-endian
+    [InlineData(new byte[] { 0x49, 0x49, 0x2B, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 })] // BigTIFF
+    [InlineData(new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00 })] // GIF
+    [InlineData(new byte[] { 0x42, 0x4D, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 })] // BMP
+    public async Task RejectsUnsupportedImageSignaturesBeforeDecoding(byte[] bytes)
+    {
+        await using var avatar = new MemoryStream(bytes);
+        await using var cover = new MemoryStream(bytes);
+
+        await Assert.ThrowsAsync<ValidationException>(() => _processor.ProcessUploadAsync(avatar));
+        await Assert.ThrowsAsync<ValidationException>(() => _processor.ProcessCoverUploadAsync(cover));
+    }
+
     [Fact]
     public async Task ProcessesMinimalPngToWebp()
     {
