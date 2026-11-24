@@ -8,8 +8,10 @@ using MovieApp.Infrastructure.Persistence;
 
 namespace MovieApp.Infrastructure.Social;
 
-public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrentUser currentUser)
-    : ISocialFollowService
+public sealed class SocialFollowService(
+    ApplicationDbContext dbContext,
+    ICurrentUser currentUser,
+    ISocialPushNotifier pushNotifier) : ISocialFollowService
 {
     public async Task<SocialFollowResult> FollowAsync(Guid targetUserId, CancellationToken cancellationToken = default)
     {
@@ -21,8 +23,10 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             .AnyAsync(user => user.Id == targetUserId && user.IsActive, cancellationToken))
             throw new NotFoundException("User not found.");
 
-        return await dbContext.Database.ExecuteInRetriableTransactionAsync(async ct =>
+        SocialNotification? followNotification = null;
+        var followResult = await dbContext.Database.ExecuteInRetriableTransactionAsync(async ct =>
         {
+            followNotification = null;
             await SocialPairLock.AcquireAsync(dbContext, followerId, targetUserId, ct);
 
             if (await IsBlockedEitherWayAsync(followerId, targetUserId, ct))
@@ -47,8 +51,13 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
             dbContext.UserFollows.Add(follow);
             dbContext.SocialNotifications.Add(notification);
             await dbContext.SaveChangesAsync(ct);
+            followNotification = notification;
             return ToResult(targetUserId, follow.Status);
         }, cancellationToken);
+
+        if (followNotification is not null)
+            await pushNotifier.NotifyAsync([followNotification], cancellationToken);
+        return followResult;
     }
 
     public async Task UnfollowAsync(Guid targetUserId, CancellationToken cancellationToken = default)
@@ -88,9 +97,11 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
         Guid followerUserId, CancellationToken cancellationToken = default)
     {
         var followedUserId = GetCurrentUserId();
+        SocialNotification? acceptedNotification = null;
         var result = await dbContext.Database.ExecuteInRetriableTransactionAsync<SocialFollowResult?>(
             async ct =>
             {
+                acceptedNotification = null;
                 await SocialPairLock.AcquireAsync(dbContext, followerUserId, followedUserId, ct);
 
                 var follow = await dbContext.UserFollows.FirstOrDefaultAsync(
@@ -108,12 +119,15 @@ public sealed class SocialFollowService(ApplicationDbContext dbContext, ICurrent
 
                 var acceptedAt = DateTime.UtcNow;
                 follow.Accept(acceptedAt);
-                dbContext.SocialNotifications.Add(SocialNotification.Create(
-                    followerUserId, followedUserId, "FollowAccepted", null, null, follow.Id, acceptedAt));
+                acceptedNotification = SocialNotification.Create(
+                    followerUserId, followedUserId, "FollowAccepted", null, null, follow.Id, acceptedAt);
+                dbContext.SocialNotifications.Add(acceptedNotification);
                 await dbContext.SaveChangesAsync(ct);
                 return ToResult(followerUserId, follow.Status);
             }, cancellationToken);
 
+        if (result is not null && acceptedNotification is not null)
+            await pushNotifier.NotifyAsync([acceptedNotification], cancellationToken);
         return result ?? throw new NotFoundException("Follow request not found.");
     }
 

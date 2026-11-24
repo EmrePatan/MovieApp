@@ -317,6 +317,10 @@ internal static class FakeDiscoverCatalog
                 AdvancedDiscoverSort.RatingDesc => DiscoverBrowseSort.RatingDesc,
                 AdvancedDiscoverSort.Newest => DiscoverBrowseSort.ReleaseDesc,
                 AdvancedDiscoverSort.Oldest => DiscoverBrowseSort.ReleaseAsc,
+                AdvancedDiscoverSort.PopularityAsc => DiscoverBrowseSort.PopularityAsc,
+                AdvancedDiscoverSort.RatingAsc => DiscoverBrowseSort.RatingAsc,
+                AdvancedDiscoverSort.TitleAsc => DiscoverBrowseSort.TitleAsc,
+                AdvancedDiscoverSort.TitleDesc => DiscoverBrowseSort.TitleDesc,
                 _ => DiscoverBrowseSort.PopularityDesc
             });
 

@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialInteractionService, SocialInteractionService>();
         services.AddScoped<ISocialCommentTranslationService, SocialCommentTranslationService>();
         services.AddScoped<ISocialNotificationService, SocialNotificationService>();
+        services.AddScoped<ISocialPushNotifier, SocialPushNotifier>();
         services.AddScoped<IDirectMessageService, DirectMessageService>();
         services.AddScoped<MovieApp.Application.Abstractions.Notifications.INotificationPreferencesService, MovieApp.Infrastructure.Notifications.NotificationPreferencesService>();
         services.AddScoped<ISocialReviewEngagementLookup, SocialReviewEngagementLookup>();
@@ -250,6 +251,7 @@ public static class DependencyInjection
 
         services.AddSingleton<HomeColdPerfDbTelemetryInterceptor>();
         services.AddSingleton<HomeColdPerfConnectionInterceptor>();
+        services.AddSingleton<SlowDbCommandLoggingInterceptor>();
 
         void ConfigureApplicationDbContext(IServiceProvider serviceProvider, DbContextOptionsBuilder options) =>
             options.UseNpgsql(
@@ -257,7 +259,8 @@ public static class DependencyInjection
                     npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3))
                 .AddInterceptors(
                     serviceProvider.GetRequiredService<HomeColdPerfDbTelemetryInterceptor>(),
-                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>());
+                    serviceProvider.GetRequiredService<HomeColdPerfConnectionInterceptor>(),
+                    serviceProvider.GetRequiredService<SlowDbCommandLoggingInterceptor>());
 
         services.AddDbContextFactory<ApplicationDbContext>(ConfigureApplicationDbContext);
 

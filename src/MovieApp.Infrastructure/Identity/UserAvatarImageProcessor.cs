@@ -48,6 +48,11 @@ public sealed class UserAvatarImageProcessor : IUserAvatarImageProcessor
                 throw new ValidationException("Avatar must be a JPEG, PNG, or WebP image.");
             }
 
+            if (!HasSupportedImageSignature(buffer.GetBuffer().AsSpan(0, (int)Math.Min(buffer.Length, 12))))
+            {
+                throw new ValidationException("Avatar must be a JPEG, PNG, or WebP image.");
+            }
+
             buffer.Position = 0;
             var imageInfo = await Image.IdentifyAsync(IdentifyOptions, buffer, cancellationToken);
             if (imageInfo is null)
@@ -106,6 +111,11 @@ public sealed class UserAvatarImageProcessor : IUserAvatarImageProcessor
         {
             await using var buffer = await CopyToMemoryStreamAsync(uploadStream, cancellationToken);
             if (buffer.Length == 0)
+            {
+                throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
+            }
+
+            if (!HasSupportedImageSignature(buffer.GetBuffer().AsSpan(0, (int)Math.Min(buffer.Length, 12))))
             {
                 throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
             }
@@ -172,6 +182,26 @@ public sealed class UserAvatarImageProcessor : IUserAvatarImageProcessor
         {
             throw new ValidationException("Cover must be a JPEG, PNG, or WebP image.");
         }
+    }
+
+    /// <summary>
+    /// Cheap signature check so other formats (TIFF, GIF, BMP, ...) never reach the ImageSharp decoders.
+    /// </summary>
+    internal static bool HasSupportedImageSignature(ReadOnlySpan<byte> header)
+    {
+        if (header.Length >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+        {
+            return true;
+        }
+
+        if (header.Length >= 8 && header[..8].SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }))
+        {
+            return true;
+        }
+
+        return header.Length >= 12
+            && header[..4].SequenceEqual("RIFF"u8)
+            && header[8..12].SequenceEqual("WEBP"u8);
     }
 
     private static void EnsureSupportedFormat(IImageFormat? format)
