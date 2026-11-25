@@ -93,13 +93,29 @@ public sealed class ContentSearchTitleSynchronizer(ApplicationDbContext dbContex
         {
             if (existingByNormalized.TryGetValue(normalizedTitle, out var existing))
             {
+                // Provider syncs pass a fresh timestamp on every call, so comparing it would rewrite
+                // every row on every sync. ProviderUpdatedAtUtc is only read as "has been stamped"
+                // (null marks rows needing repair), so an existing stamp is kept, and unchanged rows
+                // are left alone instead of being updated one row at a time.
+                var needsStamp = existing.ProviderUpdatedAtUtc is null && row.ProviderUpdatedAtUtc is not null;
+                if (!needsStamp
+                    && existing.Title == row.Title
+                    && existing.TitleKind == row.TitleKind
+                    && existing.Source == row.Source
+                    && existing.LanguageCode == row.LanguageCode
+                    && existing.CountryCode == row.CountryCode
+                    && existing.ProviderTitleType == row.ProviderTitleType)
+                {
+                    continue;
+                }
+
                 existing.Title = row.Title;
                 existing.TitleKind = row.TitleKind;
                 existing.Source = row.Source;
                 existing.LanguageCode = row.LanguageCode;
                 existing.CountryCode = row.CountryCode;
                 existing.ProviderTitleType = row.ProviderTitleType;
-                existing.ProviderUpdatedAtUtc = row.ProviderUpdatedAtUtc;
+                existing.ProviderUpdatedAtUtc = row.ProviderUpdatedAtUtc ?? existing.ProviderUpdatedAtUtc;
                 existing.UpdatedAtUtc = utcNow;
                 continue;
             }

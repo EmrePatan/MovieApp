@@ -181,6 +181,97 @@ public sealed class ContentSearchTitleIntegrationTests
     }
 
     [Fact]
+    public async Task SyncFromProviderDetailLeavesUnchangedRowsUntouchedOnResync()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var synchronizer = new ContentSearchTitleSynchronizer(context);
+        var movieId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Resync Movie",
+            OriginalTitle = "Resync Original",
+            ReleaseDate = DateOnly.FromDateTime(utcNow),
+            VoteAverage = 7,
+            VoteCount = 10,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        await context.SaveChangesAsync();
+
+        ProviderSearchTitleEntry[] providerTitles =
+        [
+            new ProviderSearchTitleEntry(
+                "Yeniden Senkron",
+                ContentSearchTitleKind.Alternative,
+                ContentSearchTitleSource.TmdbAlternative,
+                null,
+                "TR",
+                "working"),
+        ];
+
+        var firstSyncAt = utcNow.AddMinutes(-30);
+        await synchronizer.SyncFromProviderDetailAsync(
+            CatalogContentType.Movie, movieId, "Resync Movie", "Resync Original", providerTitles, firstSyncAt);
+
+        var snapshot = await context.ContentSearchTitles
+            .AsNoTracking()
+            .Where(row => row.ContentId == movieId)
+            .ToDictionaryAsync(row => row.Id, row => (row.UpdatedAtUtc, row.ProviderUpdatedAtUtc));
+
+        await synchronizer.SyncFromProviderDetailAsync(
+            CatalogContentType.Movie, movieId, "Resync Movie", "Resync Original", providerTitles, utcNow);
+
+        var after = await context.ContentSearchTitles
+            .AsNoTracking()
+            .Where(row => row.ContentId == movieId)
+            .ToListAsync();
+
+        Assert.Equal(snapshot.Count, after.Count);
+        foreach (var row in after)
+        {
+            Assert.Equal(snapshot[row.Id].UpdatedAtUtc, row.UpdatedAtUtc);
+            Assert.Equal(snapshot[row.Id].ProviderUpdatedAtUtc, row.ProviderUpdatedAtUtc);
+        }
+    }
+
+    [Fact]
+    public async Task SyncFromProviderDetailStampsRowsThatHadNoProviderTimestamp()
+    {
+        await using var context = CatalogPersistenceFixture.CreateContext();
+        var synchronizer = new ContentSearchTitleSynchronizer(context);
+        var movieId = Guid.NewGuid();
+        var utcNow = DateTime.UtcNow;
+
+        context.Movies.Add(new Movie
+        {
+            Id = movieId,
+            Title = "Stamp Movie",
+            OriginalTitle = "Stamp Original",
+            ReleaseDate = DateOnly.FromDateTime(utcNow),
+            VoteAverage = 7,
+            VoteCount = 10,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+        });
+        await context.SaveChangesAsync();
+
+        await synchronizer.SyncCatalogTitlesAsync(CatalogContentType.Movie, movieId, "Stamp Movie", "Stamp Original");
+        Assert.All(
+            await context.ContentSearchTitles.AsNoTracking().Where(row => row.ContentId == movieId).ToListAsync(),
+            row => Assert.Null(row.ProviderUpdatedAtUtc));
+
+        await synchronizer.SyncFromProviderDetailAsync(
+            CatalogContentType.Movie, movieId, "Stamp Movie", "Stamp Original", null, utcNow);
+
+        Assert.All(
+            await context.ContentSearchTitles.AsNoTracking().Where(row => row.ContentId == movieId).ToListAsync(),
+            row => Assert.NotNull(row.ProviderUpdatedAtUtc));
+    }
+
+    [Fact]
     public async Task SyncFromProviderDetailRemovesStaleProviderAliases()
     {
         await using var context = CatalogPersistenceFixture.CreateContext();
