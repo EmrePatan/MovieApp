@@ -38,6 +38,37 @@ public sealed class RequestAbortExceptionHandlingTests
     }
 
     [Fact]
+    public void ReturnsTrueForTransportFailureWrappedByDriverWhenRequestAborted()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var httpContext = new DefaultHttpContext
+        {
+            RequestAborted = cancellation.Token,
+        };
+
+        var wrapped = new InvalidOperationException(
+            "driver failure",
+            new IOException("Exception while reading from stream", new System.Net.Sockets.SocketException()));
+
+        Assert.True(RequestAbortExceptionHandling.IsRequestAbortedCancellation(httpContext, wrapped));
+        Assert.True(RequestAbortExceptionHandling.IsRequestAbortedCancellation(
+            httpContext,
+            new ObjectDisposedException("DbContext")));
+    }
+
+    [Fact]
+    public void ReturnsFalseForTransportFailureWhenRequestIsNotAborted()
+    {
+        var httpContext = new DefaultHttpContext();
+
+        Assert.False(RequestAbortExceptionHandling.IsRequestAbortedCancellation(
+            httpContext,
+            new IOException("Exception while reading from stream")));
+    }
+
+    [Fact]
     public void ReturnsFalseWhenRequestIsNotAborted()
     {
         var httpContext = new DefaultHttpContext();

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,9 +17,11 @@ public sealed class RecommendationRepository(
     ApplicationDbContext dbContext,
     ILogger<RecommendationRepository>? repositoryLogger = null,
     IDbContextFactory<ApplicationDbContext>? dbContextFactory = null,
-    IOptions<RecommendationOptions>? recommendationOptions = null) : IRecommendationRepository
+    IOptions<RecommendationOptions>? recommendationOptions = null,
+    IMemoryCache? memoryCache = null) : IRecommendationRepository
 {
     private const int MaxCastPeople = 20;
+    private static readonly TimeSpan KeywordLookupCacheTtl = TimeSpan.FromMinutes(10);
     private readonly ILogger<RecommendationRepository> _repositoryLogger =
         repositoryLogger ?? NullLogger<RecommendationRepository>.Instance;
     private readonly RecommendationOptions _recommendationOptions =
@@ -700,7 +703,24 @@ public sealed class RecommendationRepository(
             return [];
         }
 
+        // Franchise keyword names rarely change, and resolving them scans keywords with ILIKE,
+        // so the resolved ID set is cached per name list instead of being re-queried per request.
+        var cacheKey = "recommendations:franchise-keyword-ids:" + string.Join('|', names);
+        if (memoryCache is not null && memoryCache.TryGetValue(cacheKey, out HashSet<Guid>? cachedIds) && cachedIds is not null)
+        {
+            return cachedIds;
+        }
+
         metrics.RecordRoundTrip();
+        var resolved = await ResolveFranchiseKeywordIdsAsync(names, cancellationToken);
+        memoryCache?.Set(cacheKey, resolved, KeywordLookupCacheTtl);
+        return resolved;
+    }
+
+    private async Task<HashSet<Guid>> ResolveFranchiseKeywordIdsAsync(
+        string[] names,
+        CancellationToken cancellationToken)
+    {
         if (dbContext.Database.IsRelational() &&
             dbContext.Database.ProviderName is "Npgsql.EntityFrameworkCore.PostgreSQL")
         {
@@ -907,6 +927,33 @@ public sealed class RecommendationRepository(
         return tvShows;
     }
 
+    /// <summary>
+    /// Excluded keyword IDs, cached briefly so keyword loads can filter in memory instead of joining
+    /// keywords per candidate row. Returns null without a cache so callers keep the JOIN filter.
+    /// </summary>
+    private async Task<HashSet<Guid>?> GetCachedExcludedKeywordIdsAsync(CancellationToken cancellationToken)
+    {
+        if (memoryCache is null)
+        {
+            return null;
+        }
+
+        const string cacheKey = "recommendations:excluded-keyword-ids";
+        if (memoryCache.TryGetValue(cacheKey, out HashSet<Guid>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var ids = await dbContext.Keywords
+            .AsNoTracking()
+            .Where(keyword => keyword.ClassificationStatus == Domain.Enums.KeywordClassificationStatus.Excluded)
+            .Select(keyword => keyword.Id)
+            .ToListAsync(cancellationToken);
+        var set = ids.ToHashSet();
+        memoryCache.Set(cacheKey, set, KeywordLookupCacheTtl);
+        return set;
+    }
+
     private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>> LoadMovieKeywordIdsByCatalogIdsAsync(
         List<Guid> movieIds,
         CancellationToken cancellationToken)
@@ -916,15 +963,22 @@ public sealed class RecommendationRepository(
             return new Dictionary<Guid, IReadOnlyList<Guid>>();
         }
 
-        var rows = await dbContext.MovieKeywords
+        var excludedKeywordIds = await GetCachedExcludedKeywordIdsAsync(cancellationToken);
+        var query = dbContext.MovieKeywords
             .AsNoTracking()
-            .Where(item =>
-                movieIds.Contains(item.MovieId) &&
-                item.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
+            .Where(item => movieIds.Contains(item.MovieId));
+        if (excludedKeywordIds is null)
+        {
+            query = query.Where(item =>
+                item.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded);
+        }
+
+        var rows = await query
             .Select(item => new { item.MovieId, item.KeywordId })
             .ToListAsync(cancellationToken);
 
         return rows
+            .Where(row => excludedKeywordIds is null || !excludedKeywordIds.Contains(row.KeywordId))
             .GroupBy(row => row.MovieId)
             .ToDictionary(
                 group => group.Key,
@@ -940,15 +994,22 @@ public sealed class RecommendationRepository(
             return new Dictionary<Guid, IReadOnlyList<Guid>>();
         }
 
-        var rows = await dbContext.TvShowKeywords
+        var excludedKeywordIds = await GetCachedExcludedKeywordIdsAsync(cancellationToken);
+        var query = dbContext.TvShowKeywords
             .AsNoTracking()
-            .Where(item =>
-                tvShowIds.Contains(item.TvShowId) &&
-                item.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded)
+            .Where(item => tvShowIds.Contains(item.TvShowId));
+        if (excludedKeywordIds is null)
+        {
+            query = query.Where(item =>
+                item.Keyword.ClassificationStatus != Domain.Enums.KeywordClassificationStatus.Excluded);
+        }
+
+        var rows = await query
             .Select(item => new { item.TvShowId, item.KeywordId })
             .ToListAsync(cancellationToken);
 
         return rows
+            .Where(row => excludedKeywordIds is null || !excludedKeywordIds.Contains(row.KeywordId))
             .GroupBy(row => row.TvShowId)
             .ToDictionary(
                 group => group.Key,
