@@ -67,7 +67,9 @@ public sealed class InsightsV3RepositoryPhaseSchedulerTests
                 phaseStarted.SetResult();
                 await holdFirstPhase.WaitAsync(cancellationToken);
             },
-            _ => Task.Delay(Timeout.InfiniteTimeSpan, CancellationToken.None),
+            // Honor the token: if cancellation loses the race for the gate, this phase can still start,
+            // and an uncancellable delay would hang the whole test run.
+            cancellationToken => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken),
         };
 
         using var cancellationTokenSource = new CancellationTokenSource();
