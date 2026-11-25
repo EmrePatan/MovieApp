@@ -9,14 +9,18 @@ internal static class UserRecommendationContextInteractionProbe
         ApplicationDbContext dbContext,
         Guid userId,
         CancellationToken cancellationToken,
-        int mildRatingMinScore = 6)
+        int mildRatingMinScore = 6,
+        int? countCap = null)
     {
         if (UsesNpgsql(dbContext))
         {
+            // The caller only needs to know whether the count reaches its threshold, so the
+            // Npgsql path stops counting at countCap instead of scanning every interaction.
             return await CountDistinctMeaningfulInteractionsViaSqlAsync(
                 dbContext,
                 userId,
                 mildRatingMinScore,
+                countCap is > 0 ? countCap.Value : int.MaxValue,
                 cancellationToken);
         }
 
@@ -35,6 +39,7 @@ internal static class UserRecommendationContextInteractionProbe
         ApplicationDbContext dbContext,
         Guid userId,
         int mildRatingMinScore,
+        int countCap,
         CancellationToken cancellationToken)
     {
         var tvContentType = CatalogContentType.Tv.ToString();
@@ -43,6 +48,8 @@ internal static class UserRecommendationContextInteractionProbe
             .SqlQuery<int>($"""
                 SELECT COUNT(*)::int AS "Value"
                 FROM (
+                  SELECT 1
+                  FROM (
                     SELECT content_type, content_id
                     FROM (
                         SELECT 'movie' AS content_type, r."MovieId" AS content_id
@@ -95,7 +102,9 @@ internal static class UserRecommendationContextInteractionProbe
                         FROM ratings AS r
                         WHERE r."UserId" = {userId} AND r."TvShowId" IS NOT NULL AND r."Score" < {mildRatingMinScore}
                     )
-                ) AS interactions
+                  ) AS interactions
+                  LIMIT {countCap}
+                ) AS capped
                 """)
             .SingleAsync(cancellationToken);
     }

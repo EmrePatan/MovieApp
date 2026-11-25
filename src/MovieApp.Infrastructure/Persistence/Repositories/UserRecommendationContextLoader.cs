@@ -34,7 +34,8 @@ internal sealed class UserRecommendationContextLoader(
                     dbContext,
                     userId,
                     cancellationToken,
-                    mildRatingMinScore);
+                    mildRatingMinScore,
+                    minimumInteractionsForEnrichment);
             probeStopwatch.Stop();
             probeMs = probeStopwatch.ElapsedMilliseconds;
             dbWorkMs += probeMs;
