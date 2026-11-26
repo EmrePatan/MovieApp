@@ -110,11 +110,11 @@ public sealed class AchievementMilestoneLocalizationTests
             insights,
             ContentLocaleResolver.TurkishTurkey);
 
-        var englishMilestone = english.Achievements.Single(item => item.Id == "movies-10");
-        var turkishMilestone = turkish.Achievements.Single(item => item.Id == "movies-10");
+        var englishMilestone = english.Achievements.Single(item => item.Id == "movies-25");
+        var turkishMilestone = turkish.Achievements.Single(item => item.Id == "movies-25");
 
-        Assert.Equal("10 movies watched", englishMilestone.Title);
-        Assert.Equal("10 film izlendi", turkishMilestone.Title);
+        Assert.Equal("25 movies watched", englishMilestone.Title);
+        Assert.Equal("25 film izlendi", turkishMilestone.Title);
         Assert.Equal(englishMilestone.Id, turkishMilestone.Id);
         Assert.Equal(englishMilestone.Category, turkishMilestone.Category);
         Assert.Equal(englishMilestone.TargetValue, turkishMilestone.TargetValue);

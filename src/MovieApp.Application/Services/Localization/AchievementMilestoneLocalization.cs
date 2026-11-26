@@ -29,6 +29,7 @@ public static class AchievementMilestoneLocalization
                 "Premier film regardé", "Vous avez commencé votre parcours cinéma.",
                 "Primo film guardato", "Hai iniziato il tuo viaggio nel cinema.",
                 "Primeiro filme assistido", "Você começou sua jornada no cinema."),
+            // movies-10 / movies-50 are still emitted by ProfileStatisticsBuilder's own milestone list.
             ["movies-10"] = new(
                 "10 movies watched", "A solid start to your catalog.",
                 "10 film izlendi", "Kataloğuna sağlam bir başlangıç yaptın.",
@@ -45,6 +46,22 @@ public static class AchievementMilestoneLocalization
                 "50 films regardés", "Vous construisez un historique de visionnage solide.",
                 "50 film guardati", "Stai costruendo una cronologia di visione seria.",
                 "50 filmes assistidos", "Você está construindo um histórico sério de filmes."),
+            ["movies-25"] = new(
+                "25 movies watched", "A solid start to your catalog.",
+                "25 film izlendi", "Kataloğuna sağlam bir başlangıç yaptın.",
+                "25 películas vistas", "Un buen comienzo para tu catálogo.",
+                "25 Filme gesehen", "Ein solider Start für deine Sammlung.",
+                "25 films regardés", "Un bon début pour votre catalogue.",
+                "25 film guardati", "Un ottimo inizio per il tuo catalogo.",
+                "25 filmes assistidos", "Um começo sólido para o seu catálogo."),
+            ["movies-100"] = new(
+                "100 movies watched", "A true film lover's collection.",
+                "100 film izlendi", "Gerçek bir sinemasever koleksiyonu.",
+                "100 películas vistas", "La colección de un auténtico cinéfilo.",
+                "100 Filme gesehen", "Die Sammlung eines echten Filmfans.",
+                "100 films regardés", "La collection d'un vrai cinéphile.",
+                "100 film guardati", "La collezione di un vero cinefilo.",
+                "100 filmes assistidos", "A coleção de um verdadeiro cinéfilo."),
             ["episodes-100"] = new(
                 "100 episodes watched", "Your series habit is real.",
                 "100 bölüm izlendi", "Dizi alışkanlığın gerçek.",

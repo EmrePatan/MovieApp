@@ -5,12 +5,14 @@ namespace MovieApp.Application.Services.Insights;
 
 /// <summary>
 /// Tiered achievements: every <i>family</i> (movies, episodes, streak, ...) is a ladder of tiers
-/// (1 = bronze ... 5 = legend) that share one running value. Ids of the original eleven
-/// milestones are kept so already-celebrated unlocks are not announced twice.
+/// (1 = bronze ... 5 = legend) that share one running value. Ids of the original milestones are
+/// kept so already-celebrated unlocks are not announced twice, except movies-10 / movies-50,
+/// retired when the movie ladder was raised to 25 / 100.
 /// </summary>
 public static class InsightsMilestonesBuilder
 {
-    private const int ClassicCutoffYear = 1980;
+    // Pre-2000 rather than pre-1980: older cutoffs were too niche to motivate anyone.
+    private const int ClassicCutoffYear = 2000;
 
     private sealed record Inputs(
         InsightsAnalyticsRawData Raw,
@@ -30,17 +32,17 @@ public static class InsightsMilestonesBuilder
 
     private static DateTime? NoDate(InsightsAnalyticsRawData raw, int target) => null;
 
+    // Targets were raised (movies, genres, eras, classics) because back-filling a watch history
+    // unlocked enough cheap tiers to reach level 4 in about half an hour.
     private static readonly Family[] Families =
     [
-        new("movies", [1, 10, 50, 100, 250],
+        new("movies", [1, 25, 100, 250, 500],
             inputs => inputs.Raw.MoviesWatched,
             target => target switch { 1 => "first-movie", _ => $"movies-{target}" },
             target => target == 1 ? "First movie watched" : $"{target} movies watched",
             (raw, target) => target switch
             {
                 1 => raw.FirstMovieWatchedAtUtc,
-                10 => raw.TenthMovieWatchedAtUtc,
-                50 => raw.FiftiethMovieWatchedAtUtc,
                 _ => null,
             }),
         new("episodes", [25, 100, 500, 1000, 2500],
@@ -79,17 +81,17 @@ public static class InsightsMilestonesBuilder
                 3 => GetNthCompletedShowAt(raw, 3),
                 _ => null,
             }),
-        new("genres", [3, 5, 8, 12],
+        new("genres", [5, 8, 12, 16],
             inputs => CountDistinctGenres(inputs.Raw),
             target => $"genres-{target}",
             target => $"{target} genres encountered",
             NoDate),
-        new("eras", [3, 5, 8],
+        new("eras", [4, 6, 8],
             inputs => inputs.DistinctDecades,
             target => $"eras-{target}",
             target => $"{target} decades explored",
             NoDate),
-        new("classics", [3, 10, 25],
+        new("classics", [10, 25, 50],
             inputs => inputs.Classics,
             target => $"classics-{target}",
             target => $"{target} classics watched",

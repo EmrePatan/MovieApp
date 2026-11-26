@@ -8,12 +8,12 @@ public sealed class InsightsMilestonesBuilderTests
     [Fact]
     public void BuildMarksMovieThresholdEdges()
     {
-        var raw = CreateRaw(moviesWatched: 10, firstMovieAt: DateTime.UtcNow);
+        var raw = CreateRaw(moviesWatched: 25, firstMovieAt: DateTime.UtcNow);
 
         var milestones = InsightsMilestonesBuilder.Build(raw);
 
-        Assert.True(milestones.Single(item => item.Id == "movies-10").Achieved);
-        Assert.False(milestones.Single(item => item.Id == "movies-50").Achieved);
+        Assert.True(milestones.Single(item => item.Id == "movies-25").Achieved);
+        Assert.False(milestones.Single(item => item.Id == "movies-100").Achieved);
     }
 
     [Fact]
@@ -117,9 +117,9 @@ public sealed class InsightsMilestonesBuilderTests
         var movies = milestones.Where(item => item.Category == "movies").OrderBy(item => item.Tier).ToList();
 
         Assert.Equal([1, 2, 3, 4, 5], movies.Select(item => item.Tier));
-        Assert.Equal([1, 10, 50, 100, 250], movies.Select(item => item.TargetValue));
+        Assert.Equal([1, 25, 100, 250, 500], movies.Select(item => item.TargetValue));
         Assert.All(movies, item => Assert.Equal(60, item.CurrentValue));
-        Assert.Equal([true, true, true, false, false], movies.Select(item => item.Achieved));
+        Assert.Equal([true, true, false, false, false], movies.Select(item => item.Achieved));
     }
 
     [Fact]
@@ -129,7 +129,8 @@ public sealed class InsightsMilestonesBuilderTests
 
         foreach (var legacy in new[]
                  {
-                     "first-movie", "movies-10", "movies-50", "episodes-100", "episodes-500", "ratings-10",
+                     // movies-10 / movies-50 were retired when the movie ladder moved to 25 / 100.
+                     "first-movie", "episodes-100", "episodes-500", "ratings-10",
                      "ratings-25", "ratings-50", "first-show-completed", "shows-completed-3", "genres-5",
                  })
         {
