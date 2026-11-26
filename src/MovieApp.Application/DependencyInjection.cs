@@ -241,6 +241,10 @@ public static class DependencyInjection
         services.AddScoped<ILibraryActionStatusService, LibraryActionStatusService>();
 
         services.AddScoped<ExternalRatingsAccessService>();
+        services.AddScoped<Services.StreamingLeaving.IStreamingLeavingFetchService,
+            Services.StreamingLeaving.StreamingLeavingFetchService>();
+        services.AddScoped<Services.StreamingLeaving.IStreamingLeavingQueryService,
+            Services.StreamingLeaving.StreamingLeavingQueryService>();
         services.AddScoped<IGetMovieExternalRatingsService, GetMovieExternalRatingsService>();
         services.AddScoped<IGetTvShowExternalRatingsService, GetTvShowExternalRatingsService>();
         services.AddScoped<IExternalRatingsRefreshService, ExternalRatingsRefreshService>();

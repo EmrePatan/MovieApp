@@ -75,7 +75,27 @@ public static class DiscoverBrowseValidator
             return tvStatusValidation;
         }
 
+        var watchValidation = ValidateBrowseWatchFilter(criteria.Mode, criteria.WatchFilter);
+        if (!watchValidation.IsValid)
+        {
+            return watchValidation;
+        }
+
         return SearchQueryValidationResult.Success();
+    }
+
+    /// <summary>Top rated and hidden gems come from the local catalog, which has no provider data.</summary>
+    public static SearchQueryValidationResult ValidateBrowseWatchFilter(
+        DiscoverBrowseMode mode,
+        WatchProviderFilter? filter)
+    {
+        if (filter is not null && mode is DiscoverBrowseMode.TopRated or DiscoverBrowseMode.HiddenGems)
+        {
+            return SearchQueryValidationResult.Failure(
+                "Streaming provider filters are not supported for this list.");
+        }
+
+        return AdvancedDiscoverValidator.ValidateWatchProviderFilter(filter);
     }
 
     public static SearchQueryValidationResult ValidateBrowseTvStatuses(
@@ -239,6 +259,7 @@ public static class DiscoverBrowseValidator
         !string.IsNullOrWhiteSpace(criteria.OriginCountry) ||
         criteria.KeywordIds.Count > 0 ||
         criteria.TvStatuses.Count > 0 ||
+        criteria.WatchFilter is not null ||
         (criteria.Sort.HasValue &&
          criteria.Sort != GetDefaultSortForMode(criteria.Mode));
 

@@ -148,7 +148,7 @@ public sealed class AdvancedDiscoverServiceTests
     }
 
     [Fact]
-    public async Task DiscoverAsyncRejectsAllMediaType()
+    public async Task DiscoverAsyncRejectsPersonMediaType()
     {
         var service = CreateService(
             new AdvancedDiscoverFakeCacheService(null),
@@ -156,7 +156,24 @@ public sealed class AdvancedDiscoverServiceTests
             new TvShowDataProviderCallTracker());
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.DiscoverAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates));
+            service.DiscoverAsync(CreateCriteria(SearchContentType.Person), ContentLocaleResolver.EnglishUnitedStates));
+    }
+
+    [Fact]
+    public async Task DiscoverAsyncMergesMoviesAndTvForAllType()
+    {
+        var movieTracker = new MovieDataProviderCallTracker();
+        var tvTracker = new TvShowDataProviderCallTracker();
+        var service = CreateService(new AdvancedDiscoverFakeCacheService(null), movieTracker, tvTracker);
+
+        var result = await service.DiscoverAsync(CreateCriteria(SearchContentType.All), ContentLocaleResolver.EnglishUnitedStates);
+
+        Assert.Equal(1, movieTracker.AdvancedDiscoverMoviesCallCount);
+        Assert.Equal(1, tvTracker.AdvancedDiscoverTvShowsCallCount);
+        Assert.Contains(result.Items, item => item.Type == "movie");
+        Assert.Contains(result.Items, item => item.Type == "tv");
+        Assert.Equal("movie", result.Items[0].Type);
+        Assert.Equal("tv", result.Items[1].Type);
     }
 
     private static AdvancedDiscoverService CreateService(

@@ -1,4 +1,4 @@
-using MovieApp.Application.Models.Movies;
+﻿using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
 using MovieApp.Application.Validation;
 
@@ -34,6 +34,39 @@ internal static class DiscoverBrowseMerger
             totalCount,
             totalPages);
     }
+
+    public static PaginatedResult<SearchItem> MergeAdvanced(
+        AdvancedDiscoverSort sort,
+        int page,
+        int pageSize,
+        PaginatedResult<SearchItem> movies,
+        PaginatedResult<SearchItem> tvShows)
+    {
+        // Popularity is the provider's own order, which items do not carry, so the two lists alternate.
+        var ordered = sort is AdvancedDiscoverSort.PopularityDesc or AdvancedDiscoverSort.PopularityAsc
+            ? Interleave(movies.Items, tvShows.Items)
+            : DiscoverBrowseSorter.Sort(movies.Items.Concat(tvShows.Items), ToBrowseSort(sort));
+        var totalCount = movies.TotalCount + tvShows.TotalCount;
+
+        return new PaginatedResult<SearchItem>(
+            ordered.Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize).ToList(),
+            page,
+            pageSize,
+            totalCount,
+            totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize));
+    }
+
+    private static DiscoverBrowseSort ToBrowseSort(AdvancedDiscoverSort sort) =>
+        sort switch
+        {
+            AdvancedDiscoverSort.RatingDesc => DiscoverBrowseSort.RatingDesc,
+            AdvancedDiscoverSort.RatingAsc => DiscoverBrowseSort.RatingAsc,
+            AdvancedDiscoverSort.Newest => DiscoverBrowseSort.ReleaseDesc,
+            AdvancedDiscoverSort.Oldest => DiscoverBrowseSort.ReleaseAsc,
+            AdvancedDiscoverSort.TitleAsc => DiscoverBrowseSort.TitleAsc,
+            AdvancedDiscoverSort.TitleDesc => DiscoverBrowseSort.TitleDesc,
+            _ => DiscoverBrowseSort.PopularityDesc
+        };
 
     private static List<SearchItem> Interleave(
         IReadOnlyList<SearchItem> movieItems,

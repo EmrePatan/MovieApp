@@ -129,6 +129,7 @@ public sealed class DiscoveryController(
                 null,
                 null,
                 null,
+                null,
                 null);
             var result = await discoverBrowseService.BrowseAsync(
                 criteria,
@@ -291,6 +292,8 @@ public sealed class DiscoveryController(
         [FromQuery] string? originalLanguage,
         [FromQuery] string[]? keywordId,
         [FromQuery] string[]? tvStatus,
+        [FromQuery] string? watchRegion,
+        [FromQuery] string[]? watchProviderId,
         CancellationToken cancellationToken)
     {
         try
@@ -312,7 +315,8 @@ public sealed class DiscoveryController(
                 maxRuntimeMinutes,
                 originalLanguage,
                 keywordId,
-                tvStatus);
+                tvStatus,
+                BuildWatchProviderFilter(watchRegion, watchProviderId));
             var result = await worldCinemaService.GetWorldCinemaAsync(
                 criteria,
                 Request.ResolveContentLocale(),
@@ -509,6 +513,8 @@ public sealed class DiscoveryController(
         [FromQuery] string[]? keywordId,
         [FromQuery] string[]? tvStatus,
         [FromQuery] string? sort,
+        [FromQuery] string? watchRegion,
+        [FromQuery] string[]? watchProviderId,
         CancellationToken cancellationToken)
     {
         try
@@ -530,7 +536,8 @@ public sealed class DiscoveryController(
                 originCountry,
                 keywordId,
                 tvStatus,
-                sort);
+                sort,
+                BuildWatchProviderFilter(watchRegion, watchProviderId));
 
             var result = await discoverBrowseService.BrowseAsync(criteria, Request.ResolveContentLocale(), cancellationToken);
             return Ok(SearchContractMapper.ToSearchResponse(result));
@@ -561,7 +568,8 @@ public sealed class DiscoveryController(
         int? maxRuntimeMinutes,
         string? originalLanguage,
         string[]? keywordId,
-        string[]? tvStatus)
+        string[]? tvStatus,
+        WatchProviderFilter? watchFilter)
     {
         var mediaTypeValidation = WorldCinemaValidator.ValidateMediaTypeValue(mediaType ?? "movie");
         if (!mediaTypeValidation.IsValid)
@@ -614,7 +622,10 @@ public sealed class DiscoveryController(
             maxRuntimeMinutes,
             originalLanguage,
             AdvancedDiscoverValidator.ParseKeywordIds(keywordId),
-            AdvancedDiscoverValidator.ParseTvStatuses(tvStatus));
+            AdvancedDiscoverValidator.ParseTvStatuses(tvStatus))
+        {
+            WatchFilter = watchFilter
+        };
 
         var validation = WorldCinemaValidator.Validate(criteria);
         if (!validation.IsValid)
@@ -690,7 +701,7 @@ public sealed class DiscoveryController(
         string[]? tvStatus,
         string? sort)
     {
-        var mediaTypeValidation = AdvancedDiscoverValidator.ValidateMediaType(mediaType);
+        var mediaTypeValidation = AdvancedDiscoverValidator.ValidateListMediaType(mediaType);
         if (!mediaTypeValidation.IsValid)
         {
             throw new ValidationException(mediaTypeValidation.ErrorMessage!);
@@ -801,7 +812,8 @@ public sealed class DiscoveryController(
         string? originCountry,
         string[]? keywordId,
         string[]? tvStatus,
-        string? sort)
+        string? sort,
+        WatchProviderFilter? watchFilter)
     {
         var modeValidation = DiscoverBrowseValidator.ValidateMode(mode);
         if (!modeValidation.IsValid)
@@ -848,7 +860,10 @@ public sealed class DiscoveryController(
             AdvancedDiscoverValidator.ParseTvStatuses(tvStatus),
             browseSort,
             page ?? SearchPaginationDefaults.DefaultPage,
-            pageSize ?? SearchPaginationDefaults.DefaultPageSize);
+            pageSize ?? SearchPaginationDefaults.DefaultPageSize)
+        {
+            WatchFilter = watchFilter
+        };
 
         var validation = DiscoverBrowseValidator.Validate(criteria);
         if (!validation.IsValid)
@@ -857,6 +872,23 @@ public sealed class DiscoveryController(
         }
 
         return criteria;
+    }
+
+    private static WatchProviderFilter? BuildWatchProviderFilter(
+        string? watchRegion,
+        string[]? watchProviderId)
+    {
+        var providerIds = AdvancedDiscoverValidator.ParseWatchProviderIds(watchProviderId);
+        if (providerIds.Count == 0)
+        {
+            return null;
+        }
+
+        return new WatchProviderFilter(
+            string.IsNullOrWhiteSpace(watchRegion)
+                ? string.Empty
+                : WatchProviderRegionValidator.Normalize(watchRegion),
+            providerIds);
     }
 
     private static ProblemDetails CreateProblemDetails(int statusCode, string title, string detail) =>

@@ -23,6 +23,7 @@ using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.PushNotifications;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.MdbList;
+using MovieApp.Infrastructure.Providers.StreamingAvailability;
 using MovieApp.Infrastructure.AiRecommendations;
 using MovieApp.Infrastructure.Providers.AzureTranslator;
 using MovieApp.Infrastructure.Performance;
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialPushNotifier, SocialPushNotifier>();
         services.AddScoped<IDirectMessageService, DirectMessageService>();
         services.AddScoped<MovieApp.Application.Abstractions.Notifications.INotificationPreferencesService, MovieApp.Infrastructure.Notifications.NotificationPreferencesService>();
+        services.AddScoped<MovieApp.Application.Abstractions.Preferences.IWatchPlatformPreferencesService, MovieApp.Infrastructure.Preferences.WatchPlatformPreferencesService>();
         services.AddScoped<ISocialReviewEngagementLookup, SocialReviewEngagementLookup>();
 
         services.AddOptions<PostgreSqlOptions>()
@@ -222,6 +224,8 @@ public static class DependencyInjection
         services.AddDetailProviders(configuration);
 
         services.AddExternalRatingsProviders(configuration);
+
+        services.AddStreamingAvailability(configuration);
 
 
 

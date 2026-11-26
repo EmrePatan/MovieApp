@@ -8,7 +8,7 @@ public static class WorldCinemaValidator
 {
     public static SearchQueryValidationResult Validate(WorldCinemaCriteria criteria)
     {
-        var mediaTypeValidation = AdvancedDiscoverValidator.ValidateMediaType(criteria.MediaType);
+        var mediaTypeValidation = AdvancedDiscoverValidator.ValidateListMediaType(criteria.MediaType);
         if (!mediaTypeValidation.IsValid)
         {
             return mediaTypeValidation;
@@ -70,12 +70,18 @@ public static class WorldCinemaValidator
             return keywordValidation;
         }
 
-        var tvStatusValidation = AdvancedDiscoverValidator.ValidateTvStatuses(
+        var tvStatusValidation = DiscoverBrowseValidator.ValidateBrowseTvStatuses(
             criteria.MediaType,
             criteria.TvStatuses);
         if (!tvStatusValidation.IsValid)
         {
             return tvStatusValidation;
+        }
+
+        var watchValidation = AdvancedDiscoverValidator.ValidateWatchProviderFilter(criteria.WatchFilter);
+        if (!watchValidation.IsValid)
+        {
+            return watchValidation;
         }
 
         return SearchQueryValidationResult.Success();
@@ -98,7 +104,7 @@ public static class WorldCinemaValidator
             return SearchQueryValidationResult.Failure("Media type is required.");
         }
 
-        return AdvancedDiscoverValidator.ValidateMediaType(mediaType);
+        return AdvancedDiscoverValidator.ValidateListMediaType(mediaType);
     }
 
     public static SearchQueryValidationResult ValidateSortValue(string? sort) =>

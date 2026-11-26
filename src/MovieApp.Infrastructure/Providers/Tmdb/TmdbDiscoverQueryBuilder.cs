@@ -113,6 +113,14 @@ internal static class TmdbDiscoverQueryBuilder
             parameters.Add($"with_keywords={string.Join('|', criteria.KeywordTmdbIds)}");
         }
 
+        if (criteria.WatchFilter is { } watchFilter)
+        {
+            parameters.Add($"watch_region={Uri.EscapeDataString(watchFilter.Region)}");
+            parameters.Add($"with_watch_providers={string.Join('|', watchFilter.ProviderIds.OrderBy(id => id))}");
+            parameters.Add(
+                $"with_watch_monetization_types={TmdbAdvancedDiscoverQueryBuilder.MapMonetizationType(WatchMonetizationType.Stream)}");
+        }
+
         if (includeTvStatuses && criteria.TvStatuses.Count > 0)
         {
             var statusIds = criteria.TvStatuses

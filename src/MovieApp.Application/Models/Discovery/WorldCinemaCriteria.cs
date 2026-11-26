@@ -21,6 +21,8 @@ public sealed record WorldCinemaCriteria(
     IReadOnlyList<Guid> KeywordIds,
     IReadOnlyList<TvDiscoverStatus> TvStatuses)
 {
+    public WatchProviderFilter? WatchFilter { get; init; }
+
     public WorldCinemaCriteria(
         SearchContentType mediaType,
         string originCountry,

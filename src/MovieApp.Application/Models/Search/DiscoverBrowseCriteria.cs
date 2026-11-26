@@ -17,4 +17,7 @@ public sealed record DiscoverBrowseCriteria(
     IReadOnlyList<TvDiscoverStatus> TvStatuses,
     DiscoverBrowseSort? Sort,
     int Page,
-    int PageSize);
+    int PageSize)
+{
+    public WatchProviderFilter? WatchFilter { get; init; }
+}
