@@ -76,6 +76,7 @@ internal static class InsightsV3AggregateQueries
                     SELECT
                         (timezone({timeZoneId}, wm."WatchedAt"))::date AS local_date,
                         'movie'::text AS kind,
+                        wm."WatchedAtPrecision" = 2 AS year_only,
                         CASE
                             WHEN m."RuntimeMinutes" > 0 THEN m."RuntimeMinutes"
                             ELSE 0
@@ -83,12 +84,14 @@ internal static class InsightsV3AggregateQueries
                     FROM watched_movies AS wm
                     INNER JOIN movies AS m ON m."Id" = wm."MovieId"
                     WHERE wm."UserId" = {userId}
+                      AND wm."WatchedAtPrecision" <> 3
                       AND wm."WatchedAt" >= {yearStartUtc}
                       AND wm."WatchedAt" < {yearEndUtc}
                     UNION ALL
                     SELECT
                         (timezone({timeZoneId}, we."WatchedAt"))::date AS local_date,
                         'episode'::text AS kind,
+                        we."WatchedAtPrecision" = 2 AS year_only,
                         CASE
                             WHEN e."RuntimeMinutes" > 0 THEN e."RuntimeMinutes"
                             ELSE 0
@@ -96,13 +99,19 @@ internal static class InsightsV3AggregateQueries
                     FROM watched_episodes AS we
                     INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
                     WHERE we."UserId" = {userId}
+                      AND we."WatchedAtPrecision" <> 3
                       AND we."WatchedAt" >= {yearStartUtc}
                       AND we."WatchedAt" < {yearEndUtc}
                 ),
-                in_year AS (
-                    SELECT local_date, kind, runtime_minutes
+                in_year_all AS (
+                    SELECT local_date, kind, year_only, runtime_minutes
                     FROM local_watches
                     WHERE EXTRACT(YEAR FROM local_date)::integer = {year}
+                ),
+                in_year AS (
+                    SELECT local_date, kind, runtime_minutes
+                    FROM in_year_all
+                    WHERE NOT year_only
                 )
                 SELECT
                     'month'::text AS "Section",
@@ -142,10 +151,11 @@ internal static class InsightsV3AggregateQueries
                     0 AS "Key",
                     0 AS "Movies",
                     0 AS "Episodes",
-                    0 AS "Total",
-                    COUNT(DISTINCT local_date)::integer AS "ActiveDays",
+                    -- Watches that only have a year: counted for the year, placed on no month or day.
+                    COUNT(*) FILTER (WHERE year_only)::integer AS "Total",
+                    COUNT(DISTINCT local_date) FILTER (WHERE NOT year_only)::integer AS "ActiveDays",
                     COALESCE(SUM(runtime_minutes), 0)::integer AS "YearMinutes"
-                FROM in_year
+                FROM in_year_all
                 """)
             .ToListAsync(cancellationToken);
 
@@ -174,7 +184,8 @@ internal static class InsightsV3AggregateQueries
             weekdayTotals,
             totals?.ActiveDays ?? 0,
             totals?.YearMinutes ?? 0,
-            dayCounts);
+            dayCounts,
+            totals?.Total ?? 0);
     }
 
     internal static async Task<GenreContributionSets> GetGenreContributionsAsync(
@@ -190,7 +201,7 @@ internal static class InsightsV3AggregateQueries
             .SqlQuery<GenreContributionSqlRow>($"""
                 WITH movie_genre_lines AS (
                     SELECT
-                        wm."WatchedAt" AS watched_at,
+                        CASE WHEN wm."WatchedAtPrecision" <> 3 THEN wm."WatchedAt" END AS watched_at,
                         mg."GenreId" AS genre_id,
                         g."Name" AS genre_name,
                         COUNT(*) OVER (PARTITION BY wm."Id")::integer AS genre_count
@@ -203,7 +214,7 @@ internal static class InsightsV3AggregateQueries
                 watched_episode_keys AS (
                     SELECT
                         we."Id" AS episode_watch_id,
-                        we."WatchedAt" AS watched_at,
+                        CASE WHEN we."WatchedAtPrecision" <> 3 THEN we."WatchedAt" END AS watched_at,
                         s."TvShowId" AS show_id
                     FROM watched_episodes AS we
                     INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
@@ -332,6 +343,7 @@ internal static class InsightsV3AggregateQueries
                          FROM watched_movies AS wm
                          INNER JOIN movies AS m ON m."Id" = wm."MovieId"
                          WHERE wm."UserId" = {userId}
+                           AND wm."WatchedAtPrecision" <> 3
                            AND wm."WatchedAt" >= {currentYearStartUtc}
                            AND wm."WatchedAt" < {currentYearEndUtc}
                            AND EXISTS (
@@ -344,6 +356,7 @@ internal static class InsightsV3AggregateQueries
                          INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
                          INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
                          WHERE we."UserId" = {userId}
+                           AND we."WatchedAtPrecision" <> 3
                            AND we."WatchedAt" >= {currentYearStartUtc}
                            AND we."WatchedAt" < {currentYearEndUtc}
                            AND EXISTS (
@@ -356,6 +369,7 @@ internal static class InsightsV3AggregateQueries
                          FROM watched_movies AS wm
                          INNER JOIN movies AS m ON m."Id" = wm."MovieId"
                          WHERE wm."UserId" = {userId}
+                           AND wm."WatchedAtPrecision" <> 3
                            AND wm."WatchedAt" >= {previousYearStartUtc}
                            AND wm."WatchedAt" < {previousYearEndUtc}
                            AND EXISTS (
@@ -368,6 +382,7 @@ internal static class InsightsV3AggregateQueries
                          INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
                          INNER JOIN seasons AS s ON s."Id" = e."SeasonId"
                          WHERE we."UserId" = {userId}
+                           AND we."WatchedAtPrecision" <> 3
                            AND we."WatchedAt" >= {previousYearStartUtc}
                            AND we."WatchedAt" < {previousYearEndUtc}
                            AND EXISTS (

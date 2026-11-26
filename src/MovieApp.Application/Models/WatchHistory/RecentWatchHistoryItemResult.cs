@@ -10,4 +10,6 @@ public sealed record RecentWatchHistoryItemResult(
     int? SeasonNumber,
     int? EpisodeNumber,
     string? EpisodeTitle,
-    DateTime WatchedAt);
+    DateTime WatchedAt,
+    string WatchedAtPrecision = "exact",
+    string? PosterPath = null);

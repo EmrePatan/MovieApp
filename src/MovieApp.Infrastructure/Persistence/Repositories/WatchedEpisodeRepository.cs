@@ -160,49 +160,13 @@ public sealed class WatchedEpisodeRepository(
             .ToList();
     }
 
-    public async Task<IReadOnlyList<(
-        Guid EpisodeId,
-        Guid TvShowId,
-        Guid SeasonId,
-        string TvShowTitle,
-        int SeasonNumber,
-        int EpisodeNumber,
-        string? EpisodeTitle,
-        DateTime WatchedAt)>> GetRecentForUserAsync(
+    public Task<(IReadOnlyList<RecentWatchHistoryItemResult> Items, int TotalCount)> GetHistoryPageAsync(
         Guid userId,
+        bool? undated,
+        int skip,
         int take,
-        CancellationToken cancellationToken = default)
-    {
-        var items = await dbContext.WatchedEpisodes
-            .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId)
-            .OrderByDescending(watchedEpisode => watchedEpisode.WatchedAt)
-            .Take(take)
-            .Select(watchedEpisode => new
-            {
-                watchedEpisode.EpisodeId,
-                watchedEpisode.Episode.Season.TvShowId,
-                watchedEpisode.Episode.SeasonId,
-                TvShowTitle = watchedEpisode.Episode.Season.TvShow.Title,
-                watchedEpisode.Episode.Season.SeasonNumber,
-                watchedEpisode.Episode.EpisodeNumber,
-                EpisodeTitle = watchedEpisode.Episode.Name,
-                watchedEpisode.WatchedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        return items
-            .Select(watchedEpisode => (
-                watchedEpisode.EpisodeId,
-                watchedEpisode.TvShowId,
-                watchedEpisode.SeasonId,
-                watchedEpisode.TvShowTitle,
-                watchedEpisode.SeasonNumber,
-                watchedEpisode.EpisodeNumber,
-                watchedEpisode.EpisodeTitle,
-                watchedEpisode.WatchedAt))
-            .ToList();
-    }
+        CancellationToken cancellationToken = default) =>
+        WatchHistoryPageQuery.LoadAsync(dbContext, userId, undated, skip, take, cancellationToken);
 
     public async Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
@@ -347,6 +311,7 @@ public sealed class WatchedEpisodeRepository(
                      DO UPDATE SET
                          "WatchedAt" = EXCLUDED."WatchedAt",
                          "UpdatedAt" = EXCLUDED."UpdatedAt"
+                     WHERE watched_episodes."WatchedAtPrecision" = 0
                      """,
                     cancellationToken);
             },

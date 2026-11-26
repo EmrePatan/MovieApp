@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Models.Identity;
 using MovieApp.Application.Services.Identity;
 using MovieApp.Application.Services.WatchHistory;
+using MovieApp.Domain.Enums;
 
 namespace MovieApp.Infrastructure.Persistence.Repositories;
 
@@ -54,7 +55,9 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
         var ratingScoreCounts = await GetRatingScoreCountsAsync(userId, cancellationToken);
         var firstMovieWatchedAt = await dbContext.WatchedMovies
             .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId)
+            .Where(watchedMovie => watchedMovie.UserId == userId
+                && (watchedMovie.WatchedAtPrecision == WatchDatePrecision.Exact
+                    || watchedMovie.WatchedAtPrecision == WatchDatePrecision.Day))
             .OrderBy(watchedMovie => watchedMovie.WatchedAt)
             .Select(watchedMovie => (DateTime?)watchedMovie.WatchedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -126,7 +129,9 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
 
         var movieMonths = await dbContext.WatchedMovies
             .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId && watchedMovie.WatchedAt >= rangeStart)
+            .Where(watchedMovie => watchedMovie.UserId == userId && watchedMovie.WatchedAt >= rangeStart
+                && (watchedMovie.WatchedAtPrecision == WatchDatePrecision.Exact
+                    || watchedMovie.WatchedAtPrecision == WatchDatePrecision.Day))
             .GroupBy(watchedMovie => new
             {
                 watchedMovie.WatchedAt.Year,
@@ -142,7 +147,9 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
 
         var episodeMonths = await dbContext.WatchedEpisodes
             .AsNoTracking()
-            .Where(watchedEpisode => watchedEpisode.UserId == userId && watchedEpisode.WatchedAt >= rangeStart)
+            .Where(watchedEpisode => watchedEpisode.UserId == userId && watchedEpisode.WatchedAt >= rangeStart
+                && (watchedEpisode.WatchedAtPrecision == WatchDatePrecision.Exact
+                    || watchedEpisode.WatchedAtPrecision == WatchDatePrecision.Day))
             .GroupBy(watchedEpisode => new
             {
                 watchedEpisode.WatchedAt.Year,
@@ -181,12 +188,16 @@ public sealed class UserStatisticsRepository(ApplicationDbContext dbContext) : I
     {
         return await dbContext.WatchedMovies
             .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId)
+            .Where(watchedMovie => watchedMovie.UserId == userId
+                && (watchedMovie.WatchedAtPrecision == WatchDatePrecision.Exact
+                    || watchedMovie.WatchedAtPrecision == WatchDatePrecision.Day))
             .Select(watchedMovie => watchedMovie.WatchedAt)
             .Concat(
                 dbContext.WatchedEpisodes
                     .AsNoTracking()
-                    .Where(watchedEpisode => watchedEpisode.UserId == userId)
+                    .Where(watchedEpisode => watchedEpisode.UserId == userId
+                        && (watchedEpisode.WatchedAtPrecision == WatchDatePrecision.Exact
+                            || watchedEpisode.WatchedAtPrecision == WatchDatePrecision.Day))
                     .Select(watchedEpisode => watchedEpisode.WatchedAt))
             .ToListAsync(cancellationToken);
     }

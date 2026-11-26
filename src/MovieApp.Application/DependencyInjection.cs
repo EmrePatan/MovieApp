@@ -180,6 +180,7 @@ public static class DependencyInjection
         services.AddScoped<IReviewTranslationService, ReviewTranslationService>();
 
         services.AddScoped<IWatchHistoryService, WatchHistoryService>();
+        services.AddScoped<IWatchDateService, WatchDateService>();
         services.AddScoped<IWatchStatusBatchService, WatchStatusBatchService>();
 
         services.AddScoped<IUnifiedSearchProviderIngestionService, UnifiedSearchProviderIngestionService>();

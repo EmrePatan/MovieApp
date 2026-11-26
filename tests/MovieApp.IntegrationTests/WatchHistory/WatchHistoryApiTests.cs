@@ -139,6 +139,168 @@ public sealed class WatchHistoryApiTests(WatchHistoryApiFixture fixture)
     }
 
     [Fact]
+    public async Task EditedWatchDatesSurviveRemarkingAndLeaveTimeStatistics()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("watch-dates");
+        var movieId = await SeedMovieAsync();
+        var tvShowId = await SeedTvShowAsync();
+        var episodeId = await SeedEpisodeAsync(tvShowId, 1, 1);
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
+        await SendAuthorizedPostAsync($"/api/watch-history/episodes/{episodeId}", token);
+
+        var unknown = await PutDatesAsync(token, new UpdateWatchDatesRequest([movieId], null, "unknown", null, null));
+        var year = await PutDatesAsync(token, new UpdateWatchDatesRequest(null, [episodeId], "year", null, 2019));
+        Assert.Equal(HttpStatusCode.OK, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, year.StatusCode);
+
+        // Marking again (single and bulk) must keep the edited dates.
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
+        await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/bulk",
+            token,
+            new BulkUpdateEpisodeWatchStateRequest([episodeId], true));
+
+        var recent = await (await SendAuthorizedGetAsync("/api/watch-history/recent?page=1&pageSize=20", token))
+            .Content.ReadFromJsonAsync<RecentWatchHistoryResponse>();
+        Assert.NotNull(recent);
+        Assert.Equal(["year", "unknown"], recent.Items.Select(item => item.WatchedAtPrecision));
+        Assert.Equal(2019, recent.Items[0].WatchedAt.Year);
+
+        var statistics = await (await SendAuthorizedGetAsync("/api/users/me/statistics?timeZone=UTC", token))
+            .Content.ReadFromJsonAsync<MovieApp.Contracts.Users.UserStatisticsResponse>();
+        Assert.NotNull(statistics);
+        Assert.Equal(1, statistics.Summary.MoviesWatched);
+        Assert.Equal(1, statistics.Summary.EpisodesWatched);
+        Assert.Equal(0, statistics.Activity.Last12Months.Sum(month => month.Total));
+
+        var insights = await SendAuthorizedGetAsync("/api/insights/v3?timeZone=UTC", token);
+        Assert.Equal(HttpStatusCode.OK, insights.StatusCode);
+
+        // A year-only watch belongs to its year but to no month or day of it.
+        var thatYear = await (await SendAuthorizedGetAsync("/api/insights/v3?timeZone=UTC&year=2019", token))
+            .Content.ReadFromJsonAsync<MovieApp.Contracts.Insights.InsightsV3Response>();
+        Assert.NotNull(thatYear);
+        Assert.Equal(1, thatYear.YourYear.YearOnlyCount);
+        Assert.Equal(0, thatYear.YourYear.ActiveDays);
+        Assert.Equal(0, thatYear.YourYear.Months.Sum(month => month.Total));
+
+        var invalid = await PutDatesAsync(token, new UpdateWatchDatesRequest([movieId], null, "1", null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        var otherUser = await RegisterAndGetTokenAsync("watch-dates-other");
+        var foreign = await (await PutDatesAsync(
+                otherUser,
+                new UpdateWatchDatesRequest([movieId], null, "year", null, 2000)))
+            .Content.ReadFromJsonAsync<UpdateWatchDatesResponse>();
+        Assert.Equal(new UpdateWatchDatesResponse(0, 1), foreign);
+    }
+
+    [Fact]
+    public async Task RecentHistoryPagesABulkMarkWithoutGapsAndFiltersUndatedEntries()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("history-paging");
+        var movieId = await SeedMovieAsync();
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        var episodeIds = new List<Guid>();
+        foreach (var (season, number) in new[] { (1, 1), (1, 2), (1, 3), (2, 1), (2, 2) })
+        {
+            episodeIds.Add(await SeedEpisodeAsync(tvShowId, season, number));
+        }
+
+        // One bulk mark: every episode shares a single timestamp.
+        await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/bulk",
+            token,
+            new BulkUpdateEpisodeWatchStateRequest(episodeIds, true));
+        await SendAuthorizedPostAsync($"/api/watch-history/movies/{movieId}", token);
+        await PutDatesAsync(token, new UpdateWatchDatesRequest([movieId], null, "unknown", null, null));
+
+        var paged = new List<RecentWatchHistoryItemResponse>();
+        for (var page = 1; page <= 3; page++)
+        {
+            var response = await GetHistoryAsync(token, $"page={page}&pageSize=2&undated=false");
+            Assert.Equal(5, response.TotalCount);
+            paged.AddRange(response.Items);
+        }
+
+        Assert.Equal(
+            ["2x2", "2x1", "1x3", "1x2", "1x1"],
+            paged.Select(item => $"{item.SeasonNumber}x{item.EpisodeNumber}"));
+
+        var undated = await GetHistoryAsync(token, "page=1&pageSize=20&undated=true");
+        Assert.Equal(movieId, Assert.Single(undated.Items).MovieId);
+
+        // Without the filter, undated rows still come last, and deep pages are allowed.
+        var all = await GetHistoryAsync(token, "page=6&pageSize=1");
+        Assert.Equal("movie", Assert.Single(all.Items).Type);
+        Assert.Empty((await GetHistoryAsync(token, "page=100&pageSize=20")).Items);
+    }
+
+    [Fact]
+    public async Task WholeShowDateUpdatePreviewsFirstAndStaysWithinTheChosenTab()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync("show-dates");
+        var tvShowId = await SeedTvShowWithAllEpisodesAsync();
+        var episodeIds = new List<Guid>();
+        foreach (var number in new[] { 1, 2, 3 })
+        {
+            episodeIds.Add(await SeedEpisodeAsync(tvShowId, 1, number));
+        }
+
+        await SendAuthorizedPostJsonAsync(
+            $"/api/watch-history/tvshows/{tvShowId}/episodes/bulk",
+            token,
+            new BulkUpdateEpisodeWatchStateRequest(episodeIds, true));
+        await PutDatesAsync(token, new UpdateWatchDatesRequest(null, [episodeIds[0]], "unknown", null, null));
+
+        async Task<UpdateWatchDatesResponse?> UpdateShowAsync(bool dryRun) =>
+            await (await PutDatesAsync(
+                    token,
+                    new UpdateWatchDatesRequest(null, null, "year", null, 2018, tvShowId, false, dryRun)))
+                .Content.ReadFromJsonAsync<UpdateWatchDatesResponse>();
+
+        Assert.Equal(new UpdateWatchDatesResponse(2, 0), await UpdateShowAsync(dryRun: true));
+        Assert.All(
+            (await GetHistoryAsync(token, "page=1&pageSize=20&undated=false")).Items,
+            item => Assert.Equal("exact", item.WatchedAtPrecision));
+
+        Assert.Equal(new UpdateWatchDatesResponse(2, 0), await UpdateShowAsync(dryRun: false));
+        Assert.All(
+            (await GetHistoryAsync(token, "page=1&pageSize=20&undated=false")).Items,
+            item => Assert.Equal("year", item.WatchedAtPrecision));
+        // The other tab was not touched.
+        Assert.Single((await GetHistoryAsync(token, "page=1&pageSize=20&undated=true")).Items);
+
+        var mixed = await PutDatesAsync(
+            token,
+            new UpdateWatchDatesRequest(null, [episodeIds[1]], "unknown", null, null, tvShowId));
+        Assert.Equal(HttpStatusCode.BadRequest, mixed.StatusCode);
+    }
+
+    private async Task<RecentWatchHistoryResponse> GetHistoryAsync(string token, string query)
+    {
+        var response = await SendAuthorizedGetAsync($"/api/watch-history/recent?{query}", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<RecentWatchHistoryResponse>())!;
+    }
+
+    private Task<HttpResponseMessage> PutDatesAsync(string token, UpdateWatchDatesRequest payload)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/watch-history/dates")
+        {
+            Content = JsonContent.Create(payload),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return _client.SendAsync(request);
+    }
+
+    [Fact]
     public async Task TvShowProgressReturnsNextEpisode()
     {
         await fixture.ResetAsync();

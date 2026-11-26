@@ -231,6 +231,64 @@ public sealed class WatchHistoryController(IWatchHistoryService watchHistoryServ
         }
     }
 
+    [HttpPut("dates")]
+    [ProducesResponseType(typeof(UpdateWatchDatesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<UpdateWatchDatesResponse>> UpdateWatchDates(
+        [FromBody] UpdateWatchDatesRequest request,
+        [FromServices] IWatchDateService watchDateService,
+        CancellationToken cancellationToken)
+    {
+        // Names only: Enum.TryParse would also accept raw numbers.
+        WatchDateMode? mode = request.Mode?.ToLowerInvariant() switch
+        {
+            "day" => WatchDateMode.Day,
+            "year" => WatchDateMode.Year,
+            "release" => WatchDateMode.Release,
+            "unknown" => WatchDateMode.Unknown,
+            _ => null,
+        };
+        if (mode is null)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid watch date request.",
+                "Mode must be day, year, release or unknown."));
+        }
+
+        try
+        {
+            var result = await watchDateService.UpdateAsync(
+                new UpdateWatchDatesCommand(
+                    request.MovieIds ?? [],
+                    request.EpisodeIds ?? [],
+                    mode.Value,
+                    request.Date,
+                    request.Year,
+                    request.TvShowId,
+                    request.Undated,
+                    request.DryRun),
+                cancellationToken);
+
+            return Ok(new UpdateWatchDatesResponse(result.UpdatedCount, result.SkippedCount));
+        }
+        catch (ValidationException exception)
+        {
+            return BadRequest(CreateProblemDetails(
+                StatusCodes.Status400BadRequest,
+                "Invalid watch date request.",
+                exception.Message));
+        }
+        catch (AuthenticationException exception)
+        {
+            return Unauthorized(CreateProblemDetails(
+                StatusCodes.Status401Unauthorized,
+                "Authentication required.",
+                exception.Message));
+        }
+    }
+
     [HttpGet("recent")]
     [ProducesResponseType(typeof(RecentWatchHistoryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -238,6 +296,7 @@ public sealed class WatchHistoryController(IWatchHistoryService watchHistoryServ
     public async Task<ActionResult<RecentWatchHistoryResponse>> GetRecentWatchHistory(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] bool? undated,
         CancellationToken cancellationToken)
     {
         try
@@ -245,6 +304,7 @@ public sealed class WatchHistoryController(IWatchHistoryService watchHistoryServ
             var result = await watchHistoryService.GetRecentWatchHistoryAsync(
                 page ?? SearchPaginationDefaults.DefaultPage,
                 pageSize ?? SearchPaginationDefaults.DefaultPageSize,
+                undated,
                 cancellationToken);
 
             return Ok(WatchHistoryContractMapper.ToRecentWatchHistoryResponse(result));

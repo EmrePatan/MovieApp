@@ -219,51 +219,24 @@ public sealed class WatchHistoryService(
         return WatchHistoryMapper.ToWatchedEpisodesResult(items, page, pageSize, totalCount);
     }
 
-    internal const int MaxRecentHistoryDepth = 500;
-
     public async Task<PaginatedResult<RecentWatchHistoryItemResult>> GetRecentWatchHistoryAsync(
         int page,
         int pageSize,
+        bool? undated = null,
         CancellationToken cancellationToken = default)
     {
         var userId = CurrentUserGuard.RequireUserId(currentUser);
         ValidatePagination(page, pageSize);
-        var fetchCount = GetRecentHistoryFetchCount(page, pageSize);
+        var skip = (int)Math.Min((long)(page - 1) * pageSize, int.MaxValue);
 
-        var totalCount = await watchedMovieRepository.CountForUserAsync(userId, cancellationToken)
-            + await watchedEpisodeRepository.CountForUserAsync(userId, cancellationToken);
-        var recentMovies = await watchedMovieRepository.GetRecentForUserAsync(userId, fetchCount, cancellationToken);
-        var recentEpisodes = await watchedEpisodeRepository.GetRecentForUserAsync(userId, fetchCount, cancellationToken);
+        var (items, totalCount) = await watchedEpisodeRepository.GetHistoryPageAsync(
+            userId,
+            undated,
+            skip,
+            pageSize,
+            cancellationToken);
 
-        var merged = recentMovies
-            .Select(movie => new RecentWatchHistoryItemResult(
-                "movie",
-                movie.MovieId,
-                null,
-                null,
-                movie.Title,
-                null,
-                null,
-                null,
-                null,
-                movie.WatchedAt))
-            .Concat(recentEpisodes.Select(episode => new RecentWatchHistoryItemResult(
-                "episode",
-                null,
-                episode.EpisodeId,
-                episode.TvShowId,
-                null,
-                episode.TvShowTitle,
-                episode.SeasonNumber,
-                episode.EpisodeNumber,
-                episode.EpisodeTitle,
-                episode.WatchedAt)))
-            .OrderByDescending(item => item.WatchedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
-
-        return WatchHistoryMapper.ToRecentWatchHistoryResult(merged, page, pageSize, totalCount);
+        return WatchHistoryMapper.ToRecentWatchHistoryResult(items.ToList(), page, pageSize, totalCount);
     }
 
     public async Task<TvShowWatchProgressResult> GetTvShowWatchProgressAsync(
@@ -743,18 +716,6 @@ public sealed class WatchHistoryService(
         {
             throw new ValidationException(validationResult.ErrorMessage!);
         }
-    }
-
-    private static int GetRecentHistoryFetchCount(int page, int pageSize)
-    {
-        var fetchCount = (long)page * pageSize;
-        if (fetchCount > MaxRecentHistoryDepth)
-        {
-            throw new ValidationException(
-                $"Recent watch history can only page through the latest {MaxRecentHistoryDepth} items.");
-        }
-
-        return (int)fetchCount;
     }
 
     private async Task EnsureMovieExistsAsync(Guid movieId, CancellationToken cancellationToken)

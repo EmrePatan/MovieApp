@@ -41,7 +41,8 @@ public static class InsightsV3YourYearBuilder
             raw.YearActivity.ActiveDays,
             peakMonth,
             CalculateFavoriteWeekday(raw.YearActivity.WeekdayTotals),
-            raw.YearActivity.DayCounts ?? []);
+            raw.YearActivity.DayCounts ?? [],
+            raw.YearActivity.YearOnlyCount);
     }
 
     public static DayOfWeek? CalculateFavoriteWeekday(IReadOnlyDictionary<DayOfWeek, int> weekdayTotals)
