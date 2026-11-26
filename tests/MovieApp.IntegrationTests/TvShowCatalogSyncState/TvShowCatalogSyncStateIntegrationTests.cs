@@ -295,6 +295,9 @@ public sealed class TvShowCatalogSyncStateIntegrationTests(TvShowCatalogSyncStat
             Id = tvShowId,
             TmdbId = FakeTvShowDataProvider.BreakingBadTmdbId,
             Title = "Breaking Bad",
+            // Extras present and recently refreshed: nothing is left to fetch on view.
+            DetailExtrasJson = "{}",
+            TmdbMetadataUpdatedAtUtc = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
