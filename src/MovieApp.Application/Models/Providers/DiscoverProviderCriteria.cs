@@ -17,4 +17,7 @@ public sealed record DiscoverProviderCriteria(
     string? OriginCountry,
     IReadOnlyList<int> KeywordTmdbIds,
     IReadOnlyList<TvDiscoverStatus> TvStatuses,
-    DiscoverBrowseSort? Sort);
+    DiscoverBrowseSort? Sort)
+{
+    public WatchProviderFilter? WatchFilter { get; init; }
+}

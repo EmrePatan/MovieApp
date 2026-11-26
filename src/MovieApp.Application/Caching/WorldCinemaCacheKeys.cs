@@ -7,6 +7,7 @@ public static class WorldCinemaCacheKeys
 {
     public static string Create(WorldCinemaCriteria criteria, string contentLocale) =>
         ContentLocaleCacheKeySegment.Append(
+            (criteria.WatchFilter is null ? string.Empty : $"{criteria.WatchFilter.CacheSegment}:") +
             string.Join(
                 ':',
                 "discovery-world-cinema",

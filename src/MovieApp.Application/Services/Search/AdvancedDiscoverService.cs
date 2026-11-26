@@ -69,7 +69,7 @@ public sealed class AdvancedDiscoverService(
                 providerCriteria,
                 contentLocale,
                 cancellationToken),
-            _ => throw new ValidationException("Media type must be movie or tv.")
+            _ => await DiscoverAllAsync(criteria, contentLocale, cancellationToken)
         };
 
         result = await searchItemCatalogMetadataEnricher.EnrichGenresAsync(result, cancellationToken);
@@ -82,6 +82,50 @@ public sealed class AdvancedDiscoverService(
             cancellationToken);
 
         return result;
+    }
+
+    private async Task<PaginatedResult<SearchItem>> DiscoverAllAsync(
+        AdvancedDiscoverCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        // Each side returns everything up to the requested page, so the merged order is stable across pages.
+        var prefix = criteria with { Page = 1, PageSize = criteria.Page * criteria.PageSize };
+
+        // Sequential on purpose: both sides write through the same scoped DbContext.
+        var movies = await DiscoverSideAsync(
+            prefix with { MediaType = SearchContentType.Movie, TvStatuses = [] },
+            contentLocale,
+            cancellationToken);
+        var tvShows = await DiscoverSideAsync(
+            prefix with { MediaType = SearchContentType.Tv },
+            contentLocale,
+            cancellationToken);
+
+        return DiscoverBrowseMerger.MergeAdvanced(
+            criteria.Sort,
+            criteria.Page,
+            criteria.PageSize,
+            movies,
+            tvShows);
+    }
+
+    private async Task<PaginatedResult<SearchItem>> DiscoverSideAsync(
+        AdvancedDiscoverCriteria criteria,
+        string contentLocale,
+        CancellationToken cancellationToken)
+    {
+        var providerCriteria = await BuildProviderCriteriaAsync(criteria, cancellationToken);
+
+        // A genre that only exists for the other media type must not turn into "no genre filter".
+        if (criteria.GenreIds.Count > 0 && providerCriteria.GenreTmdbIds.Count == 0)
+        {
+            return new PaginatedResult<SearchItem>([], criteria.Page, criteria.PageSize, 0, 0);
+        }
+
+        return criteria.MediaType == SearchContentType.Tv
+            ? await DiscoverTvShowsAsync(criteria, providerCriteria, contentLocale, cancellationToken)
+            : await DiscoverMoviesAsync(criteria, providerCriteria, contentLocale, cancellationToken);
     }
 
     private async Task<AdvancedDiscoverProviderCriteria> BuildProviderCriteriaAsync(

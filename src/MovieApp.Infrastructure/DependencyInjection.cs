@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<ISocialPushNotifier, SocialPushNotifier>();
         services.AddScoped<IDirectMessageService, DirectMessageService>();
         services.AddScoped<MovieApp.Application.Abstractions.Notifications.INotificationPreferencesService, MovieApp.Infrastructure.Notifications.NotificationPreferencesService>();
+        services.AddScoped<MovieApp.Application.Abstractions.Preferences.IWatchPlatformPreferencesService, MovieApp.Infrastructure.Preferences.WatchPlatformPreferencesService>();
         services.AddScoped<ISocialReviewEngagementLookup, SocialReviewEngagementLookup>();
 
         services.AddOptions<PostgreSqlOptions>()

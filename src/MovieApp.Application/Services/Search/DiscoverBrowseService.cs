@@ -213,7 +213,10 @@ public sealed class DiscoverBrowseService(
                 : criteria.OriginCountry.Trim().ToUpperInvariant(),
             keywordTmdbIds,
             criteria.TvStatuses,
-            criteria.Sort);
+            criteria.Sort)
+        {
+            WatchFilter = criteria.WatchFilter
+        };
 
         if (criteria.Mode == DiscoverBrowseMode.Popular)
         {

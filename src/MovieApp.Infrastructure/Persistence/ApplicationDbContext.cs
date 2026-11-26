@@ -116,6 +116,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
     public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
+    public DbSet<UserWatchPlatformPreference> UserWatchPlatformPreferences => Set<UserWatchPlatformPreference>();
 
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries => Set<PushNotificationDelivery>();
 

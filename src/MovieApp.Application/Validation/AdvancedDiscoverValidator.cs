@@ -21,7 +21,7 @@ public static class AdvancedDiscoverValidator
 
     public static SearchQueryValidationResult Validate(AdvancedDiscoverCriteria criteria)
     {
-        var mediaTypeValidation = ValidateMediaType(criteria.MediaType);
+        var mediaTypeValidation = ValidateListMediaType(criteria.MediaType);
         if (!mediaTypeValidation.IsValid)
         {
             return mediaTypeValidation;
@@ -118,7 +118,10 @@ public static class AdvancedDiscoverValidator
             return keywordValidation;
         }
 
-        var tvStatusValidation = ValidateTvStatuses(criteria.MediaType, criteria.TvStatuses);
+        // With "all", TV statuses narrow only the TV side, same as the browse lists.
+        var tvStatusValidation = DiscoverBrowseValidator.ValidateBrowseTvStatuses(
+            criteria.MediaType,
+            criteria.TvStatuses);
         if (!tvStatusValidation.IsValid)
         {
             return tvStatusValidation;
@@ -148,6 +151,24 @@ public static class AdvancedDiscoverValidator
         mediaType is SearchContentType.Movie or SearchContentType.Tv
             ? SearchQueryValidationResult.Success()
             : SearchQueryValidationResult.Failure("Media type must be movie or tv.");
+
+    /// <summary>Result lists also accept "all"; provider catalogs and other lookups stay movie or TV.</summary>
+    public static SearchQueryValidationResult ValidateListMediaType(string? mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType))
+        {
+            return SearchQueryValidationResult.Failure("Media type is required.");
+        }
+
+        return AdvancedSearchValidator.TryParseType(mediaType, out var contentType)
+            ? ValidateListMediaType(contentType)
+            : SearchQueryValidationResult.Failure("Media type must be movie, tv or all.");
+    }
+
+    public static SearchQueryValidationResult ValidateListMediaType(SearchContentType mediaType) =>
+        mediaType is SearchContentType.Movie or SearchContentType.Tv or SearchContentType.All
+            ? SearchQueryValidationResult.Success()
+            : SearchQueryValidationResult.Failure("Media type must be movie, tv or all.");
 
     public static SearchQueryValidationResult ValidateSort(string? sort)
     {
@@ -306,6 +327,19 @@ public static class AdvancedDiscoverValidator
         }
 
         return WatchProviderRegionValidator.Validate(watchRegion);
+    }
+
+    public static SearchQueryValidationResult ValidateWatchProviderFilter(WatchProviderFilter? filter)
+    {
+        if (filter is null)
+        {
+            return SearchQueryValidationResult.Success();
+        }
+
+        var regionValidation = ValidateWatchRegion(filter.Region, required: true);
+        return regionValidation.IsValid
+            ? ValidateWatchProviderIds(filter.ProviderIds)
+            : regionValidation;
     }
 
     public static SearchQueryValidationResult ValidateWatchProviderIds(IReadOnlyList<int> watchProviderIds)

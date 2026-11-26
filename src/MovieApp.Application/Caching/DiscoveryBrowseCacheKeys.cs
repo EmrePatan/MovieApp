@@ -49,8 +49,11 @@ public static class DiscoveryBrowseCacheKeys
         var snapshotSegment = criteria.Mode == DiscoverBrowseMode.Trending
             ? $":snap-{weeklyTrendingSnapshotGeneration}"
             : string.Empty;
+        var watchSegment = criteria.WatchFilter is null
+            ? string.Empty
+            : $":{criteria.WatchFilter.CacheSegment}";
 
-        return $"{Prefix}{criteria.Mode}:{criteria.Type}:{criteria.Page}:{criteria.PageSize}:{genreFingerprint}:{year}:{yearFrom}:{yearTo}:{minRating}:{minVoteCount}:{minRuntime}:{maxRuntime}:{language}:{originCountry}:{keywordFingerprint}:{tvStatusSegment}:{effectiveSort}{snapshotSegment}";
+        return $"{Prefix}{criteria.Mode}:{criteria.Type}:{criteria.Page}:{criteria.PageSize}:{genreFingerprint}:{year}:{yearFrom}:{yearTo}:{minRating}:{minVoteCount}:{minRuntime}:{maxRuntime}:{language}:{originCountry}:{keywordFingerprint}:{tvStatusSegment}:{effectiveSort}{snapshotSegment}{watchSegment}";
     }
 
     public static string CreateGenreFingerprint(IReadOnlyList<Guid> genreIds) =>
