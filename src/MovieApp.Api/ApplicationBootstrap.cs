@@ -40,7 +40,8 @@ public static class ApplicationBootstrap
             .AddEmailVerificationDelivery(builder.Configuration, builder.Environment)
             .AddPasswordResetDelivery(builder.Configuration, builder.Environment)
             .AddTvShowFollowBaselineProcessing(builder.Configuration, builder.Environment)
-            .AddExternalRatingsRefreshProcessing(builder.Configuration, builder.Environment);
+            .AddExternalRatingsRefreshProcessing(builder.Configuration, builder.Environment)
+            .AddStreamingLeavingFetchProcessing(builder.Configuration, builder.Environment);
 
         if (!builder.Environment.IsEnvironment("Testing"))
         {

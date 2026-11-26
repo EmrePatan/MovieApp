@@ -23,6 +23,7 @@ using MovieApp.Application.Abstractions.RateLimiting;
 using MovieApp.Infrastructure.PushNotifications;
 using MovieApp.Infrastructure.Providers;
 using MovieApp.Infrastructure.Providers.MdbList;
+using MovieApp.Infrastructure.Providers.StreamingAvailability;
 using MovieApp.Infrastructure.AiRecommendations;
 using MovieApp.Infrastructure.Providers.AzureTranslator;
 using MovieApp.Infrastructure.Performance;
@@ -223,6 +224,8 @@ public static class DependencyInjection
         services.AddDetailProviders(configuration);
 
         services.AddExternalRatingsProviders(configuration);
+
+        services.AddStreamingAvailability(configuration);
 
 
 

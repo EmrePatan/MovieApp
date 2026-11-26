@@ -46,6 +46,9 @@ public sealed class WatchHistoryApiFixture : IAsyncLifetime
         context.TvShows.RemoveRange(context.TvShows);
         context.Genres.RemoveRange(context.Genres);
         context.Users.RemoveRange(context.Users);
+        context.StreamingLeavingItems.RemoveRange(context.StreamingLeavingItems);
+        context.StreamingLeavingRegions.RemoveRange(context.StreamingLeavingRegions);
+        context.StreamingApiUsage.RemoveRange(context.StreamingApiUsage);
         await context.SaveChangesAsync();
     }
 

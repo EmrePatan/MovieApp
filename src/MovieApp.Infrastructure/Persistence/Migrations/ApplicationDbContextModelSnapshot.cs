@@ -1730,6 +1730,101 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("social_reports", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.StreamingApiUsage", b =>
+                {
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<int>("RequestCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("PeriodStart", "Region");
+
+                    b.ToTable("streaming_api_usage", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.StreamingLeavingItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FetchedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LeavesAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("MediaType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("ServiceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ServiceName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("TmdbId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WatchLink")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Region", "LeavesAtUtc");
+
+                    b.HasIndex("Region", "ServiceId", "MediaType", "ContentId")
+                        .IsUnique();
+
+                    b.ToTable("streaming_leaving_items", (string)null);
+                });
+
+            modelBuilder.Entity("MovieApp.Domain.Entities.StreamingLeavingRegion", b =>
+                {
+                    b.Property<string>("Region")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<bool>("IsComplete")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LastFetchRequestCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastSuccessAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ServicesFetchedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ServicesJson")
+                        .HasColumnType("text");
+
+                    b.HasKey("Region");
+
+                    b.ToTable("streaming_leaving_regions", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.TmdbTvChangesSyncCheckpoint", b =>
                 {
                     b.Property<string>("CheckpointKey")

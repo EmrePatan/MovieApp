@@ -118,6 +118,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
     public DbSet<UserWatchPlatformPreference> UserWatchPlatformPreferences => Set<UserWatchPlatformPreference>();
 
+    public DbSet<StreamingLeavingItem> StreamingLeavingItems => Set<StreamingLeavingItem>();
+
+    public DbSet<StreamingLeavingRegion> StreamingLeavingRegions => Set<StreamingLeavingRegion>();
+
+    public DbSet<StreamingApiUsage> StreamingApiUsage => Set<StreamingApiUsage>();
+
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries => Set<PushNotificationDelivery>();
 
     public DbSet<ProductMetricDaily> ProductMetricDaily => Set<ProductMetricDaily>();
