@@ -21,10 +21,5 @@ public interface IWatchedMovieRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<(Guid MovieId, string Title, DateTime WatchedAt)>> GetRecentForUserAsync(
-        Guid userId,
-        int take,
-        CancellationToken cancellationToken = default);
-
     Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }

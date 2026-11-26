@@ -1517,6 +1517,7 @@ public sealed class HomeServiceTests
         public Task<PaginatedResult<RecentWatchHistoryItemResult>> GetRecentWatchHistoryAsync(
             int page,
             int pageSize,
+            bool? undated = null,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

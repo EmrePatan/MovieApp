@@ -400,12 +400,6 @@ public sealed class TvShowWatchProgressAggregateTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<(Guid MovieId, string Title, DateTime WatchedAt)>> GetRecentForUserAsync(
-            Guid userId,
-            int take,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult(0);
     }
@@ -604,15 +598,8 @@ public sealed class TvShowWatchProgressAggregateTests
                     .OrderBy(result => result.SeasonNumber)
                     .ToList());
 
-        public Task<IReadOnlyList<(
-            Guid EpisodeId,
-            Guid TvShowId,
-            Guid SeasonId,
-            string TvShowTitle,
-            int SeasonNumber,
-            int EpisodeNumber,
-            string? EpisodeTitle,
-            DateTime WatchedAt)>> GetRecentForUserAsync(Guid userId, int take, CancellationToken cancellationToken = default) =>
+        public Task<(IReadOnlyList<MovieApp.Application.Models.WatchHistory.RecentWatchHistoryItemResult> Items, int TotalCount)> GetHistoryPageAsync(
+            Guid userId, bool? undated, int skip, int take, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -700,15 +687,8 @@ public sealed class TvShowWatchProgressAggregateTests
             return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>([]);
         }
 
-        public Task<IReadOnlyList<(
-            Guid EpisodeId,
-            Guid TvShowId,
-            Guid SeasonId,
-            string TvShowTitle,
-            int SeasonNumber,
-            int EpisodeNumber,
-            string? EpisodeTitle,
-            DateTime WatchedAt)>> GetRecentForUserAsync(Guid userId, int take, CancellationToken cancellationToken = default) =>
+        public Task<(IReadOnlyList<MovieApp.Application.Models.WatchHistory.RecentWatchHistoryItemResult> Items, int TotalCount)> GetHistoryPageAsync(
+            Guid userId, bool? undated, int skip, int take, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>

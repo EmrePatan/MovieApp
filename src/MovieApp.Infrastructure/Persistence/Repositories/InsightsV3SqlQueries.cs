@@ -119,10 +119,12 @@ internal static class InsightsV3SqlQueries
                         SELECT wm."WatchedAt" AS watched_at
                         FROM watched_movies AS wm
                         WHERE wm."UserId" = {userId}
+                          AND wm."WatchedAtPrecision" IN (0, 1)
                         UNION ALL
                         SELECT we."WatchedAt" AS watched_at
                         FROM watched_episodes AS we
                         WHERE we."UserId" = {userId}
+                          AND we."WatchedAtPrecision" IN (0, 1)
                     ) AS all_watches
                 ),
                 streak_groups AS (
@@ -143,6 +145,7 @@ internal static class InsightsV3SqlQueries
                         COUNT(*)::integer AS watch_count
                     FROM watched_movies AS wm
                     WHERE wm."UserId" = {userId}
+                      AND wm."WatchedAtPrecision" IN (0, 1)
                     GROUP BY 1, 2
                 ),
                 episode_weeks AS (
@@ -152,6 +155,7 @@ internal static class InsightsV3SqlQueries
                         COUNT(*)::integer AS watch_count
                     FROM watched_episodes AS we
                     WHERE we."UserId" = {userId}
+                      AND we."WatchedAtPrecision" IN (0, 1)
                     GROUP BY 1, 2
                 ),
                 best_movie_week AS (
@@ -214,6 +218,7 @@ internal static class InsightsV3SqlQueries
                         ROW_NUMBER() OVER (ORDER BY wm."WatchedAt") AS row_number
                     FROM watched_movies AS wm
                     WHERE wm."UserId" = {userId}
+                      AND wm."WatchedAtPrecision" IN (0, 1)
                 ),
                 ranked_episodes AS (
                     SELECT
@@ -221,6 +226,7 @@ internal static class InsightsV3SqlQueries
                         ROW_NUMBER() OVER (ORDER BY we."WatchedAt") AS row_number
                     FROM watched_episodes AS we
                     WHERE we."UserId" = {userId}
+                      AND we."WatchedAtPrecision" IN (0, 1)
                 ),
                 ranked_ratings AS (
                     SELECT
@@ -266,7 +272,7 @@ internal static class InsightsV3SqlQueries
                     SELECT
                         s."TvShowId" AS tv_show_id,
                         COUNT(*)::integer AS watched_count,
-                        MAX(we."WatchedAt") AS last_watched_at
+                        MAX(we."WatchedAt") FILTER (WHERE we."WatchedAtPrecision" IN (0, 1)) AS last_watched_at
                     FROM watched_episodes AS we
                     INNER JOIN episodes AS e ON e."Id" = we."EpisodeId"
                     INNER JOIN seasons AS s ON s."Id" = e."SeasonId"

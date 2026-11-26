@@ -37,16 +37,12 @@ public interface IWatchedEpisodeRepository
         Guid tvShowId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<(
-        Guid EpisodeId,
-        Guid TvShowId,
-        Guid SeasonId,
-        string TvShowTitle,
-        int SeasonNumber,
-        int EpisodeNumber,
-        string? EpisodeTitle,
-        DateTime WatchedAt)>> GetRecentForUserAsync(
+    /// <summary>Watched movies and episodes together, paged in the database.</summary>
+    /// <param name="undated">Null for everything, true for "date unknown" rows, false for the rest.</param>
+    Task<(IReadOnlyList<RecentWatchHistoryItemResult> Items, int TotalCount)> GetHistoryPageAsync(
         Guid userId,
+        bool? undated,
+        int skip,
         int take,
         CancellationToken cancellationToken = default);
 

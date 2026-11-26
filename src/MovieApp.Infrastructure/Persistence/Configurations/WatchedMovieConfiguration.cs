@@ -24,6 +24,11 @@ internal sealed class WatchedMovieConfiguration : IEntityTypeConfiguration<Watch
         builder.Property(watchedMovie => watchedMovie.WatchedAt)
             .IsRequired();
 
+        builder.Property(watchedMovie => watchedMovie.WatchedAtPrecision)
+            .HasConversion<int>()
+            .HasDefaultValue(MovieApp.Domain.Enums.WatchDatePrecision.Exact)
+            .IsRequired();
+
         builder.Property(watchedMovie => watchedMovie.CreatedAt)
             .IsRequired();
 

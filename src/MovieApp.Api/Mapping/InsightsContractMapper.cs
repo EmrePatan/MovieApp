@@ -51,7 +51,8 @@ public static class InsightsContractMapper
                 result.YourYear.FavoriteWeekday,
                 (result.YourYear.Days ?? [])
                     .Select(day => new InsightsV3DayActivityResponse(day.DayOfYear, day.Total))
-                    .ToList()),
+                    .ToList(),
+                result.YourYear.YearOnlyCount),
             new InsightsV3TasteSectionResponse(
                 result.YourTaste.Genres.Select(ToInsightsTasteGenreResponse).ToList(),
                 result.YourTaste.RisingGenre is null

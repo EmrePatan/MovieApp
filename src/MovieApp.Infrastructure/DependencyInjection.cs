@@ -371,6 +371,7 @@ public static class DependencyInjection
         services.AddScoped<IWatchStatusBatchReadRepository, WatchStatusBatchReadRepository>();
 
         services.AddScoped<IWatchedEpisodeRepository, WatchedEpisodeRepository>();
+        services.AddScoped<IWatchDateRepository, WatchDateRepository>();
 
         services.AddScoped<ILibraryRepository, LibraryRepository>();
         services.AddScoped<ILibraryActionStatusRepository, LibraryActionStatusRepository>();

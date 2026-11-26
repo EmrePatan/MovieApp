@@ -96,23 +96,6 @@ public sealed class WatchedMovieRepository(ApplicationDbContext dbContext) : IWa
         return (items, totalCount);
     }
 
-    public async Task<IReadOnlyList<(Guid MovieId, string Title, DateTime WatchedAt)>> GetRecentForUserAsync(
-        Guid userId,
-        int take,
-        CancellationToken cancellationToken = default)
-    {
-        return await dbContext.WatchedMovies
-            .AsNoTracking()
-            .Where(watchedMovie => watchedMovie.UserId == userId)
-            .OrderByDescending(watchedMovie => watchedMovie.WatchedAt)
-            .Take(take)
-            .Select(watchedMovie => new ValueTuple<Guid, string, DateTime>(
-                watchedMovie.MovieId,
-                watchedMovie.Movie.Title,
-                watchedMovie.WatchedAt))
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await dbContext.WatchedMovies

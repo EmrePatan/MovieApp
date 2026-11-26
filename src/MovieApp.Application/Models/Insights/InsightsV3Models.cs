@@ -19,7 +19,8 @@ public sealed record InsightsV3YourYearResult(
     int ActiveDays,
     InsightsV3MonthHighlightResult? PeakMonth,
     DayOfWeek? FavoriteWeekday,
-    IReadOnlyList<InsightsV3DayCount>? Days = null);
+    IReadOnlyList<InsightsV3DayCount>? Days = null,
+    int YearOnlyCount = 0);
 
 /// <summary>Watches logged on one day of the year (1-based day of year).</summary>
 public sealed record InsightsV3DayCount(int DayOfYear, int Total);
@@ -148,7 +149,8 @@ public sealed record InsightsV3YearActivityAggregate(
     IReadOnlyDictionary<DayOfWeek, int> WeekdayTotals,
     int ActiveDays,
     int YearMinutes,
-    IReadOnlyList<InsightsV3DayCount>? DayCounts = null);
+    IReadOnlyList<InsightsV3DayCount>? DayCounts = null,
+    int YearOnlyCount = 0);
 
 public sealed record InsightsV3RawData(
     DateTime MemberSinceUtc,

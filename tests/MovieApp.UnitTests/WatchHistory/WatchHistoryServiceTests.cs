@@ -360,42 +360,15 @@ public sealed class WatchHistoryServiceTests
     }
 
     [Fact]
-    public async Task GetRecentWatchHistoryAsyncMergesMoviesAndEpisodes()
+    public async Task GetRecentWatchHistoryAsyncPagesInTheRepositoryWithoutADepthLimit()
     {
-        var watchedMovieRepo = new FakeWatchedMovieRepository(
-            recentMovies:
-            [
-                (MovieId, "Interstellar", DateTime.UtcNow.AddHours(-1))
-            ],
-            totalMovies: 1);
-        var watchedEpisodeRepo = new FakeWatchedEpisodeRepository(
-            recentEpisodes:
-            [
-                (EpisodeId1, TvShowId, SeasonId, "Breaking Bad", 1, 1, "Pilot", DateTime.UtcNow)
-            ],
-            totalEpisodes: 1);
-        var service = CreateService(watchedMovieRepo, watchedEpisodeRepo);
+        var watchedEpisodeRepo = new FakeWatchedEpisodeRepository(totalEpisodes: 942);
+        var service = CreateService(new FakeWatchedMovieRepository(), watchedEpisodeRepo);
 
-        var result = await service.GetRecentWatchHistoryAsync(1, 20);
+        var result = await service.GetRecentWatchHistoryAsync(page: 47, pageSize: 20, undated: true);
 
-        Assert.Equal(2, result.TotalCount);
-        Assert.Equal(2, result.Items.Count);
-        Assert.Equal("episode", result.Items[0].Type);
-        Assert.Equal("movie", result.Items[1].Type);
-    }
-
-    [Fact]
-    public async Task GetRecentWatchHistoryAsyncRejectsPagesThatWouldLoadAnUnboundedWindow()
-    {
-        var service = CreateService(new FakeWatchedMovieRepository(), new FakeWatchedEpisodeRepository());
-
-        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.GetRecentWatchHistoryAsync(page: 1_000_000, pageSize: 100));
-
-        Assert.Contains(
-            WatchHistoryService.MaxRecentHistoryDepth.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            exception.Message,
-            StringComparison.Ordinal);
+        Assert.Equal((true, 920, 20), watchedEpisodeRepo.LastHistoryRequest);
+        Assert.Equal(942, result.TotalCount);
     }
 
     [Fact]
@@ -561,18 +534,15 @@ public sealed class WatchHistoryServiceTests
     {
         private readonly WatchedMovie? _existingMovie;
         private readonly bool _upsertReturnsCreated;
-        private readonly IReadOnlyList<(Guid MovieId, string Title, DateTime WatchedAt)> _recentMovies;
         private readonly int _totalMovies;
 
         public FakeWatchedMovieRepository(
             WatchedMovie? existingMovie = null,
             bool upsertReturnsCreated = true,
-            IReadOnlyList<(Guid MovieId, string Title, DateTime WatchedAt)>? recentMovies = null,
             int totalMovies = 0)
         {
             _existingMovie = existingMovie;
             _upsertReturnsCreated = upsertReturnsCreated;
-            _recentMovies = recentMovies ?? [];
             _totalMovies = totalMovies;
         }
 
@@ -612,12 +582,6 @@ public sealed class WatchHistoryServiceTests
             return Task.FromResult<(IReadOnlyList<WatchedMovie>, int)>(([watchedMovie], _totalMovies));
         }
 
-        public Task<IReadOnlyList<(Guid MovieId, string Title, DateTime WatchedAt)>> GetRecentForUserAsync(
-            Guid userId,
-            int take,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(_recentMovies);
-
         public Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_totalMovies);
     }
@@ -628,38 +592,21 @@ public sealed class WatchHistoryServiceTests
         private readonly bool _upsertReturnsCreated;
         private readonly int _watchedForTvShow;
         private readonly int _watchedForSeason;
-        private readonly IReadOnlyList<(
-            Guid EpisodeId,
-            Guid TvShowId,
-            Guid SeasonId,
-            string TvShowTitle,
-            int SeasonNumber,
-            int EpisodeNumber,
-            string? EpisodeTitle,
-            DateTime WatchedAt)> _recentEpisodes;
         private readonly int _totalEpisodes;
+
+        public (bool? Undated, int Skip, int Take)? LastHistoryRequest { get; private set; }
 
         public FakeWatchedEpisodeRepository(
             WatchedEpisode? existingEpisode = null,
             bool upsertReturnsCreated = true,
             int watchedForTvShow = 0,
             int watchedForSeason = 0,
-            IReadOnlyList<(
-                Guid EpisodeId,
-                Guid TvShowId,
-                Guid SeasonId,
-                string TvShowTitle,
-                int SeasonNumber,
-                int EpisodeNumber,
-                string? EpisodeTitle,
-                DateTime WatchedAt)>? recentEpisodes = null,
             int totalEpisodes = 0)
         {
             _existingEpisode = existingEpisode;
             _upsertReturnsCreated = upsertReturnsCreated;
             _watchedForTvShow = watchedForTvShow;
             _watchedForSeason = watchedForSeason;
-            _recentEpisodes = recentEpisodes ?? [];
             _totalEpisodes = totalEpisodes;
         }
 
@@ -726,19 +673,16 @@ public sealed class WatchHistoryServiceTests
             return Task.FromResult<IReadOnlyList<SeasonEpisodeCountResult>>([]);
         }
 
-        public Task<IReadOnlyList<(
-            Guid EpisodeId,
-            Guid TvShowId,
-            Guid SeasonId,
-            string TvShowTitle,
-            int SeasonNumber,
-            int EpisodeNumber,
-            string? EpisodeTitle,
-            DateTime WatchedAt)>> GetRecentForUserAsync(
+        public Task<(IReadOnlyList<RecentWatchHistoryItemResult> Items, int TotalCount)> GetHistoryPageAsync(
             Guid userId,
+            bool? undated,
+            int skip,
             int take,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(_recentEpisodes);
+            CancellationToken cancellationToken = default)
+        {
+            LastHistoryRequest = (undated, skip, take);
+            return Task.FromResult<(IReadOnlyList<RecentWatchHistoryItemResult>, int)>(([], _totalEpisodes));
+        }
 
         public Task<int> CountForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_totalEpisodes);

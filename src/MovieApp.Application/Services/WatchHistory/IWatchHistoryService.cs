@@ -30,6 +30,7 @@ public interface IWatchHistoryService
     Task<PaginatedResult<RecentWatchHistoryItemResult>> GetRecentWatchHistoryAsync(
         int page,
         int pageSize,
+        bool? undated = null,
         CancellationToken cancellationToken = default);
 
     Task<TvShowWatchProgressResult> GetTvShowWatchProgressAsync(
