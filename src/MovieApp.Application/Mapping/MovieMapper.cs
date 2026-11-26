@@ -44,7 +44,8 @@ public static class MovieMapper
             IsReleased: true,
             CanFollowForRelease: true,
             CanSetReleaseAlert: true,
-            PrimaryOriginCountryCode: movie.PrimaryOriginCountryCode);
+            PrimaryOriginCountryCode: movie.PrimaryOriginCountryCode,
+            Extras: CatalogDetailExtrasJson.Deserialize(movie.DetailExtrasJson));
 
     private static MovieCollectionSummaryResult? ToCollectionSummary(Movie movie)
     {

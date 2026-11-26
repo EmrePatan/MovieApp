@@ -50,7 +50,8 @@ public static class TvShowMapper
                 .Select(ToSeasonSummaryResult)
                 .ToList(),
             TvShowFollowActionEligibility.CanFollow(tvShow.Status),
-            PrimaryOriginCountryCode: tvShow.PrimaryOriginCountryCode);
+            PrimaryOriginCountryCode: tvShow.PrimaryOriginCountryCode,
+            Extras: CatalogDetailExtrasJson.Deserialize(tvShow.DetailExtrasJson));
 
     public static SeasonSummaryResult ToSeasonSummaryResult(Season season) =>
         new(

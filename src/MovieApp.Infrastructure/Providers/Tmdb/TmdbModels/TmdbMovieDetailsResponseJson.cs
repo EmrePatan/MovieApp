@@ -43,4 +43,14 @@ internal sealed class TmdbMovieDetailsResponseJson
     public TmdbTranslationsAppendJson? Translations { get; set; }
 
     public TmdbImagesResponseJson? Images { get; set; }
+
+    public string? Tagline { get; set; }
+
+    public long Budget { get; set; }
+
+    public long Revenue { get; set; }
+
+    public List<TmdbNamedJson> ProductionCompanies { get; set; } = [];
+
+    public TmdbCertificationReleasesJson? ReleaseDates { get; set; }
 }

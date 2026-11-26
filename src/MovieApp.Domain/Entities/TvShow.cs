@@ -30,6 +30,9 @@ public sealed class TvShow
 
     public string? PrimaryOriginCountryCode { get; set; }
 
+    /// <summary>JSON of the display-only detail facts. Null until fetched from the provider.</summary>
+    public string? DetailExtrasJson { get; set; }
+
     public decimal VoteAverage { get; set; }
 
     public int VoteCount { get; set; }

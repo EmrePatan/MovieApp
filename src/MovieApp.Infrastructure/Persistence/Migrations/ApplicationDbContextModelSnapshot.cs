@@ -759,6 +759,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DetailExtrasJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("ImdbId")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -1856,6 +1859,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DetailExtrasJson")
+                        .HasColumnType("text");
 
                     b.Property<DateOnly?>("FirstAirDate")
                         .HasColumnType("date");

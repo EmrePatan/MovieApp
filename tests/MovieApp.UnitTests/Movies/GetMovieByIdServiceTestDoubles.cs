@@ -36,8 +36,12 @@ internal sealed class StubMovieDataProvider(MovieProviderDetails? details) : IMo
         CancellationToken cancellationToken = default)
     {
         GetMovieCallCount++;
-        return Task.FromResult(details);
+        return Failure is null
+            ? Task.FromResult(details)
+            : Task.FromException<MovieProviderDetails?>(Failure);
     }
+
+    public Exception? Failure { get; init; }
 
     public Task<MovieProviderSearchResult> DiscoverMoviesAsync(
         DiscoverProviderCriteria criteria,

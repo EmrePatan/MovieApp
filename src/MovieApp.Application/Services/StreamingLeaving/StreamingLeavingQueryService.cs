@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
+using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.Movies;
 using MovieApp.Application.Models.Search;
@@ -22,6 +24,7 @@ public sealed class StreamingLeavingQueryService(
     IStreamingLeavingFetchJobEnqueuer fetchJobEnqueuer,
     SearchItemCatalogMetadataEnricher metadataEnricher,
     CatalogSearchItemDisplayTitleEnricher displayTitleEnricher,
+    ICacheService cacheService,
     IOptions<StreamingAvailabilityOptions> options,
     TimeProvider timeProvider) : IStreamingLeavingQueryService
 {
@@ -37,11 +40,24 @@ public sealed class StreamingLeavingQueryService(
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var rows = await repository.GetUpcomingAsync(criteria.Region, now, cancellationToken);
+        var cacheKey = StreamingLeavingCache.Key(criteria.Region);
+        var cached = await cacheService.GetAsync<StreamingLeavingCacheEntry>(cacheKey, cancellationToken);
+        var entry = cached ?? new StreamingLeavingCacheEntry
+        {
+            Rows = await repository.GetUpcomingAsync(criteria.Region, now, cancellationToken),
+            State = await repository.GetRegionAsync(criteria.Region, cancellationToken)
+        };
 
         // The caller never waits for the service: a due fetch runs in the background.
-        var state = await repository.GetRegionAsync(criteria.Region, cancellationToken);
-        if (StreamingLeavingSchedule.IsDue(state, policy, now))
+        var isDue = StreamingLeavingSchedule.IsDue(entry.State, policy, now);
+
+        // A list that is about to be fetched is not worth keeping.
+        if (cached is null && !isDue)
+        {
+            await cacheService.SetAsync(cacheKey, entry, StreamingLeavingCache.Ttl, cancellationToken);
+        }
+
+        if (isDue)
         {
             var usage = await repository.GetUsageAsync(
                 StreamingLeavingSchedule.PeriodStart(now, policy),
@@ -52,6 +68,8 @@ public sealed class StreamingLeavingQueryService(
             }
         }
 
+        // A cached list can outlive some of its dates.
+        var rows = entry.Rows.Where(row => row.LeavesAtUtc > now).ToList();
         var result = StreamingLeavingListBuilder.Build(rows, criteria, policy.MinimumItems);
         if (result.Items.Count == 0)
         {

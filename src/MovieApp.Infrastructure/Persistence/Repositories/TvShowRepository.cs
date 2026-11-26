@@ -457,6 +457,11 @@ public sealed class TvShowRepository(
         tvShow.VoteAverage = details.VoteAverage;
         tvShow.VoteCount = details.VoteCount;
         tvShow.Status = TvShowStatusParser.Parse(details.Status);
+        if (details.Extras is not null)
+        {
+            tvShow.DetailExtrasJson = CatalogDetailExtrasJson.Serialize(details.Extras);
+        }
+
         tvShow.TmdbMetadataUpdatedAtUtc = utcNow;
         tvShow.UpdatedAt = utcNow;
     }

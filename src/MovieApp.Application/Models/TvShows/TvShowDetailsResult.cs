@@ -22,4 +22,5 @@ public sealed record TvShowDetailsResult(
     IReadOnlyList<CatalogKeywordSummary> Keywords,
     IReadOnlyList<SeasonSummaryResult> Seasons,
     bool CanFollow,
-    string? PrimaryOriginCountryCode = null);
+    string? PrimaryOriginCountryCode = null,
+    MovieApp.Application.Models.Catalog.CatalogDetailExtras? Extras = null);

@@ -19,6 +19,7 @@ public sealed class StreamingLeavingFetchServiceTests
     private readonly InMemoryRepository _repository = new();
     private readonly StubProvider _provider = new();
     private readonly StubLock _lock = new();
+    private readonly RecordingCache _cache = new();
     private readonly Clock _clock = new(Start);
 
     [Fact]
@@ -33,6 +34,14 @@ public sealed class StreamingLeavingFetchServiceTests
         Assert.Equal(19, _repository.Items["US"].Count);
         Assert.False(_repository.Regions["US"].IsComplete);
         Assert.Equal(Start, _repository.Regions["US"].LastSuccessAtUtc);
+    }
+
+    [Fact]
+    public async Task AFetchDropsTheCachedListOfItsRegion()
+    {
+        await FetchAsync("TR");
+
+        Assert.Equal(["streaming-leaving:list:TR"], _cache.RemovedKeys);
     }
 
     [Fact]
@@ -157,9 +166,33 @@ public sealed class StreamingLeavingFetchServiceTests
             _provider,
             new StubResolver(),
             _lock,
+            _cache,
             Options.Create(_options),
             _clock,
             NullLogger<StreamingLeavingFetchService>.Instance).FetchAsync(region);
+
+    private sealed class RecordingCache : ICacheService
+    {
+        public List<string> RemovedKeys { get; } = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.FromResult<T?>(null);
+
+        public Task SetAsync<T>(
+            string key,
+            T value,
+            TimeSpan? expiry = null,
+            CancellationToken cancellationToken = default)
+            where T : class =>
+            Task.CompletedTask;
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            RemovedKeys.Add(key);
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class Clock(DateTime now) : TimeProvider
     {

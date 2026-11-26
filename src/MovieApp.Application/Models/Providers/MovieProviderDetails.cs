@@ -25,4 +25,5 @@ public sealed record MovieProviderDetails(
     IReadOnlyList<ProviderKeywordSummary>? Keywords = null,
     IReadOnlyList<ProviderSearchTitleEntry>? ProviderSearchTitles = null,
     IReadOnlyList<ProviderImageResult>? ProviderPosters = null,
-    string? PrimaryOriginCountryCode = null);
+    string? PrimaryOriginCountryCode = null,
+    MovieApp.Application.Models.Catalog.CatalogDetailExtras? Extras = null);
