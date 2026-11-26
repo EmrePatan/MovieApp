@@ -138,7 +138,7 @@ public sealed class TmdbMovieDataProvider(
 
     private static string BuildMovieDetailsPath(int tmdbId, bool includeKeywords)
     {
-        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations", "images" };
+        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations", "images", "release_dates" };
         if (includeKeywords)
         {
             appendParts.Add("keywords");

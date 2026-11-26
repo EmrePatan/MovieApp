@@ -28,7 +28,8 @@ public sealed class TmdbLocalizedDetailDataProvider(TmdbApiClient apiClient) : I
             return new MovieDetailLocalizationData(
                 response.Title,
                 response.Overview,
-                response.BelongsToCollection?.Name);
+                response.BelongsToCollection?.Name,
+                response.Tagline);
         }
         catch (TmdbApiException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
         {
@@ -63,7 +64,8 @@ public sealed class TmdbLocalizedDetailDataProvider(TmdbApiClient apiClient) : I
                 response.Name,
                 response.Overview,
                 response.Status,
-                seasonNames);
+                seasonNames,
+                response.Tagline);
         }
         catch (TmdbApiException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
         {

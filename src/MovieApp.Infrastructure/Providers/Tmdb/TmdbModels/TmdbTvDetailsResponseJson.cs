@@ -43,6 +43,18 @@ internal sealed class TmdbTvDetailsResponseJson
     public TmdbTvTranslationsAppendJson? Translations { get; set; }
 
     public TmdbImagesResponseJson? Images { get; set; }
+
+    public string? Tagline { get; set; }
+
+    public List<TmdbNamedJson> Networks { get; set; } = [];
+
+    public List<TmdbNamedJson> CreatedBy { get; set; } = [];
+
+    public List<TmdbNamedJson> ProductionCompanies { get; set; } = [];
+
+    public TmdbNextEpisodeToAirJson? LastEpisodeToAir { get; set; }
+
+    public TmdbContentRatingsJson? ContentRatings { get; set; }
 }
 
 internal sealed class TmdbTvSeasonSummaryJson

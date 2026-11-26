@@ -52,5 +52,6 @@ public static class MovieContractMapper
                     result.Collection.BackdropPath),
             result.IsReleased,
             result.CanFollowForRelease,
-            result.CanSetReleaseAlert);
+            result.CanSetReleaseAlert,
+            CatalogDetailExtrasContractMapper.ToResponse(result.Extras));
 }

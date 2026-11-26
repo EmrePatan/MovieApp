@@ -456,6 +456,11 @@ public sealed class MovieRepository(
             movie.CollectionBackdropPath = null;
         }
 
+        if (details.Extras is not null)
+        {
+            movie.DetailExtrasJson = CatalogDetailExtrasJson.Serialize(details.Extras);
+        }
+
         movie.TmdbMetadataUpdatedAtUtc = utcNow;
         movie.UpdatedAt = utcNow;
     }

@@ -50,7 +50,8 @@ public static class TvShowContractMapper
             result.Genres,
             result.Keywords.Select(keyword => new CatalogKeywordSummaryResponse(keyword.Id, keyword.Name)).ToList(),
             result.Seasons.Select(ToSeasonSummaryResponse).ToList(),
-            result.CanFollow);
+            result.CanFollow,
+            CatalogDetailExtrasContractMapper.ToResponse(result.Extras));
 
     public static SeasonSummaryResponse ToSeasonSummaryResponse(SeasonSummaryResult result) =>
         new(

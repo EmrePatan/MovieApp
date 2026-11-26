@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MovieApp.Application.Abstractions.Caching;
 using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
+using MovieApp.Application.Caching;
 using MovieApp.Application.Configuration;
 using MovieApp.Application.Models.StreamingLeaving;
 using MovieApp.Domain.Entities;
@@ -20,6 +21,7 @@ public sealed partial class StreamingLeavingFetchService(
     IStreamingAvailabilityProvider provider,
     IStreamingLeavingTitleResolver titleResolver,
     ISearchRefreshLockService lockService,
+    ICacheService cacheService,
     IOptions<StreamingAvailabilityOptions> options,
     TimeProvider timeProvider,
     ILogger<StreamingLeavingFetchService> logger) : IStreamingLeavingFetchService
@@ -49,6 +51,8 @@ public sealed partial class StreamingLeavingFetchService(
         }
         finally
         {
+            // Also after a failure: the attempt time and the stored rows may have changed.
+            await cacheService.RemoveAsync(StreamingLeavingCache.Key(region), CancellationToken.None);
             await lockService.ReleaseAsync(handle.LockKey, handle.LockToken, handle.Backend, CancellationToken.None);
         }
     }

@@ -4,4 +4,5 @@ public sealed record TvShowDetailLocalizationData(
     string? Title,
     string? Overview,
     string? Status,
-    IReadOnlyDictionary<int, string?> SeasonNames);
+    IReadOnlyDictionary<int, string?> SeasonNames,
+    string? Tagline = null);

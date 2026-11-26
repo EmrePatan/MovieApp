@@ -8,6 +8,7 @@ using MovieApp.Application.Configuration;
 using MovieApp.Application.Exceptions;
 using MovieApp.Application.Mapping;
 using MovieApp.Application.Models.Movies;
+using MovieApp.Application.Models.Providers;
 using MovieApp.Application.Services.Catalog;
 using MovieApp.Application.Services.Keywords;
 using MovieApp.Application.Services.Localization;
@@ -183,7 +184,7 @@ public sealed class GetMovieByIdService(
         Movie movie,
         CancellationToken cancellationToken)
     {
-        movie = await TryEnrichMissingCollectionAsync(movie, cancellationToken);
+        movie = await TryEnrichMissingDetailsAsync(movie, cancellationToken);
 
         if (movie.KeywordsSyncedAtUtc is null)
         {
@@ -210,39 +211,58 @@ public sealed class GetMovieByIdService(
         };
     }
 
-    private async Task<Movie> TryEnrichMissingCollectionAsync(
+    /// <summary>
+    /// Fills what an older or search-ingested row lacks: the collection and the detail extras.
+    /// </summary>
+    private async Task<Movie> TryEnrichMissingDetailsAsync(
         Movie movie,
         CancellationToken cancellationToken)
     {
-        if (movie.TmdbCollectionId.HasValue || movie.TmdbId is not int tmdbId || tmdbId <= 0)
+        if (movie.TmdbId is not int tmdbId || tmdbId <= 0)
         {
             return movie;
         }
 
+        var needsExtras = movie.DetailExtrasJson is null;
         var probeKey = MovieDetailsCacheKeys.CollectionProbe(movie.Id);
-        if (await cacheService.GetAsync<MovieCollectionProbeCacheEntry>(probeKey, cancellationToken) is not null)
+        var needsCollection = !movie.TmdbCollectionId.HasValue &&
+            await cacheService.GetAsync<MovieCollectionProbeCacheEntry>(probeKey, cancellationToken) is null;
+        if (!needsExtras && !needsCollection)
         {
             return movie;
         }
 
-        var providerDetails = await movieDataProvider.GetMovieAsync(
-            tmdbId.ToString(CultureInfo.InvariantCulture),
-            includeKeywords: false,
-            cancellationToken);
+        MovieProviderDetails? providerDetails;
+        try
+        {
+            providerDetails = await movieDataProvider.GetMovieAsync(
+                tmdbId.ToString(CultureInfo.InvariantCulture),
+                includeKeywords: false,
+                cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The stored movie is enough to show the page; the next uncached read tries again.
+            return movie;
+        }
 
         if (providerDetails is null)
         {
             return movie;
         }
 
-        if (providerDetails.TmdbCollectionId is null)
+        if (needsCollection && providerDetails.TmdbCollectionId is null)
         {
             await cacheService.SetAsync(
                 probeKey,
                 new MovieCollectionProbeCacheEntry(),
                 CollectionProbeTtl,
                 cancellationToken);
-            return movie;
+
+            if (!needsExtras)
+            {
+                return movie;
+            }
         }
 
         return await catalogProviderUpsertService.UpsertMovieFromProviderAsync(

@@ -20,4 +20,5 @@ public sealed record MovieDetailsResponse(
     MovieCollectionSummaryResponse? Collection,
     bool IsReleased,
     bool CanFollowForRelease,
-    bool CanSetReleaseAlert);
+    bool CanSetReleaseAlert,
+    CatalogDetailExtrasResponse? Extras = null);

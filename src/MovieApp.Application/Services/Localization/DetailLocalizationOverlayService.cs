@@ -68,9 +68,17 @@ public sealed class DetailLocalizationOverlayService(
             Title = displayTitles.Title,
             OriginalTitle = displayTitles.OriginalTitle,
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
-            Collection = collection
+            Collection = collection,
+            Extras = LocalizeExtras(canonical.Extras, overlay.Tagline)
         };
     }
+
+    private static Models.Catalog.CatalogDetailExtras? LocalizeExtras(
+        Models.Catalog.CatalogDetailExtras? extras,
+        string? localizedTagline) =>
+        extras is null
+            ? null
+            : extras with { Tagline = LocalizationFieldFallback.ChooseNullable(extras.Tagline, localizedTagline) };
 
     public async Task<MovieDetailsResult> ApplyMovieOverlayAsync(
         MovieDetailsResult canonical,
@@ -139,7 +147,8 @@ public sealed class DetailLocalizationOverlayService(
             Title = displayTitles.Title,
             OriginalTitle = displayTitles.OriginalTitle,
             Overview = LocalizationFieldFallback.ChooseNullable(canonical.Overview, overlay.Overview),
-            Seasons = seasons
+            Seasons = seasons,
+            Extras = LocalizeExtras(canonical.Extras, overlay.Tagline)
         };
     }
 

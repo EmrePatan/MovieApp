@@ -16,7 +16,8 @@ public sealed class ReviewTranslationService(
     ICacheService cacheService,
     ILogger<ReviewTranslationService> logger) : IReviewTranslationService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(20);
+    // Translations are paid and the key changes when the review is edited, so they can live long.
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromDays(7);
 
     public async Task<ReviewTranslationResult> TranslateAsync(
         Guid reviewId,

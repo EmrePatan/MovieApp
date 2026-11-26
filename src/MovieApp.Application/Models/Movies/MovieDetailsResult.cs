@@ -24,4 +24,5 @@ public sealed record MovieDetailsResult(
     bool IsReleased,
     bool CanFollowForRelease,
     bool CanSetReleaseAlert,
-    string? PrimaryOriginCountryCode = null);
+    string? PrimaryOriginCountryCode = null,
+    MovieApp.Application.Models.Catalog.CatalogDetailExtras? Extras = null);

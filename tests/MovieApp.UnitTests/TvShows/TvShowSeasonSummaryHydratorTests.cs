@@ -55,6 +55,58 @@ public sealed class TvShowSeasonSummaryHydratorTests
     }
 
     [Fact]
+    public async Task EnsureSeasonSummariesAsyncRefetchesOnceWhenDetailExtrasAreMissing()
+    {
+        var tvShow = CreateTvShowWithoutSeasons();
+        tvShow.DetailExtrasJson = null;
+        tvShow.Seasons.Add(new Season
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = TvShowId,
+            SeasonNumber = 1,
+            EpisodeCount = 8,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        var repository = new FakeTvShowRepository(tvShow);
+        var provider = new FakeTvShowDataProvider();
+
+        await CreateHydrator(repository, provider).EnsureSeasonSummariesAsync(TvShowId);
+
+        Assert.Equal(1, provider.GetTvShowCalls);
+        Assert.Equal(1, repository.UpsertCalls);
+    }
+
+    [Theory]
+    [InlineData(TvShowStatus.ReturningSeries, 8, 1)]
+    [InlineData(TvShowStatus.ReturningSeries, 6, 0)]
+    [InlineData(TvShowStatus.Ended, 8, 0)]
+    [InlineData(TvShowStatus.Canceled, 8, 0)]
+    public async Task EnsureSeasonSummariesAsyncRefetchesOnlyAnAgedRunningShow(
+        TvShowStatus status,
+        int ageInDays,
+        int expectedProviderCalls)
+    {
+        var tvShow = CreateTvShowWithoutSeasons();
+        tvShow.Status = status;
+        tvShow.TmdbMetadataUpdatedAtUtc = DateTime.UtcNow.AddDays(-ageInDays);
+        tvShow.Seasons.Add(new Season
+        {
+            Id = Guid.NewGuid(),
+            TvShowId = TvShowId,
+            SeasonNumber = 1,
+            EpisodeCount = 8,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        var provider = new FakeTvShowDataProvider();
+
+        await CreateHydrator(new FakeTvShowRepository(tvShow), provider).EnsureSeasonSummariesAsync(TvShowId);
+
+        Assert.Equal(expectedProviderCalls, provider.GetTvShowCalls);
+    }
+
+    [Fact]
     public async Task EnsureSeasonSummariesAsyncSchedulesKeywordsWhenUnsyncedAndSeasonsExist()
     {
         var tvShow = CreateTvShowWithoutSeasons();
@@ -108,6 +160,7 @@ public sealed class TvShowSeasonSummaryHydratorTests
             TmdbId = 900101,
             Title = "Breaking Bad",
             Status = TvShowStatus.Ended,
+            DetailExtrasJson = "{}",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };

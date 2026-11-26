@@ -20,4 +20,5 @@ public sealed record TvShowDetailsResponse(
     IReadOnlyList<string> Genres,
     IReadOnlyList<CatalogKeywordSummaryResponse> Keywords,
     IReadOnlyList<SeasonSummaryResponse> Seasons,
-    bool CanFollow);
+    bool CanFollow,
+    CatalogDetailExtrasResponse? Extras = null);

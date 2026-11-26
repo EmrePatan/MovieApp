@@ -82,6 +82,37 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_WhenDetailExtrasMissing_UpsertsEvenWithCollectionPresent()
+    {
+        var movie = CreateMovie(tmdbCollectionId: 645, collectionName: "Harry Potter Collection");
+        movie.DetailExtrasJson = null;
+        var upsertService = new RecordingCatalogProviderUpsertService(_ => movie);
+        var service = CreateService(
+            movie,
+            new StubMovieDataProvider(CreateProviderDetails(645, "Harry Potter Collection")),
+            upsertService);
+
+        await service.GetByIdAsync(MovieId);
+
+        Assert.NotNull(upsertService.LastDetails);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenProviderFails_StillReturnsTheStoredMovie()
+    {
+        var movie = CreateMovie(tmdbCollectionId: 645, collectionName: "Harry Potter Collection");
+        movie.DetailExtrasJson = null;
+        var service = CreateService(
+            movie,
+            new StubMovieDataProvider(null) { Failure = new HttpRequestException("down") },
+            new NoOpCatalogProviderUpsertService());
+
+        var result = await service.GetByIdAsync(MovieId);
+
+        Assert.Equal(movie.Title, result.Title);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_WhenKeywordsAreUnsynced_SchedulesBackgroundEnrichment()
     {
         var movie = CreateMovie(tmdbCollectionId: 645, collectionName: "Harry Potter Collection");
@@ -139,6 +170,7 @@ public sealed class GetMovieByIdServiceCollectionEnrichmentTests
             Title = "Harry Potter and the Philosopher's Stone",
             TmdbCollectionId = tmdbCollectionId,
             CollectionName = collectionName,
+            DetailExtrasJson = "{}",
             ReleaseDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-20)),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,

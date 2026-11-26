@@ -139,7 +139,7 @@ public sealed class TmdbTvShowDataProvider(
 
     private static string BuildTvShowDetailsPath(int tmdbId, bool includeKeywords)
     {
-        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations", "images" };
+        var appendParts = new List<string> { "external_ids", "alternative_titles", "translations", "images", "content_ratings" };
         if (includeKeywords)
         {
             appendParts.Add("keywords");
