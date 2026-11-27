@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Movie Cave — Uygulamayı indir | Get the app</title>
+    <meta name="description" content="Movie Cave uygulamasını App Store veya Google Play'den indir." />
+    <link rel="stylesheet" href="/assets/css/site.css" />
+    <link rel="icon" href="/assets/images/movie-cave-logo.png" type="image/png" />
+    <style>
+      .get-app { max-width: 26rem; margin: 0 auto; padding: 3rem 1.25rem; text-align: center; }
+      .get-app img { border-radius: 1.25rem; }
+      .get-app .button { display: flex; justify-content: center; margin-top: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <main class="get-app">
+      <img src="/assets/images/movie-cave-app-icon.png" alt="" width="96" height="96" />
+      <h1>Movie Cave</h1>
+      <p>Film ve dizi yolculuğun burada.<br /><span lang="en">Your film &amp; TV journey starts here.</span></p>
+      <a id="ios" class="button button-primary" href="https://apps.apple.com/app/id6814454427">App Store</a>
+      <a id="android" class="button button-secondary" href="https://play.google.com/store/apps/details?id=com.movieapp.mobile">Google Play</a>
+    </main>
+    <script>
+      (function () {
+        var agent = navigator.userAgent;
+        // iPadOS reports a desktop Mac user agent; touch support tells it apart.
+        var isIos = /iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1);
+        var target = isIos ? 'ios' : /Android/.test(agent) ? 'android' : null;
+        // The buttons stay on the page for desktops and for in-app browsers that block the redirect.
+        if (target) {
+          window.location.replace(document.getElementById(target).href);
+        }
+      })();
+    </script>
+  </body>
+</html>
