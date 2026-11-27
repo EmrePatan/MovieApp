@@ -2387,8 +2387,13 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "CreatedAtUtc", "Id")
                         .IsDescending(false, true, true);
 
-                    b.HasIndex("UserId", "TvShowId", "MovieId", "NotificationType", "AggregationWindowKey")
-                        .IsUnique();
+                    b.HasIndex("UserId", "MovieId", "NotificationType", "AggregationWindowKey")
+                        .IsUnique()
+                        .HasFilter("\"MovieId\" IS NOT NULL");
+
+                    b.HasIndex("UserId", "TvShowId", "NotificationType", "AggregationWindowKey")
+                        .IsUnique()
+                        .HasFilter("\"TvShowId\" IS NOT NULL");
 
                     b.ToTable("user_release_notifications", null, t =>
                         {

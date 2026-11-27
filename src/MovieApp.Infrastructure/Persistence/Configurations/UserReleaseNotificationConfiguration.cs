@@ -79,15 +79,27 @@ internal sealed class UserReleaseNotificationConfiguration : IEntityTypeConfigur
         builder.HasIndex(notification => notification.UserId)
             .HasFilter("\"ReadAtUtc\" IS NULL");
 
+        // One index per content kind: the other content column is always NULL, and PostgreSQL
+        // treats NULLs as distinct, so a single index over both would never reject anything.
         builder.HasIndex(notification => new
             {
                 notification.UserId,
                 notification.TvShowId,
+                notification.NotificationType,
+                notification.AggregationWindowKey
+            })
+            .IsUnique()
+            .HasFilter("\"TvShowId\" IS NOT NULL");
+
+        builder.HasIndex(notification => new
+            {
+                notification.UserId,
                 notification.MovieId,
                 notification.NotificationType,
                 notification.AggregationWindowKey
             })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"MovieId\" IS NOT NULL");
 
         builder.HasAlternateKey(notification => new
         {
