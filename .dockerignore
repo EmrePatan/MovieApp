@@ -49,3 +49,6 @@ node_modules/
 # Docker build context helpers
 docker-compose*.yml
 Dockerfile*
+
+# Six Labors license key (secret, never commit)
+**/sixlabors.lic
