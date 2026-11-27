@@ -93,35 +93,85 @@ public sealed class TmdbChangesSyncCoordinatorTests
     }
 
     [Fact]
-    public async Task SyncAsync_DoesNotAdvanceCheckpoint_WhenAnyTargetRefreshFails()
+    public async Task SyncAsync_DefersABrokenTitleAndAdvancesTheCheckpoint()
     {
-        const int tmdbId = 505;
-        var syncInstant = new DateTime(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
-        var targetDate = DateOnly.FromDateTime(syncInstant);
-        var checkpoint = new FakeCheckpointRepository { LastCompletedEndDate = targetDate.AddDays(-1) };
-        var maps = CatalogChangesRefreshMaps.Create(
-            new Dictionary<int, Guid> { [tmdbId] = Guid.NewGuid() },
-            new Dictionary<int, Guid>());
+        var targets = Targets(1);
+        var checkpoint = YesterdayCheckpoint();
 
-        var result = await TmdbChangesSyncCoordinator.SyncAsync(
+        var result = await RunAsync(targets, checkpoint, _ => TmdbChangesTargetRefreshOutcome.Failed);
+
+        Assert.Equal(1, result.Failed);
+        Assert.Equal(1, result.WindowsProcessed);
+        Assert.Equal(targets.Values.Single(), Assert.Single(checkpoint.Failures).Key);
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(30)]
+    public async Task SyncAsync_KeepsTheWindow_WhenEveryRefreshFails(int targetCount)
+    {
+        var checkpoint = YesterdayCheckpoint();
+
+        var result = await RunAsync(
+            Targets(targetCount),
+            checkpoint,
+            _ => TmdbChangesTargetRefreshOutcome.Failed);
+
+        Assert.Equal(0, result.WindowsProcessed);
+        Assert.Empty(checkpoint.CompletedWindows);
+        Assert.Empty(checkpoint.Failures);
+    }
+
+    [Fact]
+    public async Task SyncAsync_StopsRetryingATitleAfterTheLimit_AndKeepsItsRow()
+    {
+        var targets = Targets(1);
+        var checkpoint = YesterdayCheckpoint();
+
+        for (var run = 0; run < 10; run++)
+        {
+            await RunAsync(targets, checkpoint, _ => TmdbChangesTargetRefreshOutcome.Failed);
+        }
+
+        Assert.Equal(TmdbChangesSyncCoordinator.MaxRetries, Assert.Single(checkpoint.Failures).Value.RetryCount);
+    }
+
+    [Fact]
+    public async Task SyncAsync_RemovesTheFailureRow_WhenARetryWorks()
+    {
+        var targets = Targets(1);
+        var checkpoint = YesterdayCheckpoint();
+        await RunAsync(targets, checkpoint, _ => TmdbChangesTargetRefreshOutcome.Failed);
+
+        await RunAsync(targets, checkpoint, _ => TmdbChangesTargetRefreshOutcome.Refreshed);
+
+        Assert.Empty(checkpoint.Failures);
+    }
+
+    private static readonly DateTime Instant = new(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
+
+    private static Dictionary<int, Guid> Targets(int count) =>
+        Enumerable.Range(1, count).ToDictionary(id => id, _ => Guid.NewGuid());
+
+    private static FakeCheckpointRepository YesterdayCheckpoint() =>
+        new() { LastCompletedEndDate = DateOnly.FromDateTime(Instant).AddDays(-1) };
+
+    private static Task<TmdbChangesSyncResult> RunAsync(
+        Dictionary<int, Guid> targets,
+        FakeCheckpointRepository checkpoint,
+        Func<Guid, TmdbChangesTargetRefreshOutcome> refresh) =>
+        TmdbChangesSyncCoordinator.SyncAsync(
             "movie",
             (_, _, page, _) => Task.FromResult(
                 page == 1
-                    ? new TmdbChangesPageResult([tmdbId], 1, 1)
+                    ? new TmdbChangesPageResult(targets.Keys.ToArray(), 1, 1)
                     : new TmdbChangesPageResult([], page, 1)),
-            (_, _) => Task.FromResult(maps),
-            (_, _, _, _) => Task.FromResult(new TmdbChangesTargetRefreshResult(
-                TmdbChangesTargetRefreshOutcome.Failed,
-                [])),
+            (_, _) => Task.FromResult(CatalogChangesRefreshMaps.Create(targets, new Dictionary<int, Guid>())),
+            (id, _, _, _) => Task.FromResult(new TmdbChangesTargetRefreshResult(refresh(id), [])),
             checkpoint,
             NullLogger.Instance,
             "movie",
-            syncInstant);
-
-        Assert.Equal(1, result.Failed);
-        Assert.Equal(0, result.WindowsProcessed);
-        Assert.Empty(checkpoint.CompletedWindows);
-    }
+            Instant);
 
     [Fact]
     public async Task SyncAsync_BoundsTargetRefreshConcurrency()
@@ -197,27 +247,5 @@ public sealed class TmdbChangesSyncCoordinatorTests
             NullLogger.Instance,
             "movie",
             syncInstant);
-    }
-
-    private sealed class FakeCheckpointRepository : ITmdbTvChangesSyncCheckpointRepository
-    {
-        public DateOnly? LastCompletedEndDate { get; init; }
-
-        public List<DateOnly> CompletedWindows { get; } = [];
-
-        public Task<DateOnly?> GetLastCompletedEndDateAsync(
-            string checkpointKey,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(LastCompletedEndDate);
-
-        public Task CompleteWindowAsync(
-            string checkpointKey,
-            DateOnly completedEndDate,
-            DateTime completedAtUtc,
-            CancellationToken cancellationToken = default)
-        {
-            CompletedWindows.Add(completedEndDate);
-            return Task.CompletedTask;
-        }
     }
 }

@@ -7,5 +7,6 @@ public interface ITvUpcomingEpisodeSyncRepository
     Task<IReadOnlyList<TvUpcomingEpisodeSyncCandidate>> SelectStaleFollowedShowsAsync(
         int batchSize,
         DateTime staleBeforeUtc,
+        DateTime failedBeforeUtc,
         CancellationToken cancellationToken = default);
 }

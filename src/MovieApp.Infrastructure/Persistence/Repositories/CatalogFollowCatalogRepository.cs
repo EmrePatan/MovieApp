@@ -92,14 +92,9 @@ public sealed class CatalogFollowCatalogRepository(
         var movieCount = await movieQuery.CountAsync(cancellationToken);
         var tvCount = await tvQuery.CountAsync(cancellationToken);
 
-        IReadOnlyList<UpcomingCatalogRow> episodeRows = [];
-        var episodeCount = 0;
-
-        if (userId.HasValue)
-        {
-            episodeRows = await GetFollowedTvNextEpisodeRowsAsync(userId.Value, today, cancellationToken);
-            episodeCount = episodeRows.Count;
-        }
+        var episodeCount = userId.HasValue
+            ? await FollowedTvNextEpisodeQuery(userId.Value, today).CountAsync(cancellationToken)
+            : 0;
 
         var totalCount = movieCount + tvCount + episodeCount;
         var skipLong = (long)(page - 1) * pageSize;
@@ -131,16 +126,24 @@ public sealed class CatalogFollowCatalogRepository(
                 .Select(row => ToTvShowPremiereRow(row.ContentId, row.Title, row.PosterPath, row.ReleaseDate))
                 .ToList();
 
-        var orderedEpisodeRows = episodeRows
-            .OrderBy(item => item.ReleaseDate)
-            .ThenBy(item => item.ContentId)
-            .Take(fetchCount)
-            .ToList();
+        var episodeRows = userId.HasValue
+            ? (await FetchBoundedFollowedUpcomingEpisodeRowsAsync(userId.Value, today, fetchCount, cancellationToken))
+                .Select(row => ToTvEpisodeRow(
+                    row.ContentId,
+                    row.Title,
+                    row.PosterPath,
+                    row.ReleaseDate,
+                    row.EpisodeId!.Value,
+                    row.SeasonNumber!.Value,
+                    row.EpisodeNumber!.Value,
+                    row.EpisodeName))
+                .ToList()
+            : [];
 
         var rows = CatalogUpcomingTvPremiereDedup.SuppressShadowedTvShowPremieres(
                 movieRows
                     .Concat(tvRows)
-                    .Concat(orderedEpisodeRows)
+                    .Concat(episodeRows)
                     .ToList(),
                 static row => row.UpcomingKind,
                 static row => row.ContentId,
@@ -540,27 +543,6 @@ public sealed class CatalogFollowCatalogRepository(
             row.SeasonNumber,
             row.EpisodeNumber,
             row.EpisodeName);
-
-    private async Task<IReadOnlyList<UpcomingCatalogRow>> GetFollowedTvNextEpisodeRowsAsync(
-        Guid userId,
-        DateOnly today,
-        CancellationToken cancellationToken = default)
-    {
-        var nextEpisodes = await FollowedTvNextEpisodeQuery(userId, today)
-            .ToListAsync(cancellationToken);
-
-        return nextEpisodes
-            .Select(row => ToTvEpisodeRow(
-                row.ContentId,
-                row.Title,
-                row.PosterPath,
-                row.ReleaseDate,
-                row.EpisodeId,
-                row.SeasonNumber,
-                row.EpisodeNumber,
-                row.EpisodeName))
-            .ToList();
-    }
 
     internal IQueryable<FollowedNextEpisodeRow> FollowedTvNextEpisodeQuery(Guid userId, DateOnly today) =>
         (

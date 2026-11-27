@@ -1828,6 +1828,29 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                     b.ToTable("streaming_leaving_regions", (string)null);
                 });
 
+            modelBuilder.Entity("MovieApp.Domain.Entities.TmdbChangesFailedTarget", b =>
+                {
+                    b.Property<string>("CheckpointKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("ChangeDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("LastFailedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("CheckpointKey", "TargetId");
+
+                    b.ToTable("tmdb_changes_failed_targets", (string)null);
+                });
+
             modelBuilder.Entity("MovieApp.Domain.Entities.TmdbTvChangesSyncCheckpoint", b =>
                 {
                     b.Property<string>("CheckpointKey")
@@ -1974,6 +1997,9 @@ namespace MovieApp.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("LastUpcomingEpisodeSyncAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastUpcomingEpisodeSyncFailedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("NextHotCheckAtUtc")

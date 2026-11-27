@@ -45,4 +45,12 @@ public interface ITvShowCatalogSyncStateRepository
         Guid tvShowId,
         DateTime syncedAtUtc,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records a failed upcoming-episode sync. Discards unsaved changes left by the failed work.
+    /// </summary>
+    Task MarkUpcomingEpisodeSyncFailedAsync(
+        Guid tvShowId,
+        DateTime failedAtUtc,
+        CancellationToken cancellationToken = default);
 }

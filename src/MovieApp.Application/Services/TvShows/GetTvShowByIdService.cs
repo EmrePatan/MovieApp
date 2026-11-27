@@ -44,7 +44,8 @@ public sealed class GetTvShowByIdService(
     {
         var cacheKey = TvShowDetailsCacheKeys.Create(id);
         var cachedEntry = await cacheService.GetAsync<TvShowDetailsCacheEntry>(cacheKey, cancellationToken);
-        if (cachedEntry is not null && cachedEntry.Result.Seasons.Count > 0)
+        if (cachedEntry is not null &&
+            (cachedEntry.Result.Seasons.Count > 0 || cachedEntry.SeasonsConfirmedEmpty))
         {
             return await FinalizeTvShowDetailsAsync(id, cachedEntry.Result, contentLocale, cancellationToken);
         }
@@ -64,7 +65,11 @@ public sealed class GetTvShowByIdService(
 
         await cacheService.SetAsync(
             cacheKey,
-            new TvShowDetailsCacheEntry { Result = result },
+            new TvShowDetailsCacheEntry
+            {
+                Result = result,
+                SeasonsConfirmedEmpty = hydrationResult.ProviderCatalogRefreshed && result.Seasons.Count == 0
+            },
             DetailsCacheTtl,
             cancellationToken);
 

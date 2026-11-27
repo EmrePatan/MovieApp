@@ -108,26 +108,6 @@ public sealed class TmdbMovieChangesSyncServiceTests
             Task.FromResult(Pages[page - 1]);
     }
 
-    private sealed class FakeCheckpointRepository : ITmdbTvChangesSyncCheckpointRepository
-    {
-        public DateOnly? LastCompletedEndDate { get; set; }
-
-        public Task<DateOnly?> GetLastCompletedEndDateAsync(
-            string checkpointKey,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(LastCompletedEndDate);
-
-        public Task CompleteWindowAsync(
-            string checkpointKey,
-            DateOnly completedEndDate,
-            DateTime completedAtUtc,
-            CancellationToken cancellationToken = default)
-        {
-            LastCompletedEndDate = completedEndDate;
-            return Task.CompletedTask;
-        }
-    }
-
     private sealed class FakeRelevanceRepository(
         IReadOnlyDictionary<int, Guid> userRelevant,
         IReadOnlyDictionary<int, Guid>? discoveryRelevant = null)

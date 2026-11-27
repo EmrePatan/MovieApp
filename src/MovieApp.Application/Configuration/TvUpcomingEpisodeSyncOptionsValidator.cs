@@ -16,6 +16,11 @@ public sealed class TvUpcomingEpisodeSyncOptionsValidator : IValidateOptions<TvU
             return ValidateOptionsResult.Fail("TvUpcomingEpisodeSync:FreshnessTtlHours must be between 1 and 168.");
         }
 
+        if (options.FailureCooldownHours is < 1 or > 168)
+        {
+            return ValidateOptionsResult.Fail("TvUpcomingEpisodeSync:FailureCooldownHours must be between 1 and 168.");
+        }
+
         return ValidateOptionsResult.Success;
     }
 }

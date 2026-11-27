@@ -11,6 +11,7 @@ public sealed class TvUpcomingEpisodeSyncRepository(ApplicationDbContext dbConte
     public async Task<IReadOnlyList<TvUpcomingEpisodeSyncCandidate>> SelectStaleFollowedShowsAsync(
         int batchSize,
         DateTime staleBeforeUtc,
+        DateTime failedBeforeUtc,
         CancellationToken cancellationToken = default)
     {
         if (batchSize <= 0)
@@ -26,8 +27,10 @@ public sealed class TvUpcomingEpisodeSyncRepository(ApplicationDbContext dbConte
                     on tvShow.Id equals sync.TvShowId into syncJoin
                 from sync in syncJoin.DefaultIfEmpty()
                 where sync == null ||
-                      sync.LastUpcomingEpisodeSyncAtUtc == null ||
-                      sync.LastUpcomingEpisodeSyncAtUtc < staleBeforeUtc
+                      ((sync.LastUpcomingEpisodeSyncAtUtc == null ||
+                        sync.LastUpcomingEpisodeSyncAtUtc < staleBeforeUtc) &&
+                       (sync.LastUpcomingEpisodeSyncFailedAtUtc == null ||
+                        sync.LastUpcomingEpisodeSyncFailedAtUtc < failedBeforeUtc))
                 select new TvUpcomingEpisodeSyncCandidate(
                     tvShow.Id,
                     tvShow.TmdbId,

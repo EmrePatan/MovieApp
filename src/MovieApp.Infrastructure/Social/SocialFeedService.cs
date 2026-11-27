@@ -72,8 +72,7 @@ public sealed class SocialFeedService(
         var safePageSize = Math.Clamp(pageSize, 1, 50);
         var isHomeFeed = !actorId.HasValue && !activityId.HasValue;
         var discoveryCutoff = DateTime.UtcNow.AddDays(-14);
-        var applyActorCap = isHomeFeed && feedMode is SocialFeedMode.Mixed or SocialFeedMode.Discover;
-        var queryTake = applyActorCap ? Math.Min((safePageSize + 1) * 4, 200) : safePageSize + 1;
+        var spreadActors = isHomeFeed && feedMode is SocialFeedMode.Mixed or SocialFeedMode.Discover;
         (DateTime CreatedAt, string Id)? decodedCursor = DecodeCursor(cursor);
 
         var query =
@@ -146,16 +145,19 @@ public sealed class SocialFeedService(
         var rows = await query
             .OrderByDescending(item => item.Activity.CreatedAt)
             .ThenByDescending(item => item.Activity.Id)
-            .Take(queryTake)
+            .Take(safePageSize + 1)
             .ToListAsync(cancellationToken);
 
-        var fetchedCount = rows.Count;
-        if (applyActorCap)
-            rows = CapRowsPerActor(rows, safePageSize + 1, maxPerActor: 3, row => row.ActorId);
-
-        var hasMore = rows.Count > safePageSize || (applyActorCap && fetchedCount >= queryTake);
+        var hasMore = rows.Count > safePageSize;
         if (hasMore) rows.RemoveAt(rows.Count - 1);
         if (rows.Count == 0) return new SocialFeedPageResult([], null);
+
+        // The cursor is the oldest row of the page, so it is taken before any reordering.
+        var nextCursor = hasMore
+            ? EncodeCursor(rows[^1].Activity.CreatedAt, rows[^1].Activity.Id)
+            : null;
+        if (spreadActors)
+            rows = SpreadActors(rows, maxPerActor: 3, row => row.ActorId);
 
         var movieIds = rows.Where(row => row.Activity.TargetContentType == "Movie")
             .Select(row => row.Activity.TargetContentId).Distinct().ToArray();
@@ -275,7 +277,7 @@ public sealed class SocialFeedService(
         foreach (var (highlightedActivityId, highlight) in highlightComments)
         {
             if (!activitiesById.TryGetValue(highlightedActivityId, out var ratedActivity)) continue;
-            catalogRatingKeys.Add((highlight.Comment.UserId, ratedActivity.TargetContentType, ratedActivity.TargetContentId));
+            catalogRatingKeys.Add((highlight.UserId,ratedActivity.TargetContentType, ratedActivity.TargetContentId));
         }
 
         var catalogRatings = await LoadUserCatalogRatingsAsync(catalogRatingKeys, episodeShowIds, cancellationToken);
@@ -359,9 +361,9 @@ public sealed class SocialFeedService(
             }
 
             int? highlightAuthorRating = null;
-            if (highlight?.Comment is { } highlightComment)
+            if (highlight is not null)
                 highlightAuthorRating = ResolveUserCatalogRating(
-                    catalogRatings, highlightComment.UserId, activity.TargetContentType, activity.TargetContentId, episodeShowIds);
+                    catalogRatings, highlight.UserId, activity.TargetContentType, activity.TargetContentId, episodeShowIds);
 
             var actorCatalogRating = ResolveUserCatalogRating(
                 catalogRatings, row.ActorId, activity.TargetContentType, activity.TargetContentId, episodeShowIds);
@@ -381,13 +383,11 @@ public sealed class SocialFeedService(
                 catalogNavigationId, catalogNavigationType,
                 catalogSeasonNumber, catalogEpisodeNumber,
                 reviewRow?.Id, reviewRow?.AuthoringLocale, reviewRow?.UpdatedAt,
-                highlight?.Comment, highlight?.ParentContent, highlight?.ParentDisplayName,
+                // Only top-level comments are highlighted, so there is never a parent to show.
+                highlight, null, null,
                 highlightAuthorRating));
         }
 
-        var nextCursor = hasMore && rows.Count > 0
-            ? EncodeCursor(rows[^1].Activity.CreatedAt, rows[^1].Activity.Id)
-            : null;
         return new SocialFeedPageResult(items, nextCursor);
     }
 
@@ -410,55 +410,44 @@ public sealed class SocialFeedService(
     private static string EncodeCursor(DateTime createdAt, Guid id) =>
         Convert.ToBase64String(Encoding.UTF8.GetBytes($"{createdAt.Ticks}|{id:D}"));
 
-    private sealed record ActivityCommentHighlight(
-        SocialCommentResult Comment,
-        string? ParentContent,
-        string? ParentDisplayName);
-
-    private async Task<Dictionary<Guid, ActivityCommentHighlight>> BuildHighlightCommentsAsync(
+    private async Task<Dictionary<Guid, SocialCommentResult>> BuildHighlightCommentsAsync(
         Guid[] activityIds, Guid viewerId, CancellationToken cancellationToken)
     {
         if (activityIds.Length == 0) return [];
 
-        var commentRows = await (
+        var visibleComments =
             from comment in dbContext.SocialComments.AsNoTracking()
-            join user in dbContext.Users.AsNoTracking() on comment.AuthorId equals user.Id
             where activityIds.Contains(comment.ActivityId)
                 && comment.ParentCommentId == null
-                && !comment.IsDeleted && user.IsActive
+                && !comment.IsDeleted
+                && dbContext.Users.Any(user => user.Id == comment.AuthorId && user.IsActive)
                 && !dbContext.UserBlocks.Any(block =>
                     (block.BlockerId == viewerId && block.BlockedUserId == comment.AuthorId)
                     || (block.BlockerId == comment.AuthorId && block.BlockedUserId == viewerId))
+            select comment;
+
+        // One row per activity leaves the database, however many comments it has.
+        var latestIds = visibleComments
+            .GroupBy(comment => comment.ActivityId)
+            .Select(group => group
+                .OrderByDescending(comment => comment.CreatedAt)
+                .ThenByDescending(comment => comment.Id)
+                .Select(comment => comment.Id)
+                .First());
+
+        var latestRows = await (
+            from comment in dbContext.SocialComments.AsNoTracking()
+            join user in dbContext.Users.AsNoTracking() on comment.AuthorId equals user.Id
+            where latestIds.Contains(comment.Id)
             select new
             {
                 comment.Id, comment.ActivityId, comment.AuthorId, user.UserName, user.DisplayName,
                 comment.ParentCommentId, comment.Content, comment.AuthoringLocale, comment.CreatedAt, comment.UpdatedAt
             }).ToListAsync(cancellationToken);
 
-        if (commentRows.Count == 0) return [];
+        if (latestRows.Count == 0) return [];
 
-        var latestByActivity = commentRows
-            .GroupBy(row => row.ActivityId)
-            .ToDictionary(group => group.Key, group => group
-                .OrderByDescending(row => row.CreatedAt)
-                .ThenByDescending(row => row.Id)
-                .First());
-
-        var parentIds = latestByActivity.Values
-            .Where(row => row.ParentCommentId.HasValue)
-            .Select(row => row.ParentCommentId!.Value)
-            .Distinct()
-            .ToArray();
-        var parentRows = parentIds.Length == 0
-            ? []
-            : await (
-                from comment in dbContext.SocialComments.AsNoTracking()
-                join author in dbContext.Users.AsNoTracking() on comment.AuthorId equals author.Id
-                where parentIds.Contains(comment.Id) && !comment.IsDeleted
-                select new { comment.Id, comment.Content, author.DisplayName })
-                .ToListAsync(cancellationToken);
-        var parentContents = parentRows.ToDictionary(row => row.Id, row => row.Content);
-        var parentNames = parentRows.ToDictionary(row => row.Id, row => row.DisplayName);
+        var latestByActivity = latestRows.ToDictionary(row => row.ActivityId);
 
         var commentIds = latestByActivity.Values.Select(row => row.Id).ToArray();
         var authorIds = latestByActivity.Values.Select(row => row.AuthorId).Distinct().ToArray();
@@ -493,25 +482,12 @@ public sealed class SocialFeedService(
             pair =>
             {
                 var row = pair.Value;
-                string? parentContent = null;
-                string? parentDisplayName = null;
-                if (row.ParentCommentId is { } parentId)
-                {
-                    if (parentContents.TryGetValue(parentId, out var body) && !string.IsNullOrWhiteSpace(body))
-                        parentContent = TruncateReviewExcerpt(body);
-                    if (parentNames.TryGetValue(parentId, out var parentName) && !string.IsNullOrWhiteSpace(parentName))
-                        parentDisplayName = parentName;
-                }
-
-                return new ActivityCommentHighlight(
-                    new SocialCommentResult(
-                        row.Id, row.ActivityId, row.AuthorId, row.UserName, row.DisplayName,
-                        avatars.TryGetValue(row.AuthorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
-                        row.ParentCommentId, row.Content, row.CreatedAt, row.UpdatedAt,
-                        likes.GetValueOrDefault(row.Id), replies.GetValueOrDefault(row.Id), likedIds.Contains(row.Id),
-                        row.AuthoringLocale),
-                    parentContent,
-                    parentDisplayName);
+                return new SocialCommentResult(
+                    row.Id, row.ActivityId, row.AuthorId, row.UserName, row.DisplayName,
+                    avatars.TryGetValue(row.AuthorId, out var avatar) ? avatar.EffectiveAvatarUrl : null,
+                    row.ParentCommentId, row.Content, row.CreatedAt, row.UpdatedAt,
+                    likes.GetValueOrDefault(row.Id), replies.GetValueOrDefault(row.Id), likedIds.Contains(row.Id),
+                    row.AuthoringLocale);
             });
     }
 
@@ -632,23 +608,24 @@ public sealed class SocialFeedService(
         return content.Length <= maxLength ? content : $"{content[..(maxLength - 1)]}…";
     }
 
-    private static List<T> CapRowsPerActor<T>(List<T> rows, int limit, int maxPerActor, Func<T, Guid> actorIdSelector)
+    /// <summary>
+    /// Moves each actor's rows beyond <paramref name="maxPerActor"/> to the end of the page.
+    /// Nothing is dropped: a row left out of a page would be older than no later cursor.
+    /// </summary>
+    internal static List<T> SpreadActors<T>(List<T> rows, int maxPerActor, Func<T, Guid> actorIdSelector)
     {
-        if (rows.Count <= limit) return rows;
-
         var counts = new Dictionary<Guid, int>();
-        var capped = new List<T>(limit);
+        var leading = new List<T>(rows.Count);
+        var overflow = new List<T>();
         foreach (var row in rows)
         {
             var actorId = actorIdSelector(row);
-            counts.TryGetValue(actorId, out var seen);
-            if (seen >= maxPerActor) continue;
-
+            var seen = counts.GetValueOrDefault(actorId);
             counts[actorId] = seen + 1;
-            capped.Add(row);
-            if (capped.Count >= limit) break;
+            (seen < maxPerActor ? leading : overflow).Add(row);
         }
 
-        return capped;
+        leading.AddRange(overflow);
+        return leading;
     }
 }
