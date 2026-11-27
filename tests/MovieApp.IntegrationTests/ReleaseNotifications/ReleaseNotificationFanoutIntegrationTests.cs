@@ -186,6 +186,51 @@ public sealed class ReleaseNotificationFanoutIntegrationTests(ReleaseNotificatio
         Assert.Equal(1, await context.UserReleaseNotificationEvents.CountAsync());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DatabaseRejectsASecondNotificationForTheSameBucket(bool isTvShow)
+    {
+        await ReleaseNotificationFanoutFixture.ResetAsync();
+
+        var (tvShowId, userId, _) = await SeedFollowedShowWithEventAsync();
+        Guid? movieId = null;
+        if (!isTvShow)
+        {
+            movieId = Guid.NewGuid();
+            await using var seedContext = ReleaseNotificationFanoutFixture.CreateContext();
+            seedContext.Movies.Add(new Movie
+            {
+                Id = movieId.Value,
+                Title = "Bucket Movie",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            await seedContext.SaveChangesAsync();
+        }
+
+        UserReleaseNotification CreateNotification() => new()
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TvShowId = isTvShow ? tvShowId : null,
+            MovieId = movieId,
+            NotificationType = isTvShow
+                ? UserReleaseNotificationType.NewEpisodes
+                : UserReleaseNotificationType.MovieReleased,
+            Status = UserReleaseNotificationStatus.Pending,
+            AggregationWindowKey = "2026-09-15",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await using var context = ReleaseNotificationFanoutFixture.CreateContext();
+        context.UserReleaseNotifications.Add(CreateNotification());
+        await context.SaveChangesAsync();
+        context.UserReleaseNotifications.Add(CreateNotification());
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task NotificationBoundaryUsesDateSemantics()
     {
