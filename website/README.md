@@ -8,6 +8,7 @@ Static site for **https://moviecaveapp.com**.
 - `/privacy/` — Privacy Policy
 - `/terms/` — Terms of Service
 - `/delete-account/` — account deletion instructions (Google Play URL)
+- `/app/` — sends phones to their app store (shareable download link)
 
 ## Commands
 

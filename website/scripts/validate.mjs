@@ -9,6 +9,7 @@ const requiredPaths = [
   "privacy/index.html",
   "terms/index.html",
   "delete-account/index.html",
+  "app/index.html",
   "auth/verify-email/index.html",
   "auth/reset-password/index.html",
   "assets/css/site.css",
