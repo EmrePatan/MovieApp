@@ -92,9 +92,13 @@ public sealed partial class StreamingLeavingFetchService(
             return;
         }
 
-        // Keep the old list when we got nothing, or when an error cut the new one short.
+        // An error or a spent month cuts the list short. The per-fetch cap does not count:
+        // large regions never fit in it, so their capped list is the normal result.
+        var cutShort = download.Failed || download.QuotaExhausted;
+
+        // Keep the old list when we got nothing, or when the new one was cut short.
         if (download.PageCount == 0 ||
-            (download.Failed && await repository.HasUpcomingAsync(region, now, cancellationToken)))
+            (cutShort && await repository.HasUpcomingAsync(region, now, cancellationToken)))
         {
             await repository.SaveRegionAsync(state, cancellationToken);
             return;
@@ -104,7 +108,7 @@ public sealed partial class StreamingLeavingFetchService(
         await repository.ReplaceItemsAsync(region, items, cancellationToken);
 
         state.IsComplete = download.Complete;
-        if (!download.Failed)
+        if (!cutShort)
         {
             state.LastSuccessAtUtc = now;
         }
@@ -125,13 +129,18 @@ public sealed partial class StreamingLeavingFetchService(
         // Reserve before calling: a request that fails still costs quota.
         async Task<bool> TryReserveAsync()
         {
-            if (state.LastFetchRequestCount >= policy.MaxRequestsPerFetch ||
-                !await repository.TryReserveRequestAsync(
+            if (state.LastFetchRequestCount >= policy.MaxRequestsPerFetch)
+            {
+                return false;
+            }
+
+            if (!await repository.TryReserveRequestAsync(
                     periodStart,
                     state.Region,
                     current => StreamingLeavingSchedule.HasQuota(current, state.Region, policy),
                     cancellationToken))
             {
+                download.QuotaExhausted = true;
                 return false;
             }
 
@@ -242,6 +251,8 @@ public sealed partial class StreamingLeavingFetchService(
         public bool Complete { get; set; }
 
         public bool Failed { get; set; }
+
+        public bool QuotaExhausted { get; set; }
 
         public bool NoDataForRegion { get; set; }
     }

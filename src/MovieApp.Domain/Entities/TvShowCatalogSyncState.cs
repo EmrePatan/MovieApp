@@ -16,6 +16,9 @@ public sealed class TvShowCatalogSyncState
 
     public DateTime? LastUpcomingEpisodeSyncAtUtc { get; set; }
 
+    /// <summary>Set while the latest upcoming-episode sync failed; cleared by a success.</summary>
+    public DateTime? LastUpcomingEpisodeSyncFailedAtUtc { get; set; }
+
     public DateTime UpdatedAtUtc { get; set; }
 
     public TvShow TvShow { get; set; } = null!;

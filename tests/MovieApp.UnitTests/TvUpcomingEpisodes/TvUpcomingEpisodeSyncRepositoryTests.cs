@@ -19,11 +19,34 @@ public sealed class TvUpcomingEpisodeSyncRepositoryTests
 
         var candidates = await repository.SelectStaleFollowedShowsAsync(
             10,
+            DateTime.UtcNow.AddHours(-6),
             DateTime.UtcNow.AddHours(-6));
 
         Assert.Single(candidates);
         Assert.Equal(staleShowId, candidates[0].TvShowId);
         Assert.DoesNotContain(candidates, candidate => candidate.TvShowId == freshShowId);
+    }
+
+    [Fact]
+    public async Task SelectStaleFollowedShowsAsync_HoldsBackARecentFailureUntilTheCooldownEnds()
+    {
+        await using var context = CreateContext();
+        var showId = await SeedFollowedShowAsync(context, syncedAtUtc: null);
+        var states = new TvShowCatalogSyncStateRepository(context);
+        await states.MarkUpcomingEpisodeSyncFailedAsync(showId, DateTime.UtcNow.AddHours(-1));
+        var repository = new TvUpcomingEpisodeSyncRepository(context);
+
+        var held = await repository.SelectStaleFollowedShowsAsync(
+            10,
+            DateTime.UtcNow.AddHours(-6),
+            DateTime.UtcNow.AddHours(-6));
+        var released = await repository.SelectStaleFollowedShowsAsync(
+            10,
+            DateTime.UtcNow.AddHours(-6),
+            DateTime.UtcNow);
+
+        Assert.Empty(held);
+        Assert.Equal(showId, Assert.Single(released).TvShowId);
     }
 
     private static ApplicationDbContext CreateContext()

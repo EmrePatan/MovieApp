@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MovieApp.Application.Abstractions.Persistence;
@@ -13,6 +14,16 @@ internal static partial class TmdbChangesSyncCoordinator
     // overwhelm the small production database or TMDB rate limits.
     private static readonly SemaphoreSlim TargetRefreshGate = new(2, 2);
 
+    internal const int MaxRetries = 5;
+
+    private const int RetriesPerRun = 50;
+
+    // More failures than this in one window look like an outage, not a few broken titles.
+    private const int MaxDeferredPerWindow = 25;
+
+    // A window where nothing worked may still move on when only this many titles failed.
+    private const int MaxDeferredWithoutSuccess = 3;
+
     internal static async Task<TmdbChangesSyncResult> SyncAsync(
         string checkpointKey,
         Func<DateOnly, DateOnly, int, CancellationToken, Task<TmdbChangesPageResult>> getChangesPageAsync,
@@ -25,6 +36,16 @@ internal static partial class TmdbChangesSyncCoordinator
         CancellationToken cancellationToken = default)
     {
         var syncInstant = utcNow ?? DateTime.UtcNow;
+
+        await RetryFailedTargetsAsync(
+            checkpointKey,
+            refreshTargetAsync,
+            checkpointRepository,
+            logger,
+            mediaTypeLabel,
+            syncInstant,
+            cancellationToken);
+
         var targetDate = TmdbTvChangesWindowPlanner.DetermineTargetDate(syncInstant);
 
         var lastCompletedEndDate = await checkpointRepository.GetLastCompletedEndDateAsync(
@@ -89,69 +110,20 @@ internal static partial class TmdbChangesSyncCoordinator
             totalRelevantTargets += targetIds.Count;
             LogMemorySnapshot(logger, mediaTypeLabel, chunk.Start, chunk.End, "AfterResolve", changedTmdbIds.Count, targetIds.Count);
 
-            var chunkRefreshed = 0;
-            var chunkSkipped = 0;
-            var chunkFailed = 0;
+            var outcome = await RefreshTargetsAsync(
+                targetIds.Select(targetId => (targetId, chunk.End)).ToList(),
+                refreshTargetAsync,
+                logger,
+                mediaTypeLabel,
+                cancellationToken);
+            var chunkRefreshed = outcome.Refreshed;
+            var chunkSkipped = outcome.Skipped;
+            var chunkFailed = outcome.FailedIds.Count;
 
-            await Parallel.ForEachAsync(
-                targetIds,
-                new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = 2,
-                    CancellationToken = cancellationToken
-                },
-                async (targetId, token) =>
-                {
-                    await TargetRefreshGate.WaitAsync(token);
-                    try
-                    {
-                        var refreshResult = await refreshTargetAsync(
-                            targetId,
-                            chunk.End,
-                            chunk.End,
-                            token);
-
-                        switch (refreshResult.Outcome)
-                        {
-                            case TmdbChangesTargetRefreshOutcome.Refreshed:
-                                Interlocked.Increment(ref chunkRefreshed);
-                                break;
-                            case TmdbChangesTargetRefreshOutcome.SkippedUnavailable:
-                            case TmdbChangesTargetRefreshOutcome.SkippedNotFound:
-                                Interlocked.Increment(ref chunkSkipped);
-                                TmdbChangesSyncLogMessages.LogSkippedTargetRefresh(
-                                    logger,
-                                    mediaTypeLabel,
-                                    targetId,
-                                    refreshResult.Outcome);
-                                break;
-                            default:
-                                Interlocked.Increment(ref chunkFailed);
-                                TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
-                                    logger,
-                                    mediaTypeLabel,
-                                    targetId);
-                                break;
-                        }
-                    }
-                    catch (OperationCanceledException) when (token.IsCancellationRequested)
-                    {
-                        throw;
-                    }
-                    catch (Exception exception)
-                    {
-                        Interlocked.Increment(ref chunkFailed);
-                        TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
-                            logger,
-                            exception,
-                            mediaTypeLabel,
-                            targetId);
-                    }
-                    finally
-                    {
-                        TargetRefreshGate.Release();
-                    }
-                });
+            await checkpointRepository.ResolveFailuresAsync(
+                checkpointKey,
+                outcome.SucceededIds,
+                cancellationToken);
 
             totalRefreshed += chunkRefreshed;
             totalSkipped += chunkSkipped;
@@ -172,11 +144,24 @@ internal static partial class TmdbChangesSyncCoordinator
                 chunkSkipped,
                 chunkFailed);
 
-            // Do not advance the date checkpoint when any target failed. Otherwise a
-            // transient provider/database error would permanently skip that target.
+            // A few broken titles are kept for retry so they cannot hold the window forever.
+            // During an outage the window stays, and the whole range is read again later.
             if (chunkFailed > 0)
             {
-                break;
+                var canDefer = chunkFailed <= MaxDeferredPerWindow
+                               && (chunkRefreshed + chunkSkipped > 0 || chunkFailed <= MaxDeferredWithoutSuccess);
+                if (!canDefer)
+                {
+                    break;
+                }
+
+                await checkpointRepository.RecordFailuresAsync(
+                    checkpointKey,
+                    outcome.FailedIds,
+                    chunk.End,
+                    MaxRetries,
+                    syncInstant,
+                    cancellationToken);
             }
 
             await checkpointRepository.CompleteWindowAsync(
@@ -213,6 +198,151 @@ internal static partial class TmdbChangesSyncCoordinator
             totalDiscoveryMatches,
             totalDiscoveryOnlyMatches);
     }
+
+    private static async Task RetryFailedTargetsAsync(
+        string checkpointKey,
+        Func<Guid, DateOnly, DateOnly, CancellationToken, Task<TmdbChangesTargetRefreshResult>> refreshTargetAsync,
+        ITmdbTvChangesSyncCheckpointRepository checkpointRepository,
+        ILogger logger,
+        string mediaTypeLabel,
+        DateTime syncInstant,
+        CancellationToken cancellationToken)
+    {
+        var pending = await checkpointRepository.GetRetryableFailuresAsync(
+            checkpointKey,
+            MaxRetries,
+            RetriesPerRun,
+            cancellationToken);
+
+        if (pending.Count > 0)
+        {
+            var outcome = await RefreshTargetsAsync(
+                pending.Select(failure => (failure.TargetId, failure.ChangeDate)).ToList(),
+                refreshTargetAsync,
+                logger,
+                mediaTypeLabel,
+                cancellationToken);
+
+            await checkpointRepository.ResolveFailuresAsync(
+                checkpointKey,
+                outcome.SucceededIds,
+                cancellationToken);
+
+            // When every retry fails the cause is probably an outage, so no attempt is spent.
+            if (outcome.SucceededIds.Count > 0 || outcome.FailedIds.Count <= MaxDeferredWithoutSuccess)
+            {
+                foreach (var targetId in outcome.FailedIds)
+                {
+                    await checkpointRepository.RecordRetryFailureAsync(
+                        checkpointKey,
+                        targetId,
+                        syncInstant,
+                        cancellationToken);
+                }
+            }
+        }
+
+        var exhausted = await checkpointRepository.CountExhaustedFailuresAsync(
+            checkpointKey,
+            MaxRetries,
+            cancellationToken);
+        if (exhausted > 0)
+        {
+            LogExhaustedTargets(logger, mediaTypeLabel, exhausted);
+        }
+    }
+
+    private static async Task<RefreshOutcome> RefreshTargetsAsync(
+        IReadOnlyList<(Guid TargetId, DateOnly ChangeDate)> targets,
+        Func<Guid, DateOnly, DateOnly, CancellationToken, Task<TmdbChangesTargetRefreshResult>> refreshTargetAsync,
+        ILogger logger,
+        string mediaTypeLabel,
+        CancellationToken cancellationToken)
+    {
+        var refreshed = 0;
+        var skipped = 0;
+        var succeededIds = new ConcurrentBag<Guid>();
+        var failedIds = new ConcurrentBag<Guid>();
+
+        await Parallel.ForEachAsync(
+            targets,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 2,
+                CancellationToken = cancellationToken
+            },
+            async (target, token) =>
+            {
+                await TargetRefreshGate.WaitAsync(token);
+                try
+                {
+                    var refreshResult = await refreshTargetAsync(
+                        target.TargetId,
+                        target.ChangeDate,
+                        target.ChangeDate,
+                        token);
+
+                    switch (refreshResult.Outcome)
+                    {
+                        case TmdbChangesTargetRefreshOutcome.Refreshed:
+                            Interlocked.Increment(ref refreshed);
+                            succeededIds.Add(target.TargetId);
+                            break;
+                        case TmdbChangesTargetRefreshOutcome.SkippedUnavailable:
+                        case TmdbChangesTargetRefreshOutcome.SkippedNotFound:
+                            Interlocked.Increment(ref skipped);
+                            succeededIds.Add(target.TargetId);
+                            TmdbChangesSyncLogMessages.LogSkippedTargetRefresh(
+                                logger,
+                                mediaTypeLabel,
+                                target.TargetId,
+                                refreshResult.Outcome);
+                            break;
+                        default:
+                            failedIds.Add(target.TargetId);
+                            TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
+                                logger,
+                                mediaTypeLabel,
+                                target.TargetId);
+                            break;
+                    }
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    failedIds.Add(target.TargetId);
+                    TmdbChangesSyncLogMessages.LogFailedTargetRefresh(
+                        logger,
+                        exception,
+                        mediaTypeLabel,
+                        target.TargetId);
+                }
+                finally
+                {
+                    TargetRefreshGate.Release();
+                }
+            });
+
+        return new RefreshOutcome(refreshed, skipped, succeededIds.ToArray(), failedIds.ToArray());
+    }
+
+    private sealed record RefreshOutcome(
+        int Refreshed,
+        int Skipped,
+        IReadOnlyCollection<Guid> SucceededIds,
+        IReadOnlyCollection<Guid> FailedIds);
+
+    [LoggerMessage(
+        EventId = 6402,
+        Level = LogLevel.Warning,
+        Message = "TMDB changes sync gave up on {Count} {MediaType} titles; see tmdb_changes_failed_targets.")]
+    private static partial void LogExhaustedTargetsMessage(ILogger logger, string mediaType, int count);
+
+    private static void LogExhaustedTargets(ILogger logger, string mediaTypeLabel, int count) =>
+        LogExhaustedTargetsMessage(logger, mediaTypeLabel, count);
 
     [LoggerMessage(
         EventId = 6401,

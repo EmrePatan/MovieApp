@@ -114,6 +114,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<TmdbTvChangesSyncCheckpoint> TmdbTvChangesSyncCheckpoints => Set<TmdbTvChangesSyncCheckpoint>();
 
+    public DbSet<TmdbChangesFailedTarget> TmdbChangesFailedTargets => Set<TmdbChangesFailedTarget>();
+
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
     public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
     public DbSet<UserWatchPlatformPreference> UserWatchPlatformPreferences => Set<UserWatchPlatformPreference>();

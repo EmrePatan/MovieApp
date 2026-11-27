@@ -32,6 +32,7 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
         Assert.Equal(0, result.Succeeded);
         Assert.Equal(1, result.Failed);
         Assert.Equal(SyncedAtUtc.AddHours(-12), syncStateRepository.GetLastSync(TvShowId));
+        Assert.Equal(TvShowId, Assert.Single(syncStateRepository.FailedShowIds));
         Assert.Equal(1, provider.GetTvShowCallCount);
     }
 
@@ -128,6 +129,7 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
         public Task<IReadOnlyList<TvUpcomingEpisodeSyncCandidate>> SelectStaleFollowedShowsAsync(
             int batchSize,
             DateTime staleBeforeUtc,
+            DateTime failedBeforeUtc,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TvUpcomingEpisodeSyncCandidate>>(candidates.Take(batchSize).ToList());
     }
@@ -305,6 +307,17 @@ public sealed class TvUpcomingEpisodeSyncServiceTests
             CancellationToken cancellationToken = default)
         {
             _syncTimestamps[tvShowId] = syncedAtUtc;
+            return Task.CompletedTask;
+        }
+
+        public List<Guid> FailedShowIds { get; } = [];
+
+        public Task MarkUpcomingEpisodeSyncFailedAsync(
+            Guid tvShowId,
+            DateTime failedAtUtc,
+            CancellationToken cancellationToken = default)
+        {
+            FailedShowIds.Add(tvShowId);
             return Task.CompletedTask;
         }
 

@@ -447,6 +447,84 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
+    public async Task HomeFeedPagesKeepEveryPostOfABusyActorAndHighlightTheLatestTopLevelComment()
+    {
+        await fixture.ResetAsync();
+
+        var token = await RegisterAndGetTokenAsync();
+        var me = await (await SendAuthorizedGetAsync("/api/users/me", token))
+            .Content.ReadFromJsonAsync<UserProfileResponse>();
+        Assert.NotNull(me);
+
+        var start = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+        var activityIds = new List<Guid>();
+        Guid latestTopLevelId;
+        await using (var context = CreateContext())
+        {
+            for (var index = 0; index < 9; index++)
+            {
+                var movie = new MovieApp.Domain.Entities.Movie
+                {
+                    Id = Guid.NewGuid(),
+                    Title = $"Feed movie {index}",
+                    CreatedAt = start,
+                    UpdatedAt = start
+                };
+                var review = MovieApp.Domain.Entities.Review.CreateForMovie(
+                    me.Id, movie.Id, $"Review {index}", null, start.AddMinutes(index));
+                var activity = MovieApp.Domain.Entities.SocialActivity.Create(
+                    me.Id,
+                    MovieApp.Domain.Enums.SocialActivityType.ReviewedMovie,
+                    review.Id,
+                    movie.Id,
+                    "Movie",
+                    start.AddMinutes(index));
+                context.Movies.Add(movie);
+                context.Reviews.Add(review);
+                context.SocialActivities.Add(activity);
+                activityIds.Add(activity.Id);
+            }
+
+            var newest = activityIds[^1];
+            var older = MovieApp.Domain.Entities.SocialComment.Create(newest, me.Id, null, "older", null, start);
+            var latest = MovieApp.Domain.Entities.SocialComment.Create(
+                newest, me.Id, null, "latest", null, start.AddHours(1));
+            var reply = MovieApp.Domain.Entities.SocialComment.Create(
+                newest, me.Id, older.Id, "reply", null, start.AddHours(2));
+            context.SocialComments.AddRange(older, latest, reply);
+            latestTopLevelId = latest.Id;
+            await context.SaveChangesAsync();
+        }
+
+        var seen = new List<Guid>();
+        string? cursor = null;
+        JsonElement firstItem = default;
+        do
+        {
+            var url = "/api/social/feed?pageSize=4" +
+                      (cursor is null ? string.Empty : $"&cursor={Uri.EscapeDataString(cursor)}");
+            var response = await SendAuthorizedGetAsync(url, token);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var page = await response.Content.ReadFromJsonAsync<JsonElement>();
+            foreach (var item in page.GetProperty("items").EnumerateArray())
+            {
+                if (seen.Count == 0)
+                {
+                    firstItem = item.Clone();
+                }
+
+                seen.Add(item.GetProperty("id").GetGuid());
+            }
+
+            cursor = page.GetProperty("nextCursor").GetString();
+        } while (cursor is not null);
+
+        Assert.Equal(activityIds.Count, seen.Count);
+        Assert.Equal(activityIds.Order(), seen.Order());
+        Assert.Equal(latestTopLevelId, firstItem.GetProperty("highlightComment").GetProperty("id").GetGuid());
+    }
+
+    [Fact]
     public async Task ConcurrentFollowAndBlockCannotLeaveFollowRelationship()
     {
         await fixture.ResetAsync();

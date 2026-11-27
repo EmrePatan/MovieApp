@@ -138,6 +138,33 @@ public sealed class StreamingLeavingFetchServiceTests
     }
 
     [Fact]
+    public async Task ASpentMonthKeepsTheOldListAndIsNotASuccess()
+    {
+        await FetchAsync("TR");
+        var stored = _repository.Items["TR"];
+
+        _clock.Now = Start.AddDays(3);
+        _provider.PageTotal = 5;
+        _repository.Usage["US"] = 900 - _repository.Usage["TR"] - 2;
+        await FetchAsync("TR");
+
+        Assert.Same(stored, _repository.Items["TR"]);
+        Assert.Equal(Start, _repository.Regions["TR"].LastSuccessAtUtc);
+    }
+
+    [Fact]
+    public async Task ASpentMonthStoresThePartialListOfANewRegionWithoutSuccess()
+    {
+        _repository.Usage["US"] = 787;
+        _provider.PageTotal = 10;
+
+        await FetchAsync("DE");
+
+        Assert.Equal(2, _repository.Items["DE"].Count);
+        Assert.Null(_repository.Regions["DE"].LastSuccessAtUtc);
+    }
+
+    [Fact]
     public async Task ARegionWithoutDataIsNotAskedAgainForThreeDays()
     {
         _provider.Services = [];

@@ -3,6 +3,7 @@ using MovieApp.Application.Abstractions.Persistence;
 using MovieApp.Application.Abstractions.Providers;
 using MovieApp.Application.Models.Changes;
 using MovieApp.Application.Services.TvShowChanges;
+using MovieApp.UnitTests.MovieChanges;
 
 namespace MovieApp.UnitTests.TvShowChanges;
 
@@ -107,7 +108,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_FailedShowRefresh_DoesNotAdvanceCheckpoint()
+    public async Task SyncAsync_FailedShowRefresh_DefersTheShowAndAdvancesCheckpoint()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
@@ -123,7 +124,8 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         var result = await service.SyncAsync(SyncInstant);
 
-        Assert.Null(checkpointRepository.LastCompletedEndDate);
+        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Single(checkpointRepository.Failures);
         Assert.Equal(1, result.Failed);
         Assert.Equal(0, result.Refreshed);
     }
@@ -151,7 +153,7 @@ public sealed class TmdbTvChangesSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_ExceptionDuringRefresh_DoesNotAdvanceCheckpoint()
+    public async Task SyncAsync_ExceptionDuringRefresh_DefersTheShowAndAdvancesCheckpoint()
     {
         var changesProvider = new FakeTmdbTvChangesProvider
         {
@@ -164,7 +166,8 @@ public sealed class TmdbTvChangesSyncServiceTests
 
         var result = await service.SyncAsync(SyncInstant);
 
-        Assert.Null(checkpointRepository.LastCompletedEndDate);
+        Assert.Equal(TargetDate, checkpointRepository.LastCompletedEndDate);
+        Assert.Single(checkpointRepository.Failures);
         Assert.Equal(1, result.Failed);
     }
 
@@ -257,26 +260,6 @@ public sealed class TmdbTvChangesSyncServiceTests
             }
 
             return Task.FromResult(Pages[page - 1]);
-        }
-    }
-
-    private sealed class FakeCheckpointRepository : ITmdbTvChangesSyncCheckpointRepository
-    {
-        public DateOnly? LastCompletedEndDate { get; set; }
-
-        public Task<DateOnly?> GetLastCompletedEndDateAsync(
-            string checkpointKey,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(LastCompletedEndDate);
-
-        public Task CompleteWindowAsync(
-            string checkpointKey,
-            DateOnly completedEndDate,
-            DateTime completedAtUtc,
-            CancellationToken cancellationToken = default)
-        {
-            LastCompletedEndDate = completedEndDate;
-            return Task.CompletedTask;
         }
     }
 

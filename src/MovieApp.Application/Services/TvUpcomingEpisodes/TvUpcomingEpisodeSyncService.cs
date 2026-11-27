@@ -27,6 +27,7 @@ public sealed class TvUpcomingEpisodeSyncService(
         var candidates = await syncRepository.SelectStaleFollowedShowsAsync(
             batchSize,
             staleBeforeUtc,
+            DateTime.UtcNow.AddHours(-options.Value.FailureCooldownHours),
             cancellationToken);
 
         if (candidates.Count == 0)
@@ -50,7 +51,7 @@ public sealed class TvUpcomingEpisodeSyncService(
 
                 if (externalId is null)
                 {
-                    failed++;
+                    await MarkFailedAsync(candidate.TvShowId);
                     continue;
                 }
 
@@ -59,7 +60,7 @@ public sealed class TvUpcomingEpisodeSyncService(
                     cancellationToken: cancellationToken);
                 if (providerDetails is null)
                 {
-                    failed++;
+                    await MarkFailedAsync(candidate.TvShowId);
                     continue;
                 }
 
@@ -73,7 +74,7 @@ public sealed class TvUpcomingEpisodeSyncService(
 
                     if (providerSeason is null)
                     {
-                        failed++;
+                        await MarkFailedAsync(candidate.TvShowId);
                         continue;
                     }
 
@@ -90,12 +91,21 @@ public sealed class TvUpcomingEpisodeSyncService(
                     cancellationToken);
                 succeeded++;
             }
-            catch
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
-                failed++;
+                await MarkFailedAsync(candidate.TvShowId);
             }
         }
 
         return new TvUpcomingEpisodeSyncBatchResult(candidates.Count, succeeded, failed, hydrated);
+
+        async Task MarkFailedAsync(Guid tvShowId)
+        {
+            failed++;
+            await catalogSyncStateRepository.MarkUpcomingEpisodeSyncFailedAsync(
+                tvShowId,
+                DateTime.UtcNow,
+                cancellationToken);
+        }
     }
 }

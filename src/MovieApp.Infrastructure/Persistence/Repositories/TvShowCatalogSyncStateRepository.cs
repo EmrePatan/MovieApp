@@ -134,10 +134,39 @@ public sealed class TvShowCatalogSyncStateRepository(ApplicationDbContext dbCont
             cancellationToken,
             updatedAtUtc);
 
-    public async Task MarkUpcomingEpisodeSyncAsync(
+    public Task MarkUpcomingEpisodeSyncAsync(
         Guid tvShowId,
         DateTime syncedAtUtc,
+        CancellationToken cancellationToken = default) =>
+        UpsertUpcomingEpisodeSyncAsync(
+            tvShowId,
+            syncedAtUtc,
+            state =>
+            {
+                state.LastUpcomingEpisodeSyncAtUtc = syncedAtUtc;
+                state.LastUpcomingEpisodeSyncFailedAtUtc = null;
+            },
+            cancellationToken);
+
+    public Task MarkUpcomingEpisodeSyncFailedAsync(
+        Guid tvShowId,
+        DateTime failedAtUtc,
         CancellationToken cancellationToken = default)
+    {
+        // The failed work may have left changes that would break this save too.
+        dbContext.ChangeTracker.Clear();
+        return UpsertUpcomingEpisodeSyncAsync(
+            tvShowId,
+            failedAtUtc,
+            state => state.LastUpcomingEpisodeSyncFailedAtUtc = failedAtUtc,
+            cancellationToken);
+    }
+
+    private async Task UpsertUpcomingEpisodeSyncAsync(
+        Guid tvShowId,
+        DateTime updatedAtUtc,
+        Action<TvShowCatalogSyncState> apply,
+        CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= MaxUpsertAttempts; attempt++)
         {
@@ -146,19 +175,12 @@ public sealed class TvShowCatalogSyncStateRepository(ApplicationDbContext dbCont
 
             if (state is null)
             {
-                state = new TvShowCatalogSyncState
-                {
-                    TvShowId = tvShowId,
-                    LastUpcomingEpisodeSyncAtUtc = syncedAtUtc,
-                    UpdatedAtUtc = syncedAtUtc
-                };
+                state = new TvShowCatalogSyncState { TvShowId = tvShowId };
                 dbContext.TvShowCatalogSyncStates.Add(state);
             }
-            else
-            {
-                state.LastUpcomingEpisodeSyncAtUtc = syncedAtUtc;
-                state.UpdatedAtUtc = syncedAtUtc;
-            }
+
+            apply(state);
+            state.UpdatedAtUtc = updatedAtUtc;
 
             try
             {
