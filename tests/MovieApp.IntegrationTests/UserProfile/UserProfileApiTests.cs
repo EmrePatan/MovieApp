@@ -447,7 +447,7 @@ public sealed class UserProfileApiTests(UserProfileApiFixture fixture)
     }
 
     [Fact]
-    public async Task HomeFeedPagesKeepEveryPostOfABusyActor_AndHighlightTheLatestTopLevelComment()
+    public async Task HomeFeedPagesKeepEveryPostOfABusyActorAndHighlightTheLatestTopLevelComment()
     {
         await fixture.ResetAsync();
 
