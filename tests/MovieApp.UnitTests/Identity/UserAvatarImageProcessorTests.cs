@@ -48,6 +48,49 @@ public sealed class UserAvatarImageProcessorTests
         Assert.Equal("WEBP"u8, result.WebpContent.AsSpan(8, 4));
     }
 
+    [Theory]
+    [InlineData("jpeg")]
+    [InlineData("png")]
+    [InlineData("webp")]
+    public async Task ProcessesSupportedFormatsToAvatarAndCoverSizes(string format)
+    {
+        var bytes = CreateImage(900, 600, format);
+        await using var avatar = new MemoryStream(bytes);
+        await using var cover = new MemoryStream(bytes);
+
+        var avatarResult = await _processor.ProcessUploadAsync(avatar);
+        var coverResult = await _processor.ProcessCoverUploadAsync(cover);
+
+        var avatarInfo = Image.Identify(avatarResult.WebpContent);
+        Assert.Equal(
+            new Size(UserAvatarImageProcessor.OutputSizePixels, UserAvatarImageProcessor.OutputSizePixels),
+            avatarInfo.Size);
+        var coverInfo = Image.Identify(coverResult.WebpContent);
+        Assert.Equal(
+            new Size(UserAvatarImageProcessor.CoverWidthPixels, UserAvatarImageProcessor.CoverHeightPixels),
+            coverInfo.Size);
+    }
+
+    private static byte[] CreateImage(int width, int height, string format)
+    {
+        using var image = new Image<Rgba32>(width, height, Color.Red.ToPixel<Rgba32>());
+        using var ms = new MemoryStream();
+        switch (format)
+        {
+            case "jpeg":
+                image.SaveAsJpeg(ms);
+                break;
+            case "webp":
+                image.SaveAsWebp(ms);
+                break;
+            default:
+                image.SaveAsPng(ms);
+                break;
+        }
+
+        return ms.ToArray();
+    }
+
     [Fact]
     public async Task RejectsOversizedDeclaredDimensions()
     {

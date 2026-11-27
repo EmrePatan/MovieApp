@@ -87,3 +87,6 @@ ci-job-logs.zip
 local-integration-test-output.txt
 .docker-unit-test.log
 .old-composer-tests.cs
+
+# Six Labors license key (secret, never commit)
+**/sixlabors.lic

@@ -27,7 +27,10 @@ COPY src/ src/
 COPY tools/ContentSearchTitleOps/ tools/ContentSearchTitleOps/
 
 WORKDIR /src/src/MovieApp.Api
-RUN dotnet publish MovieApp.Api.csproj \
+# SixLabors.ImageSharp checks for a license key when it compiles. The key is mounted only for these steps.
+RUN --mount=type=secret,id=sixlabors_lic,required=true \
+    dotnet publish MovieApp.Api.csproj \
+    -p:SixLaborsLicenseFile=/run/secrets/sixlabors_lic \
     -c ${BUILD_CONFIGURATION} \
     -o /app/publish \
     --no-restore \
@@ -35,7 +38,9 @@ RUN dotnet publish MovieApp.Api.csproj \
     /p:InformationalVersion=${MOVIEAPP_SOURCE_VERSION}
 
 WORKDIR /src/tools/ContentSearchTitleOps
-RUN dotnet publish ContentSearchTitleOps.csproj \
+RUN --mount=type=secret,id=sixlabors_lic,required=true \
+    dotnet publish ContentSearchTitleOps.csproj \
+    -p:SixLaborsLicenseFile=/run/secrets/sixlabors_lic \
     -c ${BUILD_CONFIGURATION} \
     -o /app/ops \
     --no-restore \

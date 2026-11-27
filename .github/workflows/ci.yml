@@ -37,9 +37,13 @@ jobs:
         run: dotnet restore MovieApp.sln
 
       - name: Build Release (backend + unit tests)
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build tests/MovieApp.UnitTests/MovieApp.UnitTests.csproj -c Release --no-restore
 
       - name: Build Release (integration tests)
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-restore
 
       - name: Run unit tests (Release)
@@ -58,7 +62,9 @@ jobs:
         run: dotnet publish src/MovieApp.Api/MovieApp.Api.csproj -c Release --no-build --no-restore -o "${{ runner.temp }}/movieapp-api-publish"
 
       - name: Build Docker image
-        run: docker build -f Dockerfile --build-arg MOVIEAPP_SOURCE_VERSION=${{ github.sha }} -t movieapp-api:ci .
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: docker build -f Dockerfile --secret id=sixlabors_lic,env=SixLaborsLicenseKey --build-arg MOVIEAPP_SOURCE_VERSION=${{ github.sha }} -t movieapp-api:ci .
 
   integration-tests:
     name: Integration tests (PostgreSQL)
@@ -101,6 +107,8 @@ jobs:
         run: dotnet restore tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj
 
       - name: Build Release (integration tests)
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build tests/MovieApp.IntegrationTests/MovieApp.IntegrationTests.csproj -c Release --no-restore
 
       - name: Run integration tests (Release)
