@@ -55,6 +55,21 @@ MovieApp/
 
 For local development, PostgreSQL and Redis are provided via Docker Compose. You do not need to install them separately on your machine.
 
+## Six Labors license key
+
+`SixLabors.ImageSharp` 3.2 and later checks for a license key when `MovieApp.Infrastructure` is compiled. Release builds fail without one. Debug builds only warn. See [Six Labors pricing](https://sixlabors.com/pricing/) for eligibility and how to get a key. The key is a secret: never commit it.
+
+| Where | How to supply the key |
+|---|---|
+| Local Release build | Save it as `src/MovieApp.Infrastructure/sixlabors.lic` (ignored by Git and Docker) |
+| GitHub Actions | Repository secret `SIXLABORS_LICENSE_KEY` (CI and both database migration workflows) |
+| Docker | `docker build --secret id=sixlabors_lic,src=src/MovieApp.Infrastructure/sixlabors.lic .` |
+| Render | Secret file named `sixlabors.lic` on the service |
+
+`docker-compose.api.yml` reads the local file, or the path in `SIXLABORS_LICENSE_FILE`. Pull requests from forks and Dependabot do not receive Actions secrets, so their Release builds fail (Dependabot has a separate secret store).
+
+Builds also fail after the date in the key's `ExpiryDateUtc` field until the key is renewed.
+
 ## Continuous Integration (29E-8)
 
 GitHub Actions validates every push and pull request to `main`/`master` via `.github/workflows/ci.yml`.
@@ -65,7 +80,7 @@ The CI pipeline runs:
 2. Release build of backend projects, `MovieApp.UnitTests`, and `MovieApp.IntegrationTests`
 3. Release unit tests (`tests/MovieApp.UnitTests`)
 4. Release publish of `MovieApp.Api`
-5. Docker image build (`docker build -f Dockerfile -t movieapp-api:ci .`)
+5. Docker image build (`docker build -f Dockerfile --secret id=sixlabors_lic,env=SixLaborsLicenseKey -t movieapp-api:ci .`)
 6. PostgreSQL service-container integration tests (`tests/MovieApp.IntegrationTests`) — see [docs/INTEGRATION-TESTS.md](docs/INTEGRATION-TESTS.md)
 
 CI does **not** deploy anywhere, push container images, require TMDB/SMTP/JWT production secrets, or run EF migrations against staging/production. Production deployment, cloud hosting, and CD remain later steps. Production secrets stay outside Git.

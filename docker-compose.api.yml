@@ -1,5 +1,6 @@
 # Optional local API container for smoke-testing the production Docker image.
 # Requires the infrastructure stack from docker-compose.yml to be running first.
+# The image build also needs a Six Labors license file (see README, "Six Labors license key").
 #
 # Usage:
 #   docker compose up -d
@@ -13,6 +14,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - sixlabors_lic
     image: movieapp-api:local
     container_name: movieapp-api
     restart: unless-stopped
@@ -35,3 +38,7 @@ services:
 networks:
   movieapp_default:
     external: true
+
+secrets:
+  sixlabors_lic:
+    file: ${SIXLABORS_LICENSE_FILE:-./src/MovieApp.Infrastructure/sixlabors.lic}
